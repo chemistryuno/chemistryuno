@@ -2,12 +2,23 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#3b82f6">
     <title>化学 UNO - Chemistry UNO</title>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #f3f4f6; margin: 0; display: flex; flex-direction: column; min-height: 100vh; }
-        .card { width: 70px; height: 100px; border-radius: 8px; border: 2px solid #ccc; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; background: white; margin: 5px; box-shadow: 2px 2px 5px rgba(0,0,0,0.1); user-select: none; }
+        * {
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        input, textarea, button { -webkit-user-select: text; user-select: text; }
+        
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #f3f4f6; margin: 0; display: flex; flex-direction: column; min-height: 100vh; -webkit-tap-highlight-color: transparent; }
+        .card { width: 70px; height: 100px; border-radius: 8px; border: 2px solid #ccc; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; background: white; margin: 5px; box-shadow: 2px 2px 5px rgba(0,0,0,0.1); user-select: none; min-height: 48px; min-width: 48px; -webkit-tap-highlight-color: rgba(0,0,0,0.1); }
         .card:hover { transform: translateY(-5px); }
+        .card:active { transform: scale(0.95); background-color: #f0f0f0; }
         .bg-H { background-color: #e0f2fe; border-color: #60a5fa; color: #1e40af; }
         .bg-O { background-color: #fee2e2; border-color: #f87171; color: #991b1b; }
         .bg-C { background-color: #374151; border-color: #111827; color: white; }
@@ -23,11 +34,13 @@
         .rules-panel li { margin-bottom: 10px; font-size: 0.95rem; line-height: 1.5; color: rgba(255, 255, 255, 0.9); }
         #hand-area { padding: 15px; background: white; border-top: 2px solid #ddd; }
         #hand-container { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; }
-        .btn { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 0.9rem; }
+        .btn { padding: 12px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 0.9rem; min-height: 48px; min-width: 48px; display: inline-flex; align-items: center; justify-content: center; -webkit-tap-highlight-color: transparent; transition: all 0.2s; }
+        .btn:active { opacity: 0.9; transform: scale(0.98); }
         .btn-primary { background: #3b82f6; color: white; }
         .btn-warning { background: #f59e0b; color: white; }
-        .compound-btn { border: 2px solid #10b981; padding: 10px; margin: 5px; border-radius: 8px; cursor: pointer; background: white; display: flex; flex-direction: column; align-items: center; font-weight: bold; }
+        .compound-btn { border: 2px solid #10b981; padding: 12px; margin: 5px; border-radius: 12px; cursor: pointer; background: white; display: flex; flex-direction: column; align-items: center; font-weight: bold; min-height: 48px; -webkit-tap-highlight-color: rgba(16, 185, 129, 0.1); transition: all 0.2s; }
         .compound-btn:hover { background: #f0fdf4; transform: scale(1.05); }
+        .compound-btn:active { transform: scale(0.98); }
         #current-substance-box { padding: 40px; border: 4px solid #3b82f6; border-radius: 20px; background: white; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
         #waiting-box { display: none; padding: 40px; border: 4px dashed #94a3b8; border-radius: 20px; background: #f8fafc; text-align: center; color: #64748b; font-size: 1.5rem; font-weight: bold; width: 300px; }
         #formula-display { font-size: 3rem; font-weight: 900; color: #1e40af; margin: 0; }
@@ -225,6 +238,177 @@
             font-family: monospace;
             font-size: 0.9rem;
             color: #2563eb;
+        }
+
+        /* ===== 移动端响应式设计 (768px 及以下) ===== */
+        @media (max-width: 768px) {
+            /* 基础调整 */
+            body { font-size: 14px; }
+            
+            /* 卡片布局优化 */
+            .card { width: 50px; height: 75px; border-radius: 6px; margin: 3px; font-size: 0.7rem; }
+            
+            /* 大标题响应式 */
+            #lobby h1 { font-size: 2.5rem; }
+            #lobby p { font-size: 1rem; }
+            
+            /* 输入框优化 */
+            #nickname-input { font-size: 1rem; padding: 10px 15px; }
+            
+            /* 按钮优化 */
+            .btn { padding: 10px 20px; font-size: 0.95rem; }
+            .btn-primary { font-size: 1.1rem; padding: 12px 30px; }
+            
+            /* 规则面板调整 */
+            .rules-panel { padding: 15px; margin-top: 20px; max-width: 100%; }
+            .rules-panel h3 { font-size: 1rem; }
+            .rules-panel li { font-size: 0.85rem; margin-bottom: 8px; }
+            
+            /* 游戏容器 */
+            #game-container { height: 100vh; }
+            
+            /* 头部优化 */
+            header { padding: 8px 10px; flex-wrap: wrap; gap: 5px; }
+            #msg { font-size: 0.8rem; max-width: 200px; word-break: break-word; position: static; transform: none; margin-top: 5px; }
+            #ai-status { flex-wrap: wrap; }
+            .status-badge { font-size: 0.7rem; padding: 4px 8px; }
+            
+            /* 侧边栏隐藏/调整 */
+            .stats-panel { display: none !important; }
+            .log-panel { display: none !important; }
+            
+            /* 主内容区域 */
+            #desktop-label { font-size: 0.7rem; }
+            #current-substance-box { padding: 20px; border-width: 2px; margin: 10px; }
+            #formula-display { font-size: 2rem; }
+            #name-display { font-size: 0.9rem; }
+            #waiting-box { width: 280px; padding: 20px; font-size: 1.2rem; }
+            
+            /* 提示信息 */
+            #hints { font-size: 0.75rem; gap: 5px; }
+            
+            /* 手牌区域 */
+            #hand-area { padding: 10px; }
+            #hand-count { font-size: 0.95rem; }
+            #hand-container { gap: 3px; }
+            
+            /* 控制台 */
+            #control-console { padding: 10px; gap: 8px; margin-bottom: 10px; }
+            #control-console h3 { font-size: 0.9rem; }
+            #substance-input { font-size: 0.95rem; padding: 8px 10px; }
+            #input-msg { font-size: 0.7rem; }
+            
+            /* 方程式悬浮 */
+            #equation-overlay { top: 15px; }
+            #equation-text { font-size: 0.9rem; }
+            
+            /* 模态框调整 */
+            .react-modal { width: 95%; max-width: 100%; }
+            .react-modal-header { padding: 12px 15px; }
+            .react-modal-header h2 { font-size: 1.1rem; }
+            .react-modal-body { padding: 15px; max-height: 60vh; font-size: 0.9rem; }
+            .react-modal-footer { padding: 10px 15px; }
+            
+            /* 胜利屏幕 */
+            .victory-card { padding: 30px 20px; max-width: 90%; }
+            .victory-card h1 { font-size: 2rem; }
+            .victory-card p { font-size: 0.95rem; }
+            
+            /* AI气泡 */
+            #ai-bubble { width: 180px; padding: 8px 12px; }
+            #bubble-text { font-size: 0.85rem; }
+            
+            /* 起始卡牌网格 */
+            .start-card-grid { grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 10px; }
+            
+            /* 协议链接 */
+            .agreement-link { font-size: 0.7rem; top: 10px; left: 10px; }
+        }
+
+        /* 小屏幕手机 (480px 及以下) */
+        @media (max-width: 480px) {
+            body { font-size: 13px; }
+            
+            .card { width: 45px; height: 65px; border-radius: 4px; margin: 2px; font-size: 0.6rem; }
+            
+            #lobby h1 { font-size: 2rem; margin-bottom: 10px; }
+            #lobby p { font-size: 0.9rem; margin-bottom: 20px; }
+            
+            /* 游戏区域微调 */
+            header { padding: 6px 8px; }
+            header #msg { font-size: 0.7rem; }
+            
+            #current-substance-box { padding: 15px; border-width: 2px; }
+            #formula-display { font-size: 1.5rem; }
+            #name-display { font-size: 0.8rem; }
+            #waiting-box { width: 250px; padding: 15px; font-size: 1rem; }
+            
+            .stats-item { padding: 8px 12px; }
+            .stats-label { font-size: 0.65rem; }
+            .stats-value { font-size: 0.9rem; }
+            
+            #hand-area { padding: 8px; }
+            #control-console { padding: 8px; }
+            #substance-input { font-size: 0.85rem; padding: 6px 8px; }
+            
+            .btn { padding: 8px 16px; font-size: 0.85rem; }
+            .btn-primary { font-size: 1rem; padding: 10px 20px; }
+            
+            .rules-panel { padding: 12px; }
+            .rules-panel h3 { font-size: 0.95rem; }
+            .rules-panel li { font-size: 0.8rem; }
+            
+            .react-modal { width: 98%; }
+            .react-modal-body { font-size: 0.85rem; max-height: 50vh; }
+            
+            .victory-card { padding: 20px 15px; }
+            .victory-card h1 { font-size: 1.5rem; }
+            
+            #ai-bubble { width: 160px; font-size: 0.8rem; }
+            
+            .start-card-grid { grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); }
+        }
+
+        /* 超小屏 (375px 以下) */
+        @media (max-width: 375px) {
+            .card { width: 40px; height: 60px; font-size: 0.5rem; }
+            
+            #lobby h1 { font-size: 1.8rem; }
+            #lobby p { font-size: 0.85rem; }
+            
+            #current-substance-box { padding: 12px; }
+            #formula-display { font-size: 1.2rem; }
+            #waiting-box { width: 220px; font-size: 0.95rem; }
+            
+            .btn-primary { font-size: 0.95rem; padding: 8px 16px; }
+            
+            #substance-input { font-size: 0.8rem; }
+        }
+
+        /* 平板设备 (769px - 1024px) */
+        @media (min-width: 769px) and (max-width: 1024px) {
+            .card { width: 60px; height: 90px; }
+            
+            #lobby h1 { font-size: 3rem; }
+            
+            .stats-panel { left: 10px; top: 150px; gap: 10px; }
+            .log-panel { right: 10px; top: 80px; width: 200px; }
+            
+            #current-substance-box { padding: 30px; }
+            #formula-display { font-size: 2.5rem; }
+            
+            .start-card-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
+        }
+
+        /* 竖屏适配 */
+        @media (max-height: 600px) {
+            #hand-area { max-height: 120px; }
+            #hand-container { overflow-y: auto; }
+            
+            #game-container { height: 100vh; overflow-y: auto; }
+            
+            .stats-panel { top: 100px; }
+            .log-panel { max-height: 200px; }
         }
     </style>
 </head>
@@ -1780,6 +1964,72 @@
             if (logList.children.length > 30) {
                 logList.removeChild(logList.firstChild);
             }
+        }
+
+        // ===== 移动端优化代码 =====
+        // 1. 防止双击缩放
+        document.addEventListener('touchstart', function(e) {
+            if (e.touches.length > 1) {
+                e.preventDefault();
+            }
+        }, { passive: false });
+
+        // 2. 禁止长按菜单
+        document.addEventListener('contextmenu', function(e) {
+            if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+                e.preventDefault();
+            }
+        });
+
+        // 3. 优化手机键盘
+        document.getElementById('substance-input').addEventListener('focus', function() {
+            setTimeout(() => {
+                this.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 500);
+        });
+
+        // 4. 处理软键盘显示/隐藏
+        let lastHeight = window.innerHeight;
+        window.addEventListener('resize', function() {
+            const currentHeight = window.innerHeight;
+            const diff = lastHeight - currentHeight;
+            
+            if (diff > 100) {
+                // 软键盘显示，可能需要调整布局
+                document.body.style.overflow = 'hidden';
+            } else if (diff < -100) {
+                // 软键盘隐藏
+                document.body.style.overflow = 'auto';
+            }
+            lastHeight = currentHeight;
+        });
+
+        // 5. 提升移动端卡片点击精度
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        if (isMobile) {
+            // 增加卡片的可点击区域反馈
+            document.addEventListener('touchend', function(e) {
+                const target = e.target.closest('.card');
+                if (target) {
+                    target.style.transform = '';
+                }
+            });
+        }
+
+        // 6. 防止iOS下input聚焦时页面缩放
+        if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
+            document.addEventListener('touchstart', function(e) {
+                if (e.target.tagName === 'INPUT') {
+                    e.target.style.fontSize = '16px';
+                }
+            });
+        }
+
+        // 7. 隐藏地址栏（仅当在全屏模式下）
+        if (window.scrollY === 0) {
+            setTimeout(() => {
+                window.scrollTo(0, 1);
+            }, 100);
         }
     </script>
 </body>

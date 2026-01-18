@@ -240,6 +240,93 @@
             color: #2563eb;
         }
 
+        /* 成就样式 */
+        .achievements-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin: 25px 0;
+            width: 100%;
+        }
+        .achievement-badge {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 12px 8px;
+            text-align: center;
+            transition: all 0.3s ease;
+            opacity: 0.6;
+            filter: grayscale(1);
+        }
+        .achievement-badge.earned {
+            background: #f0fdf4;
+            border-color: #22c55e;
+            opacity: 1;
+            filter: grayscale(0);
+            transform: translateY(-3px);
+            box-shadow: 0 4px 12px rgba(34, 197, 94, 0.2);
+        }
+        .achievement-icon {
+            font-size: 1.5rem;
+            margin-bottom: 4px;
+            display: block;
+        }
+        .achievement-name {
+            font-weight: bold;
+            font-size: 0.85rem;
+            color: #1e293b;
+            display: block;
+            margin-bottom: 2px;
+        }
+        .achievement-desc {
+            font-size: 0.7rem;
+            color: #64748b;
+            line-height: 1.2;
+            display: block;
+        }
+        @media (max-width: 480px) {
+            .achievements-grid { grid-template-columns: 1fr; }
+        }
+
+        /* 金色彩蛋弹窗 */
+        #egg-popup {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-100px);
+            background: linear-gradient(135deg, #fbbf24, #f59e0b);
+            color: white;
+            padding: 12px 25px;
+            border-radius: 50px;
+            box-shadow: 0 10px 25px rgba(245, 158, 11, 0.4);
+            z-index: 5000;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: bold;
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            pointer-events: none;
+            opacity: 0;
+            white-space: nowrap;
+        }
+        #egg-popup.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+        .egg-badge-mini {
+            background: white;
+            color: #f59e0b;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            flex-shrink: 0;
+        }
+
         /* ===== 移动端响应式设计 (768px 及以下) ===== */
         @media (max-width: 768px) {
             /* 基础调整 */
@@ -445,8 +532,25 @@
         <div class="victory-card">
             <div style="font-size: 5rem; margin-bottom: 20px;">🏆</div>
             <h1 id="winner-name" style="font-size: 2.5rem; margin: 0;">玩家 胜利！</h1>
-            <p id="victory-msg" style="font-size: 1.1rem; color: #64748b; margin: 20px 0 30px 0;">恭喜你成功完成了所有实验课题！</p>
-            <button class="btn btn-primary" onclick="window.location.reload()" style="font-size: 1.25rem; padding: 12px 40px; border-radius: 12px;">返回大厅</button>
+            <p id="victory-msg" style="font-size: 1.1rem; color: #64748b; margin: 10px 0;">恭喜你成功完成了所有实验课题！</p>
+            
+            <div style="margin-top: 20px; text-align: left;">
+                <h3 style="font-size: 1rem; color: #94a3b8; border-bottom: 1px solid #f1f5f9; padding-bottom: 8px; margin-bottom: 15px;">本次实验成就</h3>
+                <div id="achievements-container" class="achievements-grid">
+                    <!-- 动态生成成就 -->
+                </div>
+            </div>
+
+            <button class="btn btn-primary" onclick="window.location.reload()" style="font-size: 1.25rem; padding: 12px 40px; border-radius: 12px; width: 100%;">返回大厅</button>
+        </div>
+    </div>
+
+    <!-- 彩蛋成就弹窗 -->
+    <div id="egg-popup">
+        <div class="egg-badge-mini">🥚</div>
+        <div style="text-align: left;">
+            <div style="font-size: 0.7rem; opacity: 0.9;">触发秘密成就！</div>
+            <div id="egg-name-display" style="font-size: 1rem;">成就名称</div>
         </div>
     </div>
 
@@ -678,8 +782,6 @@
             'NaH+HCl': 'NaH + HCl = NaCl + H₂↑', 'NaH+H2SO4': '2NaH + H₂SO₄ = Na₂SO₄ + 2H₂↑', 'CaH2+HCl': 'CaH₂ + 2HCl = CaCl₂ + 2H₂↑',
             'CaH2+H2SO4': 'CaH₂ + H₂SO₄ = CaSO₄ + 2H₂↑', 'KH+HCl': 'KH + HCl = KCl + H₂↑', 'MgH2+HCl': 'MgH₂ + 2HCl = MgCl₂ + 2H₂↑',
             'K+O2': '4K + O₂ = 2K₂O', 'Na+O2': '4Na + O₂ = 2Na₂O', 'Ca+O2': '2Ca + O₂ = 2CaO',
-            'Li+O2->Li2O': '4Li + O₂ = 2Li₂O',
-            'Pb+O2->PbO': '2Pb + O₂ = 2PbO', 'Pb+O2->PbO2': 'Pb + O₂ = PbO₂', 'Pb+O2->Pb3O4': '3Pb + 2O₂ = Pb₃O₄',
             'Na+O2->Na2O2': '2Na + O₂ = Na₂O₂', 'K+O2->KO2': 'K + O₂ = KO₂',
             'Fe+O2->Fe2O3': '4Fe + 3O₂ = 2Fe₂O₃', 'Fe+O2->FeO': '2Fe + O₂ = 2FeO',
             'Cu+O2->Cu2O': '4Cu + O₂ = 2Cu₂O',
@@ -706,8 +808,6 @@
             'Al+H2SO4': '2Al + 3H₂SO₄ = Al₂(SO₄)₃ + 3H₂↑', 'Na+HCl': '2Na + 2HCl = 2NaCl + H₂↑', 'Na+H2SO4': '2Na + H₂SO₄ = Na₂SO₄ + 2H₂↑',
             'Na+HNO3': '8Na + 10HNO₃ = 8NaNO₃ + NH₄NO₃ + 3H₂O', 'K+HCl': '2K + 2HCl = 2KCl + H₂↑', 'K+H2SO4': '2K + H₂SO₄ = K₂SO₄ + H₂↑',
             'K+HNO3': '8K + 10HNO₃ = 8KNO₃ + NH₄NO₃ + 3H₂O',
-            'Li+HCl': '2Li + 2HCl = 2LiCl + H₂↑', 'Li+H2O': '2Li + 2H₂O = 2LiOH + H₂↑',
-            'Pb+HCl': 'Pb + 2HCl = PbCl₂ + H₂↑',
             'Ca+HCl': 'Ca + 2HCl = CaCl₂ + H₂↑', 'Ca+H2SO4': 'Ca + H₂SO₄ = CaSO₄ + H₂↑',
             'Ca+HNO3': '4Ca + 10HNO₃ = 4Ca(NO₃)₂ + NH₄NO₃ + 3H₂O', 'Ba+HCl': 'Ba + 2HCl = BaCl₂ + H₂↑', 'Ba+H2SO4': 'Ba + H₂SO₄ = BaSO₄ + H₂↑',
             'Ba+HNO3': '4Ba + 10HNO₃ = 4Ba(NO₃)₂ + NH₄NO₃ + 3H₂O', 'Cu+HNO3': 'Cu + 4HNO₃(浓) = Cu(NO₃)₂ + 2NO₂↑ + 2H₂O',
@@ -854,7 +954,7 @@
             }, 5000);
         }
         const ELEMENTS_DATA = {
-            'H': {name:'氢',bg:'bg-H'}, 'O': {name:'氧',bg:'bg-O'}, 'C': {name:'碳',bg:'bg-C'}, 'N': {name:'氮'}, 'F': {name:'氟'}, 'Na': {name:'钠'}, 'Mg': {name:'镁'}, 'Al': {name:'铝'}, 'Si': {name:'硅'}, 'P': {name:'磷'}, 'S': {name:'硫'}, 'Cl': {name:'氯'}, 'K': {name:'钾'}, 'Ca': {name:'钙'}, 'Fe': {name:'铁'}, 'Cu': {name:'铜'}, 'Zn': {name:'锌'}, 'Br': {name:'溴'}, 'I': {name:'碘'}, 'Ag': {name:'银'}, 'Ba': {name:'钡'}, 'Hg': {name:'汞'}, 'Li': {name:'锂'}, 'Pb': {name:'铅'}
+            'H': {name:'氢',bg:'bg-H'}, 'O': {name:'氧',bg:'bg-O'}, 'C': {name:'碳',bg:'bg-C'}, 'N': {name:'氮'}, 'F': {name:'氟'}, 'Na': {name:'钠'}, 'Mg': {name:'镁'}, 'Al': {name:'铝'}, 'Si': {name:'硅'}, 'P': {name:'磷'}, 'S': {name:'硫'}, 'Cl': {name:'氯'}, 'K': {name:'钾'}, 'Ca': {name:'钙'}, 'Fe': {name:'铁'}, 'Cu': {name:'铜'}, 'Zn': {name:'锌'}, 'Br': {name:'溴'}, 'I': {name:'碘'}, 'Ag': {name:'银'}, 'Ba': {name:'钡'}, 'Hg': {name:'汞'}
         };
         const SPECIAL_CARDS = {
             'He': {name:'反转',bg:'bg-skip',eff:'reverse'}, 'Ne': {name:'反转',bg:'bg-skip',eff:'reverse'}, 'Ar': {name:'反转',bg:'bg-skip',eff:'reverse'}, 'Kr': {name:'反转',bg:'bg-skip',eff:'reverse'}, 'Au': {name:'跳过',bg:'bg-skip',eff:'skip'}
@@ -939,12 +1039,6 @@
             { "formula": "Na", "name": "钠", "composition": { "Na": 1 } },
             { "formula": "K", "name": "钾", "composition": { "K": 1 } },
             { "formula": "Ca", "name": "钙", "composition": { "Ca": 1 } },
-            { "formula": "Li", "name": "锂", "composition": { "Li": 1 } },
-            { "formula": "Li2O", "name": "氧化锂", "composition": { "Li": 2, "O": 1 } },
-            { "formula": "Pb", "name": "铅", "composition": { "Pb": 1 } },
-            { "formula": "PbO", "name": "氧化铅", "composition": { "Pb": 1, "O": 1 } },
-            { "formula": "PbO2", "name": "二氧化铅", "composition": { "Pb": 1, "O": 2 } },
-            { "formula": "Pb3O4", "name": "四氧化三铅", "composition": { "Pb": 3, "O": 4 } },
             { "formula": "NaAlO2", "name": "偏铝酸钠", "composition": { "Na": 1, "Al": 1, "O": 2 } },
             { "formula": "K2CO3", "name": "碳酸钾", "composition": { "K": 2, "C": 1, "O": 3 } },
             { "formula": "NaH", "name": "氢化钠", "composition": { "Na": 1, "H": 1 } },
@@ -1004,9 +1098,6 @@
             { "formula": "ZnO", "name": "氧化锌", "composition": { "Zn": 1, "O": 1 } },
             { "formula": "Cu2O", "name": "氧化亚铜", "composition": { "Cu": 2, "O": 1 } },
             { "formula": "FeO", "name": "氧化亚铁", "composition": { "Fe": 1, "O": 1 } },
-            { "formula": "LiOH", "name": "氢氧化锂", "composition": { "Li": 1, "O": 1, "H": 1 } },
-            { "formula": "LiCl", "name": "氯化锂", "composition": { "Li": 1, "Cl": 1 } },
-            { "formula": "PbCl2", "name": "氯化铅", "composition": { "Pb": 1, "Cl": 2 } },
             { "formula": "Ag2O", "name": "氧化银", "composition": { "Ag": 2, "O": 1 } },
             { "formula": "CO2", "name": "二氧化碳", "composition": { "C": 1, "O": 2 } },
             { "formula": "SO2", "name": "二氧化硫", "composition": { "S": 1, "O": 2 } },
@@ -1070,7 +1161,6 @@
             { "a": "NaH", "b": "HCl" }, { "a": "NaH", "b": "H2SO4" }, { "a": "CaH2", "b": "HCl" }, { "a": "CaH2", "b": "H2SO4" },
             { "a": "KH", "b": "HCl" }, { "a": "MgH2", "b": "HCl" },
             { "a": "K", "b": "O2" }, { "a": "Na", "b": "O2" }, { "a": "Ca", "b": "O2" },
-            { "a": "Li", "b": "O2" }, { "a": "Pb", "b": "O2" },
             { "a": "SO2", "b": "NaOH" }, { "a": "SO2", "b": "KOH" }, { "a": "SO2", "b": "Ca(OH)2" },
             { "a": "SO3", "b": "NaOH" }, { "a": "SO3", "b": "KOH" }, { "a": "SO3", "b": "Ca(OH)2" },
             { "a": "P2O5", "b": "NaOH" }, { "a": "P2O5", "b": "KOH" }, { "a": "P2O5", "b": "Ca(OH)2" },
@@ -1108,8 +1198,6 @@
             { "a": "Fe", "b": "H2SO4" }, { "a": "Zn", "b": "H2SO4" }, { "a": "Mg", "b": "H2SO4" }, { "a": "Al", "b": "H2SO4" },
             { "a": "Na", "b": "HCl" }, { "a": "Na", "b": "H2SO4" }, { "a": "Na", "b": "HNO3" },
             { "a": "K", "b": "HCl" }, { "a": "K", "b": "H2SO4" }, { "a": "K", "b": "HNO3" },
-            { "a": "Li", "b": "HCl" }, { "a": "Li", "b": "H2O" },
-            { "a": "Sn", "b": "HCl" }, { "a": "Pb", "b": "HCl" },
             { "a": "Ca", "b": "HCl" }, { "a": "Ca", "b": "H2SO4" }, { "a": "Ca", "b": "HNO3" },
             { "a": "Ba", "b": "HCl" }, { "a": "Ba", "b": "H2SO4" }, { "a": "Ba", "b": "HNO3" },
             { "a": "Cu", "b": "HNO3" }, { "a": "Ag", "b": "HNO3" }, { "a": "Hg", "b": "HNO3" },
@@ -1207,6 +1295,31 @@
         let totalTurns = 1, gameStartTime = 0, durationInterval;
         let aiThinkingTimeout;
 
+        // 成就追踪数据
+        let matchStats = {
+            synthesisCount: 0,
+            specialCardsUsed: 0,
+            elementsUsed: new Set(),
+            consecutiveNoDraw: 0,
+            maxConsecutiveNoDraw: 0,
+            nobleGases: new Set(),
+            eggsTriggered: new Set()
+        };
+
+        const ACHIEVEMENTS_DB = [
+            { id: 'win', name: '首战告捷', desc: '赢得一场化学竞赛', icon: '🧪' },
+            { id: 'fast', name: '科研神速', desc: '在 20 回合内获胜', icon: '⚡' },
+            { id: 'synth', name: '合成大师', desc: '单局累计合成 5 次', icon: '🔬' },
+            { id: 'diverse', name: '元素周期领主', desc: '合成涉及 5 种不同元素', icon: '🌌' },
+            { id: 'noble', name: '稀有气体之光', desc: '使用 3 种及以上稀有气体牌', icon: '✨' },
+            { id: 'streak', name: '灵感如潮', desc: '连续 5 回合未摸牌获胜', icon: '🔥' },
+            // 隐藏彩蛋成就
+            { id: 'egg_heisenberg', name: '绝命毒师', desc: '以 Heisenberg 之名开启实验', icon: '🎩', hidden: true },
+            { id: 'egg_lavoisier', name: '拉瓦锡的信徒', desc: '向近代化学之父致敬', icon: '⚖️', hidden: true },
+            { id: 'egg_alchemist', name: '禁忌炼金术', desc: '秘密掌握了物质转化的捷径', icon: '🔱', hidden: true },
+            { id: 'egg_kinetics', name: '反应动力学专家', desc: '成功干扰了实验室的时间流速', icon: '🕒', hidden: true }
+        ];
+
         const THINKING_MESSAGES = {
             short: ["这一步显而易见...", "让我想想...", "这种简单的反应，瞬间就能计算出来。", "不需要查资料，我记得它的性质。"],
             medium: ["这个电子得失守恒吗？", "我正在脑海里配平这个方程式...", "这种组合并不常见，我得确认一下...", "他在期待我出错吗？天真。"],
@@ -1287,6 +1400,14 @@
             const nickname = document.getElementById('nickname-input').value.trim() || '玩家';
             players[0].name = nickname;
             
+            // 触发昵称彩蛋
+            const upperNick = nickname.toUpperCase();
+            if (['HEISENBERG', 'WALTER WHITE'].includes(upperNick)) {
+                triggerEggAchievement('egg_heisenberg');
+            } else if (['LAVOISIER', '拉瓦锡'].includes(upperNick)) {
+                triggerEggAchievement('egg_lavoisier');
+            }
+
             // 随机分配 AI 姓名（不重复）
             const aiNames = [...CHEMIST_NAMES].sort(() => Math.random() - 0.5);
             players[1].name = aiNames[0];
@@ -1305,6 +1426,17 @@
             if (durationInterval) clearInterval(durationInterval);
             durationInterval = setInterval(updateDurationUI, 1000);
             updateDurationUI();
+
+            // 重置成就数据
+            matchStats = {
+                synthesisCount: 0,
+                specialCardsUsed: 0,
+                elementsUsed: new Set(),
+                consecutiveNoDraw: 0,
+                maxConsecutiveNoDraw: 0,
+                nobleGases: new Set(),
+                eggsTriggered: new Set()
+            };
             
             deck = [];
             for(let i=0; i<12; i++) { deck.push({id:'H'+i,t:'H'}); deck.push({id:'O'+i,t:'O'}); }
@@ -1590,6 +1722,16 @@
             console.log(`playSub: Calling showReactionEquation with last=${last?.formula} and comp=${comp?.formula}`);
             showReactionEquation(last, comp);
             
+            // 成就统计
+            if (pIdx === 0) {
+                matchStats.synthesisCount++;
+                if (comp.composition) {
+                    Object.keys(comp.composition).forEach(el => matchStats.elementsUsed.add(el));
+                }
+                matchStats.consecutiveNoDraw++;
+                matchStats.maxConsecutiveNoDraw = Math.max(matchStats.maxConsecutiveNoDraw, matchStats.consecutiveNoDraw);
+            }
+
             players[pIdx].hand = players[pIdx].hand.filter(c => !ids.includes(c.id));
             last = comp;
             anyCardMode = false;
@@ -1603,6 +1745,16 @@
         function playSpecial(pIdx, card) {
             const eff = SPECIAL_CARDS[card.t].eff;
             
+            // 成就统计
+            if (pIdx === 0) {
+                matchStats.specialCardsUsed++;
+                if (['He', 'Ne', 'Ar', 'Kr'].includes(card.t)) {
+                    matchStats.nobleGases.add(card.t);
+                }
+                matchStats.consecutiveNoDraw++;
+                matchStats.maxConsecutiveNoDraw = Math.max(matchStats.maxConsecutiveNoDraw, matchStats.consecutiveNoDraw);
+            }
+
             // 记录当前的 last，因为 playSub 或其他逻辑可能需要它来展示反应
             const prevLast = last;
 
@@ -1644,6 +1796,7 @@
             anyCardMode = false;
             isAuWaiting = false;
             stagnantTurns++;
+            matchStats.consecutiveNoDraw = 0; // 重置连续不出牌统计
             nextTurn();
         }
 
@@ -1660,11 +1813,12 @@
                 return;
             }
             const inputEl = document.getElementById('substance-input');
-            const rawName = inputEl.value.trim();
+            const rawName = inputEl.value.trim().toUpperCase();
             if (!rawName) return;
 
             // --- 实验室彩蛋系统 ---
             if (rawName === 'HEISENBERG') {
+                triggerEggAchievement('egg_heisenberg');
                 log("海森堡：不确定性原理！你与一位随机化学家交换了手牌。");
                 const target = Math.floor(Math.random() * 2) + 1;
                 [players[0].hand, players[target].hand] = [players[target].hand, players[0].hand];
@@ -1676,6 +1830,7 @@
                 inputEl.value = ''; updateUI(); return;
             }
             if (rawName === 'ALCHEMY') {
+                triggerEggAchievement('egg_alchemist');
                 log("炼金术：你的前三张牌已转化为纯金(Au)！");
                 for(let i=0; i<Math.min(3, players[0].hand.length); i++) {
                     players[0].hand[i] = {id:'Au_egg_'+Date.now()+i, t:'Au'};
@@ -1683,13 +1838,14 @@
                 inputEl.value = ''; updateUI(); return;
             }
             if (rawName === 'KINETICS') {
+                triggerEggAchievement('egg_kinetics');
                 aiFastMode = !aiFastMode;
                 log(aiFastMode ? "动力学系统：实验室催化剂已就位，AI 行动将大幅加速！" : "动力学系统：移除催化剂，AI 行动恢复正常速度。");
                 inputEl.value = ''; return;
             }
 
             // 查找物质
-            const comp = COMPOUNDS_DB.find(c => c.name === rawName || c.formula === rawName);
+            const comp = COMPOUNDS_DB.find(c => c.formula.toUpperCase() === rawName || c.name === rawName);
             if (!comp) {
                 setInputMsg(`找不到物质: "${rawName}"`, true);
                 return;
@@ -1932,19 +2088,92 @@
             const screen = document.getElementById('victory-screen');
             const nameEl = document.getElementById('winner-name');
             const msgEl = document.getElementById('victory-msg');
+            const achContainer = document.getElementById('achievements-container');
             
+            achContainer.innerHTML = '';
+            const isPlayer = (name === players[0].name);
+
             const egg = NICKNAME_EGGS[name.toUpperCase()];
-            if (name === players[0].name && egg) {
+            if (isPlayer && egg) {
                 nameEl.textContent = `${name} (${egg.title}) 胜利！`;
                 msgEl.textContent = egg.msg;
                 nameEl.style.color = '#2563eb';
             } else {
                 nameEl.textContent = `${name} 胜利！`;
                 nameEl.style.color = '#1e3a8a';
-                msgEl.textContent = name === players[0].name ? '杰出的科学家！你完美地控制了实验室的所有反应。' : '实验结论：电脑在本次推演中获得了先机。';
+                msgEl.textContent = isPlayer ? '杰出的科学家！你完美地控制了实验室的所有反应。' : '实验结论：电脑在本次推演中获得了先机。';
             }
+
+            // 计算并保存本次比赛成就
+            const history = JSON.parse(localStorage.getItem('chemistry_achievements') || '[]');
+            const historySet = new Set(history);
+
+            if (isPlayer) {
+                const sessionAchievements = [];
+                sessionAchievements.push('win');
+                if (totalTurns <= 20) sessionAchievements.push('fast');
+                if (matchStats.synthesisCount >= 5) sessionAchievements.push('synth');
+                if (matchStats.elementsUsed.size >= 5) sessionAchievements.push('diverse');
+                if (matchStats.nobleGases.size >= 3) sessionAchievements.push('noble');
+                if (matchStats.maxConsecutiveNoDraw >= 5) sessionAchievements.push('streak');
+                
+                // 将本次比赛获得的成就合并到历史记录
+                sessionAchievements.forEach(id => {
+                    if (!historySet.has(id)) {
+                        historySet.add(id);
+                        history.push(id);
+                    }
+                });
+                matchStats.eggsTriggered.forEach(id => {
+                    if (!historySet.has(id)) {
+                        historySet.add(id);
+                        history.push(id);
+                    }
+                });
+                localStorage.setItem('chemistry_achievements', JSON.stringify(history));
+            }
+
+            // 渲染列表
+            ACHIEVEMENTS_DB.forEach((ach) => {
+                // 如果是隐藏成就且未获得，则不显示
+                if (ach.hidden && !historySet.has(ach.id)) return;
+                
+                const hasEarned = historySet.has(ach.id);
+                const item = document.createElement('div');
+                item.className = `achievement-badge ${hasEarned ? 'earned' : ''}`;
+                item.innerHTML = `
+                    <span class="achievement-icon">${ach.icon}</span>
+                    <span class="achievement-name">${ach.name}</span>
+                    <span class="achievement-desc">${ach.desc}</span>
+                `;
+                achContainer.appendChild(item);
+            });
             
             screen.style.display = 'flex';
+        }
+
+        function triggerEggAchievement(id) {
+            if (matchStats.eggsTriggered.has(id)) return;
+            const meta = ACHIEVEMENTS_DB.find(a => a.id === id);
+            if (!meta) return;
+
+            matchStats.eggsTriggered.add(id);
+            
+            // 持久化存储
+            const history = JSON.parse(localStorage.getItem('chemistry_achievements') || '[]');
+            if (!history.includes(id)) {
+                history.push(id);
+                localStorage.setItem('chemistry_achievements', JSON.stringify(history));
+            }
+            
+            const popup = document.getElementById('egg-popup');
+            const nameDisplay = document.getElementById('egg-name-display');
+            nameDisplay.textContent = meta.name;
+            
+            popup.classList.add('show');
+            setTimeout(() => {
+                popup.classList.remove('show');
+            }, 3000);
         }
 
         function log(m) {

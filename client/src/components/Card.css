@@ -1,0 +1,99 @@
+.card {
+  width: 70px;
+  height: 100px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s;
+  border: 2px solid transparent;
+  font-weight: bold;
+  position: relative;
+  flex-shrink: 0;
+  box-shadow: 0 4px 8px rgba(59, 130, 246, 0.2);
+}
+
+.card:hover:not(.disabled) {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 16px rgba(59, 130, 246, 0.3);
+}
+
+.card.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.card.selected {
+  border-color: #3b82f6;
+  transform: translateY(-5px);
+  box-shadow: 0 8px 20px rgba(59, 130, 246, 0.5);
+}
+
+.card-content {
+  text-align: center;
+  width: 100%;
+}
+
+.card-value {
+  display: block;
+  font-size: 1.1em;
+  word-break: break-all;
+}
+
+/* 通用元素卡牌 */
+.card.element {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: white;
+  border: 2px solid #60a5fa;
+}
+
+/* 常见元素（H、O) */
+.card.common {
+  background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
+  color: white;
+  border: 2px solid #93c5fd;
+}
+
+/* 特殊卡牌 - 反转 */
+.card.special-reverse {
+  background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+  color: white;
+  border: 2px solid #22d3ee;
+}
+
+.card.special-reverse::after {
+  content: '↻';
+  position: absolute;
+  font-size: 1.5em;
+}
+
+/* 特殊卡牌 - 跳过 */
+.card.special-skip {
+  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+  color: white;
+  border: 2px solid #a78bfa;
+}
+
+.card.special-skip .card-value {
+  font-size: 1.5em;
+}
+
+/* 特殊卡牌 - 摸牌 */
+.card.special-draw {
+  background: linear-gradient(135deg, #ffa751 0%, #ffe259 100%);
+  color: white;
+  border: 2px solid white;
+  font-size: 1.2em;
+}
+
+@media (max-width: 768px) {
+  .card {
+    width: 70px;
+    height: 100px;
+  }
+
+  .card-value {
+    font-size: 1.1em;
+  }
+}

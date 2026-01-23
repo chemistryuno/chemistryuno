@@ -1,0 +1,425 @@
+{
+  "metadata": {
+    "elements": [
+      "H",
+      "O",
+      "C",
+      "N",
+      "F",
+      "Na",
+      "Mg",
+      "Al",
+      "Si",
+      "P",
+      "S",
+      "Cl",
+      "K",
+      "Ca",
+      "Mn",
+      "Fe",
+      "Cu",
+      "Zn",
+      "Br",
+      "I",
+      "Ag"
+    ],
+    "note": "这是一个简化示例，仅包含常见无机物和代表性反应"
+  },
+  "game_settings": {
+    "reconnect_timeout": 30000,
+    "host_timeout": 30000,
+    "note": "reconnect_timeout: 普通玩家断线后保留位置的时间（毫秒），host_timeout: 房主断线后关闭房间的时间（毫秒）"
+  },
+  "card_config": {
+    "element_counts": {
+      "H": 12,
+      "O": 12,
+      "C": 4,
+      "N": 4,
+      "F": 4,
+      "Na": 4,
+      "Mg": 4,
+      "Al": 4,
+      "Si": 4,
+      "P": 4,
+      "S": 4,
+      "Cl": 4,
+      "K": 4,
+      "Ca": 4,
+      "Mn": 4,
+      "Fe": 4,
+      "Cu": 4,
+      "Zn": 4,
+      "Br": 4,
+      "I": 4,
+      "Ag": 4,
+      "+4": 4,
+      "+2": 8,
+      "He": 1,
+      "Ne": 1,
+      "Ar": 1,
+      "Kr": 1,
+      "Au": 4
+    },
+    "special_cards": {
+      "He": "reverse",
+      "Ne": "reverse",
+      "Ar": "reverse",
+      "Kr": "reverse",
+      "Au": "skip",
+      "+4": "draw4",
+      "+2": "draw2"
+    }
+  },
+  "elemental_substances": {
+    "non_metal_elements": {
+      "diatomic_molecules": [
+        "H2",
+        "O2",
+        "N2",
+        "F2",
+        "Cl2",
+        "Br2",
+        "I2"
+      ],
+      "polyatomic_molecules": [
+        "P4",
+        "S8",
+        "P",
+        "S"
+      ],
+      "atomic_crystals": [
+        "C",
+        "Si"
+      ],
+      "noble_gases": [
+        "He",
+        "Ne",
+        "Ar",
+        "Kr"
+      ]
+    },
+    "metal_elements": [
+      "Na",
+      "Mg",
+      "Al",
+      "K",
+      "Ca",
+      "Mn",
+      "Fe",
+      "Cu",
+      "Zn",
+      "Ag",
+      "Au"
+    ],
+    "note": "单质分为金属单质、非金属单质和稀有气体单质。非金属单质有双原子分子(如H2、O2)、多原子分子(如P4、S8)和原子晶体(如金刚石、晶体硅)等不同形式"
+  },
+  "common_compounds": {
+    "oxides": [
+      "H2O",
+      "CO2",
+      "CO",
+      "NO",
+      "NO2",
+      "N2O",
+      "MgO",
+      "Al2O3",
+      "SiO2",
+      "P4O10",
+      "SO2",
+      "SO3",
+      "Cl2O",
+      "K2O",
+      "CaO",
+      "MnO",
+      "MnO2",
+      "FeO",
+      "Fe2O3",
+      "Fe3O4",
+      "CuO",
+      "Cu2O",
+      "ZnO"
+    ],
+    "hydroxides": [
+      "NaOH",
+      "KOH",
+      "Ca(OH)2",
+      "Mg(OH)2",
+      "Al(OH)3",
+      "Fe(OH)2",
+      "Fe(OH)3",
+      "Cu(OH)2",
+      "Zn(OH)2"
+    ],
+    "acids": [
+      "HCl",
+      "H2SO4",
+      "HNO3",
+      "H3PO4",
+      "H2CO3",
+      "HF",
+      "HBr",
+      "HI",
+      "H2S",
+      "HClO",
+      "HClO3",
+      "HClO4"
+    ],
+    "salts": {
+      "chlorides": [
+        "NaCl",
+        "KCl",
+        "CaCl2",
+        "MgCl2",
+        "AlCl3",
+        "FeCl2",
+        "FeCl3",
+        "CuCl2",
+        "ZnCl2",
+        "AgCl"
+      ],
+      "sulfates": [
+        "Na2SO4",
+        "K2SO4",
+        "CaSO4",
+        "MgSO4",
+        "Al2(SO4)3",
+        "FeSO4",
+        "Fe2(SO4)3",
+        "CuSO4",
+        "ZnSO4",
+        "Ag2SO4"
+      ],
+      "nitrates": [
+        "NaNO3",
+        "KNO3",
+        "Ca(NO3)2",
+        "Mg(NO3)2",
+        "Al(NO3)3",
+        "Fe(NO3)2",
+        "Fe(NO3)3",
+        "Cu(NO3)2",
+        "Zn(NO3)2",
+        "AgNO3"
+      ],
+      "carbonates": [
+        "Na2CO3",
+        "K2CO3",
+        "CaCO3",
+        "MgCO3"
+      ],
+      "phosphates": [
+        "Na3PO4",
+        "Ca3(PO4)2"
+      ],
+      "others": [
+        "NaF",
+        "KF",
+        "CaF2",
+        "NaBr",
+        "KBr",
+        "NaI",
+        "KI",
+        "AgBr",
+        "AgI",
+        "KMnO4",
+        "K2Cr2O7",
+        "Na2S",
+        "K2S",
+        "CaS",
+        "ZnS",
+        "FeS"
+      ]
+    },
+    "other_inorganics": [
+      "NH3",
+      "NH4Cl",
+      "(NH4)2SO4",
+      "NH4NO3",
+      "SiCl4",
+      "PCl3",
+      "PCl5",
+      "SF6",
+      "COCl2",
+      "CaC2",
+      "Ca3N2",
+      "Mg3N2",
+      "AlN",
+      "SiC"
+    ]
+  },
+  "representative_reactions": {
+    "HCl": [
+      "NaOH",
+      "Ca(OH)2",
+      "Mg",
+      "KMnO4"
+    ],
+    "NaOH": [
+      "HCl",
+      "H2SO4",
+      "CuSO4"
+    ],
+    "H2SO4": [
+      "NaOH",
+      "Mg(OH)2"
+    ],
+    "HNO3": [
+      "KOH"
+    ],
+    "KOH": [
+      "HNO3"
+    ],
+    "Ca(OH)2": [
+      "HCl"
+    ],
+    "Mg(OH)2": [
+      "H2SO4"
+    ],
+    "AgNO3": [
+      "NaCl",
+      "Zn"
+    ],
+    "NaCl": [
+      "AgNO3"
+    ],
+    "BaCl2": [
+      "H2SO4"
+    ],
+    "Na2SO4": [
+      "BaCl2"
+    ],
+    "KI": [
+      "Pb(NO3)2"
+    ],
+    "CaCl2": [
+      "Na2CO3"
+    ],
+    "Na2CO3": [
+      "CaCl2"
+    ],
+    "CuSO4": [
+      "NaOH",
+      "Zn",
+      "Fe"
+    ],
+    "Na": [
+      "H2O"
+    ],
+    "H2O": [
+      "Na",
+      "SO2"
+    ],
+    "Mg": [
+      "HCl",
+      "O2"
+    ],
+    "Al": [
+      "Fe2O3",
+      "CuCl2"
+    ],
+    "Fe2O3": [
+      "Al"
+    ],
+    "Zn": [
+      "CuSO4",
+      "AgNO3"
+    ],
+    "Cl2": [
+      "KBr",
+      "NaBr"
+    ],
+    "KBr": [
+      "Cl2"
+    ],
+    "KMnO4": [
+      "HCl"
+    ],
+    "Fe": [
+      "O2",
+      "CuSO4"
+    ],
+    "O2": [
+      "Fe",
+      "Mg",
+      "P4",
+      "P",
+      "S",
+      "Cu"
+    ],
+    "N2": [
+      "H2"
+    ],
+    "H2": [
+      "N2",
+      "O2"
+    ],
+    "SO2": [
+      "H2O"
+    ],
+    "P4": [
+      "O2"
+    ],
+    "Cu": [
+      "O2"
+    ],
+    "NaBr": [
+      "Cl2"
+    ],
+    "CuCl2": [
+      "Al"
+    ]
+  },
+  "reactivity_series": {
+    "metals": [
+      "K",
+      "Ca",
+      "Na",
+      "Mg",
+      "Al",
+      "Zn",
+      "Fe",
+      "Sn",
+      "Pb",
+      "(H)",
+      "Cu",
+      "Hg",
+      "Ag",
+      "Au"
+    ],
+    "halogens": [
+      "F",
+      "Cl",
+      "Br",
+      "I"
+    ],
+    "note": "金属活动性顺序和卤素活动性顺序可用于预测置换反应"
+  },
+  "solubility_rules": {
+    "always_soluble": [
+      "Na+",
+      "K+",
+      "NH4+",
+      "NO3-",
+      "CH3COO-"
+    ],
+    "usually_soluble": [
+      "Cl-",
+      "Br-",
+      "I-",
+      "SO4^2-"
+    ],
+    "usually_insoluble": [
+      "CO3^2-",
+      "PO4^3-",
+      "OH-",
+      "S^2-"
+    ],
+    "exceptions": [
+      "AgCl, AgBr, AgI 不溶",
+      "BaSO4, PbSO4 不溶",
+      "Ca(OH)2 微溶",
+      "Ag2SO4 微溶"
+    ]
+  }
+}

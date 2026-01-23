@@ -1,0 +1,48 @@
+# 依赖
+node_modules/
+package-lock.json
+yarn.lock
+
+# 生产构建
+client/build/
+client/dist/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# 环境变量
+.env
+.env.local
+.env.*.local
+.env.production
+client/.env
+client/.env.production
+
+# 日志
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+logs/
+
+# PM2
+.pm2/
+
+# 备份
+backups/
+
+# Docker
+.docker/
+
+# 缓存
+.eslintcache
+.cache/
+
+# 临时文件
+*.tmp
+*.bak

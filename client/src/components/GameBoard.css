@@ -1,0 +1,541 @@
+.game-board {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: #f8f9fa;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 10px 50px rgba(0, 0, 0, 0.1);
+  position: relative;
+  max-width: 1200px;
+  margin: 0 auto;
+  font-size: 0.95rem;
+}
+
+/* 观战者横幅 */
+.spectator-banner {
+  background: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%);
+  color: white;
+  padding: 10px 20px;
+  text-align: center;
+  font-weight: bold;
+  font-size: 1.1em;
+  box-shadow: 0 2px 10px rgba(59, 130, 246, 0.3);
+}
+
+.spectator-banner .spectator-icon {
+  margin-right: 8px;
+  font-size: 1.2em;
+}
+
+.game-info-panel {
+  flex: 0 0 auto;
+  padding: 12px 14px;
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: white;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
+}
+
+.game-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.game-header h1 {
+  font-size: 1.25em;
+  margin: 0;
+  font-weight: 700;
+}
+
+.game-stats {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.stat-label {
+  font-size: 0.75em;
+  opacity: 0.9;
+  margin-bottom: 3px;
+  font-weight: 500;
+}
+
+.stat-value {
+  font-size: 1em;
+  font-weight: 700;
+  padding: 2px 8px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 5px;
+  min-width: 64px;
+  text-align: center;
+}
+
+.stat-value.warning {
+  background: #fbbf24;
+  color: #78350f;
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.pending-draws {
+  border: 2px solid #fbbf24;
+  border-radius: 8px;
+  padding: 5px;
+}
+
+.stat-value.current {
+  background: rgba(255, 255, 255, 0.3);
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+}
+
+/* 当前玩家及计时器部分 */
+.current-player-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 8px 12px;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  gap: 10px;
+}
+
+.current-player-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.95em;
+}
+
+.current-player-info .label {
+  font-weight: 500;
+  opacity: 0.95;
+}
+
+.current-player-info .player-name {
+  font-weight: 700;
+  font-size: 1em;
+  padding: 3px 10px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+
+.current-player-info .player-name.is-me {
+  background: rgba(255, 215, 0, 0.3);
+  color: #ffd700;
+  font-weight: 800;
+}
+
+.your-turn-badge {
+  background: #fbbf24;
+  color: #1e3a8a;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.85em;
+  font-weight: 700;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.turn-timer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.95em;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+}
+
+.turn-timer .timer-label {
+  font-weight: 500;
+  opacity: 0.95;
+}
+
+.turn-timer .timer-value {
+  font-size: 1.15em;
+  font-weight: 700;
+  min-width: 40px;
+  text-align: right;
+}
+
+.turn-timer.warning {
+  background: rgba(251, 191, 36, 0.3);
+}
+
+.turn-timer.warning .timer-value {
+  color: #fbbf24;
+}
+
+.turn-timer.critical {
+  background: rgba(239, 68, 68, 0.3);
+  animation: blink 0.5s infinite;
+}
+
+.turn-timer.critical .timer-value {
+  color: #ef4444;
+}
+
+@keyframes blink {
+  0%, 49%, 100% {
+    opacity: 1;
+  }
+  50%, 99% {
+    opacity: 0.6;
+  }
+}
+
+.center-area {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  justify-items: center;
+  align-items: start;
+  padding: 14px;
+  gap: 14px;
+}
+
+.pile-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.pile-label {
+  font-size: 0.85em;
+  font-weight: 600;
+  color: #1e40af;
+}
+
+.last-played {
+  background: white;
+  border-radius: 10px;
+  padding: 15px;
+  min-width: 190px;
+  width: 100%;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.played-card-display {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.played-card-label,
+.played-compound-label {
+  font-size: 0.95em;
+  color: #374151;
+  text-align: center;
+}
+
+.played-card-label strong,
+.played-compound-label strong {
+  color: #3b82f6;
+  font-size: 1.1em;
+  font-weight: 700;
+}
+
+.last-compound {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100px;
+  width: 100px;
+}
+
+.compound-card {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  padding: 12px;
+  background: linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%);
+  color: white;
+  border-radius: 8px;
+  font-size: 1.1em;
+  font-weight: 700;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  border: 2px solid #60a5fa;
+  text-align: center;
+  word-break: break-all;
+}
+
+.compound-card.empty {
+  background: linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%);
+  color: #6b7280;
+  border-color: #d1d5db;
+  font-size: 0.9em;
+}
+
+.other-players {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  max-width: 300px;
+}
+
+.player-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  background: white;
+  border-left: 4px solid #d1d5db;
+  border-radius: 8px;
+  min-width: 0;
+  width: 100%;
+  transition: all 0.3s ease;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+}
+
+.player-info.active {
+  border-left-color: #3b82f6;
+  background: #eff6ff;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15);
+}
+
+.player-info.offline {
+  opacity: 0.6;
+  background: #f3f4f6;
+  border-left-color: #ef4444;
+}
+
+.player-info.offline .hand-count {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.player-label {
+  font-weight: 600;
+  color: #1f2937;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-label.active {
+  color: #3b82f6;
+}
+
+.offline-text {
+  font-size: 0.85em;
+  color: #ef4444;
+  font-weight: 500;
+}
+
+.hand-count {
+  background: #dbeafe;
+  color: #1e40af;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.9em;
+  font-weight: 700;
+  flex: 0 0 auto;
+}
+
+.turn-indicator {
+  padding: 12px;
+  text-align: center;
+  background: #f8f9fa;
+  border-top: 1px solid #e5e7eb;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.spectating {
+  color: #6366f1;
+  font-size: 0.95em;
+}
+
+.your-turn {
+  color: #3b82f6;
+  font-size: 1em;
+  animation: pulse 1.5s infinite;
+}
+
+.waiting {
+  color: #9ca3af;
+  font-size: 0.9em;
+}
+
+.loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  background: #f8f9fa;
+  color: #3b82f6;
+  font-size: 1.2em;
+  font-weight: 600;
+}
+
+.player-hand-area {
+  flex: 0 0 auto;
+  padding: 10px;
+  background: white;
+  border-top: 2px solid #e5e7eb;
+  max-height: 26vh;
+  overflow-y: auto;
+}
+
+.hand-label {
+  font-weight: 700;
+  color: #1e40af;
+  margin-bottom: 10px;
+  font-size: 0.95em;
+}
+
+.hand-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(56px, 1fr));
+  gap: 6px;
+}
+
+.draw-btn {
+  margin-top: 15px;
+  padding: 10px 20px;
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.draw-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(59, 130, 246, 0.4);
+}
+
+.draw-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.spectator-info {
+  padding: 15px;
+  background: #eff6ff;
+  border-left: 4px solid #3b82f6;
+  border-radius: 4px;
+  margin-top: 15px;
+}
+
+.spectator-info h3 {
+  margin-top: 0;
+  color: #1e40af;
+}
+
+.spectators-mini-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+@media (max-width: 1024px) {
+  .game-board {
+    border-radius: 0;
+  }
+
+  .game-header h1 {
+    font-size: 1.2em;
+  }
+
+  .game-stats {
+    justify-content: flex-start;
+  }
+
+  .current-player-section {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .center-area {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .game-header {
+    align-items: flex-start;
+  }
+
+  .turn-timer {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .game-stats {
+    width: 100%;
+  }
+
+  .pile-area, .other-players {
+    width: 100%;
+  }
+
+  .last-played {
+    min-width: 0;
+  }
+
+  .hand-cards {
+    grid-template-columns: repeat(auto-fit, minmax(52px, 1fr));
+  }
+
+  .game-info-panel {
+    padding: 10px;
+  }
+
+  .game-header h1 {
+    font-size: 1.1em;
+  }
+
+  .center-area {
+    grid-template-columns: 1fr;
+  }
+}
+
+.spectator-tag {
+  display: inline-block;
+  background: #dbeafe;
+  color: #1e40af;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 0.85em;
+  font-weight: 500;
+}
+

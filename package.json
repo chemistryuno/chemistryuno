@@ -1,0 +1,16 @@
+{
+  "name": "chemistryuno-alpha",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "node start.js",
+    "dev": "node start.js",
+    "install:frontend": "cd frontend && pnpm install",
+    "frontend": "cd frontend && pnpm dev",
+    "backend": "cd backend && go run main.go"
+  },
+  "description": "Chemistry UNO Alpha - 化学元素版UNO游戏",
+  "keywords": ["game", "uno", "chemistry", "react", "go"],
+  "author": "",
+  "license": "MIT"
+}

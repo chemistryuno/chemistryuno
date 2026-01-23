@@ -91,7 +91,7 @@ func handleWebSocket(c *gin.Context) {
 	}
 
 	client := websocket.NewClient(hub, conn, userID, username)
-	hub.register <- client
+	hub.Register(client)
 
 	go client.WritePump()
 	go client.ReadPump()

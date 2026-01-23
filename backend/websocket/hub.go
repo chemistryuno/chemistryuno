@@ -66,6 +66,16 @@ func (h *Hub) Run() {
 	}
 }
 
+// Register 注册一个新客户端
+func (h *Hub) Register(client *Client) {
+	h.register <- client
+}
+
+// Unregister 注销一个客户端
+func (h *Hub) Unregister(client *Client) {
+	h.unregister <- client
+}
+
 func (h *Hub) JoinRoom(client *Client, roomID string) {
 	h.mutex.Lock()
 	defer h.mutex.Unlock()

@@ -13,18 +13,20 @@ export default function GameRoom({ user }: GameRoomProps) {
   const { id } = useParams()
   const navigate = useNavigate()
   const [gameState, setGameState] = useState<any>(null)
+  const [roomInfo, setRoomInfo] = useState<any>(null)
   const [availableSubstances, setAvailableSubstances] = useState([])
   const [selectedCard, setSelectedCard] = useState<any>(null)
   const [selectedSubstance, setSelectedSubstance] = useState<any>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    loadGameState()
-    
-    websocket.joinRoom(id || '')
-    websocket.on('game_update', handleGameUpdate)
-    websocket.on('player_joined', loadGameState)
-    websocket.on('player_left', loadGameState)
+    loadGameState().then(() => {
+      // 只在房间加载成功后才连接 WebSocket
+      websocket.joinRoom(id || '')
+      websocket.on('game_update', handleGameUpdate)
+      websocket.on('player_joined', loadGameState)
+      websocket.on('player_left', loadGameState)
+    })
 
     return () => {
       websocket.leaveRoom()
@@ -36,12 +38,51 @@ export default function GameRoom({ user }: GameRoomProps) {
 
   const loadGameState = async () => {
     try {
-      // In a real app, we'd fetch the current state here
-      // setGameState(initialData)
+      setLoading(true)
+      const response = await gameAPI.getRoomState(id || '')
+      const data = response.data
+      
+      console.log('房间数据:', data)
+      
+      // 保存房间基本信息
+      setRoomInfo({
+        id: data.id,
+        name: data.name,
+        host_id: data.host_id,
+        players: data.players,
+        max_players: data.max_players,
+        status: data.status
+      })
+      
+      console.log('设置的 roomInfo:', {
+        id: data.id,
+        name: data.name,
+        host_id: data.host_id,
+        players: data.players,
+        max_players: data.max_players,
+        status: data.status
+      })
+      
+      // 如果游戏已开始，保存游戏状态
+      if (data.game_state) {
+        setGameState(data.game_state)
+      }
+      
       setLoading(false)
-    } catch (error) {
+    } catch (error: any) {
       console.error('加载游戏状态失败:', error)
       setLoading(false)
+      
+      // 如果房间不存在，显示错误并跳转回大厅
+      if (error.response?.status === 404) {
+        alert('房间不存在或已被关闭')
+        navigate('/')
+      } else if (error.response?.status === 401) {
+        alert('身份验证失败，请重新登录')
+        navigate('/login')
+      } else {
+        alert('加载房间失败，请稍后重试')
+      }
     }
   }
 
@@ -183,16 +224,16 @@ export default function GameRoom({ user }: GameRoomProps) {
                <h2 className="text-sm font-black tracking-widest uppercase font-mono">{id?.substring(0, 8)}</h2>
             </div>
             <div className="flex items-center gap-2 mt-0.5">
-               <div className={cn("w-1.5 h-1.5 rounded-full animate-pulse", gameState?.status === 'waiting' ? "bg-amber-500" : "bg-emerald-500")}></div>
+               <div className={cn("w-1.5 h-1.5 rounded-full animate-pulse", roomInfo?.status === 'waiting' ? "bg-amber-500" : "bg-emerald-500")}></div>
                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-                {gameState?.status === 'waiting' ? 'Waiting_for_Connection' : 'Reaction_In_Progress'}
+                {roomInfo?.status === 'waiting' ? 'Waiting_for_Connection' : 'Reaction_In_Progress'}
                </p>
             </div>
           </div>
         </div>
 
         <div className="flex items-center gap-4">
-          {gameState?.status === 'waiting' && myData?.user_id === gameState?.host_id && (
+          {roomInfo?.status === 'waiting' && user.id === roomInfo?.host_id && (
             <button 
               onClick={handleStartGame} 
               className="bg-blue-600 hover:bg-blue-500 px-6 h-11 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-[0_10px_20px_rgba(37,99,235,0.2)] transition-all active:scale-95 flex items-center gap-3 group overflow-hidden relative"
@@ -206,7 +247,9 @@ export default function GameRoom({ user }: GameRoomProps) {
           <div className="px-5 h-11 bg-white/5 rounded-2xl border border-white/10 flex items-center gap-4 font-mono">
              <div className="flex flex-col items-end">
                <span className="text-[9px] text-slate-500 font-bold uppercase tracking-tight">Personnel</span>
-               <span className="text-xs font-black text-white leading-none">{gameState?.players?.length || 0} / {gameState?.max_players || 4}</span>
+               <span className="text-xs font-black text-white leading-none">
+                 {Array.isArray(roomInfo?.players) ? roomInfo.players.length : 0} / {roomInfo?.max_players || 4}
+               </span>
              </div>
              <Users className="w-4 h-4 text-blue-400 opacity-50" />
           </div>
@@ -288,9 +331,10 @@ export default function GameRoom({ user }: GameRoomProps) {
           </div>
 
           {/* Player badges positions (radial) */}
-          {gameState?.players?.map((player: any, index: number) => {
-            const isActive = gameState.current_player === index
-            const isLocal = player.user_id === user.id
+          {(gameState?.players || []).length > 0 ? (
+            gameState.players.map((player: any, index: number) => {
+              const isActive = gameState.current_player === index
+              const isLocal = player.user_id === user.id
             
             // Positioning for 4 players
             const positions = [
@@ -346,7 +390,18 @@ export default function GameRoom({ user }: GameRoomProps) {
                 </div>
               </div>
             )
-          })}
+          })
+          ) : roomInfo?.status === 'waiting' ? (
+            <div className="absolute bottom-0 translate-y-1/2 translate-x-1/2 right-1/2 z-30">
+              <div className="p-4 rounded-[32px] bg-black/60 border border-white/5 backdrop-blur-xl shadow-2xl flex items-center gap-3 min-w-[200px]">
+                <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold text-white uppercase tracking-tight">等待玩家加入</span>
+                  <span className="text-[10px] text-slate-400">{roomInfo.players?.length || 0} / {roomInfo.max_players || 4} 玩家</span>
+                </div>
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -367,7 +422,12 @@ export default function GameRoom({ user }: GameRoomProps) {
 
         <div className="flex-1 w-full max-w-6xl flex justify-center items-end pb-8">
            <div className="flex flex-nowrap justify-center gap-x-2 lg:gap-x-4 px-12 h-[180px] w-full overflow-x-auto custom-scrollbar-hidden py-4 translate-y-4 hover:translate-y-0 transition-transform duration-500">
-            {myData?.hand_cards?.length > 0 ? (
+            {roomInfo?.status === 'waiting' ? (
+              <div className="flex flex-col items-center justify-center opacity-30 pb-10">
+                <Loader2 className="w-16 h-16 mb-4 animate-spin text-blue-500" />
+                <p className="font-black uppercase tracking-widest text-sm text-slate-400">等待房主启动反应堆</p>
+              </div>
+            ) : myData?.hand_cards?.length > 0 ? (
               myData.hand_cards.map((card: any, index: number) => (
                 <div
                   key={index}

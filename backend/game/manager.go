@@ -50,7 +50,7 @@ func CreateRoom(name string, hostID int, hostName string, maxPlayers int, deckID
 			"SELECT id, name, cards FROM deck_configs WHERE id = ?",
 			deckID,
 		).Scan(&deckConfig.ID, &deckConfig.Name, &cardsJSON)
-		
+
 		if err != nil {
 			deckConfig.Cards = getDefaultDeckConfig()
 		} else {
@@ -211,7 +211,7 @@ func StartGame(roomID string, userID int) error {
 	// 洗牌
 	rand.Seed(time.Now().UnixNano())
 	rand.Shuffle(len(gameRoom.GameState.DrawPile), func(i, j int) {
-		gameRoom.GameState.DrawPile[i], gameRoom.GameState.DrawPile[j] = 
+		gameRoom.GameState.DrawPile[i], gameRoom.GameState.DrawPile[j] =
 			gameRoom.GameState.DrawPile[j], gameRoom.GameState.DrawPile[i]
 	})
 
@@ -271,8 +271,12 @@ func GetRoomState(roomID string, userID int) (map[string]interface{}, error) {
 	}
 
 	result := map[string]interface{}{
-		"room":   gameRoom.Room,
-		"status": gameRoom.Room.Status,
+		"id":          gameRoom.Room.ID,
+		"name":        gameRoom.Room.Name,
+		"host_id":     gameRoom.Room.HostID,
+		"players":     gameRoom.Room.Players,
+		"max_players": gameRoom.Room.MaxPlayers,
+		"status":      gameRoom.Room.Status,
 	}
 
 	if gameRoom.GameState != nil {
@@ -311,13 +315,13 @@ func GetRoomState(roomID string, userID int) (map[string]interface{}, error) {
 
 func getCardEffect(cardType string) string {
 	effects := map[string]string{
-		"+2":  "+2",
-		"+4":  "+4",
-		"He":  "reverse",
-		"Ne":  "reverse",
-		"Ar":  "reverse",
-		"Kr":  "reverse",
-		"Au":  "skip",
+		"+2": "+2",
+		"+4": "+4",
+		"He": "reverse",
+		"Ne": "reverse",
+		"Ar": "reverse",
+		"Kr": "reverse",
+		"Au": "skip",
 	}
 	return effects[cardType]
 }
@@ -447,10 +451,10 @@ func DrawCard(roomID string, userID int, count int) error {
 	}
 
 	drawCardsForPlayer(gameRoom, gameRoom.GameState.CurrentPlayer, count)
-	
+
 	// 摸牌后跳过回合
 	gameRoom.GameState.CurrentPlayer = getNextPlayer(gameRoom.GameState)
-	
+
 	return nil
 }
 
@@ -474,7 +478,7 @@ func GetAvailableSubstances(roomID string, userID int) ([]string, error) {
 
 	// 获取手牌能组成的所有物质
 	substances := GetSubstancesFromElements(currentPlayer.HandCards)
-	
+
 	// 如果有上一张牌，过滤出能反应的物质
 	if gameRoom.GameState.LastCard != nil {
 		reactable := []string{}

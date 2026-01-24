@@ -33,7 +33,7 @@ func main() {
 
 	// 创建Gin路由
 	r := gin.Default()
-	
+
 	// 中间件
 	r.Use(middleware.CORSMiddleware())
 

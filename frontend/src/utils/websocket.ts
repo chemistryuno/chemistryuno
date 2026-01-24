@@ -8,11 +8,19 @@ class WebSocketService {
   private listeners: { [key: string]: Array<(message: WebSocketMessage) => void> } = {}
   private reconnectAttempts: number = 0
   private readonly maxReconnectAttempts: number = 5
+  private pendingMessages: WebSocketMessage[] = []
+  private isConnecting: boolean = false
 
   connect(): void {
     const token = localStorage.getItem('token')
     if (!token) return
 
+    // 避免重复连接
+    if (this.isConnecting || (this.ws && this.ws.readyState === WebSocket.OPEN)) {
+      return
+    }
+
+    this.isConnecting = true
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const wsUrl = `${protocol}//${window.location.hostname}:8080/ws?token=${token}`
     
@@ -21,6 +29,13 @@ class WebSocketService {
     this.ws.onopen = () => {
       console.log('WebSocket连接已建立')
       this.reconnectAttempts = 0
+      this.isConnecting = false
+      
+      // 发送待发送的消息
+      while (this.pendingMessages.length > 0) {
+        const msg = this.pendingMessages.shift()
+        if (msg) this.send(msg)
+      }
     }
 
     this.ws.onmessage = (event: MessageEvent) => {
@@ -34,11 +49,13 @@ class WebSocketService {
 
     this.ws.onclose = () => {
       console.log('WebSocket连接已关闭')
+      this.isConnecting = false
       this.attemptReconnect()
     }
 
     this.ws.onerror = (error: Event) => {
       console.error('WebSocket错误:', error)
+      this.isConnecting = false
     }
   }
 
@@ -51,17 +68,25 @@ class WebSocketService {
   }
 
   disconnect(): void {
+    this.reconnectAttempts = this.maxReconnectAttempts // 阻止自动重连
     if (this.ws) {
       this.ws.close()
       this.ws = null
     }
+    this.isConnecting = false
   }
 
   send(message: WebSocketMessage): void {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(message))
     } else {
-      console.error('WebSocket未连接')
+      // 如果连接未建立，将消息加入队列
+      console.log('WebSocket未连接，消息已加入队列')
+      this.pendingMessages.push(message)
+      // 尝试建立连接
+      if (!this.isConnecting) {
+        this.connect()
+      }
     }
   }
 

@@ -6,6 +6,7 @@ import Lobby from './pages/Lobby'
 import GameRoom from './pages/GameRoom'
 import Profile from './pages/Profile'
 import Admin from './pages/Admin'
+import websocket from './utils/websocket'
 
 interface User {
   id?: string
@@ -25,6 +26,8 @@ function App() {
     
     if (token && userData) {
       setUser(JSON.parse(userData))
+      // 用户已登录，建立 WebSocket 连接
+      websocket.connect()
     }
     setLoading(false)
   }, [])
@@ -33,12 +36,16 @@ function App() {
     localStorage.setItem('token', token)
     localStorage.setItem('user', JSON.stringify(userData))
     setUser(userData)
+    // 登录成功后建立 WebSocket 连接
+    websocket.connect()
   }
 
   const handleLogout = () => {
     localStorage.removeItem('token')
     localStorage.removeItem('user')
     setUser(null)
+    // 登出时断开 WebSocket 连接
+    websocket.disconnect()
   }
 
   if (loading) {

@@ -4,14 +4,14 @@ import (
 	"database/sql"
 	"log"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 var DB *sql.DB
 
 func InitDB(filepath string) error {
 	var err error
-	DB, err = sql.Open("sqlite3", filepath)
+	DB, err = sql.Open("sqlite", filepath)
 	if err != nil {
 		return err
 	}
@@ -67,7 +67,7 @@ func createTables() error {
 	);`
 
 	tables := []string{userTable, deckConfigTable, gameHistoryTable}
-	
+
 	for _, table := range tables {
 		if _, err := DB.Exec(table); err != nil {
 			return err
@@ -79,14 +79,14 @@ func createTables() error {
 	createAdmin := `
 	INSERT OR IGNORE INTO users (id, username, password, is_admin, avatar) 
 	VALUES (1, 'admin', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 1, '👑');`
-	
+
 	_, _ = DB.Exec(createAdmin)
 
 	// 创建默认全局牌组配置
 	createDefaultDeck := `
 	INSERT OR IGNORE INTO deck_configs (id, name, is_global, cards, created_by) 
 	VALUES (1, '默认牌组', 1, '{"H":12,"O":12,"C":4,"N":4,"F":4,"Na":4,"Mg":4,"Al":4,"Si":4,"P":4,"S":4,"Cl":4,"K":4,"Ca":4,"Mn":4,"Fe":4,"Cu":4,"Zn":4,"Br":4,"I":4,"Ag":4,"+2":8,"+4":4,"He":1,"Ne":1,"Ar":1,"Kr":1,"Au":4}', 1);`
-	
+
 	_, _ = DB.Exec(createDefaultDeck)
 
 	return nil

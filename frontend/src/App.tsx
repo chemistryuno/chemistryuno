@@ -43,13 +43,14 @@ function App() {
 
   if (loading) {
     return (
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        height: '100vh' 
-      }}>
-        <div className="loading"></div>
+      <div className="min-h-screen bg-[#0a0a0c] flex flex-col items-center justify-center gap-4">
+        <div className="relative w-16 h-16">
+          <div className="absolute inset-0 rounded-full border-4 border-emerald-500/20"></div>
+          <div className="absolute inset-0 rounded-full border-4 border-emerald-500 border-t-transparent animate-spin"></div>
+        </div>
+        <p className="text-emerald-500/70 font-mono tracking-widest text-sm animate-pulse">
+          INITIALIZING LABORATORY...
+        </p>
       </div>
     )
   }

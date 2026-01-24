@@ -54,6 +54,7 @@ func main() {
 		// 游戏相关
 		auth.GET("/rooms", handlers.GetRooms)
 		auth.POST("/rooms", handlers.CreateRoom)
+		auth.GET("/rooms/:id", handlers.GetRoomState)
 		auth.POST("/rooms/:id/join", handlers.JoinRoom)
 		auth.POST("/rooms/:id/leave", handlers.LeaveRoom)
 		auth.POST("/rooms/:id/start", handlers.StartGame)

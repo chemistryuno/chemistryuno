@@ -14,7 +14,7 @@ class WebSocketService {
     if (!token) return
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const wsUrl = `${protocol}//${window.location.hostname}:8080/ws`
+    const wsUrl = `${protocol}//${window.location.hostname}:8080/ws?token=${token}`
     
     this.ws = new WebSocket(wsUrl)
 

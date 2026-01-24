@@ -11,22 +11,31 @@ import (
 // JWT认证中间件
 func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "未提供认证信息"})
-			c.Abort()
-			return
+		var token string
+
+		// 优先从查询参数获取token（用于WebSocket）
+		token = c.Query("token")
+
+		// 如果查询参数中没有，则从Authorization头获取
+		if token == "" {
+			authHeader := c.GetHeader("Authorization")
+			if authHeader == "" {
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "未提供认证信息"})
+				c.Abort()
+				return
+			}
+
+			// Bearer token格式
+			parts := strings.SplitN(authHeader, " ", 2)
+			if len(parts) != 2 || parts[0] != "Bearer" {
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "认证格式错误"})
+				c.Abort()
+				return
+			}
+			token = parts[1]
 		}
 
-		// Bearer token格式
-		parts := strings.SplitN(authHeader, " ", 2)
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "认证格式错误"})
-			c.Abort()
-			return
-		}
-
-		claims, err := utils.ParseToken(parts[1])
+		claims, err := utils.ParseToken(token)
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "无效的token"})
 			c.Abort()

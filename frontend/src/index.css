@@ -1,164 +1,146 @@
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+@import "tailwindcss";
+
+@theme {
+  --color-primary-600: #3b82f6;
+  --color-primary-700: #1d4ed8;
+  --color-secondary: #64748b;
+  --color-danger: #ef4444;
+  --color-success: #10b981;
+
+  /* --- Custom Keyframes --- */
+  @keyframes scan {
+    from { top: 0; }
+    to { top: 100%; }
+  }
+  @keyframes shimmer {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(100%); }
+  }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+    20%, 40%, 60%, 80% { transform: translateX(4px); }
+  }
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes fade-out {
+    from { opacity: 1; }
+    to { opacity: 0; }
+  }
+  @keyframes zoom-in {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  @keyframes slide-in-bottom {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+  }
+  @keyframes glow-pulse {
+    0%, 100% { box-shadow: 0 0 5px rgba(59, 130, 246, 0.2); }
+    50% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.5); }
+  }
+
+  /* --- Animation Utilities --- */
+  --animate-scan: scan 4s linear infinite;
+  --animate-shimmer: shimmer 2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  --animate-shake: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+  --animate-fade-in: fade-in 0.3s ease-out;
+  --animate-zoom-in: zoom-in 0.3s ease-out;
+  --animate-slide-in-bottom: slide-in-bottom 0.4s ease-out;
+  --animate-float: float 3s ease-in-out infinite;
+  --animate-glow: glow-pulse 2s infinite;
 }
 
+/* Base Body Style */
 body {
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  min-height: 100vh;
-  color: #333;
+  @apply bg-[#0a0a0c] text-slate-200 antialiased selection:bg-blue-500/30;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
 }
 
-#root {
-  min-height: 100vh;
+/* --- Laboratory UI Components --- */
+
+/* 1. Glassmorphism Design System */
+.glass-panel {
+  @apply bg-white/[0.03] backdrop-blur-xl border border-white/10;
 }
 
-/* 按钮样式 */
-.btn {
-  padding: 10px 20px;
-  border: none;
-  border-radius: 8px;
-  font-size: 16px;
-  cursor: pointer;
-  transition: all 0.3s;
-  font-weight: 600;
+.glass-panel-light {
+  @apply bg-white/90 backdrop-blur-2xl border border-white/20;
 }
 
-.btn-primary {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-}
-
-.btn-primary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
-}
-
-.btn-secondary {
-  background: #6c757d;
-  color: white;
-}
-
-.btn-secondary:hover {
-  background: #5a6268;
-}
-
-.btn-danger {
-  background: #dc3545;
-  color: white;
-}
-
-.btn-danger:hover {
-  background: #c82333;
-}
-
-.btn-success {
-  background: #28a745;
-  color: white;
-}
-
-.btn-success:hover {
-  background: #218838;
-}
-
-/* 卡片样式 */
-.card {
-  background: white;
-  border-radius: 12px;
-  padding: 20px;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-  margin: 10px;
-}
-
-/* 输入框样式 */
-.input-group {
-  margin-bottom: 15px;
-}
-
-.input-group label {
-  display: block;
-  margin-bottom: 5px;
-  font-weight: 600;
-  color: #555;
-}
-
-.input-group input {
-  width: 100%;
-  padding: 12px;
-  border: 2px solid #e0e0e0;
-  border-radius: 8px;
-  font-size: 16px;
-  transition: border-color 0.3s;
-}
-
-.input-group input:focus {
-  outline: none;
-  border-color: #667eea;
-}
-
-/* 游戏卡牌样式 */
+/* 2. Game Cards */
 .game-card {
-  width: 80px;
-  height: 120px;
-  border-radius: 10px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-size: 24px;
-  font-weight: bold;
-  cursor: pointer;
-  transition: all 0.3s;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-  margin: 5px;
-}
-
-.game-card:hover {
-  transform: translateY(-10px) scale(1.05);
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+  @apply relative w-24 h-36 rounded-2xl flex flex-col items-center justify-center font-black text-white shadow-2xl transition-all duration-500 cursor-pointer overflow-hidden border transform-gpu;
 }
 
 .game-card.element {
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-  color: white;
+  @apply bg-gradient-to-br from-blue-500/20 to-blue-900/40 border-blue-500/30 backdrop-blur-md;
+}
+.game-card.element:hover {
+  @apply border-blue-400 shadow-[0_0_25px_rgba(59,130,246,0.3)] bg-blue-500/30;
 }
 
 .game-card.special {
-  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-  color: white;
+  @apply bg-gradient-to-br from-purple-500/20 to-purple-900/40 border-purple-500/30 backdrop-blur-md;
+}
+.game-card.special:hover {
+  @apply border-purple-400 shadow-[0_0_25px_rgba(168,85,247,0.3)] bg-purple-500/30;
 }
 
 .game-card.noble {
-  background: linear-gradient(135deg, #ffd89b 0%, #19547b 100%);
-  color: white;
+  @apply bg-gradient-to-br from-emerald-500/20 to-emerald-900/40 border-emerald-500/30 backdrop-blur-md;
+}
+.game-card.noble:hover {
+  @apply border-emerald-400 shadow-[0_0_25px_rgba(16,185,129,0.3)] bg-emerald-500/30;
 }
 
-/* 加载动画 */
-.loading {
-  display: inline-block;
-  width: 20px;
-  height: 20px;
-  border: 3px solid rgba(255, 255, 255, 0.3);
-  border-radius: 50%;
-  border-top-color: white;
-  animation: spin 1s linear infinite;
+.game-card.selected {
+  @apply ring-4 ring-blue-500 ring-offset-4 ring-offset-[#0a0a0c] -translate-y-8 z-50 scale-110 shadow-[0_30px_60px_rgba(0,0,0,0.6)];
 }
 
-@keyframes spin {
-  to { transform: rotate(360deg); }
+/* 3. Utility Classes */
+.animate-in {
+  animation-fill-mode: both;
+}
+.fade-in { animation: fade-in 0.5s ease-out; }
+.zoom-in { animation: zoom-in 0.5s ease-out; }
+.slide-in-from-bottom-10 { animation: slide-in-bottom 0.5s ease-out; }
+
+.custom-scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+}
+.custom-scrollbar-hidden {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
-/* 响应式设计 */
-@media (max-width: 768px) {
-  .card {
-    margin: 10px 5px;
-  }
-  
-  .game-card {
-    width: 60px;
-    height: 90px;
-    font-size: 18px;
-  }
+.custom-scrollbar::-webkit-scrollbar {
+  @apply w-1.5 h-1.5;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  @apply bg-white/10 rounded-full hover:bg-white/20 transition-colors;
+}
+
+/* 4. Text Effects */
+.text-glow {
+  text-shadow: 0 0 10px rgba(59, 130, 246, 0.5), 0 0 20px rgba(59, 130, 246, 0.3);
+}
+
+.tracking-tighter-extra {
+  letter-spacing: -0.05em;
+}
+
+/* 5. Special Backgrounds */
+.bg-mesh {
+  background-image: radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.1) 0, transparent 50%),
+                    radial-gradient(at 100% 100%, rgba(168, 85, 247, 0.1) 0, transparent 50%);
 }

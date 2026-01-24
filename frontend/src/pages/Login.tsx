@@ -1,7 +1,8 @@
 import { useState, FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { authAPI } from '../utils/api'
-import { CSSProperties } from 'react'
+import { Beaker, Lock, User, Loader2, Fingerprint } from 'lucide-react'
+import { cn } from '../utils/cn'
 
 interface LoginProps {
   onLogin: (userData: any, token: string) => void
@@ -25,109 +26,105 @@ export default function Login({ onLogin }: LoginProps) {
       onLogin(user, token)
       navigate('/')
     } catch (err: any) {
-      setError(err.response?.data?.error || '登录失败，请重试')
+      setError(err.response?.data?.error || '身份验证失败，请重试')
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div style={styles.container}>
-      <div className="card" style={styles.card}>
-        <h1 style={styles.title}>🧪 化学UNO</h1>
-        <h2 style={styles.subtitle}>登录</h2>
-        
-        {error && <div style={styles.error}>{error}</div>}
-        
-        <form onSubmit={handleSubmit}>
-          <div className="input-group">
-            <label>用户名</label>
-            <input
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              required
-              minLength={3}
-              maxLength={20}
-              placeholder="请输入用户名"
-            />
+    <div className="min-h-screen flex items-center justify-center p-4 bg-[#1a1a1e] relative overflow-hidden font-sans">
+      {/* Subtle Background Elements */}
+      <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-500/5 rounded-full blur-[120px]"></div>
+      <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-500/5 rounded-full blur-[120px]"></div>
+
+      <div className="w-full max-w-md relative z-10 animate-in fade-in zoom-in duration-500">
+        <div className="glass-panel-light rounded-[40px] shadow-[0_20px_60px_rgba(0,0,0,0.3)] overflow-hidden">
+          <div className="p-10 md:p-12">
+            {/* Header Section */}
+            <div className="flex flex-col items-center mb-10">
+              <div className="w-20 h-20 bg-blue-600 rounded-3xl flex items-center justify-center mb-4 shadow-lg transform rotate-3 hover:rotate-0 transition-transform duration-500">
+                <Beaker className="w-10 h-10 text-white" />
+              </div>
+              <h1 className="text-3xl font-black text-slate-800 tracking-tighter">
+                化学<span className="text-blue-600">UNO</span>
+              </h1>
+              <p className="text-slate-400 text-xs font-bold uppercase tracking-[0.2em] mt-2">Laboratory System Access</p>
+            </div>
+
+            {error && (
+              <div className="bg-red-50 border border-red-100 text-red-500 px-4 py-3 rounded-2xl mb-6 text-center text-xs font-bold">
+                {error}
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">识别码 / Username</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
+                    <User className="w-4 h-4" />
+                  </div>
+                  <input
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    required
+                    className="w-full bg-slate-100 border border-slate-200 text-slate-800 pl-11 pr-4 py-3.5 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all placeholder:text-slate-400 text-sm font-medium"
+                    placeholder="Researcher ID"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">访问秘钥 / Password</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
+                    <Lock className="w-4 h-4" />
+                  </div>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    className="w-full bg-slate-100 border border-slate-200 text-slate-800 pl-11 pr-4 py-3.5 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all placeholder:text-slate-400 text-sm font-medium"
+                    placeholder="Auth Token"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className={cn(
+                  "w-full h-14 rounded-2xl font-black text-white transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2",
+                  loading 
+                    ? "bg-slate-400 cursor-not-allowed" 
+                    : "bg-blue-700 hover:bg-blue-600 shadow-blue-500/20"
+                )}
+              >
+                {loading ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <>
+                    <span className="uppercase tracking-widest text-sm">初始化访问</span>
+                    <Fingerprint className="w-4 h-4" />
+                  </>
+                )}
+              </button>
+            </form>
+
+            <div className="mt-8 text-center">
+              <p className="text-slate-400 text-xs font-bold">
+                初次参与实验？{" "}
+                <Link to="/register" className="text-blue-600 hover:text-blue-700 transition-colors">
+                  注册研究员账号
+                </Link>
+              </p>
+            </div>
           </div>
-
-          <div className="input-group">
-            <label>密码</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={6}
-              placeholder="请输入密码"
-            />
-          </div>
-
-          <button 
-            type="submit" 
-            className="btn btn-primary" 
-            style={styles.button}
-            disabled={loading}
-          >
-            {loading ? <span className="loading"></span> : '登录'}
-          </button>
-        </form>
-
-        <div style={styles.footer}>
-          还没有账号？ <Link to="/register" style={styles.link}>立即注册</Link>
         </div>
       </div>
     </div>
   )
-}
-
-const styles: { [key: string]: CSSProperties } = {
-  container: {
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    minHeight: '100vh',
-    padding: '20px',
-  },
-  card: {
-    maxWidth: '400px',
-    width: '100%',
-  },
-  title: {
-    textAlign: 'center',
-    fontSize: '48px',
-    marginBottom: '10px',
-    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-    WebkitBackgroundClip: 'text',
-    WebkitTextFillColor: 'transparent',
-  } as CSSProperties,
-  subtitle: {
-    textAlign: 'center',
-    marginBottom: '30px',
-    color: '#666',
-  },
-  button: {
-    width: '100%',
-    marginTop: '10px',
-  },
-  footer: {
-    textAlign: 'center',
-    marginTop: '20px',
-    color: '#666',
-  },
-  link: {
-    color: '#667eea',
-    textDecoration: 'none',
-    fontWeight: 'bold',
-  },
-  error: {
-    background: '#ffe0e0',
-    color: '#c00',
-    padding: '10px',
-    borderRadius: '8px',
-    marginBottom: '15px',
-    textAlign: 'center',
-  },
 }

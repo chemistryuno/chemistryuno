@@ -82,6 +82,20 @@ func StartGame(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "游戏开始"})
 }
 
+// 获取房间状态
+func GetRoomState(c *gin.Context) {
+	roomID := c.Param("id")
+	userID := c.GetInt("user_id")
+
+	state, err := game.GetRoomState(roomID, userID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, state)
+}
+
 // 出牌
 func PlayCard(c *gin.Context) {
 	roomID := c.Param("id")

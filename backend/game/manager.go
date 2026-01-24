@@ -245,6 +245,70 @@ func StartGame(roomID string, userID int) error {
 	return nil
 }
 
+// 获取房间状态（为当前玩家过滤信息）
+func GetRoomState(roomID string, userID int) (map[string]interface{}, error) {
+	roomMutex.RLock()
+	gameRoom, exists := rooms[roomID]
+	roomMutex.RUnlock()
+
+	if !exists {
+		return nil, errors.New("房间不存在")
+	}
+
+	gameRoom.mutex.RLock()
+	defer gameRoom.mutex.RUnlock()
+
+	// 检查玩家是否在房间中
+	inRoom := false
+	for _, pid := range gameRoom.Room.Players {
+		if pid == userID {
+			inRoom = true
+			break
+		}
+	}
+	if !inRoom {
+		return nil, errors.New("你不在该房间中")
+	}
+
+	result := map[string]interface{}{
+		"room":   gameRoom.Room,
+		"status": gameRoom.Room.Status,
+	}
+
+	if gameRoom.GameState != nil {
+		// 过滤其他玩家的手牌
+		filteredPlayers := []*models.PlayerState{}
+		for _, player := range gameRoom.GameState.Players {
+			if player.UserID == userID {
+				// 当前玩家，显示全部信息
+				filteredPlayers = append(filteredPlayers, player)
+			} else {
+				// 其他玩家，隐藏手牌详情
+				filteredPlayer := &models.PlayerState{
+					UserID:    player.UserID,
+					Username:  player.Username,
+					Avatar:    player.Avatar,
+					HandCards: nil, // 不显示具体手牌
+					CardCount: player.CardCount,
+					IsReady:   player.IsReady,
+				}
+				filteredPlayers = append(filteredPlayers, filteredPlayer)
+			}
+		}
+
+		result["game_state"] = map[string]interface{}{
+			"players":        filteredPlayers,
+			"current_player": gameRoom.GameState.CurrentPlayer,
+			"direction":      gameRoom.GameState.Direction,
+			"last_card":      gameRoom.GameState.LastCard,
+			"deck_count":     len(gameRoom.GameState.DrawPile),
+			"status":         gameRoom.GameState.Status,
+		}
+	}
+
+	return result, nil
+}
+
 func getCardEffect(cardType string) string {
 	effects := map[string]string{
 		"+2":  "+2",

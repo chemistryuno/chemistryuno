@@ -52,8 +52,10 @@ export const authAPI = {
 export const gameAPI = {
   getRooms: () => 
     api.get('/rooms'),
-  createRoom: (name: string, maxPlayers: number, deckID: string) => 
+  createRoom: (name: string, maxPlayers: number, deckID: number) => 
     api.post('/rooms', { name, max_players: maxPlayers, deck_id: deckID }),
+  getRoomState: (roomId: string) => 
+    api.get(`/rooms/${roomId}`),
   joinRoom: (roomId: string) => 
     api.post(`/rooms/${roomId}/join`),
   leaveRoom: (roomId: string) => 

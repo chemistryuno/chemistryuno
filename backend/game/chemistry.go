@@ -6,43 +6,43 @@ import "chemistryuno/models"
 var reactionDB = map[string][]string{
 	// 水相关
 	"H2O": {"H2", "O2", "H2O2", "NaOH", "HCl", "H2SO4", "Na2O", "CaO", "CO2"},
-	
+
 	// 氢气
 	"H2": {"O2", "Cl2", "N2", "C", "CuO", "Fe2O3"},
-	
+
 	// 氧气
 	"O2": {"H2", "C", "S", "P", "Fe", "Cu", "Mg", "Al", "Na", "K", "Ca"},
-	
+
 	// 酸
-	"HCl": {"NaOH", "Na2CO3", "Fe", "Zn", "Mg", "Al", "CuO", "FeO"},
+	"HCl":   {"NaOH", "Na2CO3", "Fe", "Zn", "Mg", "Al", "CuO", "FeO"},
 	"H2SO4": {"NaOH", "BaCl2", "Fe", "Cu", "Zn", "Mg", "Al"},
-	
+
 	// 碱
 	"NaOH": {"HCl", "H2SO4", "CO2", "CuSO4", "FeCl3", "Al"},
-	
+
 	// 盐
-	"NaCl": {"AgNO3", "H2SO4"},
+	"NaCl":   {"AgNO3", "H2SO4"},
 	"Na2CO3": {"HCl", "CaCl2", "BaCl2"},
-	"CuSO4": {"NaOH", "Fe", "Zn", "BaCl2"},
-	
+	"CuSO4":  {"NaOH", "Fe", "Zn", "BaCl2"},
+
 	// 氧化物
-	"CO2": {"NaOH", "Ca(OH)2", "C", "H2O"},
-	"CaO": {"H2O", "HCl", "CO2"},
-	"CuO": {"H2", "C", "HCl", "H2SO4"},
+	"CO2":   {"NaOH", "Ca(OH)2", "C", "H2O"},
+	"CaO":   {"H2O", "HCl", "CO2"},
+	"CuO":   {"H2", "C", "HCl", "H2SO4"},
 	"Fe2O3": {"H2", "C", "CO", "HCl"},
-	
+
 	// 单质
-	"Fe": {"O2", "S", "HCl", "H2SO4", "CuSO4", "AgNO3"},
-	"Cu": {"O2", "S", "Cl2", "AgNO3", "H2SO4"},
-	"Zn": {"O2", "HCl", "H2SO4", "CuSO4"},
-	"Mg": {"O2", "HCl", "H2SO4"},
-	"Al": {"O2", "HCl", "H2SO4", "NaOH"},
-	"C": {"O2", "CuO", "Fe2O3", "CO2"},
-	"S": {"O2", "Fe", "Cu", "Hg"},
+	"Fe":  {"O2", "S", "HCl", "H2SO4", "CuSO4", "AgNO3"},
+	"Cu":  {"O2", "S", "Cl2", "AgNO3", "H2SO4"},
+	"Zn":  {"O2", "HCl", "H2SO4", "CuSO4"},
+	"Mg":  {"O2", "HCl", "H2SO4"},
+	"Al":  {"O2", "HCl", "H2SO4", "NaOH"},
+	"C":   {"O2", "CuO", "Fe2O3", "CO2"},
+	"S":   {"O2", "Fe", "Cu", "Hg"},
 	"Cl2": {"H2", "Fe", "Cu", "Na", "NaBr", "KI"},
 	"Br2": {"H2", "KI", "Fe"},
-	"I2": {"H2", "Zn"},
-	
+	"I2":  {"H2", "Zn"},
+
 	// 金属盐
 	"AgNO3": {"NaCl", "HCl", "Fe", "Cu", "Zn"},
 	"BaCl2": {"H2SO4", "Na2SO4", "Na2CO3"},
@@ -77,7 +77,7 @@ var elementSubstances = map[string][]string{
 // 根据手牌元素获取可以组成的物质
 func GetSubstancesFromElements(cards []models.Card) []string {
 	elementMap := make(map[string]int)
-	
+
 	// 统计每种元素的数量
 	for _, card := range cards {
 		if card.Effect == "" { // 只处理普通元素牌
@@ -86,7 +86,7 @@ func GetSubstancesFromElements(cards []models.Card) []string {
 	}
 
 	substanceSet := make(map[string]bool)
-	
+
 	// 查找所有可能的物质
 	for element := range elementMap {
 		if substances, ok := elementSubstances[element]; ok {
@@ -103,15 +103,16 @@ func GetSubstancesFromElements(cards []models.Card) []string {
 	for sub := range substanceSet {
 		result = append(result, sub)
 	}
-	
+
 	return result
 }
 
 // 检查是否可以用当前元素组成某个物质
 func canFormSubstance(substance string, elements map[string]int) bool {
 	required := parseSubstance(substance)
-	for elem, count := range required {
-		if elements[elem] < count {
+	for elem := range required {
+		// 不考虑系数，只考虑元素种类是否存在
+		if elements[elem] < 1 {
 			return false
 		}
 	}
@@ -120,37 +121,67 @@ func canFormSubstance(substance string, elements map[string]int) bool {
 
 // 解析物质化学式，返回所需元素及数量
 func parseSubstance(substance string) map[string]int {
-	// 简化版解析，实际应该用更复杂的化学式解析器
 	result := make(map[string]int)
-	
-	// 这里是硬编码的常见物质组成
-	substanceElements := map[string]map[string]int{
-		"H2":        {"H": 2},
-		"O2":        {"O": 2},
-		"H2O":       {"H": 2, "O": 1},
-		"CO2":       {"C": 1, "O": 2},
-		"NaCl":      {"Na": 1, "Cl": 1},
-		"HCl":       {"H": 1, "Cl": 1},
-		"NaOH":      {"Na": 1, "O": 1, "H": 1},
-		"H2SO4":     {"H": 2, "S": 1, "O": 4},
-		"CaCO3":     {"Ca": 1, "C": 1, "O": 3},
-		"Fe2O3":     {"Fe": 2, "O": 3},
-		"CuSO4":     {"Cu": 1, "S": 1, "O": 4},
-		"AgNO3":     {"Ag": 1, "N": 1, "O": 3},
-		// ... 更多物质
+	stack := []map[string]int{result}
+
+	i := 0
+	for i < len(substance) {
+		c := substance[i]
+		if c == '(' {
+			stack = append(stack, make(map[string]int))
+			i++
+		} else if c == ')' {
+			i++
+			count := 0
+			for i < len(substance) && substance[i] >= '0' && substance[i] <= '9' {
+				count = count*10 + int(substance[i]-'0')
+				i++
+			}
+			if count == 0 {
+				count = 1
+			}
+
+			top := stack[len(stack)-1]
+			stack = stack[:len(stack)-1]
+			parent := stack[len(stack)-1]
+
+			for k, v := range top {
+				parent[k] += v * count
+			}
+		} else if c >= 'A' && c <= 'Z' {
+			start := i
+			i++
+			for i < len(substance) && substance[i] >= 'a' && substance[i] <= 'z' {
+				i++
+			}
+			element := substance[start:i]
+
+			count := 0
+			for i < len(substance) && substance[i] >= '0' && substance[i] <= '9' {
+				count = count*10 + int(substance[i]-'0')
+				i++
+			}
+			if count == 0 {
+				count = 1
+			}
+
+			stack[len(stack)-1][element] += count
+		} else {
+			i++
+		}
 	}
-	
-	if elems, ok := substanceElements[substance]; ok {
-		return elems
+
+	// 如果解析结果为空且物质长度不为0，可能是一些特殊符号或错误
+	if len(result) == 0 && len(substance) > 0 {
+		result[substance] = 1
 	}
-	
-	// 默认返回单质
-	result[substance] = 1
+
 	return result
 }
 
 // 检查两个物质是否能反应
 func CanReact(substance1, substance2 string) bool {
+	// 首先检查硬编码的反应数据库
 	if products, ok := reactionDB[substance1]; ok {
 		for _, product := range products {
 			if product == substance2 {
@@ -158,7 +189,7 @@ func CanReact(substance1, substance2 string) bool {
 			}
 		}
 	}
-	
+
 	if products, ok := reactionDB[substance2]; ok {
 		for _, product := range products {
 			if product == substance1 {
@@ -166,8 +197,9 @@ func CanReact(substance1, substance2 string) bool {
 			}
 		}
 	}
-	
-	return false
+
+	// 如果硬编码数据库中没有，则使用通用的化学逻辑判定
+	return JudgeReaction(substance1, substance2)
 }
 
 // 获取能与指定物质反应的所有物质

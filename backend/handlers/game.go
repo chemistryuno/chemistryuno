@@ -3,10 +3,27 @@ package handlers
 import (
 	"chemistryuno/game"
 	"chemistryuno/models"
+	"chemistryuno/websocket"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 )
+
+func broadcastUpdate(roomID string) {
+	if websocket.GlobalHub != nil {
+		websocket.GlobalHub.BroadcastToRoom(roomID, websocket.Message{
+			Type: "game_update",
+		})
+	}
+}
+
+func broadcastPlayerJoint(roomID string) {
+	if websocket.GlobalHub != nil {
+		websocket.GlobalHub.BroadcastToRoom(roomID, websocket.Message{
+			Type: "player_joined",
+		})
+	}
+}
 
 // 获取房间列表
 func GetRooms(c *gin.Context) {
@@ -51,6 +68,7 @@ func JoinRoom(c *gin.Context) {
 		return
 	}
 
+	broadcastPlayerJoint(roomID)
 	c.JSON(http.StatusOK, gin.H{"message": "加入房间成功"})
 }
 
@@ -65,6 +83,7 @@ func LeaveRoom(c *gin.Context) {
 		return
 	}
 
+	broadcastUpdate(roomID)
 	c.JSON(http.StatusOK, gin.H{"message": "离开房间成功"})
 }
 
@@ -79,6 +98,7 @@ func StartGame(c *gin.Context) {
 		return
 	}
 
+	broadcastUpdate(roomID)
 	c.JSON(http.StatusOK, gin.H{"message": "游戏开始"})
 }
 
@@ -117,6 +137,7 @@ func PlayCard(c *gin.Context) {
 		return
 	}
 
+	broadcastUpdate(roomID)
 	c.JSON(http.StatusOK, gin.H{"message": "出牌成功"})
 }
 
@@ -131,6 +152,7 @@ func DrawCard(c *gin.Context) {
 		return
 	}
 
+	broadcastUpdate(roomID)
 	c.JSON(http.StatusOK, gin.H{"message": "摸牌成功"})
 }
 

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"sort"
 	"sync"
 	"time"
 )
@@ -215,8 +216,15 @@ func StartGame(roomID string, userID int) error {
 			gameRoom.GameState.DrawPile[j], gameRoom.GameState.DrawPile[i]
 	})
 
+	// 随机排序玩家顺序
+	shuffledPlayers := make([]int, len(gameRoom.Room.Players))
+	copy(shuffledPlayers, gameRoom.Room.Players)
+	rand.Shuffle(len(shuffledPlayers), func(i, j int) {
+		shuffledPlayers[i], shuffledPlayers[j] = shuffledPlayers[j], shuffledPlayers[i]
+	})
+
 	// 初始化玩家
-	for _, pid := range gameRoom.Room.Players {
+	for _, pid := range shuffledPlayers {
 		var username, avatar string
 		database.DB.QueryRow("SELECT username, avatar FROM users WHERE id = ?", pid).
 			Scan(&username, &avatar)
@@ -349,43 +357,81 @@ func PlayCard(roomID string, userID int, card models.Card, substance string) err
 		return errors.New("还没轮到你")
 	}
 
-	// 检查是否有这张牌
-	cardIndex := -1
-	for i, c := range currentPlayer.HandCards {
-		if c.Type == card.Type {
-			cardIndex = i
-			break
+	// 解析物质所需元素（不考虑系数，只看有哪些元素）
+	requiredElements := parseSubstance(substance)
+	usedCards := []int{} // 记录将要从手牌中移除的索引
+
+	for elemName := range requiredElements {
+		found := false
+		for i, hCard := range currentPlayer.HandCards {
+			// 检查该卡片是否已被标记为使用
+			alreadyUsed := false
+			for _, usedIdx := range usedCards {
+				if usedIdx == i {
+					alreadyUsed = true
+					break
+				}
+			}
+			if alreadyUsed {
+				continue
+			}
+
+			if hCard.Type == elemName {
+				usedCards = append(usedCards, i)
+				found = true
+				break
+			}
 		}
-	}
-	if cardIndex == -1 {
-		return errors.New("你没有这张牌")
+		if !found {
+			return errors.New("缺少元素牌: " + elemName)
+		}
 	}
 
 	// 检查是否能出这张牌（与上一张牌能否反应）
 	if gameRoom.GameState.LastCard != nil {
 		if !CanReact(gameRoom.GameState.LastCard.Substance, substance) {
-			return errors.New("无法与上一张牌反应")
+			return errors.New("无法与上一张牌反应: " + substance + " 不与 " + gameRoom.GameState.LastCard.Substance + " 反应")
 		}
 	}
 
-	// 移除手牌
-	currentPlayer.HandCards = append(
-		currentPlayer.HandCards[:cardIndex],
-		currentPlayer.HandCards[cardIndex+1:]...,
-	)
-	currentPlayer.CardCount--
+	// 移除手牌（从后往前删，避免索引偏移）
+	sort.Ints(usedCards)
+	for i := len(usedCards) - 1; i >= 0; i-- {
+		idx := usedCards[i]
+		currentPlayer.HandCards = append(
+			currentPlayer.HandCards[:idx],
+			currentPlayer.HandCards[idx+1:]...,
+		)
+		currentPlayer.CardCount--
+	}
 
 	// 添加到弃牌堆
+	// 使用第一张选中的卡作为代表（或者如果没有牌，则创建一个虚拟牌）
+	var displayCard models.Card
+	if len(usedCards) > 0 {
+		// 注意：这里的 card 参数在“输入框出牌”模式下可能已经不准确了，
+		// 我们根据实际消耗的第一张牌来记录
+		// 但为了兼容，如果传入的 card.Type 在 usedCards 中，我们优先考虑它
+		displayCard = card
+	}
+
 	playedCard := models.PlayedCard{
-		Card:      card,
+		Card:      displayCard,
 		Substance: substance,
 		PlayerID:  userID,
 	}
 	gameRoom.GameState.LastCard = &playedCard
 	gameRoom.GameState.DiscardPile = append(gameRoom.GameState.DiscardPile, playedCard)
 
-	// 处理特殊效果
-	switch card.Effect {
+	// 处理特殊效果（如果消耗的牌中有特殊效果牌，优先提取第一个效果）
+	// 注意：这里简化逻辑，只要包含该元素且有效果就触发
+	activeEffect := ""
+	// 如果用户传来的 card 有效果且被选中了，可以使用它
+	if card.Effect != "" {
+		activeEffect = card.Effect
+	}
+
+	switch activeEffect {
 	case "reverse":
 		gameRoom.GameState.Direction *= -1
 	case "skip":

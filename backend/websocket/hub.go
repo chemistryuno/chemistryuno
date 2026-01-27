@@ -15,14 +15,17 @@ type Hub struct {
 	mutex      sync.RWMutex
 }
 
+var GlobalHub *Hub
+
 func NewHub() *Hub {
-	return &Hub{
+	GlobalHub = &Hub{
 		clients:    make(map[*Client]bool),
 		rooms:      make(map[string]map[*Client]bool),
 		broadcast:  make(chan []byte),
 		register:   make(chan *Client),
 		unregister: make(chan *Client),
 	}
+	return GlobalHub
 }
 
 func (h *Hub) Run() {
@@ -39,7 +42,7 @@ func (h *Hub) Run() {
 			if _, ok := h.clients[client]; ok {
 				delete(h.clients, client)
 				close(client.send)
-				
+
 				// 从所有房间中移除
 				for roomID, clients := range h.rooms {
 					delete(clients, client)
@@ -85,7 +88,7 @@ func (h *Hub) JoinRoom(client *Client, roomID string) {
 	}
 	h.rooms[roomID][client] = true
 	client.roomID = roomID
-	
+
 	log.Printf("用户 %d 加入房间 %s", client.userID, roomID)
 }
 

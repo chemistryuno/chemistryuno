@@ -10,7 +10,7 @@
     "backend": "cd backend && go run main.go"
   },
   "description": "Chemistry UNO Alpha - 化学元素版UNO游戏",
-  "keywords": ["game", "uno", "chemistry", "react", "go"],
+  "keywords": ["game", "uno", "chemistry", "vue", "go"],
   "author": "",
   "license": "MIT"
 }

@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { authAPI } from '../utils/api'
+import { useDialog } from '../utils/dialog'
 import { Lock, User, FlaskConical, ShieldCheck, Zap, Loader2 } from 'lucide-vue-next'
 
 const username = ref('')
@@ -10,6 +11,7 @@ const confirmPassword = ref('')
 const error = ref('')
 const loading = ref(false)
 const router = useRouter()
+const { showAlert } = useDialog()
 
 const handleSubmit = async () => {
   error.value = ''
@@ -23,7 +25,7 @@ const handleSubmit = async () => {
 
   try {
     await authAPI.register(username.value, password.value)
-    alert('注册成功，请登录')
+    await showAlert('注册成功，请使用新凭据登录。', '研究员注册成功')
     router.push('/login')
   } catch (err: any) {
     error.value = err.response?.data?.error || '注册失败，用户名可能已存在'

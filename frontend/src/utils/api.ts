@@ -36,8 +36,8 @@ api.interceptors.response.use(
 export const authAPI = {
   register: (username: string, password: string) => 
     api.post('/auth/register', { username, password }),
-  login: (username: string, password: string, code?: string) => 
-    api.post('/auth/login', { username, password, code }),
+  login: (username: string, password: string) => 
+    api.post('/auth/login', { username, password }),
   getUserInfo: () => 
     api.get('/user/info'),
   changePassword: (oldPassword: string, newPassword: string) => 
@@ -47,13 +47,11 @@ export const authAPI = {
   deleteAccount: () => 
     api.delete('/user/account'),
   
-  // 2FA
-  setup2FA: () => 
-    api.post('/auth/2fa/setup'),
-  verify2FA: (code: string) => 
-    api.post('/auth/2fa/verify', { code }),
-  disable2FA: () => 
-    api.post('/auth/2fa/disable'),
+  // 2FA相关
+  setup2FA: () => api.post('/user/2fa/setup'),
+  enable2FA: (code: string) => api.post('/user/2fa/enable', { code }),
+  disable2FA: (code: string) => api.post('/user/2fa/disable', { code }),
+  verify2FALogin: (uid: number, code: string) => api.post('/auth/2fa/verify', { uid, code }),
 }
 
 // 游戏API

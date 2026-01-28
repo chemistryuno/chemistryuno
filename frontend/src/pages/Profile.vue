@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { authAPI } from '../utils/api'
+import { useDialog } from '../utils/dialog'
 import { 
   ArrowLeft, 
   Key, 
@@ -23,6 +24,7 @@ import {
 import { cn } from '../utils/cn'
 
 const router = useRouter()
+const { showAlert, showConfirm, showPrompt } = useDialog()
 const user = ref<any>(JSON.parse(localStorage.getItem('user') || '{}'))
 
 const showChangePassword = ref(false)
@@ -33,63 +35,11 @@ const confirmPassword = ref('')
 const showPasswords = ref(false)
 const selectedAvatar = ref(user.value.avatar)
 const loading = ref(false)
-const fileInput = ref<HTMLInputElement | null>(null)
-
-// 2FA features
+const twoFactorLoading = ref(false)
 const show2FASetup = ref(false)
-const twoFactorCode = ref('')
-const setup2FAResult = ref<{ secret: string, qr_code: string } | null>(null)
-const twoFactorError = ref('')
-
-const handleSetup2FA = async () => {
-  loading.value = true
-  twoFactorError.value = ''
-  try {
-    const response = await authAPI.setup2FA()
-    setup2FAResult.value = response.data
-    show2FASetup.value = true
-  } catch (error: any) {
-    alert(error.response?.data?.error || '无法启动双重认证设置')
-  } finally {
-    loading.value = false
-  }
-}
-
-const handleVerify2FA = async () => {
-  if (twoFactorCode.value.length !== 6) {
-    twoFactorError.value = '请输入 6 位校验码'
-    return
-  }
-  loading.value = true
-  twoFactorError.value = ''
-  try {
-    await authAPI.verify2FA(twoFactorCode.value)
-    alert('双重认证已成功开启')
-    show2FASetup.value = false
-    setup2FAResult.value = null
-    twoFactorCode.value = ''
-    fetchLatestUserInfo()
-  } catch (error: any) {
-    twoFactorError.value = error.response?.data?.error || '校验失败，请重试'
-  } finally {
-    loading.value = false
-  }
-}
-
-const handleDisable2FA = async () => {
-  if (!window.confirm('确认要关闭双重认证吗？这将降低您的账户安全性。')) return
-  
-  loading.value = true
-  try {
-    await authAPI.disable2FA()
-    alert('双重认证已关闭')
-    fetchLatestUserInfo()
-  } catch (error: any) {
-    alert(error.response?.data?.error || '关闭失败')
-  } finally {
-    loading.value = false
-  }
-}
+const qrCode = ref('')
+const verificationCode = ref('')
+const fileInput = ref<HTMLInputElement | null>(null)
 
 const avatarOptions = ["🧪", "🧬", "⚗️", "🔬", "🛰️", "🚀", "🪐", "⚛️", "📡", "🧠", "🦾", "👾"]
 
@@ -112,18 +62,63 @@ const handleLogout = () => {
   router.push('/login')
 }
 
+const handleSetup2FA = async () => {
+  twoFactorLoading.value = true
+  try {
+    const response = await authAPI.setup2FA()
+    qrCode.value = response.data.qr_code
+    show2FASetup.value = true
+  } catch (error: any) {
+    showAlert(error.response?.data?.error || '获取2FA设置失败', '错误')
+  } finally {
+    twoFactorLoading.value = false
+  }
+}
+
+const handleEnable2FA = async () => {
+  if (!verificationCode.value) return
+  twoFactorLoading.value = true
+  try {
+    await authAPI.enable2FA(verificationCode.value)
+    await showAlert('双重验证已成功开启', '成功')
+    show2FASetup.value = false
+    verificationCode.value = ''
+    fetchLatestUserInfo()
+  } catch (error: any) {
+    showAlert(error.response?.data?.error || '开启2FA失败', '错误')
+  } finally {
+    twoFactorLoading.value = false
+  }
+}
+
+const handleDisable2FA = async () => {
+  const code = await showPrompt('为了安全起见，请输入 6 位验证码以停用双重验证：', '请输入验证码', '停用双重验证')
+  if (!code) return
+  
+  twoFactorLoading.value = true
+  try {
+    await authAPI.disable2FA(code)
+    await showAlert('双重验证已关闭', '系统提示')
+    fetchLatestUserInfo()
+  } catch (error: any) {
+    showAlert(error.response?.data?.error || '关闭2FA失败', '错误')
+  } finally {
+    twoFactorLoading.value = false
+  }
+}
+
 const handleChangePassword = async () => {
   if (newPassword.value !== confirmPassword.value) {
-    alert('两次输入的密码不一致')
+    showAlert('两次输入的密码不一致', '输入错误')
     return
   }
   loading.value = true
   try {
     await authAPI.changePassword(oldPassword.value, newPassword.value)
-    alert('密码修改成功，请重新登录')
+    await showAlert('密码修改成功，请重新登录', '重置成功')
     handleLogout()
   } catch (error: any) {
-    alert(error.response?.data?.error || '修改密码失败')
+    showAlert(error.response?.data?.error || '修改密码失败', '错误')
   } finally {
     loading.value = false
   }
@@ -135,7 +130,7 @@ const handleFileUpload = (event: Event) => {
   if (!file) return
 
   if (file.size > 2 * 1024 * 1024) {
-    alert('头像文件不能超过 2MB')
+    showAlert('头像文件不能超过 2MB', '上传限制')
     return
   }
 
@@ -153,25 +148,27 @@ const handleChangeAvatar = async () => {
     const updatedUser = { ...user.value, avatar: selectedAvatar.value }
     localStorage.setItem('user', JSON.stringify(updatedUser))
     user.value = updatedUser
-    alert('头像更新成功！')
+    await showAlert('头像更新成功！', '同步完成')
     showChangeAvatar.value = false
   } catch (error: any) {
-    alert(error.response?.data?.error || '更新头像失败')
+    showAlert(error.response?.data?.error || '更新头像失败', '错误')
   } finally {
     loading.value = false
   }
 }
 
 const handleDeleteAccount = async () => {
-  if (!window.confirm('确定要注销账号吗？此操作无法恢复！')) return
-  if (!window.confirm('再次确认：确定要删除账号吗？')) return
+  const confirm1 = await showConfirm('确定要注销账号吗？此操作无法恢复！', '⚠️ 警告')
+  if (!confirm1) return
+  const confirm2 = await showConfirm('再次确认：确定要删除账号吗？', '⚠️ 再次确认')
+  if (!confirm2) return
 
   try {
     await authAPI.deleteAccount()
-    alert('账号已注销')
+    await showAlert('账号已注销', '注销成功')
     handleLogout()
   } catch (error: any) {
-    alert(error.response?.data?.error || '注销账号失败')
+    showAlert(error.response?.data?.error || '注销账号失败', '错误')
   }
 }
 </script>
@@ -291,7 +288,7 @@ const handleDeleteAccount = async () => {
               </div>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               <button 
                 @click="showChangePassword = true"
                 class="group relative flex flex-col items-start p-6 bg-white/5 hover:bg-blue-500/10 border border-white/5 hover:border-blue-500/30 rounded-3xl transition-all text-left"
@@ -304,28 +301,31 @@ const handleDeleteAccount = async () => {
               </button>
 
               <button 
-                @click="user.two_factor_enabled ? handleDisable2FA() : handleSetup2FA()"
-                :class="cn(
-                  'group relative flex flex-col items-start p-6 border rounded-3xl transition-all text-left',
-                  user.two_factor_enabled 
-                    ? 'bg-emerald-500/5 hover:bg-emerald-500/10 border-emerald-500/20 hover:border-emerald-500/40' 
-                    : 'bg-white/5 hover:bg-yellow-500/10 border-white/5 hover:border-yellow-500/30'
-                )"
+                v-if="!user.two_factor_enabled"
+                @click="handleSetup2FA"
+                :disabled="twoFactorLoading"
+                class="group relative flex flex-col items-start p-6 bg-white/5 hover:bg-emerald-500/10 border border-white/5 hover:border-emerald-500/30 rounded-3xl transition-all text-left"
               >
-                <div :class="cn(
-                  'p-3 rounded-2xl mb-4 group-hover:scale-110 transition-transform',
-                  user.two_factor_enabled ? 'bg-emerald-500/20' : 'bg-yellow-500/20'
-                )">
-                  <Shield v-if="user.two_factor_enabled" class="w-6 h-6 text-emerald-400" />
-                  <Fingerprint v-else class="w-6 h-6 text-yellow-400" />
+                <div class="bg-emerald-500/20 p-3 rounded-2xl mb-4 group-hover:scale-110 transition-transform">
+                  <Shield class="w-6 h-6 text-emerald-400" />
                 </div>
-                <div class="flex items-center gap-2">
-                  <span class="text-lg font-bold">{{ user.two_factor_enabled ? '双重认证已激活' : '启用双重认证' }}</span>
-                  <div v-if="user.two_factor_enabled" class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span class="text-lg font-bold">开启双重验证</span>
+                <span class="text-slate-500 text-xs mt-1">通过 TOTP 协议为您的账户增加第二层保护</span>
+                <Loader2 v-if="twoFactorLoading" class="absolute top-6 right-6 w-5 h-5 animate-spin text-emerald-500" />
+              </button>
+
+              <button 
+                v-else
+                @click="handleDisable2FA"
+                :disabled="twoFactorLoading"
+                class="group relative flex flex-col items-start p-6 bg-emerald-500/5 hover:bg-red-500/10 border border-emerald-500/20 hover:border-red-500/30 rounded-3xl transition-all text-left"
+              >
+                <div class="bg-red-500/20 p-3 rounded-2xl mb-4 group-hover:scale-110 transition-transform">
+                  <Shield class="w-6 h-6 text-red-500" />
                 </div>
-                <span class="text-slate-500 text-xs mt-1">
-                  {{ user.two_factor_enabled ? '已开启 TOTP 动态校验保护' : '添加额外的实验室生物特征验证层' }}
-                </span>
+                <span class="text-lg font-bold text-emerald-400 group-hover:text-red-400">管理双重验证</span>
+                <span class="text-slate-500 text-xs mt-1">2FA 已激活。点击可停用验证保护。</span>
+                <div class="absolute top-6 right-6 w-3 h-3 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.5)]" />
               </button>
 
               <button 
@@ -501,59 +501,46 @@ const handleDeleteAccount = async () => {
     </div>
 
     <!-- 2FA Setup Modal -->
-    <div v-if="show2FASetup && setup2FAResult" class="fixed inset-0 z-[100] flex items-center justify-center p-4 backdrop-blur-xl bg-black/60">
-      <div class="bg-[#111114] border border-white/10 rounded-[3rem] p-10 max-w-lg w-full shadow-2xl relative animate-in fade-in zoom-in duration-300">
-        <div class="text-center mb-8">
-          <div class="w-16 h-16 bg-yellow-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <Shield class="w-8 h-8 text-yellow-400" />
-          </div>
-          <h3 class="text-2xl font-black italic uppercase tracking-tighter">配置双重认证协议 / 2FA Setup</h3>
-          <p class="text-slate-500 text-sm mt-2 font-medium">使用您的身份验证应用（如 Google Authenticator, Microsoft Authenticator, Bitwarden）扫描下方二维码</p>
-        </div>
-
+    <div v-if="show2FASetup" class="fixed inset-0 z-[100] flex items-center justify-center p-4 backdrop-blur-xl bg-black/60">
+      <div class="bg-[#111114] border border-white/10 rounded-[3rem] p-10 max-w-md w-full shadow-2xl relative animate-in fade-in zoom-in duration-300">
+        <h3 class="text-2xl font-black mb-4 italic uppercase text-center">配置双重验证 / 2FA Config</h3>
+        <p class="text-slate-500 text-xs text-center mb-8">请使用手机验证器应用（如 Google Authenticator 或 Microsoft Authenticator）扫描下方二维码</p>
+        
         <div class="flex flex-col items-center gap-8">
-          <div class="p-6 bg-white rounded-[2rem] shadow-[0_0_40px_rgba(255,255,255,0.1)] relative group">
-            <img :src="setup2FAResult.qr_code" class="w-48 h-48" alt="QR Code" />
-            <div class="absolute inset-0 border-4 border-blue-500/20 rounded-[2rem] pointer-events-none group-hover:border-blue-500/50 transition-colors" />
+          <div class="bg-white p-4 rounded-[2rem] shadow-[0_0_30px_rgba(255,255,255,0.1)]">
+            <img :src="qrCode" alt="2FA QR Code" class="w-48 h-48" />
           </div>
 
           <div class="w-full space-y-4">
-            <div class="bg-white/5 border border-white/10 rounded-2xl p-4 flex flex-col items-center gap-2">
-              <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest">或手动输入密钥 / Manual Key</span>
-              <code class="text-blue-400 font-mono font-bold tracking-[0.2em] break-all text-center selection:bg-blue-500/30">{{ setup2FAResult.secret }}</code>
-            </div>
-
-            <div class="space-y-2">
-              <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">校验码 / Verification Code</label>
-              <div class="relative">
-                <input 
-                  v-model="twoFactorCode"
-                  type="text" 
-                  maxlength="6"
-                  placeholder="000000"
-                  class="w-full bg-slate-100/5 border border-white/10 text-white pl-4 pr-4 py-4 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all text-center tracking-[0.5em] text-xl font-black placeholder:text-slate-800"
-                />
-              </div>
-              <p v-if="twoFactorError" class="text-red-500 text-[10px] font-bold text-center mt-2">{{ twoFactorError }}</p>
+            <div class="relative group">
+              <Fingerprint class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 group-focus-within:text-blue-500 transition-colors" />
+              <input
+                v-model="verificationCode"
+                type="text"
+                maxlength="6"
+                placeholder="请输入6位验证码"
+                class="w-full bg-white/5 border border-white/10 focus:border-blue-500/50 rounded-2xl py-4 pl-12 pr-4 outline-none transition-all placeholder:text-slate-600 font-mono tracking-[0.5em] text-center text-xl"
+                required
+              />
             </div>
           </div>
-        </div>
 
-        <div class="flex gap-4 mt-10">
-          <button 
-            @click="show2FASetup = false"
-            class="flex-1 py-4 bg-white/5 hover:bg-white/10 rounded-2xl font-bold transition-all text-slate-400"
-          >
-            中止配置
-          </button>
-          <button 
-            @click="handleVerify2FA"
-            :disabled="loading || twoFactorCode.length !== 6"
-            class="flex-1 py-4 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 disabled:text-slate-500 rounded-2xl font-black transition-all shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2"
-          >
-            <Loader2 v-if="loading" class="w-5 h-5 animate-spin" />
-            <span v-else>激活协议</span>
-          </button>
+          <div class="flex gap-4 w-full">
+            <button 
+              @click="show2FASetup = false; verificationCode = '';" 
+              class="flex-1 py-4 bg-white/5 hover:bg-white/10 rounded-2xl font-bold transition-all text-slate-400"
+            >
+              取消
+            </button>
+            <button 
+              @click="handleEnable2FA"
+              :disabled="twoFactorLoading || verificationCode.length !== 6"
+              class="flex-1 py-4 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 rounded-2xl font-black text-white shadow-xl shadow-emerald-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              <Loader2 v-if="twoFactorLoading" class="w-5 h-5 animate-spin" />
+              激活保护
+            </button>
+          </div>
         </div>
       </div>
     </div>

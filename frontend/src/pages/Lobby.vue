@@ -2,6 +2,7 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { gameAPI } from '../utils/api'
+import { useDialog } from '../utils/dialog'
 import websocket from '../utils/websocket'
 import { Beaker, Plus, Users, Shield, LogOut, Settings, Play, Info, X, Loader2, Database } from 'lucide-vue-next'
 import { cn } from '../utils/cn'
@@ -11,6 +12,7 @@ const props = defineProps<{
 }>()
 
 const router = useRouter()
+const { showAlert } = useDialog()
 const user = ref(JSON.parse(localStorage.getItem('user') || '{}'))
 const rooms = ref<any[]>([])
 const showCreateModal = ref(false)
@@ -61,7 +63,7 @@ const handleCreateRoom = async () => {
     const room = response.data
     router.push(`/room/${room.id}`)
   } catch (error: any) {
-    alert(error.response?.data?.error || '创建房间失败')
+    showAlert(error.response?.data?.error || '创建房间失败', '系统异常')
   } finally {
     loading.value = false
   }
@@ -72,7 +74,7 @@ const handleJoinRoom = async (roomId: string) => {
     await gameAPI.joinRoom(roomId)
     router.push(`/room/${roomId}`)
   } catch (error: any) {
-    alert(error.response?.data?.error || '加入房间失败')
+    showAlert(error.response?.data?.error || '加入房间失败', '连接错误')
   }
 }
 

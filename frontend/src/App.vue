@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import websocket from './utils/websocket'
+import CustomDialog from './components/CustomDialog.vue'
 
 const loading = ref(true)
 
@@ -27,7 +28,10 @@ onMounted(() => {
       INITIALIZING LABORATORY...
     </p>
   </div>
-  <router-view v-else></router-view>
+  <template v-else>
+    <router-view></router-view>
+    <CustomDialog />
+  </template>
 </template>
 
 <style>

@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { adminAPI } from '../utils/api'
+import { useDialog } from '../utils/dialog'
 import { 
   Shield, 
   ArrowLeft, 
@@ -25,6 +26,7 @@ import {
 import { cn } from '../utils/cn'
 
 const router = useRouter()
+const { showAlert, showConfirm, showPrompt } = useDialog()
 const users = ref<any[]>([])
 const gameHistory = ref<any[]>([])
 const deckConfig = ref<any>(null)
@@ -37,19 +39,6 @@ const showCreateUserModal = ref(false)
 const newUser = ref({ username: '', password: '' })
 
 const specialElements = ['He', 'Ne', 'Ar', 'Kr', 'Au', '+2', '+4', 'Choice']
-
-// 自定义对话框系统
-const dialog = ref({
-  show: false,
-  type: 'alert', // 'alert', 'confirm', 'prompt'
-  title: '',
-  message: '',
-  confirmText: '确定',
-  cancelText: '取消',
-  inputValue: '',
-  inputPlaceholder: '',
-  resolve: null as Function | null
-})
 
 const loadData = async () => {
   loading.value = true
@@ -77,75 +66,6 @@ watch(activeTab, () => {
   loadData()
   searchTerm.value = ''
 })
-
-// 自定义对话框方法
-const showAlert = (message: string, title: string = '提示') => {
-  return new Promise<void>((resolve) => {
-    dialog.value = {
-      show: true,
-      type: 'alert',
-      title,
-      message,
-      confirmText: '确定',
-      cancelText: '取消',
-      inputValue: '',
-      inputPlaceholder: '',
-      resolve
-    }
-  })
-}
-
-const showConfirm = (message: string, title: string = '确认') => {
-  return new Promise<boolean>((resolve) => {
-    dialog.value = {
-      show: true,
-      type: 'confirm',
-      title,
-      message,
-      confirmText: '确定',
-      cancelText: '取消',
-      inputValue: '',
-      inputPlaceholder: '',
-      resolve
-    }
-  })
-}
-
-const showPrompt = (message: string, placeholder: string = '', title: string = '输入') => {
-  return new Promise<string | null>((resolve) => {
-    dialog.value = {
-      show: true,
-      type: 'prompt',
-      title,
-      message,
-      confirmText: '确定',
-      cancelText: '取消',
-      inputValue: '',
-      inputPlaceholder: placeholder,
-      resolve
-    }
-  })
-}
-
-const handleDialogConfirm = () => {
-  if (dialog.value.type === 'prompt') {
-    dialog.value.resolve?.(dialog.value.inputValue || null)
-  } else if (dialog.value.type === 'confirm') {
-    dialog.value.resolve?.(true)
-  } else {
-    dialog.value.resolve?.()
-  }
-  dialog.value.show = false
-}
-
-const handleDialogCancel = () => {
-  if (dialog.value.type === 'prompt') {
-    dialog.value.resolve?.(null)
-  } else if (dialog.value.type === 'confirm') {
-    dialog.value.resolve?.(false)
-  }
-  dialog.value.show = false
-}
 
 const handleCreateUser = async () => {
   if (!newUser.value.username || !newUser.value.password) {
@@ -326,10 +246,6 @@ const filteredHistory = computed(() => {
     .filter(game => game.id.includes(searchTerm.value))
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 })
-</script>
-
-<script lang="ts">
-import { computed } from 'vue'
 </script>
 
 <template>
@@ -850,61 +766,9 @@ import { computed } from 'vue'
         </div>
       </div>
     </div>
-
-    <!-- 自定义对话框 -->
-    <div v-if="dialog.show" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
-      <div class="bg-[#111114] border border-white/10 rounded-[2rem] p-8 max-w-md w-full shadow-2xl animate-in zoom-in duration-300">
-        <div class="flex items-center gap-3 mb-6">
-          <div v-if="dialog.type === 'alert'" class="w-8 h-8 rounded-xl bg-blue-500/20 flex items-center justify-center">
-            <span class="text-blue-400 text-lg">ℹ️</span>
-          </div>
-          <div v-else-if="dialog.type === 'confirm'" class="w-8 h-8 rounded-xl bg-orange-500/20 flex items-center justify-center">
-            <span class="text-orange-400 text-lg">⚠️</span>
-          </div>
-          <div v-else-if="dialog.type === 'prompt'" class="w-8 h-8 rounded-xl bg-purple-500/20 flex items-center justify-center">
-            <span class="text-purple-400 text-lg">💬</span>
-          </div>
-          <h3 class="text-lg font-black text-white">{{ dialog.title }}</h3>
-        </div>
-        
-        <div class="mb-8">
-          <p class="text-slate-300 leading-relaxed whitespace-pre-line">{{ dialog.message }}</p>
-          
-          <!-- 输入框（仅prompt类型显示） -->
-          <input 
-            v-if="dialog.type === 'prompt'"
-            v-model="dialog.inputValue"
-            type="text" 
-            :placeholder="dialog.inputPlaceholder"
-            class="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white mt-4 focus:outline-none focus:border-purple-500/50 transition-all"
-            @keydown.enter="handleDialogConfirm"
-          />
-        </div>
-        
-        <div class="flex gap-3">
-          <button 
-            v-if="dialog.type === 'confirm' || dialog.type === 'prompt'"
-            @click="handleDialogCancel"
-            class="flex-1 px-6 py-3 bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white rounded-xl font-bold text-sm uppercase tracking-widest transition-all"
-          >
-            {{ dialog.cancelText }}
-          </button>
-          <button 
-            @click="handleDialogConfirm"
-            :class="[
-              'flex-1 px-6 py-3 rounded-xl font-bold text-sm uppercase tracking-widest transition-all text-white',
-              dialog.type === 'alert' ? 'bg-blue-600 hover:bg-blue-500' :
-              dialog.type === 'confirm' ? 'bg-orange-600 hover:bg-orange-500' :
-              'bg-purple-600 hover:bg-purple-500'
-            ]"
-          >
-            {{ dialog.confirmText }}
-          </button>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
+
 
 <style scoped>
 .animate-in {

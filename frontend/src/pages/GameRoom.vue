@@ -2,12 +2,14 @@
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { gameAPI } from '../utils/api'
+import { useDialog } from '../utils/dialog'
 import websocket from '../utils/websocket'
 import { ArrowLeft, Play, RefreshCw, Zap, FlaskConical, Trophy, ChevronRight, Loader2, Users, Timer } from 'lucide-vue-next'
 import { cn } from '../utils/cn'
 
 const route = useRoute()
 const router = useRouter()
+const { showAlert, showConfirm } = useDialog()
 const id = route.params.id as string
 
 const user = ref(JSON.parse(localStorage.getItem('user') || '{}'))
@@ -68,13 +70,13 @@ const loadGameState = async () => {
     loading.value = false
     
     if (error.response?.status === 404) {
-      alert('房间不存在或已被关闭')
+      showAlert('房间不存在或已被关闭', '未知实验室')
       router.push('/')
     } else if (error.response?.status === 401) {
-      alert('身份验证失败，请重新登录')
+      showAlert('身份验证失败，请重新登录', '准入失败')
       router.push('/login')
     } else {
-      alert('加载房间失败，请稍后重试')
+      showAlert('加载房间失败，请稍后重试', '系统错误')
     }
   }
 }
@@ -101,7 +103,7 @@ const handleStartGame = async () => {
     await gameAPI.startGame(id)
     await loadGameState()
   } catch (error: any) {
-    alert(error.response?.data?.error || '开始游戏失败')
+    showAlert(error.response?.data?.error || '开始游戏失败', '启动失败')
   }
 }
 
@@ -126,7 +128,7 @@ const handleCardClick = async (card: any) => {
 
 const handlePlayCard = async () => {
   if (!selectedCard.value || !selectedSubstance.value) {
-    alert('请选择物质')
+    showAlert('请选择要合成或放置的化学物质', '未选择目标')
     return
   }
 
@@ -136,7 +138,7 @@ const handlePlayCard = async () => {
     selectedSubstance.value = null
     availableSubstances.value = []
   } catch (error: any) {
-    alert(error.response?.data?.error || '出牌失败')
+    showAlert(error.response?.data?.error || '出牌失败', '反应中断')
   }
 }
 
@@ -151,7 +153,7 @@ const handleInputPlay = async () => {
     selectedSubstance.value = null
     availableSubstances.value = []
   } catch (error: any) {
-    alert(error.response?.data?.error || '出牌失败')
+    showAlert(error.response?.data?.error || '出牌失败', '反应中断')
   }
 }
 
@@ -159,13 +161,14 @@ const handleDrawCard = async () => {
   try {
     await gameAPI.drawCard(id)
   } catch (error: any) {
-    alert(error.response?.data?.error || '摸牌失败')
+    showAlert(error.response?.data?.error || '摸牌失败', '系统异常')
   }
 }
 
 const handleLeaveRoom = async () => {
   try {
-    if (window.confirm('确定要离开房间吗？')) {
+    const confirmed = await showConfirm('确定要离开当前实验房间吗？', '中断实验')
+    if (confirmed) {
       await gameAPI.leaveRoom(id)
       router.push('/')
     }

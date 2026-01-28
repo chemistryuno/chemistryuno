@@ -11,12 +11,9 @@ type User struct {
 	Avatar           string    `json:"avatar" db:"avatar"`
 	IsAdmin          bool      `json:"is_admin" db:"is_admin"`
 	Role             string    `json:"role" db:"role"` // admin, co-worker, user
-	CreatedAt        time.Time `json:"created_at" db:"created_at"`
 	TwoFactorEnabled bool      `json:"two_factor_enabled" db:"two_factor_enabled"`
 	TwoFactorSecret  string    `json:"-" db:"two_factor_secret"`
-	GoogleID         string    `json:"google_id,omitempty" db:"google_id"`
-	MicrosoftID      string    `json:"microsoft_id,omitempty" db:"microsoft_id"`
-	WechatID         string    `json:"wechat_id,omitempty" db:"wechat_id"`
+	CreatedAt        time.Time `json:"created_at" db:"created_at"`
 }
 
 type RegisterRequest struct {
@@ -27,7 +24,6 @@ type RegisterRequest struct {
 type LoginRequest struct {
 	Username string `json:"username" binding:"required"`
 	Password string `json:"password" binding:"required"`
-	Code     string `json:"code,omitempty"` // 2FA code
 }
 
 type ChangePasswordRequest struct {

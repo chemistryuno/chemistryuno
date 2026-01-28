@@ -41,19 +41,10 @@ func createTables() error {
 		avatar TEXT DEFAULT '',
 		is_admin BOOLEAN DEFAULT 0,
 		role TEXT DEFAULT 'user',
-		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		two_factor_enabled BOOLEAN DEFAULT 0,
 		two_factor_secret TEXT DEFAULT '',
-		google_id TEXT DEFAULT '',
-		microsoft_id TEXT DEFAULT '',
-		wechat_id TEXT DEFAULT ''
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);`
-
-	_ = DB.Exec("ALTER TABLE users ADD COLUMN two_factor_enabled BOOLEAN DEFAULT 0")
-	_ = DB.Exec("ALTER TABLE users ADD COLUMN two_factor_secret TEXT DEFAULT ''")
-	_ = DB.Exec("ALTER TABLE users ADD COLUMN google_id TEXT DEFAULT ''")
-	_ = DB.Exec("ALTER TABLE users ADD COLUMN microsoft_id TEXT DEFAULT ''")
-	_ = DB.Exec("ALTER TABLE users ADD COLUMN wechat_id TEXT DEFAULT ''")
 
 	// 牌组配置表
 	deckConfigTable := `
@@ -98,6 +89,10 @@ func createTables() error {
 			return err
 		}
 	}
+
+	// 增量更新表结构（针对已存在的数据库）
+	_, _ = DB.Exec("ALTER TABLE users ADD COLUMN two_factor_enabled BOOLEAN DEFAULT 0")
+	_, _ = DB.Exec("ALTER TABLE users ADD COLUMN two_factor_secret TEXT DEFAULT ''")
 
 	// 检查并创建默认管理员账号
 	if err := createDefaultAdmin(); err != nil {

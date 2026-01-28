@@ -40,12 +40,7 @@ func main() {
 	// 公开路由
 	r.POST("/auth/register", handlers.Register)
 	r.POST("/auth/login", handlers.Login)
-
-	// OAuth 路由
-	r.GET("/auth/google/login", handlers.GoogleLogin)
-	r.GET("/auth/google/callback", handlers.GoogleCallback)
-	r.GET("/auth/microsoft/login", handlers.MicrosoftLogin)
-	r.GET("/auth/microsoft/callback", handlers.MicrosoftCallback)
+	r.POST("/auth/2fa/verify", handlers.Verify2FALogin)
 
 	// 需要认证的路由
 	auth := r.Group("/")
@@ -58,9 +53,9 @@ func main() {
 		auth.DELETE("/user/account", handlers.DeleteAccount)
 
 		// 2FA相关
-		auth.POST("/auth/2fa/setup", handlers.Setup2FA)
-		auth.POST("/auth/2fa/verify", handlers.Verify2FA)
-		auth.POST("/auth/2fa/disable", handlers.Disable2FA)
+		auth.POST("/user/2fa/setup", handlers.Setup2FA)
+		auth.POST("/user/2fa/enable", handlers.Enable2FA)
+		auth.POST("/user/2fa/disable", handlers.Disable2FA)
 
 		// 游戏相关
 		auth.GET("/rooms", handlers.GetRooms)

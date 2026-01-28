@@ -184,9 +184,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, inject } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { reactionAPI } from '../utils/api'
+import { useDialog } from '../utils/dialog'
 import { 
   ArrowLeft, 
   Beaker, 
@@ -197,8 +198,7 @@ import {
 } from 'lucide-vue-next'
 
 const router = useRouter()
-const showAlert = inject('showAlert') as (message: string, title?: string) => Promise<void>
-const showConfirm = inject('showConfirm') as (message: string, title?: string) => Promise<boolean>
+const { showAlert, showConfirm } = useDialog()
 
 const user = ref<any>(JSON.parse(localStorage.getItem('user') || '{}'))
 const reactions = ref<any[]>([])

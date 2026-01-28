@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/pquerna/otp/totp"
 )
 
 // 用户注册
@@ -62,9 +63,9 @@ func Login(c *gin.Context) {
 	// 查询用户
 	var user models.User
 	err := database.DB.QueryRow(
-		"SELECT UID, username, password, avatar, is_admin, role FROM users WHERE username = ?",
+		"SELECT UID, username, password, avatar, is_admin, role, two_factor_enabled, two_factor_secret FROM users WHERE username = ?",
 		req.Username,
-	).Scan(&user.UID, &user.Username, &user.PasswordHash, &user.Avatar, &user.IsAdmin, &user.Role)
+	).Scan(&user.UID, &user.Username, &user.PasswordHash, &user.Avatar, &user.IsAdmin, &user.Role, &user.TwoFactorEnabled, &user.TwoFactorSecret)
 
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "用户名或密码错误"})
@@ -75,6 +76,21 @@ func Login(c *gin.Context) {
 	if !utils.CheckPassword(req.Password, user.PasswordHash) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "用户名或密码错误"})
 		return
+	}
+
+	// 2FA 检查
+	if user.TwoFactorEnabled {
+		if req.Code == "" {
+			c.JSON(http.StatusAccepted, gin.H{
+				"two_factor_required": true,
+				"username":            user.Username,
+			})
+			return
+		}
+		if !totp.Validate(req.Code, user.TwoFactorSecret) {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "2FA验证码错误"})
+			return
+		}
 	}
 
 	// 生成token

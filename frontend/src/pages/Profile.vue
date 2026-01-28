@@ -35,6 +35,62 @@ const selectedAvatar = ref(user.value.avatar)
 const loading = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)
 
+// 2FA features
+const show2FASetup = ref(false)
+const twoFactorCode = ref('')
+const setup2FAResult = ref<{ secret: string, qr_code: string } | null>(null)
+const twoFactorError = ref('')
+
+const handleSetup2FA = async () => {
+  loading.value = true
+  twoFactorError.value = ''
+  try {
+    const response = await authAPI.setup2FA()
+    setup2FAResult.value = response.data
+    show2FASetup.value = true
+  } catch (error: any) {
+    alert(error.response?.data?.error || '无法启动双重认证设置')
+  } finally {
+    loading.value = false
+  }
+}
+
+const handleVerify2FA = async () => {
+  if (twoFactorCode.value.length !== 6) {
+    twoFactorError.value = '请输入 6 位校验码'
+    return
+  }
+  loading.value = true
+  twoFactorError.value = ''
+  try {
+    await authAPI.verify2FA(twoFactorCode.value)
+    alert('双重认证已成功开启')
+    show2FASetup.value = false
+    setup2FAResult.value = null
+    twoFactorCode.value = ''
+    fetchLatestUserInfo()
+  } catch (error: any) {
+    twoFactorError.value = error.response?.data?.error || '校验失败，请重试'
+  } finally {
+    loading.value = false
+  }
+}
+
+const handleDisable2FA = async () => {
+  if (!window.confirm('确认要关闭双重认证吗？这将降低您的账户安全性。')) return
+  
+  loading.value = true
+  try {
+    await authAPI.disable2FA()
+    alert('双重认证已关闭')
+    fetchLatestUserInfo()
+  } catch (error: any) {
+    alert(error.response?.data?.error || '关闭失败')
+  } finally {
+    loading.value = false
+  }
+}
+
 const avatarOptions = ["🧪", "🧬", "⚗️", "🔬", "🛰️", "🚀", "🪐", "⚛️", "📡", "🧠", "🦾", "👾"]
 
 const fetchLatestUserInfo = async () => {
@@ -248,6 +304,31 @@ const handleDeleteAccount = async () => {
               </button>
 
               <button 
+                @click="user.two_factor_enabled ? handleDisable2FA() : handleSetup2FA()"
+                :class="cn(
+                  'group relative flex flex-col items-start p-6 border rounded-3xl transition-all text-left',
+                  user.two_factor_enabled 
+                    ? 'bg-emerald-500/5 hover:bg-emerald-500/10 border-emerald-500/20 hover:border-emerald-500/40' 
+                    : 'bg-white/5 hover:bg-yellow-500/10 border-white/5 hover:border-yellow-500/30'
+                )"
+              >
+                <div :class="cn(
+                  'p-3 rounded-2xl mb-4 group-hover:scale-110 transition-transform',
+                  user.two_factor_enabled ? 'bg-emerald-500/20' : 'bg-yellow-500/20'
+                )">
+                  <Shield v-if="user.two_factor_enabled" class="w-6 h-6 text-emerald-400" />
+                  <Fingerprint v-else class="w-6 h-6 text-yellow-400" />
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="text-lg font-bold">{{ user.two_factor_enabled ? '双重认证已激活' : '启用双重认证' }}</span>
+                  <div v-if="user.two_factor_enabled" class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                </div>
+                <span class="text-slate-500 text-xs mt-1">
+                  {{ user.two_factor_enabled ? '已开启 TOTP 动态校验保护' : '添加额外的实验室生物特征验证层' }}
+                </span>
+              </button>
+
+              <button 
                 @click="handleDeleteAccount"
                 class="group relative flex flex-col items-start p-6 bg-white/5 hover:bg-red-500/10 border border-white/5 hover:border-red-500/30 rounded-3xl transition-all text-left"
               >
@@ -416,6 +497,64 @@ const handleDeleteAccount = async () => {
             </button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <!-- 2FA Setup Modal -->
+    <div v-if="show2FASetup && setup2FAResult" class="fixed inset-0 z-[100] flex items-center justify-center p-4 backdrop-blur-xl bg-black/60">
+      <div class="bg-[#111114] border border-white/10 rounded-[3rem] p-10 max-w-lg w-full shadow-2xl relative animate-in fade-in zoom-in duration-300">
+        <div class="text-center mb-8">
+          <div class="w-16 h-16 bg-yellow-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <Shield class="w-8 h-8 text-yellow-400" />
+          </div>
+          <h3 class="text-2xl font-black italic uppercase tracking-tighter">配置双重认证协议 / 2FA Setup</h3>
+          <p class="text-slate-500 text-sm mt-2 font-medium">使用您的身份验证应用（如 Google Authenticator, Microsoft Authenticator, Bitwarden）扫描下方二维码</p>
+        </div>
+
+        <div class="flex flex-col items-center gap-8">
+          <div class="p-6 bg-white rounded-[2rem] shadow-[0_0_40px_rgba(255,255,255,0.1)] relative group">
+            <img :src="setup2FAResult.qr_code" class="w-48 h-48" alt="QR Code" />
+            <div class="absolute inset-0 border-4 border-blue-500/20 rounded-[2rem] pointer-events-none group-hover:border-blue-500/50 transition-colors" />
+          </div>
+
+          <div class="w-full space-y-4">
+            <div class="bg-white/5 border border-white/10 rounded-2xl p-4 flex flex-col items-center gap-2">
+              <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest">或手动输入密钥 / Manual Key</span>
+              <code class="text-blue-400 font-mono font-bold tracking-[0.2em] break-all text-center selection:bg-blue-500/30">{{ setup2FAResult.secret }}</code>
+            </div>
+
+            <div class="space-y-2">
+              <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">校验码 / Verification Code</label>
+              <div class="relative">
+                <input 
+                  v-model="twoFactorCode"
+                  type="text" 
+                  maxlength="6"
+                  placeholder="000000"
+                  class="w-full bg-slate-100/5 border border-white/10 text-white pl-4 pr-4 py-4 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all text-center tracking-[0.5em] text-xl font-black placeholder:text-slate-800"
+                />
+              </div>
+              <p v-if="twoFactorError" class="text-red-500 text-[10px] font-bold text-center mt-2">{{ twoFactorError }}</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex gap-4 mt-10">
+          <button 
+            @click="show2FASetup = false"
+            class="flex-1 py-4 bg-white/5 hover:bg-white/10 rounded-2xl font-bold transition-all text-slate-400"
+          >
+            中止配置
+          </button>
+          <button 
+            @click="handleVerify2FA"
+            :disabled="loading || twoFactorCode.length !== 6"
+            class="flex-1 py-4 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 disabled:text-slate-500 rounded-2xl font-black transition-all shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2"
+          >
+            <Loader2 v-if="loading" class="w-5 h-5 animate-spin" />
+            <span v-else>激活协议</span>
+          </button>
+        </div>
       </div>
     </div>
   </div>

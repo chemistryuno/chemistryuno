@@ -41,6 +41,12 @@ func main() {
 	r.POST("/auth/register", handlers.Register)
 	r.POST("/auth/login", handlers.Login)
 
+	// OAuth 路由
+	r.GET("/auth/google/login", handlers.GoogleLogin)
+	r.GET("/auth/google/callback", handlers.GoogleCallback)
+	r.GET("/auth/microsoft/login", handlers.MicrosoftLogin)
+	r.GET("/auth/microsoft/callback", handlers.MicrosoftCallback)
+
 	// 需要认证的路由
 	auth := r.Group("/")
 	auth.Use(middleware.AuthMiddleware())
@@ -50,6 +56,11 @@ func main() {
 		auth.PUT("/user/password", handlers.ChangePassword)
 		auth.PUT("/user/avatar", handlers.UpdateAvatar)
 		auth.DELETE("/user/account", handlers.DeleteAccount)
+
+		// 2FA相关
+		auth.POST("/auth/2fa/setup", handlers.Setup2FA)
+		auth.POST("/auth/2fa/verify", handlers.Verify2FA)
+		auth.POST("/auth/2fa/disable", handlers.Disable2FA)
 
 		// 游戏相关
 		auth.GET("/rooms", handlers.GetRooms)

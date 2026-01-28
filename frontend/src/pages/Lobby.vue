@@ -3,7 +3,7 @@ import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { gameAPI } from '../utils/api'
 import websocket from '../utils/websocket'
-import { Beaker, Plus, Users, Shield, LogOut, Settings, Play, Info, X, Loader2 } from 'lucide-vue-next'
+import { Beaker, Plus, Users, Shield, LogOut, Settings, Play, Info, X, Loader2, Database } from 'lucide-vue-next'
 import { cn } from '../utils/cn'
 
 const props = defineProps<{
@@ -150,6 +150,9 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
             <div class="flex items-center gap-1.5">
               <router-link to="/profile" class="p-3 hover:bg-white/5 rounded-2xl transition-all text-slate-400 hover:text-white" title="实验室档案">
                 <Settings class="w-5 h-5" />
+              </router-link>
+              <router-link v-if="user.role === 'admin' || user.role === 'co-worker'" to="/reactions" class="p-3 hover:bg-blue-500/10 rounded-2xl transition-all text-blue-500/70 hover:text-blue-400" title="反应数据库">
+                <Database class="w-5 h-5" />
               </router-link>
               <router-link v-if="user.is_admin" to="/admin" class="p-3 hover:bg-yellow-500/10 rounded-2xl transition-all text-yellow-500/70 hover:text-yellow-400" title="科研管理">
                 <Shield class="w-5 h-5" />

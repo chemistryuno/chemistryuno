@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "init": "node init.js",
+    "init-win": "init.bat",
     "start": "node start.js",
     "dev": "node start.js",
     "install:frontend": "cd frontend && pnpm install",

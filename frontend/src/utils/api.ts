@@ -74,14 +74,30 @@ export const gameAPI = {
 export const adminAPI = {
   getAllUsers: () => 
     api.get('/admin/users'),
+  createUser: (username: string, password: string) =>
+    api.post('/admin/users', { username, password }),
   deleteUser: (userId: string) => 
     api.delete(`/admin/users/${userId}`),
+  changeUserPassword: (userId: string, newPassword: string) => 
+    api.put(`/admin/users/${userId}/password`, { new_password: newPassword }),
+  promoteUser: (userId: string, role: string) => 
+    api.put(`/admin/users/${userId}/role`, { role }),
   getGlobalDeckConfig: () => 
     api.get('/admin/deck-config'),
-  updateGlobalDeckConfig: (name: string, cards: any[]) => 
+  updateGlobalDeckConfig: (name: string, cards: Record<string, number>) => 
     api.put('/admin/deck-config', { name, cards }),
   getGameHistory: () => 
     api.get('/admin/game-history'),
+}
+
+// 反应管理API
+export const reactionAPI = {
+  getReactions: () => 
+    api.get('/reactions'),
+  addReaction: (reactant: string, product: string, type: string) => 
+    api.post('/reactions', { reactant, product, type }),
+  deleteReaction: (reactionId: string) => 
+    api.delete(`/reactions/${reactionId}`),
 }
 
 export default api

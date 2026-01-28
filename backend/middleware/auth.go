@@ -46,6 +46,7 @@ func AuthMiddleware() gin.HandlerFunc {
 		c.Set("uid", claims.UID)
 		c.Set("username", claims.Username)
 		c.Set("is_admin", claims.IsAdmin)
+		c.Set("role", claims.Role)
 		c.Next()
 	}
 }
@@ -56,6 +57,26 @@ func AdminMiddleware() gin.HandlerFunc {
 		isAdmin, exists := c.Get("is_admin")
 		if !exists || !isAdmin.(bool) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "需要管理员权限"})
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+}
+
+// Co-worker权限中间件（co-worker或admin）
+func CoWorkerMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		role, exists := c.Get("role")
+		if !exists {
+			c.JSON(http.StatusForbidden, gin.H{"error": "权限不足"})
+			c.Abort()
+			return
+		}
+
+		roleStr := role.(string)
+		if roleStr != "admin" && roleStr != "co-worker" {
+			c.JSON(http.StatusForbidden, gin.H{"error": "需要co-worker或管理员权限"})
 			c.Abort()
 			return
 		}

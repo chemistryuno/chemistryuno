@@ -37,8 +37,8 @@ func Register(c *gin.Context) {
 	}
 
 	// 插入用户
-	result, err := database.DB.Exec("INSERT INTO users (username, password, avatar) VALUES (?, ?, ?)",
-		req.Username, hashedPassword, "🧪")
+	result, err := database.DB.Exec("INSERT INTO users (username, password, avatar, role) VALUES (?, ?, ?, ?)",
+		req.Username, hashedPassword, "🧪", "user")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建用户失败"})
 		return
@@ -62,9 +62,9 @@ func Login(c *gin.Context) {
 	// 查询用户
 	var user models.User
 	err := database.DB.QueryRow(
-		"SELECT UID, username, password, avatar, is_admin FROM users WHERE username = ?",
+		"SELECT UID, username, password, avatar, is_admin, role FROM users WHERE username = ?",
 		req.Username,
-	).Scan(&user.UID, &user.Username, &user.Password, &user.Avatar, &user.IsAdmin)
+	).Scan(&user.UID, &user.Username, &user.PasswordHash, &user.Avatar, &user.IsAdmin, &user.Role)
 
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "用户名或密码错误"})
@@ -72,13 +72,13 @@ func Login(c *gin.Context) {
 	}
 
 	// 验证密码
-	if !utils.CheckPassword(req.Password, user.Password) {
+	if !utils.CheckPassword(req.Password, user.PasswordHash) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "用户名或密码错误"})
 		return
 	}
 
 	// 生成token
-	token, err := utils.GenerateToken(int(user.UID), user.Username, user.IsAdmin)
+	token, err := utils.GenerateToken(int(user.UID), user.Username, user.IsAdmin, user.Role)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成token失败"})
 		return
@@ -91,6 +91,7 @@ func Login(c *gin.Context) {
 			"username": user.Username,
 			"avatar":   user.Avatar,
 			"is_admin": user.IsAdmin,
+			"role":     user.Role,
 		},
 	})
 }
@@ -175,9 +176,9 @@ func GetUserInfo(c *gin.Context) {
 
 	var user models.User
 	err := database.DB.QueryRow(
-		"SELECT UID, username, avatar, is_admin, created_at FROM users WHERE UID = ?",
+		"SELECT UID, username, avatar, is_admin, role, created_at FROM users WHERE UID = ?",
 		uid,
-	).Scan(&user.UID, &user.Username, &user.Avatar, &user.IsAdmin, &user.CreatedAt)
+	).Scan(&user.UID, &user.Username, &user.Avatar, &user.IsAdmin, &user.Role, &user.CreatedAt)
 
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})

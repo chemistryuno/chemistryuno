@@ -52,7 +52,7 @@ const loadGameState = async () => {
     roomInfo.value = {
       id: data.id,
       name: data.name,
-      host_id: data.host_id,
+      host_uid: data.host_uid,
       players: data.players,
       max_players: data.max_players,
       status: data.status
@@ -270,7 +270,7 @@ onMounted(() => {
 
         <div class="flex items-center gap-2 sm:gap-4">
           <button 
-            v-if="roomInfo?.status === 'waiting' && user.uid === roomInfo?.host_id"
+            v-if="roomInfo?.status === 'waiting' && user.uid === roomInfo?.host_uid"
             @click="handleStartGame" 
             class="bg-blue-600 hover:bg-blue-500 px-3 sm:px-6 h-9 sm:h-11 rounded-xl sm:rounded-2xl font-black text-[10px] sm:text-xs uppercase tracking-wider sm:tracking-[0.2em] shadow-[0_10px_20px_rgba(37,99,235,0.2)] transition-all active:scale-95 flex items-center gap-2 sm:gap-3 group overflow-hidden relative"
           >

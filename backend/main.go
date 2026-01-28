@@ -71,10 +71,22 @@ func main() {
 	admin.Use(middleware.AuthMiddleware(), middleware.AdminMiddleware())
 	{
 		admin.GET("/users", handlers.GetAllUsers)
+		admin.POST("/users", handlers.CreateUser)
 		admin.DELETE("/users/:id", handlers.DeleteUser)
+		admin.PUT("/users/:id/password", handlers.AdminChangePassword)
+		admin.PUT("/users/:id/role", handlers.PromoteUser)
 		admin.GET("/deck-config", handlers.GetGlobalDeckConfig)
 		admin.PUT("/deck-config", handlers.UpdateGlobalDeckConfig)
 		admin.GET("/game-history", handlers.GetGameHistory)
+	}
+
+	// 反应管理路由（co-worker和admin权限）
+	reactions := r.Group("/reactions")
+	reactions.Use(middleware.AuthMiddleware(), middleware.CoWorkerMiddleware())
+	{
+		reactions.GET("", handlers.GetReactions)
+		reactions.POST("", handlers.AddReaction)
+		reactions.DELETE("/:id", handlers.DeleteReaction)
 	}
 
 	log.Println("服务器启动在 :8080")

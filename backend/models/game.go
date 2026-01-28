@@ -60,9 +60,3 @@ type PlayedCard struct {
 	Substance string `json:"substance"` // 组成的物质
 	PlayerUID int    `json:"player_uid"`
 }
-
-// 化学反应
-type ChemicalReaction struct {
-	Reactant string   `json:"reactant"` // 反应物
-	Products []string `json:"products"` // 生成物列表
-}

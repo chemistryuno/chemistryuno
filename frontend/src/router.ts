@@ -5,6 +5,7 @@ import Lobby from './pages/Lobby.vue'
 import GameRoom from './pages/GameRoom.vue'
 import Profile from './pages/Profile.vue'
 import Admin from './pages/Admin.vue'
+import Reactions from './pages/Reactions.vue'
 
 const routes = [
   {
@@ -42,6 +43,12 @@ const routes = [
     name: 'Admin',
     component: Admin,
     meta: { requiresAuth: true, adminOnly: true }
+  },
+  {
+    path: '/reactions',
+    name: 'Reactions',
+    component: Reactions,
+    meta: { requiresAuth: true, coWorkerOnly: true }
   }
 ]
 
@@ -59,6 +66,8 @@ router.beforeEach((to: RouteLocationNormalized, _from: RouteLocationNormalized, 
   } else if (to.meta.guestOnly && token) {
     next('/')
   } else if (to.meta.adminOnly && (!user || !user.is_admin)) {
+    next('/')
+  } else if (to.meta.coWorkerOnly && (!user || (user.role !== 'admin' && user.role !== 'co-worker'))) {
     next('/')
   } else {
     next()

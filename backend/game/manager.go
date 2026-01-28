@@ -33,7 +33,8 @@ func getDefaultDeckConfig() map[string]int {
 		"Mn": 4, "Fe": 4, "Cu": 4, "Zn": 4, "Br": 4, "I": 4, "Ag": 4,
 		"+2": 8, "+4": 4,
 		"He": 1, "Ne": 1, "Ar": 1, "Kr": 1,
-		"Au": 4,
+		"Au":     4,
+		"Choice": 4,
 	}
 }
 
@@ -326,13 +327,14 @@ func GetRoomState(roomID string, uid int) (map[string]interface{}, error) {
 
 func getCardEffect(cardType string) string {
 	effects := map[string]string{
-		"+2": "+2",
-		"+4": "+4",
-		"He": "reverse",
-		"Ne": "reverse",
-		"Ar": "reverse",
-		"Kr": "reverse",
-		"Au": "skip",
+		"+2":     "+2",
+		"+4":     "+4",
+		"He":     "reverse",
+		"Ne":     "reverse",
+		"Ar":     "reverse",
+		"Kr":     "reverse",
+		"Au":     "skip",
+		"Choice": "wild",
 	}
 	return effects[cardType]
 }

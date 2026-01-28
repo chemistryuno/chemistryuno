@@ -10,16 +10,16 @@ import (
 var jwtSecret = []byte("your-secret-key-change-this-in-production")
 
 type Claims struct {
-	UserID   int    `json:"user_id"`
+	UID      int    `json:"uid"`
 	Username string `json:"username"`
 	IsAdmin  bool   `json:"is_admin"`
 	jwt.RegisteredClaims
 }
 
 // 生成JWT Token
-func GenerateToken(userID int, username string, isAdmin bool) (string, error) {
+func GenerateToken(uid int, username string, isAdmin bool) (string, error) {
 	claims := Claims{
-		UserID:   userID,
+		UID:      uid,
 		Username: username,
 		IsAdmin:  isAdmin,
 		RegisteredClaims: jwt.RegisteredClaims{

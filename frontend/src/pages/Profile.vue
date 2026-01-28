@@ -185,8 +185,8 @@ const handleDeleteAccount = async () => {
 
               <div class="w-full mt-10 pt-10 border-t border-white/5 space-y-4">
                 <div class="flex justify-between items-center text-xs">
-                  <span class="text-slate-500 font-bold uppercase tracking-widest flex items-center gap-2"><Fingerprint class="w-3 h-3" /> System Hex</span>
-                  <span class="font-mono text-blue-400/80">{{ user.id?.toString().padStart(6, '0') }}</span>
+                  <span class="text-slate-500 font-bold uppercase tracking-widest flex items-center gap-2"><Fingerprint class="w-3 h-3" /> System UID</span>
+                  <span class="font-mono text-blue-400/80">{{ user.uid }}</span>
                 </div>
                 <div v-if="user.created_at" class="flex justify-between items-center text-xs">
                   <span class="text-slate-500 font-bold uppercase tracking-widest flex items-center gap-2"><Calendar class="w-3 h-3" /> Joined Date</span>

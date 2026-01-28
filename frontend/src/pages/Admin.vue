@@ -85,7 +85,10 @@ const handleCardCountChange = (cardType: string, value: string) => {
 }
 
 const filteredUsers = computed(() => {
-  return users.value.filter(u => u.username.toLowerCase().includes(searchTerm.value.toLowerCase()))
+  return users.value.filter(u => 
+    u.username.toLowerCase().includes(searchTerm.value.toLowerCase()) ||
+    u.uid.toString().includes(searchTerm.value)
+  )
 })
 </script>
 
@@ -250,7 +253,7 @@ import { computed } from 'vue'
                     </tr>
                   </thead>
                   <tbody class="divide-y divide-white/5 font-mono">
-                    <tr v-for="u in filteredUsers" :key="u.id" class="hover:bg-white/5 transition-colors group">
+                    <tr v-for="u in filteredUsers" :key="u.uid" class="hover:bg-white/5 transition-colors group">
                       <td class="px-6 py-6 text-sm font-bold text-white flex items-center gap-4">
                         <div class="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center text-xl group-hover:scale-110 transition-transform overflow-hidden">
                           <template v-if="u.avatar && u.avatar.startsWith('data:')">
@@ -262,7 +265,7 @@ import { computed } from 'vue'
                         </div>
                         {{ u.username }}
                       </td>
-                      <td class="px-6 py-6 text-xs text-slate-500">{{ u.id }}</td>
+                      <td class="px-6 py-6 text-xs text-slate-500">{{ u.uid }}</td>
                       <td class="px-6 py-6">
                         <span v-if="u.is_admin" class="text-[10px] px-3 py-1 bg-orange-500/10 text-orange-400 rounded-full border border-orange-500/20 font-black tracking-widest">LV.99 CORE</span>
                         <span v-else class="text-[10px] px-3 py-1 bg-white/5 text-slate-400 rounded-full border border-white/10 font-black tracking-widest">LV.01 STAFF</span>
@@ -271,7 +274,7 @@ import { computed } from 'vue'
                       <td class="px-6 py-6 text-right">
                         <button 
                           v-if="!u.is_admin"
-                          @click="handleDeleteUser(u.id)"
+                          @click="handleDeleteUser(u.uid)"
                           class="p-3 hover:bg-red-500/20 text-slate-600 hover:text-red-400 rounded-xl transition-all"
                           title="抹除权限"
                         >

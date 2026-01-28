@@ -43,7 +43,7 @@ func AuthMiddleware() gin.HandlerFunc {
 		}
 
 		// 将用户信息存入上下文
-		c.Set("user_id", claims.UserID)
+		c.Set("uid", claims.UID)
 		c.Set("username", claims.Username)
 		c.Set("is_admin", claims.IsAdmin)
 		c.Next()

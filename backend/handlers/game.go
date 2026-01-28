@@ -44,10 +44,10 @@ func CreateRoom(c *gin.Context) {
 		return
 	}
 
-	userID := c.GetInt("user_id")
+	uid := c.GetInt("uid")
 	username := c.GetString("username")
 
-	room, err := game.CreateRoom(req.Name, userID, username, req.MaxPlayers, req.DeckID)
+	room, err := game.CreateRoom(req.Name, uid, username, req.MaxPlayers, req.DeckID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -59,10 +59,10 @@ func CreateRoom(c *gin.Context) {
 // 加入房间
 func JoinRoom(c *gin.Context) {
 	roomID := c.Param("id")
-	userID := c.GetInt("user_id")
+	uid := c.GetInt("uid")
 	username := c.GetString("username")
 
-	err := game.JoinRoom(roomID, userID, username)
+	err := game.JoinRoom(roomID, uid, username)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -75,9 +75,9 @@ func JoinRoom(c *gin.Context) {
 // 离开房间
 func LeaveRoom(c *gin.Context) {
 	roomID := c.Param("id")
-	userID := c.GetInt("user_id")
+	uid := c.GetInt("uid")
 
-	err := game.LeaveRoom(roomID, userID)
+	err := game.LeaveRoom(roomID, uid)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -90,9 +90,9 @@ func LeaveRoom(c *gin.Context) {
 // 开始游戏
 func StartGame(c *gin.Context) {
 	roomID := c.Param("id")
-	userID := c.GetInt("user_id")
+	uid := c.GetInt("uid")
 
-	err := game.StartGame(roomID, userID)
+	err := game.StartGame(roomID, uid)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -105,9 +105,9 @@ func StartGame(c *gin.Context) {
 // 获取房间状态
 func GetRoomState(c *gin.Context) {
 	roomID := c.Param("id")
-	userID := c.GetInt("user_id")
+	uid := c.GetInt("uid")
 
-	state, err := game.GetRoomState(roomID, userID)
+	state, err := game.GetRoomState(roomID, uid)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -119,7 +119,7 @@ func GetRoomState(c *gin.Context) {
 // 出牌
 func PlayCard(c *gin.Context) {
 	roomID := c.Param("id")
-	userID := c.GetInt("user_id")
+	uid := c.GetInt("uid")
 
 	var req struct {
 		Card      models.Card `json:"card" binding:"required"`
@@ -131,7 +131,7 @@ func PlayCard(c *gin.Context) {
 		return
 	}
 
-	err := game.PlayCard(roomID, userID, req.Card, req.Substance)
+	err := game.PlayCard(roomID, uid, req.Card, req.Substance)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -144,9 +144,9 @@ func PlayCard(c *gin.Context) {
 // 摸牌
 func DrawCard(c *gin.Context) {
 	roomID := c.Param("id")
-	userID := c.GetInt("user_id")
+	uid := c.GetInt("uid")
 
-	err := game.DrawCard(roomID, userID, 2)
+	err := game.DrawCard(roomID, uid, 2)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -159,9 +159,9 @@ func DrawCard(c *gin.Context) {
 // 获取可用物质列表
 func GetAvailableSubstances(c *gin.Context) {
 	roomID := c.Param("id")
-	userID := c.GetInt("user_id")
+	uid := c.GetInt("uid")
 
-	substances, err := game.GetAvailableSubstances(roomID, userID)
+	substances, err := game.GetAvailableSubstances(roomID, uid)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

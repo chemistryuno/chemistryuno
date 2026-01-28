@@ -82,7 +82,7 @@ func main() {
 }
 
 func handleWebSocket(c *gin.Context) {
-	userID := c.GetInt("user_id")
+	uid := c.GetInt("uid")
 	username := c.GetString("username")
 
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
@@ -91,7 +91,7 @@ func handleWebSocket(c *gin.Context) {
 		return
 	}
 
-	client := websocket.NewClient(hub, conn, userID, username)
+	client := websocket.NewClient(hub, conn, uid, username)
 	hub.Register(client)
 
 	go client.WritePump()

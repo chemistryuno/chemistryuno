@@ -3,6 +3,7 @@ package game
 import (
 	"chemistryuno/database"
 	"chemistryuno/models"
+	"chemistryuno/websocket"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -37,7 +38,7 @@ func getDefaultDeckConfig() map[string]int {
 }
 
 // 创建房间
-func CreateRoom(name string, hostID int, hostName string, maxPlayers int, deckID int) (*models.Room, error) {
+func CreateRoom(name string, hostUID int, hostName string, maxPlayers int, deckID int) (*models.Room, error) {
 	// 生成简单的房间ID
 	roomID := fmt.Sprintf("room_%d_%d", time.Now().Unix(), rand.Intn(1000))
 
@@ -62,8 +63,8 @@ func CreateRoom(name string, hostID int, hostName string, maxPlayers int, deckID
 	room := &models.Room{
 		ID:         roomID,
 		Name:       name,
-		HostID:     hostID,
-		Players:    []int{hostID},
+		HostUID:    hostUID,
+		Players:    []int{hostUID},
 		MaxPlayers: maxPlayers,
 		DeckConfig: &deckConfig,
 		Status:     "waiting",
@@ -94,7 +95,7 @@ func GetAllRooms() []*models.Room {
 }
 
 // 加入房间
-func JoinRoom(roomID string, userID int, username string) error {
+func JoinRoom(roomID string, uid int, username string) error {
 	roomMutex.RLock()
 	gameRoom, exists := rooms[roomID]
 	roomMutex.RUnlock()
@@ -116,17 +117,17 @@ func JoinRoom(roomID string, userID int, username string) error {
 
 	// 检查是否已在房间中
 	for _, pid := range gameRoom.Room.Players {
-		if pid == userID {
+		if pid == uid {
 			return errors.New("已在房间中")
 		}
 	}
 
-	gameRoom.Room.Players = append(gameRoom.Room.Players, userID)
+	gameRoom.Room.Players = append(gameRoom.Room.Players, uid)
 	return nil
 }
 
 // 离开房间
-func LeaveRoom(roomID string, userID int) error {
+func LeaveRoom(roomID string, uid int) error {
 	roomMutex.RLock()
 	gameRoom, exists := rooms[roomID]
 	roomMutex.RUnlock()
@@ -141,16 +142,16 @@ func LeaveRoom(roomID string, userID int) error {
 	// 移除玩家
 	newPlayers := []int{}
 	for _, pid := range gameRoom.Room.Players {
-		if pid != userID {
+		if pid != uid {
 			newPlayers = append(newPlayers, pid)
 		}
 	}
 	gameRoom.Room.Players = newPlayers
 
 	// 如果房主离开，转移房主或删除房间
-	if gameRoom.Room.HostID == userID {
+	if gameRoom.Room.HostUID == uid {
 		if len(newPlayers) > 0 {
-			gameRoom.Room.HostID = newPlayers[0]
+			gameRoom.Room.HostUID = newPlayers[0]
 		} else {
 			roomMutex.Lock()
 			delete(rooms, roomID)
@@ -162,7 +163,7 @@ func LeaveRoom(roomID string, userID int) error {
 }
 
 // 开始游戏
-func StartGame(roomID string, userID int) error {
+func StartGame(roomID string, uid int) error {
 	roomMutex.RLock()
 	gameRoom, exists := rooms[roomID]
 	roomMutex.RUnlock()
@@ -174,7 +175,7 @@ func StartGame(roomID string, userID int) error {
 	gameRoom.mutex.Lock()
 	defer gameRoom.mutex.Unlock()
 
-	if gameRoom.Room.HostID != userID {
+	if gameRoom.Room.HostUID != uid {
 		return errors.New("只有房主可以开始游戏")
 	}
 
@@ -195,6 +196,7 @@ func StartGame(roomID string, userID int) error {
 		DrawPile:      []models.Card{},
 		DiscardPile:   []models.PlayedCard{},
 		Status:        "playing",
+		TurnEndTime:   time.Now().Add(30*time.Second).UnixNano() / int64(time.Millisecond),
 	}
 
 	// 创建牌堆
@@ -226,11 +228,11 @@ func StartGame(roomID string, userID int) error {
 	// 初始化玩家
 	for _, pid := range shuffledPlayers {
 		var username, avatar string
-		database.DB.QueryRow("SELECT username, avatar FROM users WHERE id = ?", pid).
+		database.DB.QueryRow("SELECT username, avatar FROM users WHERE UID = ?", pid).
 			Scan(&username, &avatar)
 
 		player := &models.PlayerState{
-			UserID:    pid,
+			UID:       pid,
 			Username:  username,
 			Avatar:    avatar,
 			HandCards: []models.Card{},
@@ -254,7 +256,7 @@ func StartGame(roomID string, userID int) error {
 }
 
 // 获取房间状态（为当前玩家过滤信息）
-func GetRoomState(roomID string, userID int) (map[string]interface{}, error) {
+func GetRoomState(roomID string, uid int) (map[string]interface{}, error) {
 	roomMutex.RLock()
 	gameRoom, exists := rooms[roomID]
 	roomMutex.RUnlock()
@@ -269,7 +271,7 @@ func GetRoomState(roomID string, userID int) (map[string]interface{}, error) {
 	// 检查玩家是否在房间中
 	inRoom := false
 	for _, pid := range gameRoom.Room.Players {
-		if pid == userID {
+		if pid == uid {
 			inRoom = true
 			break
 		}
@@ -281,7 +283,7 @@ func GetRoomState(roomID string, userID int) (map[string]interface{}, error) {
 	result := map[string]interface{}{
 		"id":          gameRoom.Room.ID,
 		"name":        gameRoom.Room.Name,
-		"host_id":     gameRoom.Room.HostID,
+		"host_uid":    gameRoom.Room.HostUID,
 		"players":     gameRoom.Room.Players,
 		"max_players": gameRoom.Room.MaxPlayers,
 		"status":      gameRoom.Room.Status,
@@ -291,13 +293,13 @@ func GetRoomState(roomID string, userID int) (map[string]interface{}, error) {
 		// 过滤其他玩家的手牌
 		filteredPlayers := []*models.PlayerState{}
 		for _, player := range gameRoom.GameState.Players {
-			if player.UserID == userID {
+			if player.UID == uid {
 				// 当前玩家，显示全部信息
 				filteredPlayers = append(filteredPlayers, player)
 			} else {
 				// 其他玩家，隐藏手牌详情
 				filteredPlayer := &models.PlayerState{
-					UserID:    player.UserID,
+					UID:       player.UID,
 					Username:  player.Username,
 					Avatar:    player.Avatar,
 					HandCards: nil, // 不显示具体手牌
@@ -315,6 +317,7 @@ func GetRoomState(roomID string, userID int) (map[string]interface{}, error) {
 			"last_card":      gameRoom.GameState.LastCard,
 			"deck_count":     len(gameRoom.GameState.DrawPile),
 			"status":         gameRoom.GameState.Status,
+			"turn_end_time":  gameRoom.GameState.TurnEndTime,
 		}
 	}
 
@@ -335,7 +338,7 @@ func getCardEffect(cardType string) string {
 }
 
 // 出牌
-func PlayCard(roomID string, userID int, card models.Card, substance string) error {
+func PlayCard(roomID string, uid int, card models.Card, substance string) error {
 	roomMutex.RLock()
 	gameRoom, exists := rooms[roomID]
 	roomMutex.RUnlock()
@@ -353,7 +356,7 @@ func PlayCard(roomID string, userID int, card models.Card, substance string) err
 
 	// 检查是否轮到该玩家
 	currentPlayer := gameRoom.GameState.Players[gameRoom.GameState.CurrentPlayer]
-	if currentPlayer.UserID != userID {
+	if currentPlayer.UID != uid {
 		return errors.New("还没轮到你")
 	}
 
@@ -418,7 +421,7 @@ func PlayCard(roomID string, userID int, card models.Card, substance string) err
 	playedCard := models.PlayedCard{
 		Card:      displayCard,
 		Substance: substance,
-		PlayerID:  userID,
+		PlayerUID: uid,
 	}
 	gameRoom.GameState.LastCard = &playedCard
 	gameRoom.GameState.DiscardPile = append(gameRoom.GameState.DiscardPile, playedCard)
@@ -449,12 +452,13 @@ func PlayCard(roomID string, userID int, card models.Card, substance string) err
 		gameRoom.GameState.Status = "finished"
 		gameRoom.Room.Status = "finished"
 		// 记录游戏历史
-		saveGameHistory(roomID, userID, gameRoom.Room.Players)
+		saveGameHistory(roomID, uid, gameRoom.Room.Players)
 		return nil
 	}
 
 	// 下一位玩家
 	gameRoom.GameState.CurrentPlayer = getNextPlayer(gameRoom.GameState)
+	gameRoom.GameState.TurnEndTime = time.Now().Add(30*time.Second).UnixNano() / int64(time.Millisecond)
 	return nil
 }
 
@@ -479,7 +483,7 @@ func drawCardsForPlayer(gameRoom *GameRoom, playerIndex int, count int) {
 }
 
 // 摸牌
-func DrawCard(roomID string, userID int, count int) error {
+func DrawCard(roomID string, uid int, count int) error {
 	roomMutex.RLock()
 	gameRoom, exists := rooms[roomID]
 	roomMutex.RUnlock()
@@ -492,7 +496,7 @@ func DrawCard(roomID string, userID int, count int) error {
 	defer gameRoom.mutex.Unlock()
 
 	currentPlayer := gameRoom.GameState.Players[gameRoom.GameState.CurrentPlayer]
-	if currentPlayer.UserID != userID {
+	if currentPlayer.UID != uid {
 		return errors.New("还没轮到你")
 	}
 
@@ -500,12 +504,13 @@ func DrawCard(roomID string, userID int, count int) error {
 
 	// 摸牌后跳过回合
 	gameRoom.GameState.CurrentPlayer = getNextPlayer(gameRoom.GameState)
+	gameRoom.GameState.TurnEndTime = time.Now().Add(30*time.Second).UnixNano() / int64(time.Millisecond)
 
 	return nil
 }
 
 // 获取可用物质
-func GetAvailableSubstances(roomID string, userID int) ([]string, error) {
+func GetAvailableSubstances(roomID string, uid int) ([]string, error) {
 	roomMutex.RLock()
 	gameRoom, exists := rooms[roomID]
 	roomMutex.RUnlock()
@@ -518,7 +523,7 @@ func GetAvailableSubstances(roomID string, userID int) ([]string, error) {
 	defer gameRoom.mutex.RUnlock()
 
 	currentPlayer := gameRoom.GameState.Players[gameRoom.GameState.CurrentPlayer]
-	if currentPlayer.UserID != userID {
+	if currentPlayer.UID != uid {
 		return nil, errors.New("还没轮到你")
 	}
 
@@ -540,11 +545,63 @@ func GetAvailableSubstances(roomID string, userID int) ([]string, error) {
 	return substances, nil
 }
 
-func saveGameHistory(roomID string, winnerID int, players []int) {
+func saveGameHistory(roomID string, winnerUID int, players []int) {
 	playersJSON, _ := json.Marshal(players)
 	database.DB.Exec(
-		"INSERT INTO game_history (room_id, winner_id, players, started_at, finished_at) VALUES (?, ?, ?, datetime('now', '-1 hour'), datetime('now'))",
-		roomID, winnerID, string(playersJSON),
+		"INSERT INTO game_history (room_id, winner_uid, players, started_at, finished_at) VALUES (?, ?, ?, datetime('now', '-1 hour'), datetime('now'))",
+		roomID, winnerUID, string(playersJSON),
 	)
 	fmt.Println("游戏历史已保存")
+}
+
+func init() {
+	go func() {
+		ticker := time.NewTicker(1 * time.Second)
+		for range ticker.C {
+			checkRoomsTimeout()
+		}
+	}()
+}
+
+func checkRoomsTimeout() {
+	roomMutex.RLock()
+	activeRooms := make([]string, 0)
+	for id, r := range rooms {
+		if r.GameState != nil && r.GameState.Status == "playing" {
+			activeRooms = append(activeRooms, id)
+		}
+	}
+	roomMutex.RUnlock()
+
+	for _, roomID := range activeRooms {
+		processRoomTimeout(roomID)
+	}
+}
+
+func processRoomTimeout(roomID string) {
+	roomMutex.RLock()
+	gameRoom, exists := rooms[roomID]
+	roomMutex.RUnlock()
+
+	if !exists || gameRoom.GameState == nil || gameRoom.GameState.Status != "playing" {
+		return
+	}
+
+	gameRoom.mutex.Lock()
+	defer gameRoom.mutex.Unlock()
+
+	now := time.Now().UnixNano() / int64(time.Millisecond)
+	if gameRoom.GameState.TurnEndTime > 0 && now > gameRoom.GameState.TurnEndTime {
+		// 超时处理：强制摸牌并跳过
+		drawCardsForPlayer(gameRoom, gameRoom.GameState.CurrentPlayer, 2)
+		gameRoom.GameState.CurrentPlayer = getNextPlayer(gameRoom.GameState)
+		gameRoom.GameState.TurnEndTime = time.Now().Add(30*time.Second).UnixNano() / int64(time.Millisecond)
+
+		// 广播更新
+		go func(id string) {
+			websocket.GlobalHub.BroadcastToRoom(id, websocket.Message{
+				Type: "game_update",
+			})
+		}(roomID)
+	}
 }

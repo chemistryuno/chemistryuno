@@ -5,7 +5,7 @@ import (
 )
 
 type User struct {
-	ID        int       `json:"id" db:"id"`
+	UID       int       `json:"uid" db:"UID"`
 	Username  string    `json:"username" db:"username"`
 	Password  string    `json:"-" db:"password"` // 不返回给前端
 	Avatar    string    `json:"avatar" db:"avatar"`

@@ -35,7 +35,7 @@ func (h *Hub) Run() {
 			h.mutex.Lock()
 			h.clients[client] = true
 			h.mutex.Unlock()
-			log.Printf("客户端 %d 已连接", client.userID)
+			log.Printf("客户端 %d 已连接", client.uid)
 
 		case client := <-h.unregister:
 			h.mutex.Lock()
@@ -52,7 +52,7 @@ func (h *Hub) Run() {
 				}
 			}
 			h.mutex.Unlock()
-			log.Printf("客户端 %d 已断开", client.userID)
+			log.Printf("客户端 %d 已断开", client.uid)
 
 		case message := <-h.broadcast:
 			h.mutex.RLock()
@@ -89,7 +89,7 @@ func (h *Hub) JoinRoom(client *Client, roomID string) {
 	h.rooms[roomID][client] = true
 	client.roomID = roomID
 
-	log.Printf("用户 %d 加入房间 %s", client.userID, roomID)
+	log.Printf("用户 %d 加入房间 %s", client.uid, roomID)
 }
 
 func (h *Hub) LeaveRoom(client *Client) {
@@ -103,7 +103,7 @@ func (h *Hub) LeaveRoom(client *Client) {
 				delete(h.rooms, client.roomID)
 			}
 		}
-		log.Printf("用户 %d 离开房间 %s", client.userID, client.roomID)
+		log.Printf("用户 %d 离开房间 %s", client.uid, client.roomID)
 		client.roomID = ""
 	}
 }

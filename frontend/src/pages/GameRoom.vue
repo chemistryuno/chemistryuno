@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { gameAPI } from '../utils/api'
 import websocket from '../utils/websocket'
-import { ArrowLeft, Play, RefreshCw, Zap, FlaskConical, Trophy, ChevronRight, Loader2, Users } from 'lucide-vue-next'
+import { ArrowLeft, Play, RefreshCw, Zap, FlaskConical, Trophy, ChevronRight, Loader2, Users, Timer } from 'lucide-vue-next'
 import { cn } from '../utils/cn'
 
 const route = useRoute()
@@ -18,6 +18,22 @@ const selectedCard = ref<any>(null)
 const selectedSubstance = ref<string | null>(null)
 const substanceInput = ref('')
 const loading = ref(true)
+const timeRemaining = ref(30)
+let timerInterval: any = null
+
+const startTimer = () => {
+  if (timerInterval) clearInterval(timerInterval)
+  timerInterval = setInterval(() => {
+    if (!gameState.value || !gameState.value.turn_end_time) return
+    const now = Date.now()
+    const diff = Math.max(0, Math.floor((gameState.value.turn_end_time - now) / 1000))
+    timeRemaining.value = diff
+  }, 1000)
+}
+
+watch(() => gameState.value?.turn_end_time, () => {
+  startTimer()
+})
 
 const handleGameUpdate = (message: any) => {
   if (message.data) {
@@ -73,6 +89,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  if (timerInterval) clearInterval(timerInterval)
   websocket.leaveRoom()
   websocket.off('game_update', handleGameUpdate)
   websocket.off('player_joined', loadGameState)
@@ -165,8 +182,8 @@ const getCardStyle = (card: any) => {
 }
 
 const currentPlayerObj = computed(() => gameState.value?.players?.[gameState.value.current_player])
-const isMyTurn = computed(() => currentPlayerObj.value?.user_id === user.value.id)
-const myData = computed(() => gameState.value?.players?.find((p: any) => p.user_id === user.value.id))
+const isMyTurn = computed(() => currentPlayerObj.value?.uid === user.value.uid)
+const myData = computed(() => gameState.value?.players?.find((p: any) => p.uid === user.value.uid))
 
 const winner = computed(() => gameState.value?.players?.find((p: any) => p.card_count === 0))
 
@@ -253,7 +270,7 @@ onMounted(() => {
 
         <div class="flex items-center gap-2 sm:gap-4">
           <button 
-            v-if="roomInfo?.status === 'waiting' && user.id === roomInfo?.host_id"
+            v-if="roomInfo?.status === 'waiting' && user.uid === roomInfo?.host_id"
             @click="handleStartGame" 
             class="bg-blue-600 hover:bg-blue-500 px-3 sm:px-6 h-9 sm:h-11 rounded-xl sm:rounded-2xl font-black text-[10px] sm:text-xs uppercase tracking-wider sm:tracking-[0.2em] shadow-[0_10px_20px_rgba(37,99,235,0.2)] transition-all active:scale-95 flex items-center gap-2 sm:gap-3 group overflow-hidden relative"
           >
@@ -314,6 +331,17 @@ onMounted(() => {
 
             <!-- Discard / Current reaction -->
             <div class="relative flex flex-col items-center gap-4 sm:gap-6">
+              <!-- Turn Timer -->
+              <div v-if="gameState?.status === 'playing'" 
+                :class="cn(
+                  'absolute -top-16 sm:-top-24 flex items-center gap-2 px-4 py-1.5 rounded-full border backdrop-blur-md transition-all duration-500 z-50',
+                  timeRemaining <= 10 ? 'bg-red-500/20 border-red-500 text-red-400 animate-pulse' : 'bg-blue-500/10 border-blue-500/30 text-blue-400'
+                )"
+              >
+                <Timer :class="cn('w-3 h-3 sm:w-4 sm:h-4', timeRemaining <= 10 && 'animate-bounce')" />
+                <span class="font-mono font-black text-xs sm:text-sm tracking-widest">{{ timeRemaining }}S</span>
+              </div>
+
               <div v-if="gameState?.last_card" class="relative">
                 <div class="absolute -inset-8 sm:-inset-12 bg-blue-600/10 rounded-full blur-3xl animate-pulse"></div>
                 <div :class="cn(
@@ -344,7 +372,7 @@ onMounted(() => {
           <template v-if="(gameState?.players || []).length > 0">
             <div 
               v-for="(player, index) in gameState.players"
-              :key="player.user_id"
+              :key="player.uid"
               :class="cn(
                 'absolute transition-all duration-700 z-30',
                 playerPositions[Number(index) % playerPositions.length]
@@ -372,7 +400,7 @@ onMounted(() => {
                 <div class="flex flex-col pr-1 sm:pr-2 min-w-0">
                   <div class="flex items-center gap-1 sm:gap-2">
                      <span class="text-[9px] sm:text-[10px] font-bold text-white uppercase tracking-tight truncate max-w-[60px] sm:max-w-[80px]">{{ player.username }}</span>
-                     <span v-if="player.user_id === user.id" class="text-[7px] sm:text-[8px] bg-blue-500/20 text-blue-400 px-1 rounded font-mono">YOU</span>
+                     <span v-if="player.uid === user.uid" class="text-[7px] sm:text-[8px] bg-blue-500/20 text-blue-400 px-1 rounded font-mono">YOU</span>
                   </div>
                   <div class="flex items-center gap-2 sm:gap-3 mt-1 sm:mt-1.5">
                      <div class="flex items-center gap-1">
@@ -420,7 +448,7 @@ onMounted(() => {
               </div>
               <div class="bg-blue-600 px-4 sm:px-8 py-1.5 sm:py-2.5 rounded-full shadow-[0_15px_30px_rgba(37,99,235,0.4)] flex items-center gap-2 sm:gap-3 active:scale-95 transition-transform">
                 <Zap class="w-3 h-3 sm:w-4 sm:h-4 fill-current animate-pulse text-white" />
-                <span class="text-[9px] sm:text-xs font-black uppercase tracking-widest sm:tracking-[0.3em] text-white">Your_Turn_Active</span>
+                <span class="text-[9px] sm:text-xs font-black uppercase tracking-widest sm:tracking-[0.3em] text-white">Your_Turn_Active ({{ timeRemaining }}s)</span>
               </div>
               <div class="w-px h-6 sm:h-10 bg-gradient-to-b from-blue-500 to-transparent opacity-50"></div>
            </div>
@@ -559,7 +587,7 @@ onMounted(() => {
                  <span class="w-2 h-2 bg-blue-500 rounded-full animate-ping"></span>
                  <span class="text-[8px] sm:text-[10px] font-black text-blue-400 uppercase tracking-widest font-mono">Mission_Success</span>
               </div>
-              <template v-if="winner?.user_id === user.id">
+              <template v-if="winner?.uid === user.uid">
                 <h2 class="text-4xl sm:text-6xl font-black text-white tracking-tighter leading-none">
                   实验大获成功
                 </h2>

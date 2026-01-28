@@ -37,17 +37,17 @@ func Register(c *gin.Context) {
 	}
 
 	// 插入用户
-	result, err := database.DB.Exec("INSERT INTO users (username, password, avatar) VALUES (?, ?, ?)", 
+	result, err := database.DB.Exec("INSERT INTO users (username, password, avatar) VALUES (?, ?, ?)",
 		req.Username, hashedPassword, "🧪")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建用户失败"})
 		return
 	}
 
-	userID, _ := result.LastInsertId()
+	userUID, _ := result.LastInsertId()
 	c.JSON(http.StatusCreated, gin.H{
 		"message": "注册成功",
-		"user_id": userID,
+		"uid":     userUID,
 	})
 }
 
@@ -62,9 +62,9 @@ func Login(c *gin.Context) {
 	// 查询用户
 	var user models.User
 	err := database.DB.QueryRow(
-		"SELECT id, username, password, avatar, is_admin FROM users WHERE username = ?",
+		"SELECT UID, username, password, avatar, is_admin FROM users WHERE username = ?",
 		req.Username,
-	).Scan(&user.ID, &user.Username, &user.Password, &user.Avatar, &user.IsAdmin)
+	).Scan(&user.UID, &user.Username, &user.Password, &user.Avatar, &user.IsAdmin)
 
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "用户名或密码错误"})
@@ -78,16 +78,16 @@ func Login(c *gin.Context) {
 	}
 
 	// 生成token
-	token, err := utils.GenerateToken(user.ID, user.Username, user.IsAdmin)
+	token, err := utils.GenerateToken(int(user.UID), user.Username, user.IsAdmin)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成token失败"})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"token":    token,
+		"token": token,
 		"user": gin.H{
-			"id":       user.ID,
+			"uid":      user.UID,
 			"username": user.Username,
 			"avatar":   user.Avatar,
 			"is_admin": user.IsAdmin,
@@ -97,8 +97,8 @@ func Login(c *gin.Context) {
 
 // 修改密码
 func ChangePassword(c *gin.Context) {
-	userID := c.GetInt("user_id")
-	
+	uid := c.GetInt("uid")
+
 	var req models.ChangePasswordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -107,7 +107,7 @@ func ChangePassword(c *gin.Context) {
 
 	// 获取当前密码
 	var currentPassword string
-	err := database.DB.QueryRow("SELECT password FROM users WHERE id = ?", userID).Scan(&currentPassword)
+	err := database.DB.QueryRow("SELECT password FROM users WHERE UID = ?", uid).Scan(&currentPassword)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误"})
 		return
@@ -127,7 +127,7 @@ func ChangePassword(c *gin.Context) {
 	}
 
 	// 更新密码
-	_, err = database.DB.Exec("UPDATE users SET password = ? WHERE id = ?", hashedPassword, userID)
+	_, err = database.DB.Exec("UPDATE users SET password = ? WHERE UID = ?", hashedPassword, uid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新密码失败"})
 		return
@@ -138,15 +138,15 @@ func ChangePassword(c *gin.Context) {
 
 // 更新头像
 func UpdateAvatar(c *gin.Context) {
-	userID := c.GetInt("user_id")
-	
+	uid := c.GetInt("uid")
+
 	var req models.UpdateAvatarRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	_, err := database.DB.Exec("UPDATE users SET avatar = ? WHERE id = ?", req.Avatar, userID)
+	_, err := database.DB.Exec("UPDATE users SET avatar = ? WHERE UID = ?", req.Avatar, uid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新头像失败"})
 		return
@@ -157,10 +157,10 @@ func UpdateAvatar(c *gin.Context) {
 
 // 注销账号
 func DeleteAccount(c *gin.Context) {
-	userID := c.GetInt("user_id")
+	uid := c.GetInt("uid")
 
 	// 删除用户
-	_, err := database.DB.Exec("DELETE FROM users WHERE id = ?", userID)
+	_, err := database.DB.Exec("DELETE FROM users WHERE UID = ?", uid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "注销账号失败"})
 		return
@@ -171,13 +171,13 @@ func DeleteAccount(c *gin.Context) {
 
 // 获取用户信息
 func GetUserInfo(c *gin.Context) {
-	userID := c.GetInt("user_id")
+	uid := c.GetInt("uid")
 
 	var user models.User
 	err := database.DB.QueryRow(
-		"SELECT id, username, avatar, is_admin, created_at FROM users WHERE id = ?",
-		userID,
-	).Scan(&user.ID, &user.Username, &user.Avatar, &user.IsAdmin, &user.CreatedAt)
+		"SELECT UID, username, avatar, is_admin, created_at FROM users WHERE UID = ?",
+		uid,
+	).Scan(&user.UID, &user.Username, &user.Avatar, &user.IsAdmin, &user.CreatedAt)
 
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})

@@ -19,7 +19,7 @@ type Client struct {
 	hub      *Hub
 	conn     *websocket.Conn
 	send     chan []byte
-	userID   int
+	uid      int
 	username string
 	roomID   string
 }
@@ -28,16 +28,16 @@ type Message struct {
 	Type    string      `json:"type"`
 	RoomID  string      `json:"room_id,omitempty"`
 	Data    interface{} `json:"data,omitempty"`
-	UserID  int         `json:"user_id,omitempty"`
+	UID     int         `json:"uid,omitempty"`
 	Message string      `json:"message,omitempty"`
 }
 
-func NewClient(hub *Hub, conn *websocket.Conn, userID int, username string) *Client {
+func NewClient(hub *Hub, conn *websocket.Conn, uid int, username string) *Client {
 	return &Client{
 		hub:      hub,
 		conn:     conn,
 		send:     make(chan []byte, 256),
-		userID:   userID,
+		uid:      uid,
 		username: username,
 	}
 }
@@ -116,7 +116,7 @@ func (c *Client) handleMessage(msg *Message) {
 		c.hub.JoinRoom(c, msg.RoomID)
 		c.hub.BroadcastToRoom(msg.RoomID, Message{
 			Type:    "player_joined",
-			UserID:  c.userID,
+			UID:     c.uid,
 			Message: c.username + " 加入了房间",
 		})
 
@@ -125,7 +125,7 @@ func (c *Client) handleMessage(msg *Message) {
 		c.hub.LeaveRoom(c)
 		c.hub.BroadcastToRoom(roomID, Message{
 			Type:    "player_left",
-			UserID:  c.userID,
+			UID:     c.uid,
 			Message: c.username + " 离开了房间",
 		})
 
@@ -133,7 +133,7 @@ func (c *Client) handleMessage(msg *Message) {
 		if c.roomID != "" {
 			c.hub.BroadcastToRoom(c.roomID, Message{
 				Type:    "chat",
-				UserID:  c.userID,
+				UID:     c.uid,
 				Message: msg.Message,
 				Data: map[string]string{
 					"username": c.username,

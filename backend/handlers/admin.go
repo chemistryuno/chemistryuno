@@ -12,7 +12,7 @@ import (
 // 获取所有用户
 func GetAllUsers(c *gin.Context) {
 	rows, err := database.DB.Query(
-		"SELECT id, username, avatar, is_admin, created_at FROM users ORDER BY created_at DESC",
+		"SELECT UID, username, avatar, is_admin, created_at FROM users ORDER BY created_at DESC",
 	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误"})
@@ -23,7 +23,7 @@ func GetAllUsers(c *gin.Context) {
 	var users []models.User
 	for rows.Next() {
 		var user models.User
-		if err := rows.Scan(&user.ID, &user.Username, &user.Avatar, &user.IsAdmin, &user.CreatedAt); err != nil {
+		if err := rows.Scan(&user.UID, &user.Username, &user.Avatar, &user.IsAdmin, &user.CreatedAt); err != nil {
 			continue
 		}
 		users = append(users, user)
@@ -81,7 +81,7 @@ func UpdateGlobalDeckConfig(c *gin.Context) {
 func DeleteUser(c *gin.Context) {
 	userID := c.Param("id")
 
-	_, err := database.DB.Exec("DELETE FROM users WHERE id = ? AND is_admin = 0", userID)
+	_, err := database.DB.Exec("DELETE FROM users WHERE UID = ? AND is_admin = 0", userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "删除失败"})
 		return
@@ -93,9 +93,9 @@ func DeleteUser(c *gin.Context) {
 // 获取游戏历史
 func GetGameHistory(c *gin.Context) {
 	rows, err := database.DB.Query(`
-		SELECT gh.id, gh.room_id, gh.winner_id, u.username, gh.players, gh.started_at, gh.finished_at
+		SELECT gh.id, gh.room_id, gh.winner_uid, u.username, gh.players, gh.started_at, gh.finished_at
 		FROM game_history gh
-		LEFT JOIN users u ON gh.winner_id = u.id
+		LEFT JOIN users u ON gh.winner_uid = u.UID
 		ORDER BY gh.finished_at DESC
 		LIMIT 100
 	`)
@@ -108,17 +108,17 @@ func GetGameHistory(c *gin.Context) {
 	var history []map[string]interface{}
 	for rows.Next() {
 		var (
-			id, winnerID                     int
-			roomID, winnerName, playersJSON  string
-			startedAt, finishedAt            string
+			id, winnerUID                   int
+			roomID, winnerName, playersJSON string
+			startedAt, finishedAt           string
 		)
-		if err := rows.Scan(&id, &roomID, &winnerID, &winnerName, &playersJSON, &startedAt, &finishedAt); err != nil {
+		if err := rows.Scan(&id, &roomID, &winnerUID, &winnerName, &playersJSON, &startedAt, &finishedAt); err != nil {
 			continue
 		}
 		history = append(history, map[string]interface{}{
 			"id":          id,
 			"room_id":     roomID,
-			"winner_id":   winnerID,
+			"winner_uid":  winnerUID,
 			"winner_name": winnerName,
 			"players":     playersJSON,
 			"started_at":  startedAt,

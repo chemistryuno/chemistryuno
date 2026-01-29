@@ -174,12 +174,11 @@ const handleDeleteAccount = async () => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-[#0a0a0c] text-white p-4 md:p-8 selection:bg-blue-500/30">
+  <div class="min-h-screen bg-slate-50 dark:bg-[#0a0a0c] text-slate-900 dark:text-white p-4 md:p-8 selection:bg-blue-500/30">
     <div class="fixed inset-0 overflow-hidden pointer-events-none">
       <div class="absolute top-[-10%] right-[-10%] w-[50%] h-[50%] bg-blue-500/5 rounded-full blur-[120px]" />
       <div class="absolute bottom-[-10%] left-[-10%] w-[50%] h-[50%] bg-purple-500/5 rounded-full blur-[120px]" />
       <div class="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 brightness-50 contrast-150" />
-    </div>
 
     <div class="max-w-5xl mx-auto relative z-10">
       <button 
@@ -197,21 +196,19 @@ const handleDeleteAccount = async () => {
             
             <div class="flex flex-col items-center">
               <div class="relative group/avatar mb-8">
-                <div class="w-40 h-40 bg-gradient-to-tr from-[#1a1c1e] to-[#2d3035] rounded-[3rem] p-1 shadow-2xl transition-transform duration-500 group-hover/avatar:scale-105">
-                  <div class="w-full h-full bg-[#111114] rounded-[2.8rem] flex items-center justify-center text-7xl relative overflow-hidden group/inner transition-all border border-white/5">
+                <div class="w-40 h-40 bg-gradient-to-tr from-slate-200 to-slate-300 dark:from-[#1a1c1e] dark:to-[#2d3035] rounded-[3rem] p-1 shadow-2xl transition-transform duration-500 group-hover/avatar:scale-105">
+                  <div class="w-full h-full bg-white dark:bg-[#111114] rounded-[2.8rem] flex items-center justify-center text-7xl relative overflow-hidden group/inner transition-all border border-slate-200 dark:border-white/5">
                     <div class="absolute inset-0 bg-blue-500/5 opacity-0 group-hover/inner:opacity-100 transition-opacity" />
                     <template v-if="user.avatar && user.avatar.startsWith('data:')">
                        <img :src="user.avatar" class="w-full h-full object-cover relative z-10" />
                     </template>
                     <template v-else>
-                       <span class="relative z-10 scale-110 drop-shadow-[0_0_15px_rgba(255,255,255,0.3)]">{{ user.avatar || '🧪' }}</span>
+                       <span class="relative z-10 scale-110 drop-shadow-[0_0_15px_rgba(0,0,0,0.1)] dark:drop-shadow-[0_0_15px_rgba(255,255,255,0.3)]">{{ user.avatar || '🧪' }}</span>
                     </template>
-                  </div>
-                </div>
                 
                 <button 
                   @click="showChangeAvatar = true"
-                  class="absolute -bottom-2 -right-2 bg-blue-600 hover:bg-blue-500 p-3 rounded-2xl shadow-[0_0_20px_rgba(37,99,235,0.4)] z-20 group-hover:rotate-12 transition-all active:scale-95"
+                  class="absolute -bottom-2 -right-2 bg-blue-600 hover:bg-blue-500 p-3 rounded-2xl shadow-[0_0_20px_rgba(37,99,235,0.2)] dark:shadow-[0_0_20px_rgba(37,99,235,0.4)] z-20 group-hover:rotate-12 transition-all active:scale-95"
                   title="更改研究员原型"
                 >
                   <RefreshCw class="w-5 h-5 text-white" />
@@ -221,37 +218,37 @@ const handleDeleteAccount = async () => {
               <div class="text-center space-y-2 w-full">
                 <div class="flex items-center justify-center gap-2 mb-1">
                   <UserIcon class="w-4 h-4 text-blue-500 opacity-50" />
-                  <span class="text-[10px] font-mono text-slate-500 uppercase tracking-widest">Researcher ID</span>
+                  <span class="text-[10px] font-mono text-slate-400 dark:text-slate-500 uppercase tracking-widest">Researcher ID</span>
                 </div>
-                <h2 class="text-3xl font-black tracking-tight text-white group-hover:text-blue-400 transition-colors uppercase italic truncate px-4">
+                <h2 class="text-3xl font-black tracking-tight text-slate-900 dark:text-white group-hover:text-blue-500 transition-colors uppercase italic truncate px-4">
                   {{ user.username }}
                 </h2>
                 <div class="flex items-center justify-center gap-2 pt-2">
-                  <span v-if="user.is_admin" class="bg-blue-500/10 text-blue-400 text-[10px] font-black px-4 py-1.5 rounded-full border border-blue-500/20 flex items-center gap-2 uppercase tracking-[0.2em]">
+                  <span v-if="user.is_admin" class="bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[10px] font-black px-4 py-1.5 rounded-full border border-blue-500/20 flex items-center gap-2 uppercase tracking-[0.2em]">
                     <Shield class="w-3 h-3" /> 首席研究员 / CORE ADM
                   </span>
-                  <span v-else class="bg-slate-500/10 text-slate-400 text-[10px] font-black px-4 py-1.5 rounded-full border border-slate-500/20 flex items-center gap-2 uppercase tracking-[0.2em]">
+                  <span v-else class="bg-slate-500/10 text-slate-600 dark:text-slate-400 text-[10px] font-black px-4 py-1.5 rounded-full border border-slate-500/20 flex items-center gap-2 uppercase tracking-[0.2em]">
                     <Fingerprint class="w-3 h-3" /> 各级研究员 / RESEARCHER
                   </span>
                 </div>
               </div>
 
-              <div class="w-full mt-10 pt-10 border-t border-white/5 space-y-4">
+              <div class="w-full mt-10 pt-10 border-t border-slate-200 dark:border-white/5 space-y-4">
                 <div class="flex justify-between items-center text-xs">
                   <span class="text-slate-500 font-bold uppercase tracking-widest flex items-center gap-2"><Fingerprint class="w-3 h-3" /> System UID</span>
-                  <span class="font-mono text-blue-400/80">{{ user.uid }}</span>
+                  <span class="font-mono text-blue-600 dark:text-blue-400/80">{{ user.uid }}</span>
                 </div>
                 <div v-if="user.created_at" class="flex justify-between items-center text-xs">
                   <span class="text-slate-500 font-bold uppercase tracking-widest flex items-center gap-2"><Calendar class="w-3 h-3" /> Joined Date</span>
-                  <span class="font-mono text-slate-400">{{ new Date(user.created_at).toLocaleDateString() }}</span>
+                  <span class="font-mono text-slate-500 dark:text-slate-400">{{ new Date(user.created_at).toLocaleDateString() }}</span>
                 </div>
                 <div class="flex justify-between items-center text-xs">
                   <span class="text-slate-500 font-bold uppercase tracking-widest flex items-center gap-2"><Award class="w-3 h-3" /> Exp Level</span>
                   <div class="flex items-center gap-2">
-                    <div class="w-24 h-1.5 bg-white/5 rounded-full overflow-hidden">
-                      <div class="w-1/3 h-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]" />
+                    <div class="w-24 h-1.5 bg-slate-200 dark:bg-white/5 rounded-full overflow-hidden">
+                      <div class="w-1/3 h-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.3)] dark:shadow-[0_0_100px_rgba(59,130,246,0.5)]" />
                     </div>
-                    <span class="text-blue-500 font-black">LV.01</span>
+                    <span class="text-blue-600 dark:text-blue-500 font-black">LV.01</span>
                   </div>
                 </div>
               </div>
@@ -259,29 +256,29 @@ const handleDeleteAccount = async () => {
           </div>
 
           <div class="grid grid-cols-2 gap-4">
-            <div class="bg-white/5 border border-white/5 rounded-3xl p-5 hover:bg-white/[0.08] transition-colors">
+            <div class="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-3xl p-5 hover:bg-slate-50 dark:hover:bg-white/[0.08] transition-colors shadow-sm dark:shadow-none">
               <div class="flex items-center gap-3 mb-2">
-                <Zap class="w-4 h-4 text-yellow-400" />
+                <Zap class="w-4 h-4 text-yellow-500 dark:text-yellow-400" />
                 <span class="text-[10px] font-black uppercase text-slate-500">总场次</span>
               </div>
-              <div class="text-2xl font-black">--</div>
+              <div class="text-2xl font-black text-slate-900 dark:text-white">--</div>
             </div>
-            <div class="bg-white/5 border border-white/5 rounded-3xl p-5 hover:bg-white/[0.08] transition-colors">
+            <div class="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-3xl p-5 hover:bg-slate-50 dark:hover:bg-white/[0.08] transition-colors shadow-sm dark:shadow-none">
               <div class="flex items-center gap-3 mb-2">
-                <Activity class="w-4 h-4 text-emerald-400" />
+                <Activity class="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                 <span class="text-[10px] font-black uppercase text-slate-500">胜率</span>
               </div>
-              <div class="text-2xl font-black">--%</div>
+              <div class="text-2xl font-black text-slate-900 dark:text-white">--%</div>
             </div>
           </div>
         </div>
 
         <div class="lg:col-span-8 space-y-8">
-          <div class="bg-[#111114] border border-white/10 rounded-[2.5rem] p-10 relative overflow-hidden">
+          <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 rounded-[2.5rem] p-10 relative overflow-hidden shadow-sm dark:shadow-none">
             <div class="flex items-center justify-between mb-10">
               <div>
-                <h3 class="text-2xl font-black uppercase italic tracking-tighter flex items-center gap-3">
-                  <span class="w-2 h-8 bg-blue-500 rounded-full" />
+                <h3 class="text-2xl font-black uppercase italic tracking-tighter flex items-center gap-3 text-slate-900 dark:text-white">
+                  <span class="w-2 h-8 bg-blue-600 rounded-full" />
                   账户安全管理 / Security
                 </h3>
                 <p class="text-slate-500 text-sm mt-1">维护您的研究员凭证与实验室访问权限</p>
@@ -291,12 +288,12 @@ const handleDeleteAccount = async () => {
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               <button 
                 @click="showChangePassword = true"
-                class="group relative flex flex-col items-start p-6 bg-white/5 hover:bg-blue-500/10 border border-white/5 hover:border-blue-500/30 rounded-3xl transition-all text-left"
+                class="group relative flex flex-col items-start p-6 bg-slate-50 dark:bg-white/5 hover:bg-blue-50 dark:hover:bg-blue-500/10 border border-slate-200 dark:border-white/5 hover:border-blue-300 dark:hover:border-blue-500/30 rounded-3xl transition-all text-left"
               >
-                <div class="bg-blue-500/20 p-3 rounded-2xl mb-4 group-hover:scale-110 transition-transform">
-                  <Lock class="w-6 h-6 text-blue-400" />
+                <div class="bg-blue-500/10 dark:bg-blue-500/20 p-3 rounded-2xl mb-4 group-hover:scale-110 transition-transform">
+                  <Lock class="w-6 h-6 text-blue-600 dark:text-blue-400" />
                 </div>
-                <span class="text-lg font-bold">修改研究密码</span>
+                <span class="text-lg font-bold text-slate-900 dark:text-white">修改研究密码</span>
                 <span class="text-slate-500 text-xs mt-1">更新安全凭证以确保实验室数据安全</span>
               </button>
 
@@ -304,12 +301,12 @@ const handleDeleteAccount = async () => {
                 v-if="!user.two_factor_enabled"
                 @click="handleSetup2FA"
                 :disabled="twoFactorLoading"
-                class="group relative flex flex-col items-start p-6 bg-white/5 hover:bg-emerald-500/10 border border-white/5 hover:border-emerald-500/30 rounded-3xl transition-all text-left"
+                class="group relative flex flex-col items-start p-6 bg-slate-50 dark:bg-white/5 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 border border-slate-200 dark:border-white/5 hover:border-emerald-300 dark:hover:border-emerald-500/30 rounded-3xl transition-all text-left"
               >
-                <div class="bg-emerald-500/20 p-3 rounded-2xl mb-4 group-hover:scale-110 transition-transform">
-                  <Shield class="w-6 h-6 text-emerald-400" />
+                <div class="bg-emerald-500/10 dark:bg-emerald-500/20 p-3 rounded-2xl mb-4 group-hover:scale-110 transition-transform">
+                  <Shield class="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
                 </div>
-                <span class="text-lg font-bold">开启双重验证</span>
+                <span class="text-lg font-bold text-slate-900 dark:text-white">开启双重验证</span>
                 <span class="text-slate-500 text-xs mt-1">通过 TOTP 协议为您的账户增加第二层保护</span>
                 <Loader2 v-if="twoFactorLoading" class="absolute top-6 right-6 w-5 h-5 animate-spin text-emerald-500" />
               </button>
@@ -318,36 +315,40 @@ const handleDeleteAccount = async () => {
                 v-else
                 @click="handleDisable2FA"
                 :disabled="twoFactorLoading"
-                class="group relative flex flex-col items-start p-6 bg-emerald-500/5 hover:bg-red-500/10 border border-emerald-500/20 hover:border-red-500/30 rounded-3xl transition-all text-left"
+                class="group relative flex flex-col items-start p-6 bg-emerald-50 dark:bg-emerald-500/5 hover:bg-red-50 dark:hover:bg-red-500/10 border border-emerald-200 dark:border-emerald-500/20 hover:border-red-300 dark:hover:border-red-500/30 rounded-3xl transition-all text-left"
               >
-                <div class="bg-red-500/20 p-3 rounded-2xl mb-4 group-hover:scale-110 transition-transform">
-                  <Shield class="w-6 h-6 text-red-500" />
+                <div class="bg-red-500/10 dark:bg-red-500/20 p-3 rounded-2xl mb-4 group-hover:scale-110 transition-transform">
+                  <Shield class="w-6 h-6 text-red-600" />
                 </div>
-                <span class="text-lg font-bold text-emerald-400 group-hover:text-red-400">管理双重验证</span>
+                <span class="text-lg font-bold text-emerald-600 group-hover:text-red-600">管理双重验证</span>
                 <span class="text-slate-500 text-xs mt-1">2FA 已激活。点击可停用验证保护。</span>
                 <div class="absolute top-6 right-6 w-3 h-3 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.5)]" />
               </button>
 
               <button 
                 @click="handleDeleteAccount"
-                class="group relative flex flex-col items-start p-6 bg-white/5 hover:bg-red-500/10 border border-white/5 hover:border-red-500/30 rounded-3xl transition-all text-left"
+                class="group relative flex flex-col items-start p-6 bg-slate-50 dark:bg-white/5 hover:bg-red-50 dark:hover:bg-red-500/10 border border-slate-200 dark:border-white/5 hover:border-red-300 dark:hover:border-red-500/30 rounded-3xl transition-all text-left"
               >
-                <div class="bg-red-500/20 p-3 rounded-2xl mb-4 group-hover:scale-110 transition-transform">
-                  <UserX class="w-6 h-6 text-red-500" />
+                <div class="bg-red-500/10 dark:bg-red-500/20 p-3 rounded-2xl mb-4 group-hover:scale-110 transition-transform">
+                  <UserX class="w-6 h-6 text-red-600 dark:text-red-500" />
                 </div>
-                <span class="text-lg font-bold text-red-400">注销席位</span>
-                <span class="text-slate-500 text-xs mt-1">永久注销账户并清除所有研究数据</span>
+                <span class="text-lg font-bold text-red-600 dark:text-red-400">注销席位</span>
+                <span class="text-slate-500 text-xs mt-1">永久注销账户并清除所有研究 data</span>
               </button>
             </div>
           </div>
 
-          <div class="bg-[#111114] border border-white/10 rounded-[2.5rem] p-10">
-            <h3 class="text-xl font-bold uppercase tracking-widest mb-6 flex items-center gap-3 text-slate-400">
+          <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 rounded-[2.5rem] p-10 shadow-sm dark:shadow-none">
+            <h3 class="text-xl font-bold uppercase tracking-widest mb-6 flex items-center gap-3 text-slate-500">
               <Award class="w-5 h-5" />
               实验室成就 / Achievements
             </h3>
-            <div class="flex flex-col items-center justify-center py-20 border-2 border-dashed border-white/5 rounded-[2rem] bg-white/[0.02]">
-              <Shield class="w-12 h-12 text-slate-700 mb-4" />
+            <div class="flex flex-col items-center justify-center py-20 border-2 border-dashed border-slate-200 dark:border-white/5 rounded-[2rem] bg-slate-50 dark:bg-white/[0.02]">
+              <Shield class="w-12 h-12 text-slate-300 dark:text-slate-700 mb-4" />
+              <p class="text-slate-400 font-medium italic">暂无勋章记录</p>
+            </div>
+          </div>
+        </div>
               <p class="text-slate-500 font-medium italic">尚未获得勋章记录。去开启一场化学反应吧！</p>
             </div>
           </div>

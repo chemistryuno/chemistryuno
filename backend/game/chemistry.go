@@ -1,6 +1,9 @@
 package game
 
-import "chemistryuno/models"
+import (
+	"chemistryuno/database"
+	"chemistryuno/models"
+)
 
 // 化学反应数据库（简化版，实际应该更完整）
 var reactionDB = map[string][]string{
@@ -198,14 +201,48 @@ func CanReact(substance1, substance2 string) bool {
 		}
 	}
 
-	// 如果硬编码数据库中没有，则使用通用的化学逻辑判定
+	// 检查数据库中的自定义反应
+	if database.DB != nil {
+		var count int
+		err := database.DB.QueryRow("SELECT COUNT(*) FROM reactions WHERE r1 = ? AND r2 = ? AND status = 'approved'", substance1, substance2).Scan(&count)
+		if err == nil && count > 0 {
+			return true
+		}
+	}
+
+	// 如果数据库中也没有，则使用通用的化学逻辑判定
 	return JudgeReaction(substance1, substance2)
 }
 
 // 获取能与指定物质反应的所有物质
 func GetReactableSubstances(substance string) []string {
+	var results []string
 	if products, ok := reactionDB[substance]; ok {
-		return products
+		results = append(results, products...)
 	}
-	return []string{}
+
+	// 从数据库获取
+	if database.DB != nil {
+		rows, err := database.DB.Query("SELECT r2 FROM reactions WHERE r1 = ? AND status = 'approved'", substance)
+		if err == nil {
+			defer rows.Close()
+			for rows.Next() {
+				var r2 string
+				if err := rows.Scan(&r2); err == nil {
+					// 避免重复
+					found := false
+					for _, r_exist := range results {
+						if r_exist == r2 {
+							found = true
+							break
+						}
+					}
+					if !found {
+						results = append(results, r2)
+					}
+				}
+			}
+		}
+	}
+	return results
 }

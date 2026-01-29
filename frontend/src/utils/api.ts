@@ -100,8 +100,10 @@ export const adminAPI = {
 export const reactionAPI = {
   getReactions: () => 
     api.get('/reactions'),
-  addReaction: (reactant: string, product: string, type: string) => 
-    api.post('/reactions', { reactant, product, type }),
+  addReaction: (display: string) => 
+    api.post('/reactions', { display }),
+  approveReaction: (groupId: string, display?: string) => 
+    api.put(`/reactions/approve/${groupId}`, { display }),
   deleteReaction: (reactionId: string) => 
     api.delete(`/reactions/${reactionId}`),
 }

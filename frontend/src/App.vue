@@ -1,11 +1,26 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import websocket from './utils/websocket'
 import CustomDialog from './components/CustomDialog.vue'
 
 const loading = ref(true)
 
+const updateTheme = () => {
+  if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+    document.documentElement.classList.add('dark')
+    document.documentElement.classList.remove('light')
+  } else {
+    document.documentElement.classList.add('light')
+    document.documentElement.classList.remove('dark')
+  }
+}
+
 onMounted(() => {
+  // 监听系统主题变化
+  updateTheme()
+  const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+  mediaQuery.addEventListener('change', updateTheme)
+
   // 检查本地存储的token
   const token = localStorage.getItem('token')
   const userData = localStorage.getItem('user')
@@ -16,21 +31,28 @@ onMounted(() => {
   }
   loading.value = false
 })
+
+onUnmounted(() => {
+  const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+  mediaQuery.removeEventListener('change', updateTheme)
+})
 </script>
 
 <template>
-  <div v-if="loading" class="min-h-screen bg-[#0a0a0c] flex flex-col items-center justify-center gap-4">
+  <div v-if="loading" class="min-h-screen bg-slate-50 dark:bg-[#0a0a0c] flex flex-col items-center justify-center gap-4 transition-colors duration-300">
     <div class="relative w-16 h-16">
       <div class="absolute inset-0 rounded-full border-4 border-emerald-500/20"></div>
       <div class="absolute inset-0 rounded-full border-4 border-emerald-500 border-t-transparent animate-spin"></div>
     </div>
-    <p class="text-emerald-500/70 font-mono tracking-widest text-sm animate-pulse">
+    <p class="text-emerald-600 dark:text-emerald-500/70 font-mono tracking-widest text-sm animate-pulse">
       INITIALIZING LABORATORY...
     </p>
   </div>
   <template v-else>
-    <router-view></router-view>
-    <CustomDialog />
+    <div class="transition-colors duration-300 min-h-screen bg-slate-50 dark:bg-[#0a0a0c] text-slate-900 dark:text-slate-200">
+      <router-view></router-view>
+      <CustomDialog />
+    </div>
   </template>
 </template>
 

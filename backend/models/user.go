@@ -41,17 +41,17 @@ type PromoteUserRequest struct {
 
 type ChemicalReaction struct {
 	ID        int       `json:"id" db:"id"`
-	Reactant  string    `json:"reactant" db:"reactant"`
-	Product   string    `json:"product" db:"product"`
-	Type      string    `json:"type" db:"type"`
+	R1        string    `json:"r1" db:"r1"`
+	R2        string    `json:"r2" db:"r2"`
+	Display   string    `json:"display" db:"display"`
+	Status    string    `json:"status" db:"status"`
+	GroupID   string    `json:"group_id" db:"group_id"`
 	CreatedBy int       `json:"created_by" db:"created_by"`
 	CreatedAt time.Time `json:"created_at" db:"created_at"`
 }
 
 type ReactionRequest struct {
-	Reactant string `json:"reactant" binding:"required"`
-	Product  string `json:"product" binding:"required"`
-	Type     string `json:"type" binding:"required"`
+	Display string `json:"display" binding:"required"`
 }
 
 type UpdateAvatarRequest struct {

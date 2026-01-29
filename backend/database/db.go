@@ -74,9 +74,11 @@ func createTables() error {
 	reactionsTable := `
 	CREATE TABLE IF NOT EXISTS reactions (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		reactant TEXT NOT NULL,
-		product TEXT NOT NULL,
-		type TEXT NOT NULL,
+		r1 TEXT NOT NULL,
+		r2 TEXT NOT NULL,
+		display TEXT NOT NULL,
+		status TEXT DEFAULT 'approved',
+		group_id TEXT,
 		created_by INTEGER,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		FOREIGN KEY (created_by) REFERENCES users(UID)
@@ -93,6 +95,12 @@ func createTables() error {
 	// 增量更新表结构（针对已存在的数据库）
 	_, _ = DB.Exec("ALTER TABLE users ADD COLUMN two_factor_enabled BOOLEAN DEFAULT 0")
 	_, _ = DB.Exec("ALTER TABLE users ADD COLUMN two_factor_secret TEXT DEFAULT ''")
+	_, _ = DB.Exec("ALTER TABLE reactions ADD COLUMN r1 TEXT DEFAULT ''")
+	_, _ = DB.Exec("ALTER TABLE reactions ADD COLUMN r2 TEXT DEFAULT ''")
+	_, _ = DB.Exec("ALTER TABLE reactions ADD COLUMN display TEXT DEFAULT ''")
+	_, _ = DB.Exec("ALTER TABLE reactions ADD COLUMN status TEXT DEFAULT 'approved'")
+	_, _ = DB.Exec("ALTER TABLE reactions ADD COLUMN group_id TEXT DEFAULT ''")
+	_, _ = DB.Exec("ALTER TABLE reactions DROP COLUMN type")
 
 	// 检查并创建默认管理员账号
 	if err := createDefaultAdmin(); err != nil {
@@ -101,15 +109,13 @@ func createTables() error {
 
 	// 插入默认化学反应数据
 	insertReactions := `
-	INSERT OR IGNORE INTO reactions (reactant, product, type, created_by) VALUES
-	('H2SO4 + 2NaOH', 'Na2SO4 + 2H2O', 'acid-base', 100000000),
-	('HCl + NaOH', 'NaCl + H2O', 'acid-base', 100000000),
-	('Zn + 2HCl', 'ZnCl2 + H2', 'displacement', 100000000),
-	('Cu + 2AgNO3', 'Cu(NO3)2 + 2Ag', 'displacement', 100000000),
-	('2H2 + O2', '2H2O', 'synthesis', 100000000),
-	('CaCO3 + heat', 'CaO + CO2', 'decomposition', 100000000),
-	('AgNO3 + NaCl', 'AgCl + NaNO3', 'precipitation', 100000000),
-	('2Mg + O2', '2MgO', 'combustion', 100000000);`
+	INSERT OR IGNORE INTO reactions (r1, r2, display, status, group_id, created_by) VALUES
+	('H2SO4', 'NaOH', 'H2SO4 + 2NaOH = Na2SO4 + 2H2O', 'approved', 'system-1', 100000000),
+	('NaOH', 'H2SO4', 'H2SO4 + 2NaOH = Na2SO4 + 2H2O', 'approved', 'system-1', 100000000),
+	('HCl', 'NaOH', 'HCl + NaOH = NaCl + H2O', 'approved', 'system-2', 100000000),
+	('NaOH', 'HCl', 'HCl + NaOH = NaCl + H2O', 'approved', 'system-2', 100000000),
+	('Zn', 'HCl', 'Zn + 2HCl = ZnCl2 + H2', 'approved', 'system-3', 100000000),
+	('HCl', 'Zn', 'Zn + 2HCl = ZnCl2 + H2', 'approved', 'system-3', 100000000);`
 
 	_, _ = DB.Exec(insertReactions)
 

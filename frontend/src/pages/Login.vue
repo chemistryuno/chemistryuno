@@ -63,26 +63,26 @@ const handleLoginSuccess = (token: string, user: any) => {
 </script>
 
 <template>
-  <div class="min-h-screen flex items-center justify-center p-4 bg-[#1a1a1e] relative overflow-hidden font-sans">
+  <div class="min-h-screen flex items-center justify-center p-4 bg-slate-50 dark:bg-[#1a1a1e] relative overflow-hidden font-sans">
     <!-- Subtle Background Elements -->
     <div class="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-500/5 rounded-full blur-[120px]"></div>
     <div class="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-500/5 rounded-full blur-[120px]"></div>
 
     <div class="w-full max-w-md relative z-10 animate-in fade-in zoom-in duration-500">
-      <div class="glass-panel-light rounded-[40px] shadow-[0_20px_60px_rgba(0,0,0,0.3)] overflow-hidden">
+      <div class="glass-panel-light rounded-[40px] shadow-[0_20px_60px_rgba(0,0,0,0.1)] dark:shadow-[0_20px_60px_rgba(0,0,0,0.3)] overflow-hidden">
         <div class="p-10 md:p-12">
           <!-- Header Section -->
           <div class="flex flex-col items-center mb-10">
             <div class="w-20 h-20 bg-blue-600 rounded-3xl flex items-center justify-center mb-4 shadow-lg transform rotate-3 hover:rotate-0 transition-transform duration-500">
               <Beaker class="w-10 h-10 text-white" />
             </div>
-            <h1 class="text-3xl font-black text-slate-800 tracking-tighter">
+            <h1 class="text-3xl font-black text-slate-900 dark:text-white tracking-tighter">
               化学<span class="text-blue-600">UNO</span>
             </h1>
-            <p class="text-slate-400 text-xs font-bold uppercase tracking-[0.2em] mt-2">Laboratory System Access</p>
+            <p class="text-slate-400 dark:text-slate-500 text-xs font-bold uppercase tracking-[0.2em] mt-2">Laboratory System Access</p>
           </div>
 
-          <div v-if="error" class="bg-red-50 border border-red-100 text-red-500 px-4 py-3 rounded-2xl mb-6 text-center text-xs font-bold">
+          <div v-if="error" class="bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 text-red-500 px-4 py-3 rounded-2xl mb-6 text-center text-xs font-bold">
             {{ error }}
           </div>
 
@@ -97,7 +97,7 @@ const handleLoginSuccess = (token: string, user: any) => {
                   v-model="username"
                   type="text"
                   required
-                  class="w-full bg-slate-100 border border-slate-200 text-slate-800 pl-11 pr-4 py-3.5 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all placeholder:text-slate-400 text-sm font-medium"
+                  class="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white pl-11 pr-4 py-3.5 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all placeholder:text-slate-400 text-sm font-medium"
                   placeholder="Researcher ID"
                 />
               </div>
@@ -113,7 +113,7 @@ const handleLoginSuccess = (token: string, user: any) => {
                   v-model="password"
                   type="password"
                   required
-                  class="w-full bg-slate-100 border border-slate-200 text-slate-800 pl-11 pr-4 py-3.5 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all placeholder:text-slate-400 text-sm font-medium"
+                  class="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white pl-11 pr-4 py-3.5 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all placeholder:text-slate-400 text-sm font-medium"
                   placeholder="Auth Token"
                 />
               </div>
@@ -126,15 +126,15 @@ const handleLoginSuccess = (token: string, user: any) => {
                 'w-full h-14 rounded-2xl font-black text-white transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2',
                 loading 
                   ? 'bg-slate-400 cursor-not-allowed' 
-                  : 'bg-blue-700 hover:bg-blue-600 shadow-blue-500/20'
+                  : 'bg-blue-600 hover:bg-blue-500 shadow-blue-500/20'
               )"
             >
               <template v-if="loading">
                 <Loader2 class="w-5 h-5 animate-spin" />
               </template>
               <template v-else>
-                <span class="uppercase tracking-widest text-sm">初始化访问</span>
-                <Fingerprint class="w-4 h-4" />
+                <span class="uppercase tracking-widest text-sm text-white">初始化访问</span>
+                <Fingerprint class="w-4 h-4 text-white" />
               </template>
             </button>
           </form>
@@ -151,7 +151,7 @@ const handleLoginSuccess = (token: string, user: any) => {
                   type="text"
                   required
                   maxlength="6"
-                  class="w-full bg-slate-100 border border-slate-200 text-slate-800 pl-11 pr-4 py-3.5 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all placeholder:text-slate-400 text-sm font-medium tracking-[0.5em]"
+                  class="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white pl-11 pr-4 py-3.5 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all placeholder:text-slate-400 text-sm font-medium tracking-[0.5em]"
                   placeholder="000000"
                 />
               </div>
@@ -164,15 +164,15 @@ const handleLoginSuccess = (token: string, user: any) => {
                 'w-full h-14 rounded-2xl font-black text-white transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2',
                 loading 
                   ? 'bg-slate-400 cursor-not-allowed' 
-                  : 'bg-blue-700 hover:bg-blue-600 shadow-blue-500/20'
+                  : 'bg-blue-600 hover:bg-blue-500 shadow-blue-500/20'
               )"
             >
               <template v-if="loading">
                 <Loader2 class="w-5 h-5 animate-spin" />
               </template>
               <template v-else>
-                <span class="uppercase tracking-widest text-sm">验证并进入</span>
-                <Shield class="w-4 h-4" />
+                <span class="uppercase tracking-widest text-sm text-white">验证并进入</span>
+                <Shield class="w-4 h-4 text-white" />
               </template>
             </button>
 
@@ -186,7 +186,7 @@ const handleLoginSuccess = (token: string, user: any) => {
           </form>
 
           <div class="mt-8 text-center">
-            <p class="text-slate-400 text-xs font-bold">
+            <p class="text-slate-400 dark:text-slate-500 text-xs font-bold">
               初次参与实验？
               <router-link to="/register" class="text-blue-600 hover:text-blue-700 transition-colors">
                 注册研究员账号

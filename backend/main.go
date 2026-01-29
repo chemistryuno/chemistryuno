@@ -92,6 +92,7 @@ func main() {
 	{
 		reactions.GET("", handlers.GetReactions)
 		reactions.POST("", handlers.AddReaction)
+		reactions.PUT("/approve/:group_id", handlers.ApproveReaction)
 		reactions.DELETE("/:id", handlers.DeleteReaction)
 	}
 

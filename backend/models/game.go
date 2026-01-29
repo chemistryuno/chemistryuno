@@ -33,15 +33,17 @@ type Room struct {
 
 // 游戏状态
 type GameState struct {
-	RoomID        string         `json:"room_id"`
-	Players       []*PlayerState `json:"players"`
-	CurrentPlayer int            `json:"current_player"`
-	Direction     int            `json:"direction"` // 1: 顺时针, -1: 逆时针
-	LastCard      *PlayedCard    `json:"last_card"`
-	DrawPile      []Card         `json:"-"` // 摸牌堆（不发送给客户端）
-	DiscardPile   []PlayedCard   `json:"discard_pile"`
-	Status        string         `json:"status"`        // "playing", "finished"
-	TurnEndTime   int64          `json:"turn_end_time"` // 回合结束时间戳（毫秒）
+	RoomID           string         `json:"room_id"`
+	Players          []*PlayerState `json:"players"`
+	CurrentPlayer    int            `json:"current_player"`
+	Direction        int            `json:"direction"` // 1: 顺时针, -1: 逆时针
+	LastCard         *PlayedCard    `json:"last_card"`
+	DrawPile         []Card         `json:"-"` // 摸牌堆（不发送给客户端）
+	DiscardPile      []PlayedCard   `json:"discard_pile"`
+	Status           string         `json:"status"`             // "playing", "finished"
+	TurnEndTime      int64          `json:"turn_end_time"`      // 回合结束时间戳（毫秒）
+	PendingDrawCount int            `json:"pending_draw_count"` // 当前累计需加牌数
+	PendingDrawTypes []string       `json:"pending_draw_types"` // 当前累计加牌类型（如["+2","+4"]）
 }
 
 // 玩家状态

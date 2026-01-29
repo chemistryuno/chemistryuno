@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 import { gameAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
 import websocket from '../utils/websocket'
-import { Beaker, Plus, Users, Shield, LogOut, Settings, Play, Info, X, Loader2, Database } from 'lucide-vue-next'
+import { Beaker, Plus, Users, Shield, LogOut, Settings, Play, Info, X, Loader2, Database, Bot } from 'lucide-vue-next'
 import { cn } from '../utils/cn'
 
 const props = defineProps<{
@@ -15,6 +15,7 @@ const router = useRouter()
 const { showAlert } = useDialog()
 const user = ref(JSON.parse(localStorage.getItem('user') || '{}'))
 const rooms = ref<any[]>([])
+const decks = ref<any[]>([])
 const showCreateModal = ref(false)
 const roomName = ref('')
 const maxPlayers = ref(4)
@@ -22,17 +23,24 @@ const deckID = ref(0)
 const loading = ref(false)
 const currentTime = ref(new Date())
 
-const decks = [
-  { id: 0, name: '标准元素包', desc: '包含基础 H, O, C 及常用金属元素', icon: Beaker, disabled: false },
-  { id: 1, name: '有机化学包', desc: '侧重碳链增长与官能团反应 (未解锁)', icon: Beaker, disabled: true },
-  { id: 2, name: '重金属实验室', desc: '增加放射性元素与特殊衰变机制 (未解锁)', icon: Beaker, disabled: true },
-]
+const loadDecks = async () => {
+  try {
+    const res = await gameAPI.getMyDecks()
+    decks.value = res.data
+    if (decks.value.length > 0) {
+      deckID.value = decks.value[0].id
+    }
+  } catch (e) {
+    console.error(e)
+  }
+}
 
 let roomInterval: any
 let timeInterval: any
 
 onMounted(() => {
   loadRooms()
+  loadDecks()
   websocket.connect()
 
   roomInterval = setInterval(loadRooms, 3000)
@@ -198,6 +206,15 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
              </div>
 
              <button 
+              @click="router.push('/ai-battle')" 
+              class="group relative flex items-center gap-3 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 hover:border-purple-500/50 px-8 py-5 rounded-[24px] font-black text-slate-900 dark:text-white transition-all hover:scale-[1.02] hover:-translate-y-1 active:scale-95 overflow-hidden shadow-sm"
+            >
+              <Bot class="w-5 h-5 text-purple-500 group-hover:animate-bounce" />
+              <span class="uppercase tracking-widest text-sm">人机实验室</span>
+              <div class="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-purple-500/5 to-transparent -translate-x-full group-hover:animate-shimmer"></div>
+            </button>
+
+            <button 
               @click="showCreateModal = true" 
               class="group relative flex items-center gap-3 bg-blue-600 hover:bg-blue-500 px-8 py-5 rounded-[24px] font-black text-white shadow-[0_20px_40px_rgba(37,99,235,0.2)] dark:shadow-[0_20px_40px_rgba(37,99,235,0.4)] transition-all hover:scale-[1.02] hover:-translate-y-1 active:scale-95 overflow-hidden"
             >
@@ -375,11 +392,9 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
                 v-for="deck in decks"
                 :key="deck.id"
                 type="button"
-                :disabled="deck.disabled"
                 @click="deckID = deck.id"
                 :class="cn(
                   'w-full flex items-center gap-4 p-4 rounded-3xl border transition-all text-left group/deck',
-                  deck.disabled ? 'opacity-40 cursor-not-allowed border-white/5 grayscale' :
                   deckID === deck.id 
                     ? 'bg-blue-600/10 border-blue-500/50 shadow-[0_10px_30px_rgba(59,130,246,0.1)]' 
                     : 'bg-white/5 border-white/5 hover:border-white/10 hover:bg-white/10'
@@ -389,15 +404,17 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
                   'w-12 h-12 rounded-2xl flex items-center justify-center transition-colors',
                   deckID === deck.id ? 'bg-blue-500 text-white' : 'bg-white/5 text-slate-500'
                 )">
-                  <component :is="deck.icon" class="w-5 h-5" />
+                   <Beaker class="w-5 h-5" />
                 </div>
                 <div class="flex-1">
                   <p :class="cn('text-xs font-black uppercase tracking-wider', deckID === deck.id ? 'text-blue-400' : 'text-white')">
                     {{ deck.name }}
                   </p>
-                  <p class="text-[10px] text-slate-500 mt-1 font-medium">{{ deck.desc }}</p>
+                  <p class="text-[10px] text-slate-500 mt-1 font-medium">
+                    {{ deck.is_global ? 'Global Protocol' : 'Custom Sequence' }} • {{ Object.keys(deck.cards || {}).length }} elements
+                  </p>
                 </div>
-                <div v-if="!deck.disabled && deckID === deck.id" class="w-2 h-2 rounded-full bg-blue-500 animate-pulse mr-2"></div>
+                <div v-if="deckID === deck.id" class="w-2 h-2 rounded-full bg-blue-500 animate-pulse mr-2"></div>
               </button>
             </div>
           </div>

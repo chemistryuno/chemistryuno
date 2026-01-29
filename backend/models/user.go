@@ -50,6 +50,16 @@ type ChemicalReaction struct {
 	CreatedAt time.Time `json:"created_at" db:"created_at"`
 }
 
+type Feedback struct {
+	ID        int       `json:"id" db:"id"`
+	UserID    int       `json:"user_id" db:"user_id"`
+	Username  string    `json:"username"`
+	Content   string    `json:"content" binding:"required"`
+	Type      string    `json:"type" db:"type"`
+	Status    string    `json:"status" db:"status"`
+	CreatedAt time.Time `json:"created_at" db:"created_at"`
+}
+
 type ReactionRequest struct {
 	Display string `json:"display" binding:"required"`
 }

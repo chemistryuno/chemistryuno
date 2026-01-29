@@ -16,6 +16,7 @@ const user = ref(JSON.parse(localStorage.getItem('user') || '{}'))
 const gameState = ref<any>(null)
 const roomInfo = ref<any>(null)
 const availableSubstances = ref<string[]>([])
+const turnReadySubstances = ref<string[]>([])
 const selectedCard = ref<any>(null)
 const selectedSubstance = ref<string | null>(null)
 const substanceInput = ref('')
@@ -37,11 +38,39 @@ watch(() => gameState.value?.turn_end_time, () => {
   startTimer()
 })
 
+const fetchTurnSubstances = async () => {
+  if (!isMyTurn.value) {
+    turnReadySubstances.value = []
+    return
+  }
+  try {
+    const response = await gameAPI.getAvailableSubstances(id)
+    turnReadySubstances.value = response.data || []
+  } catch (error) {
+    console.error('获取回合可用物质失败:', error)
+  }
+}
+
+watch(() => isMyTurn.value, (val) => {
+  if (val) {
+    fetchTurnSubstances()
+  } else {
+    turnReadySubstances.value = []
+  }
+})
+
 const handleGameUpdate = (message: any) => {
   if (message.data) {
     gameState.value = message.data
+    if (isMyTurn.value) {
+      fetchTurnSubstances()
+    }
   } else {
-    loadGameState()
+    loadGameState().then(() => {
+      if (isMyTurn.value) {
+        fetchTurnSubstances()
+      }
+    })
   }
 }
 
@@ -108,32 +137,48 @@ const handleStartGame = async () => {
 }
 
 const handleCardClick = async (card: any) => {
-  if (selectedCard.value?.type === card.type) {
-    selectedCard.value = null
-    selectedSubstance.value = null
-    availableSubstances.value = []
-    return
+  // 功能牌直接打出，元素牌需检查能否反应
+  const specialTypes = ['+2', '+4', 'Au', 'He', 'Ne', 'Ar', 'Kr']
+  if (specialTypes.includes(card.type) || card.effect) {
+    // 功能牌直接打出
+    try {
+      await gameAPI.playCard(id, card, card.type)
+      selectedCard.value = null
+      selectedSubstance.value = null
+      availableSubstances.value = []
+      return
+    } catch (error: any) {
+      showAlert(error.response?.data?.error || '出牌失败', '反应中断')
+      return
+    }
   }
-
-  selectedCard.value = card
-  selectedSubstance.value = null
-  
+  // 元素牌，先查可用substance
   try {
     const response = await gameAPI.getAvailableSubstances(id)
-    availableSubstances.value = response.data || []
-  } catch (error) {
-    console.error('获取可用物质失败:', error)
+    const canPlay = (response.data || []).includes(card.type)
+    if (canPlay) {
+      await gameAPI.playCard(id, card, card.type)
+      selectedCard.value = null
+      selectedSubstance.value = null
+      availableSubstances.value = []
+    } else {
+      showAlert('该元素当前无法与上一张牌反应，不能打出', '出牌失败')
+    }
+  } catch (error: any) {
+    showAlert(error.response?.data?.error || '出牌失败', '反应中断')
   }
 }
 
 const handlePlayCard = async () => {
-  if (!selectedCard.value || !selectedSubstance.value) {
+  if (!selectedSubstance.value) {
     showAlert('请选择要合成或放置的化学物质', '未选择目标')
     return
   }
 
   try {
-    await gameAPI.playCard(id, selectedCard.value, selectedSubstance.value)
+    // 如果没有选中的卡片，则传递一个带类型的占位符，后端会根据物质消耗手牌
+    const cardToPlay = selectedCard.value || { type: selectedSubstance.value, count: 1, effect: '' }
+    await gameAPI.playCard(id, cardToPlay, selectedSubstance.value)
     selectedCard.value = null
     selectedSubstance.value = null
     availableSubstances.value = []
@@ -179,8 +224,10 @@ const handleLeaveRoom = async () => {
 }
 
 const getCardStyle = (card: any) => {
-  if (card.effect === 'reverse' || card.effect === 'skip' || card.effect === 'draw2') return 'special'
-  if (card.effect === 'wild' || card.effect === 'wild4') return 'noble'
+  const nobleGases = ['He', 'Ne', 'Ar', 'Kr']
+  if (nobleGases.includes(card.type)) return 'noble'
+  if (nobleGases.includes(card.type) || card.effect === 'Au' || card.effect === '+2' || card.effect === '+4') return 'special'
+  if (card.effect === 'wild' || card.effect === 'wild4' || card.type === 'Au') return 'noble'
   return 'element'
 }
 
@@ -307,6 +354,14 @@ onMounted(() => {
         <!-- Players Radial Layout -->
         <div class="w-full max-w-5xl aspect-square sm:aspect-[16/10] max-h-full relative flex items-center justify-center">
           
+          <!-- Direction Indicator -->
+          <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+             <div :class="cn(
+                'w-[300px] h-[300px] sm:w-[500px] sm:h-[500px] border-2 border-dashed border-blue-500/10 rounded-full transition-all duration-1000',
+                gameState?.direction === 1 ? 'animate-spin-slow' : 'animate-reverse-spin-slow'
+             )"></div>
+          </div>
+          
           <!-- Reaction Core (Center Pile) -->
           <div class="relative z-20 flex flex-col sm:flex-row items-center gap-4 sm:gap-12 lg:gap-20 scale-75 sm:scale-90 lg:scale-100">
             <!-- Draw Pile -->
@@ -315,19 +370,18 @@ onMounted(() => {
                <div 
                   @click="isMyTurn ? handleDrawCard() : undefined"
                   :class="cn(
-                    'w-28 h-40 sm:w-36 sm:h-52 bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900 rounded-[24px] sm:rounded-[32px] border-2 border-slate-200 dark:border-white/5 flex flex-col items-center justify-center gap-2 sm:gap-4 shadow-xl dark:shadow-2xl transition-all relative overflow-hidden',
+                    'w-20 h-28 sm:w-28 sm:h-40 bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900 rounded-[20px] sm:rounded-[28px] border-2 border-slate-200 dark:border-white/5 flex flex-col items-center justify-center gap-1 sm:gap-3 shadow-xl dark:shadow-2xl transition-all relative overflow-hidden',
                     isMyTurn ? 'cursor-pointer hover:border-blue-400 dark:hover:border-blue-500/50 hover:-translate-y-2 active:scale-95 group' : 'grayscale opacity-40 cursor-not-allowed'
                   )"
                 >
-                  <div class="absolute top-3 left-3 right-3 flex justify-between items-center opacity-40 dark:opacity-20 text-slate-500">
-                     <span class="text-[6px] sm:text-[8px] font-mono">SEQ_DRAW</span>
-                     <span class="text-[6px] sm:text-[8px] font-mono">0x4F</span>
+                  <div class="absolute top-2 left-2 right-2 flex justify-between items-center opacity-40 dark:opacity-20 text-slate-500">
+                     <span class="text-[5px] sm:text-[7px] font-mono uppercase">Stack</span>
                   </div>
-                  <div class="w-10 h-10 sm:w-16 sm:h-16 bg-slate-900/5 dark:bg-white/5 rounded-[16px] sm:rounded-[24px] flex items-center justify-center border border-slate-900/5 dark:border-white/10 group-hover:scale-110 group-hover:bg-blue-500/10 transition-all duration-500">
-                    <RefreshCw class="w-5 h-5 sm:w-8 sm:h-8 text-slate-400 dark:text-slate-500 group-hover:text-blue-600 dark:group-hover:text-blue-400 group-hover:rotate-180 transition-all duration-700" />
+                  <div class="w-8 h-8 sm:w-12 sm:h-12 bg-slate-900/5 dark:bg-white/5 rounded-xl sm:rounded-2xl flex items-center justify-center border border-slate-900/5 dark:border-white/10 group-hover:scale-110 group-hover:bg-blue-500/10 transition-all duration-500">
+                    <RefreshCw class="w-4 h-4 sm:w-6 sm:h-6 text-slate-400 dark:text-slate-500 group-hover:text-blue-600 dark:group-hover:text-blue-400 group-hover:rotate-180 transition-all duration-700" />
                   </div>
-                  <div class="text-center px-2">
-                    <span class="text-[8px] sm:text-[10px] font-black uppercase tracking-wider sm:tracking-[0.3em] text-slate-400 dark:text-slate-500 group-hover:text-blue-600 dark:group-hover:text-blue-500/70 transition-colors">Extraction</span>
+                  <div class="text-center px-1">
+                    <span class="text-[7px] sm:text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 group-hover:text-blue-600 dark:group-hover:text-blue-500/70 transition-colors">DRAW</span>
                   </div>
                 </div>
             </div>
@@ -348,13 +402,15 @@ onMounted(() => {
               <div v-if="gameState?.last_card" class="relative">
                 <div class="absolute -inset-8 sm:-inset-12 bg-blue-600/10 rounded-full blur-3xl animate-pulse"></div>
                 <div :class="cn(
-                  'game-card scale-[1.1] sm:scale-[1.4] pointer-events-none shadow-[0_20px_40px_rgba(0,0,0,0.1)] dark:shadow-[0_20px_40px_rgba(0,0,0,0.8)] z-10 text-white', 
+                  'game-card scale-[1.1] sm:scale-[1.3] pointer-events-none shadow-[0_20px_40px_rgba(0,0,0,0.1)] dark:shadow-[0_20px_40px_rgba(0,0,0,0.8)] z-10 text-white', 
                   getCardStyle(gameState.last_card.card)
                 )">
-                    <div class="absolute top-2 left-2 text-[8px] sm:text-[10px] uppercase font-black opacity-30 tracking-widest leading-none">Element</div>
-                    <div class="text-2xl sm:text-4xl tracking-tighter font-black">{{ gameState.last_card.card.type }}</div>
-                    <div class="absolute bottom-2 right-2 text-[6px] sm:text-[8px] font-mono opacity-40 uppercase tracking-tighter bg-black/40 px-1 py-0.5 rounded text-white">
-                      {{ gameState.last_card.card.effect || 'Passive' }}
+                    <div class="absolute top-1 sm:top-2 left-1 sm:left-2 text-[6px] sm:text-[8px] uppercase font-black opacity-30 tracking-widest leading-none">Last</div>
+                    <div class="flex flex-col items-center justify-center">
+                      <div class="text-xl sm:text-2xl tracking-tighter font-black">{{ gameState.last_card.card.type }}</div>
+                      <div v-if="gameState.last_card.card.effect" class="text-[8px] sm:text-[10px] font-bold bg-white/20 px-1.5 py-0.5 rounded-full mt-1 uppercase tracking-tighter">
+                        {{ ['He','Ne','Ar','Kr'].includes(gameState.last_card.card.type) ? '稀有气体（反转）' : gameState.last_card.card.effect === 'Au' ? 'Au（金）跳过' : gameState.last_card.card.effect === '+2' ? '+2摸牌' : gameState.last_card.card.effect === '+4' ? '+4摸牌' : gameState.last_card.card.effect }}
+                      </div>
                     </div>
                 </div>
               </div>
@@ -431,7 +487,39 @@ onMounted(() => {
       </div>
 
       <!-- Hand / Deck Area -->
-      <div class="h-[140px] sm:h-[200px] bg-gradient-to-t from-blue-900/5 dark:from-blue-900/10 to-transparent relative mt-auto px-4 sm:px-8 flex flex-col items-center">
+      <div class="h-[140px] sm:h-[240px] bg-gradient-to-t from-blue-900/5 dark:from-blue-900/10 to-transparent relative mt-auto px-4 sm:px-8 flex flex-col items-center">
+        <!-- Turn Ready Substances -->
+        <div v-if="isMyTurn" class="absolute -top-24 left-4 right-4 sm:left-12 sm:right-12 flex flex-col gap-2">
+          <div v-if="turnReadySubstances.length > 0">
+            <div class="flex items-center gap-2 mb-1">
+               <FlaskConical class="w-3 h-3 text-blue-500" />
+               <span class="text-[8px] sm:text-[10px] font-black uppercase tracking-widest text-slate-500">可进行反应 (点击即可出牌)</span>
+            </div>
+            <div class="flex gap-2 overflow-x-auto custom-scrollbar-hidden pb-4">
+               <button 
+                  v-for="sub in turnReadySubstances" 
+                  :key="sub"
+                  @click="selectedSubstance = sub; handlePlayCard()"
+                  class="flex-shrink-0 px-3 py-1.5 sm:px-4 sm:py-2 bg-white/80 dark:bg-white/5 backdrop-blur-md border border-slate-200 dark:border-white/10 rounded-xl sm:rounded-2xl text-[10px] sm:text-xs font-black hover:border-blue-500 hover:text-blue-500 transition-all active:scale-95 flex items-center gap-2 group"
+               >
+                  <div class="w-1.5 h-1.5 rounded-full bg-blue-500 group-hover:scale-150 transition-transform"></div>
+                  {{ sub }}
+               </button>
+            </div>
+          </div>
+          <div v-else-if="!loading" class="flex items-center justify-center p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl backdrop-blur-md animate-in fade-in slide-in-from-top-2">
+             <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center">
+                   <Zap class="w-4 h-4 text-amber-500" />
+                </div>
+                <div class="flex flex-col">
+                   <span class="text-[10px] sm:text-xs font-black text-amber-500 uppercase tracking-widest">能量不足 / 无法反应</span>
+                   <span class="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400">请抽取额外反应底物 (摸2张牌并结束回合)</span>
+                </div>
+             </div>
+          </div>
+        </div>
+
         <!-- Turn Tip -->
         <div class="h-0 relative w-full flex justify-center">
            <div v-if="isMyTurn" class="absolute -top-4 sm:-top-6 translate-y-[-100%] flex flex-col items-center gap-1 sm:gap-2 animate-in fade-in slide-in-from-bottom-2">
@@ -479,9 +567,14 @@ onMounted(() => {
                 }"
               >
                 <div class="absolute top-1 sm:top-2 left-1 sm:left-2 text-[6px] sm:text-[8px] font-black uppercase opacity-30 tracking-widest">Elem</div>
-                <div class="text-xl sm:text-2xl font-black tracking-tighter">{{ card.type }}</div>
-                <div class="absolute bottom-1 sm:bottom-2 right-1 sm:right-2 text-[6px] sm:text-[8px] font-mono opacity-40 uppercase tracking-tighter bg-black/40 px-1 py-0.5 rounded text-white">
-                  {{ card.effect || 'Passive' }}
+                <div class="flex flex-col items-center justify-center">
+                  <div class="text-lg sm:text-xl font-black tracking-tighter">{{ card.type }}</div>
+                  <div v-if="card.effect || ['He','Ne','Ar','Kr'].includes(card.type)" class="text-[8px] sm:text-[10px] font-bold bg-white/20 px-1.5 py-0.5 rounded-full mt-1 uppercase tracking-tighter">
+                    {{ ['He','Ne','Ar','Kr'].includes(card.type) ? '稀有气体（反转）' : card.effect === 'Au' ? 'Au（金）跳过' : card.effect === '+2' ? '+2摸牌' : card.effect === '+4' ? '+4摸牌' : card.effect }}
+                  </div>
+                </div>
+                <div class="absolute bottom-1 sm:bottom-2 right-1 sm:right-2 text-[5px] sm:text-[7px] font-mono opacity-40 uppercase tracking-tighter">
+                  {{ card.effect ? 'Functional' : 'Passive' }}
                 </div>
               </div>
             </template>

@@ -46,6 +46,8 @@ export const authAPI = {
     api.put('/user/avatar', { avatar }),
   deleteAccount: () => 
     api.delete('/user/account'),
+  submitFeedback: (content: string, type: string) =>
+    api.post('/feedback', { content, type }),
   
   // 2FA相关
   setup2FA: () => api.post('/user/2fa/setup'),
@@ -74,6 +76,16 @@ export const gameAPI = {
     api.post(`/rooms/${roomId}/draw`),
   getAvailableSubstances: (roomId: string) => 
     api.get(`/rooms/${roomId}/substances`),
+  checkReaction: (r1: string, r2: string) =>
+    api.post('/game/check-reaction', { r1, r2 }),
+  getMyDecks: () => 
+    api.get('/my-decks'),
+  createMyDeck: (name: string, cards: Record<string, number>) =>
+    api.post('/my-decks', { name, cards }),
+  updateMyDeck: (id: number, name: string, cards: Record<string, number>) =>
+    api.put(`/my-decks/${id}`, { name, cards }),
+  deleteMyDeck: (id: number) =>
+    api.delete(`/my-decks/${id}`),
 }
 
 // 管理员API
@@ -94,16 +106,26 @@ export const adminAPI = {
     api.put('/admin/deck-config', { name, cards }),
   getGameHistory: () => 
     api.get('/admin/game-history'),
+  getFeedbacks: () =>
+    api.get('/admin/feedbacks'),
+  updateFeedbackStatus: (id: number, status: string) =>
+    api.put(`/admin/feedbacks/${id}/status`, { status }),
 }
 
 // 反应管理API
 export const reactionAPI = {
   getReactions: () => 
     api.get('/reactions'),
+  getAllReactions: () => 
+    api.get('/reactions/all'),
+  getMyReactions: () => 
+    api.get('/reactions/my'),
   addReaction: (display: string) => 
     api.post('/reactions', { display }),
-  approveReaction: (groupId: string, display?: string) => 
-    api.put(`/reactions/approve/${groupId}`, { display }),
+  batchAddReactions: (reactions: { display: string }[]) =>
+    api.post('/reactions/batch', reactions),
+  approveReaction: (groupId: string, display?: string, reject?: boolean) => 
+    api.put(`/reactions/approve/${groupId}`, { display, reject }),
   deleteReaction: (reactionId: string) => 
     api.delete(`/reactions/${reactionId}`),
 }

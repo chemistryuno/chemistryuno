@@ -46,6 +46,14 @@
     0%, 100% { box-shadow: 0 0 5px rgba(59, 130, 246, 0.2); }
     50% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.5); }
   }
+  @keyframes spin-slow {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+  @keyframes reverse-spin-slow {
+    from { transform: rotate(360deg); }
+    to { transform: rotate(0deg); }
+  }
 
   /* --- Animation Utilities --- */
   --animate-scan: scan 4s linear infinite;
@@ -56,6 +64,8 @@
   --animate-slide-in-bottom: slide-in-bottom 0.4s ease-out;
   --animate-float: float 3s ease-in-out infinite;
   --animate-glow: glow-pulse 2s infinite;
+  --animate-spin-slow: spin-slow 10s linear infinite;
+  --animate-reverse-spin-slow: reverse-spin-slow 10s linear infinite;
 }
 
 /* Base Body Style */
@@ -78,7 +88,7 @@ body {
 
 /* 2. Game Cards */
 .game-card {
-  @apply relative w-20 h-28 sm:w-24 sm:h-36 rounded-2xl flex flex-col items-center justify-center font-black text-white shadow-xl dark:shadow-2xl transition-all duration-500 cursor-pointer overflow-hidden border transform-gpu;
+  @apply relative w-16 h-24 sm:w-20 sm:h-28 rounded-xl sm:rounded-2xl flex flex-col items-center justify-center font-black text-white shadow-xl dark:shadow-2xl transition-all duration-500 cursor-pointer overflow-hidden border transform-gpu;
 }
 
 .game-card.element {

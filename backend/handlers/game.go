@@ -169,3 +169,21 @@ func GetAvailableSubstances(c *gin.Context) {
 
 	c.JSON(http.StatusOK, substances)
 }
+
+// 查验反应是否成立
+func VerifyReaction(c *gin.Context) {
+	var req struct {
+		R1 string `json:"r1" binding:"required"`
+		R2 string `json:"r2" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	canReact := game.CanReact(req.R1, req.R2)
+	c.JSON(http.StatusOK, gin.H{
+		"can_react": canReact,
+	})
+}

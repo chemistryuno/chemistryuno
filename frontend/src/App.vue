@@ -2,6 +2,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import websocket from './utils/websocket'
 import CustomDialog from './components/CustomDialog.vue'
+import FeedbackButton from './components/FeedbackButton.vue'
 
 const loading = ref(true)
 
@@ -52,6 +53,7 @@ onUnmounted(() => {
     <div class="transition-colors duration-300 min-h-screen bg-slate-50 dark:bg-[#0a0a0c] text-slate-900 dark:text-slate-200">
       <router-view></router-view>
       <CustomDialog />
+      <FeedbackButton />
     </div>
   </template>
 </template>

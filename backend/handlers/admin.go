@@ -275,11 +275,79 @@ func GetReactions(c *gin.Context) {
 	c.JSON(http.StatusOK, reactions)
 }
 
+// 获取所有已批准的反应 (Wiki)
+func GetAllReactions(c *gin.Context) {
+	rows, err := database.DB.Query(`
+		SELECT id, display, r1, r2, created_at
+		FROM reactions
+		WHERE status = 'approved'
+		ORDER BY created_at DESC
+	`)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误"})
+		return
+	}
+	defer rows.Close()
+
+	var reactions []map[string]interface{}
+	for rows.Next() {
+		var (
+			id                         int
+			display, r1, r2, createdAt string
+		)
+		if err := rows.Scan(&id, &display, &r1, &r2, &createdAt); err != nil {
+			continue
+		}
+		reactions = append(reactions, map[string]interface{}{
+			"id":         id,
+			"display":    display,
+			"r1":         r1,
+			"r2":         r2,
+			"created_at": createdAt,
+		})
+	}
+	c.JSON(http.StatusOK, reactions)
+}
+
+// 获取我提交的反应
+func GetMyReactions(c *gin.Context) {
+	uid := c.GetInt("uid")
+	rows, err := database.DB.Query(`
+		SELECT id, display, status, created_at
+		FROM reactions
+		WHERE created_by = ?
+		ORDER BY created_at DESC
+	`, uid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误"})
+		return
+	}
+	defer rows.Close()
+
+	var reactions []map[string]interface{}
+	for rows.Next() {
+		var (
+			id                         int
+			display, status, createdAt string
+		)
+		if err := rows.Scan(&id, &display, &status, &createdAt); err != nil {
+			continue
+		}
+		reactions = append(reactions, map[string]interface{}{
+			"id":         id,
+			"display":    display,
+			"status":     status,
+			"created_at": createdAt,
+		})
+	}
+	c.JSON(http.StatusOK, reactions)
+}
+
 // 审核通过并允许编辑方程式 (仅限 Admin)
 func ApproveReaction(c *gin.Context) {
 	role := c.GetString("role")
-	if role != "admin" {
-		c.JSON(http.StatusForbidden, gin.H{"error": "需要管理员权限"})
+	if role != "admin" && role != "co-worker" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "需要协作者或管理员权限"})
 		return
 	}
 
@@ -287,16 +355,46 @@ func ApproveReaction(c *gin.Context) {
 
 	var req struct {
 		Display string `json:"display"`
+		Reject  bool   `json:"reject"` // 拒绝功能
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的方程式"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数无效"})
 		return
 	}
 
-	// 如果提供了 display，说明管理员修改了方程式
-	if req.Display != "" {
-		// 自动识别新的 r1, r2
+	// 检查当前状态是否符合审批流
+	var currentStatus string
+	err := database.DB.QueryRow("SELECT status FROM reactions WHERE group_id = ? LIMIT 1", groupID).Scan(&currentStatus)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "未找到该反应请求"})
+		return
+	}
+
+	// 审批流校验
+	newStatus := ""
+	if req.Reject {
+		newStatus = "rejected"
+	} else {
+		if role == "co-worker" {
+			if currentStatus != "pending_coworker" {
+				c.JSON(http.StatusForbidden, gin.H{"error": "当前状态不符合协作者审批权限"})
+				return
+			}
+			newStatus = "pending_admin"
+		} else if role == "admin" {
+			// 管理员可以审批 pending_admin 或者是跳过协作者审批 pending_coworker
+			if currentStatus != "pending_admin" && currentStatus != "pending_coworker" {
+				c.JSON(http.StatusForbidden, gin.H{"error": "该反应不需要管理员再审批"})
+				return
+			}
+			newStatus = "approved"
+		}
+	}
+
+	// 如果提供了 display，且管理员/协作者修改了方程式
+	if !req.Reject && req.Display != "" {
+		// ... 保持原有的修改逻辑，但使用 newStatus ...
 		rlist := parseReactants(req.Display)
 		if len(rlist) == 0 {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "无法识别修改后的反应物"})
@@ -315,8 +413,6 @@ func ApproveReaction(c *gin.Context) {
 			return
 		}
 
-		// 更新 group 中的所有记录
-		// 我们需要重新处理双向映射，最简单的方法是删除旧的重新插入
 		var creatorID int
 		err = tx.QueryRow("SELECT created_by FROM reactions WHERE group_id = ? LIMIT 1", groupID).Scan(&creatorID)
 		if err != nil {
@@ -332,38 +428,36 @@ func ApproveReaction(c *gin.Context) {
 			return
 		}
 
-		// 重新插入
 		_, err = tx.Exec(`
 			INSERT INTO reactions (r1, r2, display, status, group_id, created_by)
 			VALUES (?, ?, ?, ?, ?, ?)
-		`, r1, r2, req.Display, "approved", groupID, creatorID)
+		`, r1, r2, req.Display, newStatus, groupID, creatorID)
 
 		if err == nil && r1 != r2 {
 			_, err = tx.Exec(`
 				INSERT INTO reactions (r1, r2, display, status, group_id, created_by)
 				VALUES (?, ?, ?, ?, ?, ?)
-			`, r2, r1, req.Display, "approved", groupID, creatorID)
+			`, r2, r1, req.Display, newStatus, groupID, creatorID)
 		}
 
 		if err != nil {
 			tx.Rollback()
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "存入修改后的反应失败"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "处理审批事物失败"})
 			return
 		}
-
 		tx.Commit()
-		c.JSON(http.StatusOK, gin.H{"message": "修改并已通过审核"})
+		c.JSON(http.StatusOK, gin.H{"message": "审批已处理", "status": newStatus})
 		return
 	}
 
-	// 否则直接通过
-	_, err := database.DB.Exec("UPDATE reactions SET status = 'approved' WHERE group_id = ?", groupID)
+	// 如果没有修改内容，直接更新状态
+	_, err = database.DB.Exec("UPDATE reactions SET status = ? WHERE group_id = ?", newStatus, groupID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "审核操作失败"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新状态失败"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "审核通过"})
+	c.JSON(http.StatusOK, gin.H{"message": "状态已更新", "status": newStatus})
 }
 
 // 解析 display 得到 r1 和 r2
@@ -405,12 +499,6 @@ func AddReaction(c *gin.Context) {
 	uid := c.GetInt("uid")
 	role := c.GetString("role")
 
-	// 检查权限
-	if role != "admin" && role != "co-worker" {
-		c.JSON(http.StatusForbidden, gin.H{"error": "权限不足"})
-		return
-	}
-
 	var req models.ReactionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -430,10 +518,15 @@ func AddReaction(c *gin.Context) {
 		r2 = rlist[1]
 	}
 
-	// 确定状态：admin 直接通过，co-worker 需要审核
-	status := "pending"
+	// 确定状态：
+	// admin: 直接 approved
+	// co-worker: pending_admin
+	// user: pending_coworker
+	status := "pending_coworker"
 	if role == "admin" {
 		status = "approved"
+	} else if role == "co-worker" {
+		status = "pending_admin"
 	}
 
 	// 生成 group_id
@@ -500,4 +593,74 @@ func DeleteReaction(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "已从实验室档案中抹除"})
+}
+
+// 批量导入化学反应 (JSON数组)
+func BatchAddReactions(c *gin.Context) {
+	uid := c.GetInt("uid")
+	role := c.GetString("role")
+
+	if role != "admin" && role != "co-worker" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "权限不足"})
+		return
+	}
+
+	var reqs []models.ReactionRequest
+	if err := c.ShouldBindJSON(&reqs); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的JSON数组或格式错误"})
+		return
+	}
+
+	status := "pending"
+	if role == "admin" {
+		status = "approved"
+	}
+
+	tx, err := database.DB.Begin()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "事务开启失败"})
+		return
+	}
+
+	successCount := 0
+	for _, req := range reqs {
+		rlist := parseReactants(req.Display)
+		if len(rlist) == 0 {
+			continue
+		}
+
+		r1 := rlist[0]
+		r2 := r1
+		if len(rlist) > 1 {
+			r2 = rlist[1]
+		}
+
+		groupID := fmt.Sprintf("%d-%d-%d", uid, time.Now().UnixNano(), successCount)
+
+		_, err = tx.Exec(`
+			INSERT INTO reactions (r1, r2, display, status, group_id, created_by)
+			VALUES (?, ?, ?, ?, ?, ?)
+		`, r1, r2, req.Display, status, groupID, uid)
+
+		if err == nil && r1 != r2 {
+			_, err = tx.Exec(`
+				INSERT INTO reactions (r1, r2, display, status, group_id, created_by)
+				VALUES (?, ?, ?, ?, ?, ?)
+			`, r2, r1, req.Display, status, groupID, uid)
+		}
+
+		if err == nil {
+			successCount++
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "批量提交失败"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": fmt.Sprintf("成功导入 %d 条反应", successCount),
+		"count":   successCount,
+	})
 }

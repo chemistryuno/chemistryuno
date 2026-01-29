@@ -21,7 +21,8 @@ import {
   Key,
   ArrowUp,
   Plus,
-  Star
+  Star,
+  MessageSquare
 } from 'lucide-vue-next'
 import { cn } from '../utils/cn'
 
@@ -29,6 +30,7 @@ const router = useRouter()
 const { showAlert, showConfirm, showPrompt } = useDialog()
 const users = ref<any[]>([])
 const gameHistory = ref<any[]>([])
+const feedbacks = ref<any[]>([])
 const deckConfig = ref<any>(null)
 const editingDeck = ref(false)
 const deckCardsEdit = ref<{ key: string, value: number, id: string }[]>([])
@@ -38,7 +40,7 @@ const searchTerm = ref('')
 const showCreateUserModal = ref(false)
 const newUser = ref({ username: '', password: '' })
 
-const specialElements = ['He', 'Ne', 'Ar', 'Kr', 'Au', '+2', '+4', 'Choice']
+const specialElements = ['He', 'Ne', 'Ar', 'Kr', 'Au', '+2', '+4']
 
 const loadData = async () => {
   loading.value = true
@@ -52,6 +54,9 @@ const loadData = async () => {
     } else if (activeTab.value === 'deck') {
       const response = await adminAPI.getGlobalDeckConfig()
       deckConfig.value = response.data
+    } else if (activeTab.value === 'feedbacks') {
+      const response = await adminAPI.getFeedbacks()
+      feedbacks.value = response.data || []
     }
   } catch (error) {
     console.error('加载数据失败:', error)
@@ -347,6 +352,7 @@ const filteredHistory = computed(() => {
               { id: 'users', label: '研究员名单 / PERSONNEL', icon: Users },
               { id: 'deck', label: '核心库存配置 / REDUCTION', icon: Layers },
               { id: 'special', label: '稀有元素配置 / SPECIALS', icon: Star },
+              { id: 'feedbacks', label: '反馈报告 / FEEDBACK', icon: MessageSquare },
               { id: 'history', label: '历史实验记录 / TRACING', icon: History }
             ]"
             :key="tab.id"
@@ -713,6 +719,37 @@ const filteredHistory = computed(() => {
                     </tr>
                   </tbody>
                 </table>
+              </div>
+            </div>
+
+            <!-- Feedback Tab -->
+            <div v-if="activeTab === 'feedbacks'" class="space-y-8">
+              <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                <h3 class="text-xl font-black italic uppercase text-white flex items-center gap-4">
+                  <MessageSquare class="w-5 h-5 text-blue-400" />
+                  外部反馈报告 <span class="text-slate-600 font-mono not-italic text-xs">/ INCOMING@COMMS --FILTERED</span>
+                </h3>
+              </div>
+
+              <div class="grid grid-cols-1 gap-6">
+                <div v-for="fb in feedbacks" :key="fb.id" class="p-6 bg-black/20 border border-white/5 rounded-3xl hover:border-blue-500/30 transition-all flex flex-col gap-4">
+                   <div class="flex items-center justify-between">
+                      <div class="flex items-center gap-3">
+                         <div class="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400">
+                            {{ fb.username[0].toUpperCase() }}
+                         </div>
+                         <div>
+                            <p class="text-sm font-black text-white uppercase">{{ fb.username }}</p>
+                            <p class="text-[10px] text-slate-500 font-mono">{{ new Date(fb.created_at).toLocaleString() }}</p>
+                         </div>
+                      </div>
+                      <span class="px-3 py-1 bg-white/5 text-slate-500 text-[9px] font-black uppercase tracking-widest rounded-full border border-white/5">{{ fb.page }}</span>
+                   </div>
+                   <p class="text-sm leading-relaxed text-slate-300 font-medium bg-white/5 p-4 rounded-2xl italic">“{{ fb.content }}”</p>
+                </div>
+                <div v-if="feedbacks.length === 0" class="py-20 text-center text-slate-600 italic font-bold">
+                  目前尚未收到任何外部反馈报告
+                </div>
               </div>
             </div>
           </div>

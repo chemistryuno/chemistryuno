@@ -52,6 +52,20 @@ func main() {
 		auth.PUT("/user/avatar", handlers.UpdateAvatar)
 		auth.DELETE("/user/account", handlers.DeleteAccount)
 
+		// 反馈
+		auth.POST("/feedback", handlers.CreateFeedback)
+
+		// 玩家自定义卡组
+		auth.GET("/my-decks", handlers.GetMyDecks)
+		auth.POST("/my-decks", handlers.CreateMyDeck)
+		auth.PUT("/my-decks/:id", handlers.UpdateMyDeck)
+		auth.DELETE("/my-decks/:id", handlers.DeleteMyDeck)
+
+		// 方程式相关的普通用户路由
+		auth.GET("/reactions/my", handlers.GetMyReactions)
+		auth.GET("/reactions/all", handlers.GetAllReactions)
+		auth.POST("/reactions", handlers.AddReaction)
+
 		// 2FA相关
 		auth.POST("/user/2fa/setup", handlers.Setup2FA)
 		auth.POST("/user/2fa/enable", handlers.Enable2FA)
@@ -67,6 +81,7 @@ func main() {
 		auth.POST("/rooms/:id/play", handlers.PlayCard)
 		auth.POST("/rooms/:id/draw", handlers.DrawCard)
 		auth.GET("/rooms/:id/substances", handlers.GetAvailableSubstances)
+		auth.POST("/game/check-reaction", handlers.VerifyReaction)
 
 		// WebSocket
 		auth.GET("/ws", handleWebSocket)
@@ -84,6 +99,8 @@ func main() {
 		admin.GET("/deck-config", handlers.GetGlobalDeckConfig)
 		admin.PUT("/deck-config", handlers.UpdateGlobalDeckConfig)
 		admin.GET("/game-history", handlers.GetGameHistory)
+		admin.GET("/feedbacks", handlers.GetAllFeedbacks)
+		admin.PUT("/feedbacks/:id/status", handlers.UpdateFeedbackStatus)
 	}
 
 	// 反应管理路由（co-worker和admin权限）
@@ -91,7 +108,7 @@ func main() {
 	reactions.Use(middleware.AuthMiddleware(), middleware.CoWorkerMiddleware())
 	{
 		reactions.GET("", handlers.GetReactions)
-		reactions.POST("", handlers.AddReaction)
+		reactions.POST("/batch", handlers.BatchAddReactions)
 		reactions.PUT("/approve/:group_id", handlers.ApproveReaction)
 		reactions.DELETE("/:id", handlers.DeleteReaction)
 	}

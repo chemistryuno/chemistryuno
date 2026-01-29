@@ -46,35 +46,51 @@ var reactionDB = map[string][]string{
 	"Br2": {"H2", "KI", "Fe"},
 	"I2":  {"H2", "Zn"},
 
-	// 金属盐
-	"AgNO3": {"NaCl", "HCl", "Fe", "Cu", "Zn"},
-	"BaCl2": {"H2SO4", "Na2SO4", "Na2CO3"},
-	"FeCl3": {"NaOH", "KSCN", "Fe"},
+	// 稀有气体与特殊卡牌（作为特殊物质，通常允许反应）
+	"He": {"*"},
+	"Ne": {"*"},
+	"Ar": {"*"},
+	"Kr": {"*"},
+	"Au": {"*"},
+	"+2": {"*"},
+	"+4": {"*"},
+	// "Choice": {"*"},
 }
 
 // 元素组成物质的映射
 var elementSubstances = map[string][]string{
-	"H":  {"H2", "H2O", "HCl", "H2SO4", "NH3", "CH4", "H2O2", "NaOH", "Ca(OH)2"},
-	"O":  {"O2", "H2O", "CO2", "CaO", "CuO", "Fe2O3", "Al2O3", "Na2O", "MgO", "SO2", "SO3", "H2SO4", "NaOH", "Ca(OH)2"},
+	"H":  {"H2", "H2O", "HCl", "H2SO4", "NH3", "CH4", "H2O2", "NaOH", "Ca(OH)2", "HI", "HBr", "HF", "H2S", "H2SO3", "H3PO4", "KH", "NaH", "MgH2", "CaH2", "BaH2"},
+	"O":  {"O2", "H2O", "CO2", "CaO", "CuO", "Fe2O3", "Al2O3", "Na2O", "MgO", "SO2", "SO3", "H2SO4", "NaOH", "Ca(OH)2", "MnO2", "Fe3O4", "Ag2O", "K2O", "BaO", "P2O5", "H2O2", "Na2O2", "NaClO", "Ca(ClO)2", "HBrO", "HClO"},
 	"C":  {"C", "CO2", "CO", "CH4", "C2H5OH", "CH3COOH", "CaCO3", "Na2CO3"},
-	"N":  {"N2", "NH3", "NO", "NO2", "HNO3", "NH4Cl"},
-	"F":  {"F2", "HF", "CaF2"},
-	"Na": {"Na", "NaCl", "NaOH", "Na2O", "Na2SO4", "Na2CO3", "NaHCO3"},
-	"Mg": {"Mg", "MgO", "MgCl2", "MgSO4"},
-	"Al": {"Al", "Al2O3", "AlCl3", "Al(OH)3"},
-	"Si": {"Si", "SiO2", "H2SiO3"},
-	"P":  {"P", "P2O5", "H3PO4"},
-	"S":  {"S", "SO2", "SO3", "H2SO4", "H2S", "CuSO4", "FeSO4", "ZnSO4"},
-	"Cl": {"Cl2", "HCl", "NaCl", "KCl", "CaCl2", "MgCl2", "AlCl3", "FeCl3", "CuCl2"},
-	"K":  {"K", "KCl", "KOH", "K2O", "KNO3", "K2SO4", "K2CO3"},
-	"Ca": {"Ca", "CaO", "Ca(OH)2", "CaCl2", "CaCO3", "CaSO4"},
+	"N":  {"N2", "NH3", "NO", "NO2", "HNO3", "NH4Cl", "KNO3", "NaNO3", "NH4NO3", "AgNO3", "Cu(NO3)2", "Mg(NO3)2", "Ca(NO3)2", "Ba(NO3)2", "Fe(NO3)3"},
+	"F":  {"F2", "HF", "CaF2", "MgF2", "AlF3", "ZnF2", "NaF", "KF", "BaF2", "SiF4", "PF5", "CF4"},
+	"Na": {"Na", "NaCl", "NaOH", "Na2O", "Na2SO4", "Na2CO3", "NaHCO3", "Na2O2", "NaI", "NaBr", "Na2S", "Na2SO3", "Na2S2O3", "Na3PO4", "NaAlO2", "NaClO", "NaH"},
+	"Mg": {"Mg", "MgO", "MgCl2", "MgSO4", "Mg(OH)2", "MgS", "MgBr2", "MgI2", "Mg(NO3)2", "MgH2", "Mg3(PO4)2"},
+	"Al": {"Al", "Al2O3", "AlCl3", "Al(OH)3", "Al2(SO4)3", "Al2S3", "AlBr3", "AlI3", "AlF3", "NaAlO2", "AlPO4"},
+	"Si": {"Si", "SiO2", "H2SiO3", "SiF4"},
+	"P":  {"P", "P2O5", "H3PO4", "Na3PO4", "K3PO4", "Ca3(PO4)2", "PCl3", "P2S5", "PF5"},
+	"S":  {"S", "SO2", "SO3", "H2SO4", "H2S", "CuSO4", "FeSO4", "ZnSO4", "FeS", "Cu2S", "Na2S", "Na2SO3", "H2SO3", "BaSO4", "Na2S2O3", "Al2S3", "ZnS", "P2S5", "K2S", "MgS", "CaS", "BaS", "Na2SO4", "K2SO4", "MgSO4", "CaSO4", "Fe2(SO4)3"},
+	"Cl": {"Cl2", "HCl", "NaCl", "KCl", "CaCl2", "MgCl2", "AlCl3", "FeCl3", "CuCl2", "FeCl2", "ZnCl2", "AgCl", "HgCl2", "NH4Cl", "BaCl2", "PCl3", "KClO3", "NaClO", "Ca(ClO)2", "HClO"},
+	"K":  {"K", "KCl", "KOH", "K2O", "KNO3", "K2SO4", "K2CO3", "K3PO4", "KI", "KBr", "K2S", "KClO3", "KH", "KO2"},
+	"Ca": {"Ca", "CaO", "Ca(OH)2", "CaCl2", "CaCO3", "CaSO4", "Ca3(PO4)2", "CaF2", "CaS", "Ca(NO3)2", "Ca(ClO)2", "CaH2"},
 	"Mn": {"Mn", "MnO2", "KMnO4"},
-	"Fe": {"Fe", "FeO", "Fe2O3", "Fe3O4", "FeCl2", "FeCl3", "FeSO4"},
-	"Cu": {"Cu", "CuO", "Cu2O", "CuCl2", "CuSO4"},
-	"Zn": {"Zn", "ZnO", "ZnCl2", "ZnSO4"},
-	"Br": {"Br2", "HBr", "NaBr", "KBr"},
-	"I":  {"I2", "HI", "KI"},
-	"Ag": {"Ag", "AgNO3", "AgCl", "Ag2O"},
+	"Fe": {"Fe", "FeO", "Fe2O3", "Fe3O4", "FeCl2", "FeCl3", "FeSO4", "Fe(OH)2", "Fe(OH)3", "FeS", "FeBr3", "FeI2", "Fe(NO3)2", "Fe(NO3)3", "Fe2(SO4)3", "Fe3(PO4)2", "FeF3"},
+	"Cu": {"Cu", "CuO", "Cu2O", "CuCl2", "CuSO4", "Cu(OH)2", "Cu2S", "CuBr2", "CuI", "Cu(NO3)2", "CuS"},
+	"Zn": {"Zn", "ZnO", "ZnCl2", "ZnSO4", "ZnS", "ZnBr2", "ZnI2", "Zn3(PO4)2", "ZnF2"},
+	"Br": {"Br2", "HBr", "NaBr", "KBr", "AgBr", "FeBr3", "MgBr2", "AlBr3", "ZnBr2", "CuBr2", "CaBr2", "HgBr2", "BaBr2", "HBrO"},
+	"I":  {"I2", "HI", "KI", "NaI", "AgI", "FeI2", "MgI2", "AlI3", "ZnI2", "CuI", "CaI2", "HgI2", "BaI2"},
+	"Ag": {"Ag", "AgNO3", "AgCl", "Ag2O", "AgBr", "AgI", "Ag2S", "AgF"},
+	"Hg": {"Hg", "HgO", "HgCl2", "HgBr2", "HgI2"},
+	"Ba": {"Ba", "BaO", "Ba(OH)2", "BaCl2", "BaSO4", "Ba(NO3)2", "BaF2", "BaS", "BaH2", "Ba3(PO4)2"},
+	// 特殊卡牌元素
+	"He": {"He"},
+	"Ne": {"Ne"},
+	"Ar": {"Ar"},
+	"Kr": {"Kr"},
+	"Au": {"Au"},
+	"+2": {"+2"},
+	"+4": {"+4"},
+	// "Choice": {"Choice"},
 }
 
 // 根据手牌元素获取可以组成的物质
@@ -184,10 +200,18 @@ func parseSubstance(substance string) map[string]int {
 
 // 检查两个物质是否能反应
 func CanReact(substance1, substance2 string) bool {
+	// 特殊卡牌逻辑：稀有气体和功能牌可以与任何物质反应（即可以接在任何牌后面）
+	specialSubstances := map[string]bool{
+		"He": true, "Ne": true, "Ar": true, "Kr": true, "Au": true, "+2": true, "+4": true,
+	}
+	if specialSubstances[substance1] || specialSubstances[substance2] {
+		return true
+	}
+
 	// 首先检查硬编码的反应数据库
 	if products, ok := reactionDB[substance1]; ok {
 		for _, product := range products {
-			if product == substance2 {
+			if product == substance2 || product == "*" {
 				return true
 			}
 		}
@@ -195,7 +219,7 @@ func CanReact(substance1, substance2 string) bool {
 
 	if products, ok := reactionDB[substance2]; ok {
 		for _, product := range products {
-			if product == substance1 {
+			if product == substance1 || product == "*" {
 				return true
 			}
 		}

@@ -6,8 +6,15 @@ import GameRoom from './pages/GameRoom.vue'
 import Profile from './pages/Profile.vue'
 import Admin from './pages/Admin.vue'
 import Reactions from './pages/Reactions.vue'
+import AIBattle from './pages/AIBattle.vue'
 
 const routes = [
+  {
+    path: '/ai-battle',
+    name: 'AIBattle',
+    component: AIBattle,
+    meta: { requiresAuth: true }
+  },
   {
     path: '/login',
     name: 'Login',
@@ -48,7 +55,7 @@ const routes = [
     path: '/reactions',
     name: 'Reactions',
     component: Reactions,
-    meta: { requiresAuth: true, coWorkerOnly: true }
+    meta: { requiresAuth: true }
   }
 ]
 

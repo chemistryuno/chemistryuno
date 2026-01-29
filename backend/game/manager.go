@@ -33,8 +33,8 @@ func getDefaultDeckConfig() map[string]int {
 		"Mn": 4, "Fe": 4, "Cu": 4, "Zn": 4, "Br": 4, "I": 4, "Ag": 4,
 		"+2": 8, "+4": 4,
 		"He": 1, "Ne": 1, "Ar": 1, "Kr": 1,
-		"Au":     4,
-		"Choice": 4,
+		"Au": 4,
+		// "Choice": 4,  // 已移除
 	}
 }
 
@@ -327,14 +327,14 @@ func GetRoomState(roomID string, uid int) (map[string]interface{}, error) {
 
 func getCardEffect(cardType string) string {
 	effects := map[string]string{
-		"+2":     "+2",
-		"+4":     "+4",
-		"He":     "reverse",
-		"Ne":     "reverse",
-		"Ar":     "reverse",
-		"Kr":     "reverse",
-		"Au":     "skip",
-		"Choice": "wild",
+		"+2": "+2",
+		"+4": "+4",
+		"He": "reverse",
+		"Ne": "reverse",
+		"Ar": "reverse",
+		"Kr": "reverse",
+		"Au": "Au",
+		// "Choice": "wild", // 已移除
 	}
 	return effects[cardType]
 }
@@ -362,10 +362,12 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 		return errors.New("还没轮到你")
 	}
 
-	// 解析物质所需元素（不考虑系数，只看有哪些元素）
+	// 若未指定substance，自动用单质（如H->H2、O->O2等，或直接元素符号）
+	if substance == "" {
+		substance = card.Type
+	}
 	requiredElements := parseSubstance(substance)
 	usedCards := []int{} // 记录将要从手牌中移除的索引
-
 	for elemName := range requiredElements {
 		found := false
 		for i, hCard := range currentPlayer.HandCards {
@@ -380,7 +382,6 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 			if alreadyUsed {
 				continue
 			}
-
 			if hCard.Type == elemName {
 				usedCards = append(usedCards, i)
 				found = true
@@ -392,17 +393,36 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 		}
 	}
 
-	// 检查是否能出这张牌（与上一张牌能否反应）
-	if gameRoom.GameState.LastCard != nil {
+	// +2/+4/Au/换向牌可随意打出，无需反应条件
+	nobleGases := map[string]bool{"He": true, "Ne": true, "Ar": true, "Kr": true}
+	specialTypes := map[string]bool{"+2": true, "+4": true, "Au": true}
+	isSpecial := specialTypes[card.Type] || specialTypes[card.Effect] || nobleGases[card.Type]
+	if !isSpecial && gameRoom.GameState.LastCard != nil {
 		if !CanReact(gameRoom.GameState.LastCard.Substance, substance) {
 			return errors.New("无法与上一张牌反应: " + substance + " 不与 " + gameRoom.GameState.LastCard.Substance + " 反应")
 		}
 	}
+	// nobleGases 作为换向牌
 
-	// 移除手牌（从后往前删，避免索引偏移）
+	// 检查选中的卡牌中是否有带效果的
+	activeEffect := ""
+	if card.Effect != "" {
+		activeEffect = card.Effect
+	}
+
+	// 记录消耗的卡牌详情用于后续逻辑
+	var consumedCards []models.Card
 	sort.Ints(usedCards)
 	for i := len(usedCards) - 1; i >= 0; i-- {
 		idx := usedCards[i]
+		consumedCard := currentPlayer.HandCards[idx]
+		consumedCards = append(consumedCards, consumedCard)
+
+		// 如果还没确定 activeEffect，且这张卡有效果，则使用它
+		if activeEffect == "" && consumedCard.Effect != "" {
+			activeEffect = consumedCard.Effect
+		}
+
 		currentPlayer.HandCards = append(
 			currentPlayer.HandCards[:idx],
 			currentPlayer.HandCards[idx+1:]...,
@@ -411,12 +431,11 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 	}
 
 	// 添加到弃牌堆
-	// 使用第一张选中的卡作为代表（或者如果没有牌，则创建一个虚拟牌）
+	// 使用第一张消耗的卡作为代表
 	var displayCard models.Card
-	if len(usedCards) > 0 {
-		// 注意：这里的 card 参数在“输入框出牌”模式下可能已经不准确了，
-		// 我们根据实际消耗的第一张牌来记录
-		// 但为了兼容，如果传入的 card.Type 在 usedCards 中，我们优先考虑它
+	if len(consumedCards) > 0 {
+		displayCard = consumedCards[0]
+	} else {
 		displayCard = card
 	}
 
@@ -428,25 +447,31 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 	gameRoom.GameState.LastCard = &playedCard
 	gameRoom.GameState.DiscardPile = append(gameRoom.GameState.DiscardPile, playedCard)
 
-	// 处理特殊效果（如果消耗的牌中有特殊效果牌，优先提取第一个效果）
-	// 注意：这里简化逻辑，只要包含该元素且有效果就触发
-	activeEffect := ""
-	// 如果用户传来的 card 有效果且被选中了，可以使用它
-	if card.Effect != "" {
-		activeEffect = card.Effect
+	// 加牌叠加规则
+	if activeEffect == "+2" || activeEffect == "+4" {
+		// 叠加pending
+		gameRoom.GameState.PendingDrawCount += map[string]int{"+2": 2, "+4": 4}[activeEffect]
+		gameRoom.GameState.PendingDrawTypes = append(gameRoom.GameState.PendingDrawTypes, activeEffect)
+		// 传递到下家
+		gameRoom.GameState.CurrentPlayer = getNextPlayer(gameRoom.GameState)
+		gameRoom.GameState.TurnEndTime = time.Now().Add(30*time.Second).UnixNano() / int64(time.Millisecond)
+		return nil
+	} else if gameRoom.GameState.PendingDrawCount > 0 {
+		// 不能继续叠加时，强制摸pending
+		drawCardsForPlayer(gameRoom, gameRoom.GameState.CurrentPlayer, gameRoom.GameState.PendingDrawCount)
+		gameRoom.GameState.PendingDrawCount = 0
+		gameRoom.GameState.PendingDrawTypes = nil
+		// 回合传递
+		gameRoom.GameState.CurrentPlayer = getNextPlayer(gameRoom.GameState)
+		gameRoom.GameState.TurnEndTime = time.Now().Add(30*time.Second).UnixNano() / int64(time.Millisecond)
+		return nil
 	}
-
+	// 其他效果
 	switch activeEffect {
 	case "reverse":
 		gameRoom.GameState.Direction *= -1
-	case "skip":
+	case "Au":
 		gameRoom.GameState.CurrentPlayer = getNextPlayer(gameRoom.GameState)
-	case "+2":
-		nextPlayerIndex := getNextPlayer(gameRoom.GameState)
-		drawCardsForPlayer(gameRoom, nextPlayerIndex, 2)
-	case "+4":
-		nextPlayerIndex := getNextPlayer(gameRoom.GameState)
-		drawCardsForPlayer(gameRoom, nextPlayerIndex, 4)
 	}
 
 	// 检查是否获胜

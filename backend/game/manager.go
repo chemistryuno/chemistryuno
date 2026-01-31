@@ -190,14 +190,17 @@ func StartGame(roomID string, uid int) error {
 
 	// 初始化游戏状态
 	gameRoom.GameState = &models.GameState{
-		RoomID:        roomID,
-		Players:       []*models.PlayerState{},
-		CurrentPlayer: 0,
-		Direction:     1,
-		DrawPile:      []models.Card{},
-		DiscardPile:   []models.PlayedCard{},
-		Status:        "playing",
-		TurnEndTime:   time.Now().Add(30*time.Second).UnixNano() / int64(time.Millisecond),
+		RoomID:           roomID,
+		Players:          []*models.PlayerState{},
+		CurrentPlayer:    0,
+		Direction:        1,
+		DrawPile:         []models.Card{},
+		DiscardPile:      []models.PlayedCard{},
+		Status:           "playing",
+		TurnEndTime:      time.Now().Add(30*time.Second).UnixNano() / int64(time.Millisecond),
+		PendingDrawCount: 0,
+		PendingDrawTypes: nil,
+		AllowedAnyPlayer: -1,
 	}
 
 	// 创建牌堆
@@ -312,13 +315,14 @@ func GetRoomState(roomID string, uid int) (map[string]interface{}, error) {
 		}
 
 		result["game_state"] = map[string]interface{}{
-			"players":        filteredPlayers,
-			"current_player": gameRoom.GameState.CurrentPlayer,
-			"direction":      gameRoom.GameState.Direction,
-			"last_card":      gameRoom.GameState.LastCard,
-			"deck_count":     len(gameRoom.GameState.DrawPile),
-			"status":         gameRoom.GameState.Status,
-			"turn_end_time":  gameRoom.GameState.TurnEndTime,
+			"players":            filteredPlayers,
+			"current_player":     gameRoom.GameState.CurrentPlayer,
+			"direction":          gameRoom.GameState.Direction,
+			"last_card":          gameRoom.GameState.LastCard,
+			"deck_count":         len(gameRoom.GameState.DrawPile),
+			"status":             gameRoom.GameState.Status,
+			"turn_end_time":      gameRoom.GameState.TurnEndTime,
+			"allowed_any_player": gameRoom.GameState.AllowedAnyPlayer,
 		}
 	}
 
@@ -358,6 +362,22 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 
 	// 检查是否轮到该玩家
 	currentPlayer := gameRoom.GameState.Players[gameRoom.GameState.CurrentPlayer]
+	// 预计算下家与下下家索引，便于处理 Au 跳过逻辑
+	playersLen := len(gameRoom.GameState.Players)
+	curIdx := gameRoom.GameState.CurrentPlayer
+	dir := gameRoom.GameState.Direction
+	next1 := curIdx + dir
+	if next1 < 0 {
+		next1 = playersLen - 1
+	} else if next1 >= playersLen {
+		next1 = 0
+	}
+	next2 := next1 + dir
+	if next2 < 0 {
+		next2 = playersLen - 1
+	} else if next2 >= playersLen {
+		next2 = 0
+	}
 	if currentPlayer.UID != uid {
 		return errors.New("还没轮到你")
 	}
@@ -397,7 +417,9 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 	nobleGases := map[string]bool{"He": true, "Ne": true, "Ar": true, "Kr": true}
 	specialTypes := map[string]bool{"+2": true, "+4": true, "Au": true}
 	isSpecial := specialTypes[card.Type] || specialTypes[card.Effect] || nobleGases[card.Type]
-	if !isSpecial && gameRoom.GameState.LastCard != nil {
+	// 如果当前玩家被允许无视反应条件出牌，则跳过反应检查
+	allowAny := gameRoom.GameState.AllowedAnyPlayer == gameRoom.GameState.CurrentPlayer
+	if !isSpecial && gameRoom.GameState.LastCard != nil && !allowAny {
 		if !CanReact(gameRoom.GameState.LastCard.Substance, substance) {
 			return errors.New("无法与上一张牌反应: " + substance + " 不与 " + gameRoom.GameState.LastCard.Substance + " 反应")
 		}
@@ -455,6 +477,10 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 		// 传递到下家
 		gameRoom.GameState.CurrentPlayer = getNextPlayer(gameRoom.GameState)
 		gameRoom.GameState.TurnEndTime = time.Now().Add(30*time.Second).UnixNano() / int64(time.Millisecond)
+		// 如果之前允许任意出牌的标记被消费，清除
+		if allowAny {
+			gameRoom.GameState.AllowedAnyPlayer = -1
+		}
 		return nil
 	} else if gameRoom.GameState.PendingDrawCount > 0 {
 		// 不能继续叠加时，强制摸pending
@@ -464,6 +490,9 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 		// 回合传递
 		gameRoom.GameState.CurrentPlayer = getNextPlayer(gameRoom.GameState)
 		gameRoom.GameState.TurnEndTime = time.Now().Add(30*time.Second).UnixNano() / int64(time.Millisecond)
+		if allowAny {
+			gameRoom.GameState.AllowedAnyPlayer = -1
+		}
 		return nil
 	}
 	// 其他效果
@@ -471,7 +500,9 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 	case "reverse":
 		gameRoom.GameState.Direction *= -1
 	case "Au":
-		gameRoom.GameState.CurrentPlayer = getNextPlayer(gameRoom.GameState)
+		// 使得跳过下一位玩家，并允许下下家任意出牌
+		gameRoom.GameState.CurrentPlayer = next1
+		gameRoom.GameState.AllowedAnyPlayer = next2
 	}
 
 	// 检查是否获胜
@@ -483,8 +514,12 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 		return nil
 	}
 
-	// 下一位玩家
+	// 下一位玩家（大多数情况均走到这里）
 	gameRoom.GameState.CurrentPlayer = getNextPlayer(gameRoom.GameState)
+	// 如果之前允许任意出牌的标记被消费，清除（保险）
+	if allowAny {
+		gameRoom.GameState.AllowedAnyPlayer = -1
+	}
 	gameRoom.GameState.TurnEndTime = time.Now().Add(30*time.Second).UnixNano() / int64(time.Millisecond)
 	return nil
 }

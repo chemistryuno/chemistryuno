@@ -7,6 +7,7 @@ import Profile from './pages/Profile.vue'
 import Admin from './pages/Admin.vue'
 import Reactions from './pages/Reactions.vue'
 import AIBattle from './pages/AIBattle.vue'
+import Feedbacks from './pages/Feedbacks.vue'
 
 const routes = [
   {
@@ -43,6 +44,12 @@ const routes = [
     path: '/profile',
     name: 'Profile',
     component: Profile,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/feedbacks',
+    name: 'Feedbacks',
+    component: Feedbacks,
     meta: { requiresAuth: true }
   },
   {

@@ -94,6 +94,28 @@ const handleCreateUser = async () => {
   }
 }
 
+const handleAcceptFeedback = async (id: number) => {
+  try {
+    const note = await showPrompt('处理说明（可留空，将使用默认文本）:', '输入说明', '处理反馈')
+    await adminAPI.updateFeedbackStatus(id, 'accepted', note || '')
+    await showAlert('反馈已接受', '已处理')
+    loadData()
+  } catch (error: any) {
+    await showAlert(error.response?.data?.error || '操作失败', '错误')
+  }
+}
+
+const handleDismissFeedback = async (id: number) => {
+  try {
+    const note = await showPrompt('处理说明（可留空，将使用默认文本）:', '输入说明', '处理反馈')
+    await adminAPI.updateFeedbackStatus(id, 'dismissed', note || '')
+    await showAlert('反馈已消除', '已处理')
+    loadData()
+  } catch (error: any) {
+    await showAlert(error.response?.data?.error || '操作失败', '错误')
+  }
+}
+
 const handleDeleteUser = async (userId: string) => {
   const confirmed = await showConfirm('确定要永久删除该研究员吗？此操作不可逆！', '⚠️ 危险操作')
   if (!confirmed) return
@@ -746,6 +768,10 @@ const filteredHistory = computed(() => {
                       <span class="px-3 py-1 bg-white/5 text-slate-500 text-[9px] font-black uppercase tracking-widest rounded-full border border-white/5">{{ fb.page }}</span>
                    </div>
                    <p class="text-sm leading-relaxed text-slate-300 font-medium bg-white/5 p-4 rounded-2xl italic">“{{ fb.content }}”</p>
+                   <div class="flex items-center justify-end gap-3">
+                      <button @click="handleAcceptFeedback(fb.id)" class="px-3 py-1 bg-emerald-500 text-white rounded-md text-sm">接受</button>
+                      <button @click="handleDismissFeedback(fb.id)" class="px-3 py-1 bg-red-500 text-white rounded-md text-sm">消除</button>
+                   </div>
                 </div>
                 <div v-if="feedbacks.length === 0" class="py-20 text-center text-slate-600 italic font-bold">
                   目前尚未收到任何外部反馈报告

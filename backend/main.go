@@ -7,6 +7,7 @@ import (
 	"chemistryuno/websocket"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	ws "github.com/gorilla/websocket"
@@ -54,6 +55,8 @@ func main() {
 
 		// 反馈
 		auth.POST("/feedback", handlers.CreateFeedback)
+		auth.GET("/feedbacks/my", handlers.GetMyFeedbacks)
+		auth.POST("/feedbacks/:id/urge", handlers.UrgeFeedback)
 
 		// 玩家自定义卡组
 		auth.GET("/my-decks", handlers.GetMyDecks)
@@ -114,6 +117,25 @@ func main() {
 	}
 
 	log.Println("服务器启动在 :8080")
+
+	// 后台清理任务：删除已到达 remove_at 的反馈（每小时运行）
+	go func() {
+		ticker := time.NewTicker(1 * time.Hour)
+		defer ticker.Stop()
+		for {
+			<-ticker.C
+			nowStr := time.Now().UTC().Format("2006-01-02 15:04:05")
+			res, err := database.DB.Exec("DELETE FROM feedbacks WHERE remove_at IS NOT NULL AND remove_at <= ?", nowStr)
+			if err != nil {
+				log.Printf("清理过期反馈失败: %v", err)
+				continue
+			}
+			if ra, _ := res.RowsAffected(); ra > 0 {
+				log.Printf("已删除 %d 条过期反馈", ra)
+			}
+		}
+	}()
+
 	r.Run(":8080")
 }
 

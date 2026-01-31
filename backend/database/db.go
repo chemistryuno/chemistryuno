@@ -94,6 +94,10 @@ func createTables() error {
 		content TEXT NOT NULL,
 		type TEXT DEFAULT 'general',
 		status TEXT DEFAULT 'unread',
+		processed_by INTEGER DEFAULT NULL,
+		processed_at DATETIME DEFAULT NULL,
+		last_urged_at DATETIME DEFAULT NULL,
+		urge_count INTEGER DEFAULT 0,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		FOREIGN KEY (user_id) REFERENCES users(UID)
 	);`
@@ -106,15 +110,88 @@ func createTables() error {
 		}
 	}
 
-	// 增量更新表结构（针对已存在的数据库）
-	_, _ = DB.Exec("ALTER TABLE users ADD COLUMN two_factor_enabled BOOLEAN DEFAULT 0")
-	_, _ = DB.Exec("ALTER TABLE users ADD COLUMN two_factor_secret TEXT DEFAULT ''")
-	_, _ = DB.Exec("ALTER TABLE reactions ADD COLUMN r1 TEXT DEFAULT ''")
-	_, _ = DB.Exec("ALTER TABLE reactions ADD COLUMN r2 TEXT DEFAULT ''")
-	_, _ = DB.Exec("ALTER TABLE reactions ADD COLUMN display TEXT DEFAULT ''")
-	_, _ = DB.Exec("ALTER TABLE reactions ADD COLUMN status TEXT DEFAULT 'approved'")
-	_, _ = DB.Exec("ALTER TABLE reactions ADD COLUMN group_id TEXT DEFAULT ''")
-	_, _ = DB.Exec("ALTER TABLE reactions DROP COLUMN type")
+	// 增量更新表结构（针对已存在的数据库）——按需添加列以避免错误
+	columnExists := func(table, column string) bool {
+		var name string
+		err := DB.QueryRow("PRAGMA table_info(" + table + ")").Scan(&name)
+		if err != nil {
+			// fallback: try scanning rows to find column
+			rows, rerr := DB.Query("PRAGMA table_info(" + table + ")")
+			if rerr != nil {
+				return false
+			}
+			defer rows.Close()
+			for rows.Next() {
+				var cid int
+				var colname, ctype string
+				var notnull, dflt_value, pk sql.NullString
+				// Using Scan with these placeholder types
+				_ = rows.Scan(&cid, &colname, &ctype, &notnull, &dflt_value, &pk)
+				if colname == column {
+					return true
+				}
+			}
+			return false
+		}
+		// If the simple scan succeeded, still perform proper check via rows
+		rows, _ := DB.Query("PRAGMA table_info(" + table + ")")
+		defer rows.Close()
+		for rows.Next() {
+			var cid int
+			var colname, ctype string
+			var notnull, dflt_value, pk sql.NullString
+			_ = rows.Scan(&cid, &colname, &ctype, &notnull, &dflt_value, &pk)
+			if colname == column {
+				return true
+			}
+		}
+		return false
+	}
+
+	// users
+	if !columnExists("users", "two_factor_enabled") {
+		_, _ = DB.Exec("ALTER TABLE users ADD COLUMN two_factor_enabled BOOLEAN DEFAULT 0")
+	}
+	if !columnExists("users", "two_factor_secret") {
+		_, _ = DB.Exec("ALTER TABLE users ADD COLUMN two_factor_secret TEXT DEFAULT ''")
+	}
+
+	// reactions
+	if !columnExists("reactions", "r1") {
+		_, _ = DB.Exec("ALTER TABLE reactions ADD COLUMN r1 TEXT DEFAULT ''")
+	}
+	if !columnExists("reactions", "r2") {
+		_, _ = DB.Exec("ALTER TABLE reactions ADD COLUMN r2 TEXT DEFAULT ''")
+	}
+	if !columnExists("reactions", "display") {
+		_, _ = DB.Exec("ALTER TABLE reactions ADD COLUMN display TEXT DEFAULT ''")
+	}
+	if !columnExists("reactions", "status") {
+		_, _ = DB.Exec("ALTER TABLE reactions ADD COLUMN status TEXT DEFAULT 'approved'")
+	}
+	if !columnExists("reactions", "group_id") {
+		_, _ = DB.Exec("ALTER TABLE reactions ADD COLUMN group_id TEXT DEFAULT ''")
+	}
+
+	// feedbacks
+	if !columnExists("feedbacks", "processed_by") {
+		_, _ = DB.Exec("ALTER TABLE feedbacks ADD COLUMN processed_by INTEGER DEFAULT NULL")
+	}
+	if !columnExists("feedbacks", "processed_at") {
+		_, _ = DB.Exec("ALTER TABLE feedbacks ADD COLUMN processed_at DATETIME DEFAULT NULL")
+	}
+	if !columnExists("feedbacks", "last_urged_at") {
+		_, _ = DB.Exec("ALTER TABLE feedbacks ADD COLUMN last_urged_at DATETIME DEFAULT NULL")
+	}
+	if !columnExists("feedbacks", "urge_count") {
+		_, _ = DB.Exec("ALTER TABLE feedbacks ADD COLUMN urge_count INTEGER DEFAULT 0")
+	}
+	if !columnExists("feedbacks", "resolution_note") {
+		_, _ = DB.Exec("ALTER TABLE feedbacks ADD COLUMN resolution_note TEXT DEFAULT NULL")
+	}
+	if !columnExists("feedbacks", "remove_at") {
+		_, _ = DB.Exec("ALTER TABLE feedbacks ADD COLUMN remove_at DATETIME DEFAULT NULL")
+	}
 
 	// 检查并创建默认管理员账号
 	if err := createDefaultAdmin(); err != nil {
@@ -282,7 +359,7 @@ func createTables() error {
 	// 创建默认全局牌组配置
 	createDefaultDeck := `
 	INSERT OR IGNORE INTO deck_configs (id, name, is_global, cards, created_by) 
-	VALUES (1, '默认牌组', 1, '{"H":12,"O":12,"C":4,"N":4,"F":4,"Na":4,"Mg":4,"Al":4,"Si":4,"P":4,"S":4,"Cl":4,"K":4,"Ca":4,"Mn":4,"Fe":4,"Cu":4,"Zn":4,"Br":4,"I":4,"Ag":4,"+2":8,"+4":4,"He":1,"Ne":1,"Ar":1,"Kr":1,"Au":4,"Choice":4}', 100000000);`
+	VALUES (1, '默认牌组', 1, '{"H":12,"O":12,"C":4,"N":4,"F":4,"Na":4,"Mg":4,"Al":4,"Si":4,"P":4,"S":4,"Cl":4,"K":4,"Ca":4,"Mn":4,"Fe":4,"Cu":4,"Zn":4,"Br":4,"I":4,"Ag":4,"+2":8,"+4":4,"He":1,"Ne":1,"Ar":1,"Kr":1,"Au":4}', 100000000);`
 
 	_, _ = DB.Exec(createDefaultDeck)
 

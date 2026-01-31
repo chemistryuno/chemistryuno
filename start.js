@@ -62,6 +62,21 @@ setTimeout(() => {
 }, 1000);
 
 console.log('\n✨ 启动完成！');
-console.log('📍 前端地址: http://localhost:3000');
-console.log('📍 后端地址: http://localhost:8080');
+// 尝试获取本机局域网 IPv4 地址并输出可访问的 URL
+const os = require('os')
+const nets = os.networkInterfaces()
+let lanIp = 'localhost'
+for (const name of Object.keys(nets)) {
+  for (const net of nets[name]) {
+    // 跳过内部和非 IPv4
+    if (net.family === 'IPv4' && !net.internal) {
+      lanIp = net.address
+      break
+    }
+  }
+  if (lanIp !== 'localhost') break
+}
+
+console.log('📍 前端地址: http://' + lanIp + ':3000 (或 http://localhost:3000)');
+console.log('📍 后端地址: http://' + lanIp + ':8080 (或 http://localhost:8080)');
 console.log('\n按 Ctrl+C 停止所有服务\n');

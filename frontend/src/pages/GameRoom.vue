@@ -234,6 +234,12 @@ const getCardStyle = (card: any) => {
 const currentPlayerObj = computed(() => gameState.value?.players?.[gameState.value.current_player])
 const isMyTurn = computed(() => currentPlayerObj.value?.uid === user.value.uid)
 const myData = computed(() => gameState.value?.players?.find((p: any) => p.uid === user.value.uid))
+const myIndex = computed(() => {
+  return (gameState.value?.players || []).findIndex((p: any) => p.uid === user.value.uid)
+})
+const allowedAny = computed(() => {
+  return typeof gameState.value?.allowed_any_player !== 'undefined' && gameState.value?.allowed_any_player === myIndex.value
+})
 
 const winner = computed(() => gameState.value?.players?.find((p: any) => p.card_count === 0))
 
@@ -342,6 +348,13 @@ onMounted(() => {
         </div>
       </header>
 
+      <!-- Au Allow Banner -->
+      <div v-if="allowedAny" class="w-full flex justify-center mt-3 z-50">
+        <div class="bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-700 text-yellow-800 dark:text-yellow-200 px-4 py-2 rounded-xl font-bold text-sm shadow-md">
+          Au: 跳过 — 你可无视反应条件出牌
+        </div>
+      </div>
+
       <!-- Reaction Chamber (Main Table) -->
       <div class="flex-1 relative flex items-center justify-center p-2 sm:p-12 overflow-hidden">
         <!-- Table Console Background -->
@@ -409,7 +422,7 @@ onMounted(() => {
                     <div class="flex flex-col items-center justify-center">
                       <div class="text-xl sm:text-2xl tracking-tighter font-black">{{ gameState.last_card.card.type }}</div>
                       <div v-if="gameState.last_card.card.effect" class="text-[8px] sm:text-[10px] font-bold bg-white/20 px-1.5 py-0.5 rounded-full mt-1 uppercase tracking-tighter">
-                        {{ ['He','Ne','Ar','Kr'].includes(gameState.last_card.card.type) ? '稀有气体（反转）' : gameState.last_card.card.effect === 'Au' ? 'Au（金）跳过' : gameState.last_card.card.effect === '+2' ? '+2摸牌' : gameState.last_card.card.effect === '+4' ? '+4摸牌' : gameState.last_card.card.effect }}
+                        {{ ['He','Ne','Ar','Kr'].includes(gameState.last_card.card.type) ? '稀有气体（反转）' : gameState.last_card.card.effect === 'Au' ? 'Au: 跳过' : gameState.last_card.card.effect === '+2' ? '+2摸牌' : gameState.last_card.card.effect === '+4' ? '+4摸牌' : gameState.last_card.card.effect }}
                       </div>
                     </div>
                 </div>
@@ -570,7 +583,7 @@ onMounted(() => {
                 <div class="flex flex-col items-center justify-center">
                   <div class="text-lg sm:text-xl font-black tracking-tighter">{{ card.type }}</div>
                   <div v-if="card.effect || ['He','Ne','Ar','Kr'].includes(card.type)" class="text-[8px] sm:text-[10px] font-bold bg-white/20 px-1.5 py-0.5 rounded-full mt-1 uppercase tracking-tighter">
-                    {{ ['He','Ne','Ar','Kr'].includes(card.type) ? '稀有气体（反转）' : card.effect === 'Au' ? 'Au（金）跳过' : card.effect === '+2' ? '+2摸牌' : card.effect === '+4' ? '+4摸牌' : card.effect }}
+                    {{ ['He','Ne','Ar','Kr'].includes(card.type) ? '稀有气体（反转）' : card.effect === 'Au' ? 'Au: 跳过' : card.effect === '+2' ? '+2摸牌' : card.effect === '+4' ? '+4摸牌' : card.effect }}
                   </div>
                 </div>
                 <div class="absolute bottom-1 sm:bottom-2 right-1 sm:right-2 text-[5px] sm:text-[7px] font-mono opacity-40 uppercase tracking-tighter">

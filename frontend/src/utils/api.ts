@@ -48,6 +48,10 @@ export const authAPI = {
     api.delete('/user/account'),
   submitFeedback: (content: string, type: string) =>
     api.post('/feedback', { content, type }),
+  getMyFeedbacks: () =>
+    api.get('/feedbacks/my'),
+  urgeFeedback: (id: number) =>
+    api.post(`/feedbacks/${id}/urge`),
   
   // 2FA相关
   setup2FA: () => api.post('/user/2fa/setup'),
@@ -108,8 +112,8 @@ export const adminAPI = {
     api.get('/admin/game-history'),
   getFeedbacks: () =>
     api.get('/admin/feedbacks'),
-  updateFeedbackStatus: (id: number, status: string) =>
-    api.put(`/admin/feedbacks/${id}/status`, { status }),
+  updateFeedbackStatus: (id: number, status: string, note?: string) =>
+    api.put(`/admin/feedbacks/${id}/status`, { status, note }),
 }
 
 // 反应管理API

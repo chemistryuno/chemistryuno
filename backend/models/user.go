@@ -51,13 +51,19 @@ type ChemicalReaction struct {
 }
 
 type Feedback struct {
-	ID        int       `json:"id" db:"id"`
-	UserID    int       `json:"user_id" db:"user_id"`
-	Username  string    `json:"username"`
-	Content   string    `json:"content" binding:"required"`
-	Type      string    `json:"type" db:"type"`
-	Status    string    `json:"status" db:"status"`
-	CreatedAt time.Time `json:"created_at" db:"created_at"`
+	ID             int     `json:"id" db:"id"`
+	UserID         int     `json:"user_id" db:"user_id"`
+	Username       string  `json:"username"`
+	Content        string  `json:"content" binding:"required"`
+	Type           string  `json:"type" db:"type"`
+	Status         string  `json:"status" db:"status"`
+	ProcessedBy    *int    `json:"processed_by" db:"processed_by"`
+	ProcessedAt    *string `json:"processed_at" db:"processed_at"`
+	LastUrgedAt    *string `json:"last_urged_at" db:"last_urged_at"`
+	UrgeCount      int     `json:"urge_count" db:"urge_count"`
+	ResolutionNote *string `json:"resolution_note" db:"resolution_note"`
+	RemoveAt       *string `json:"remove_at" db:"remove_at"`
+	CreatedAt      string  `json:"created_at" db:"created_at"`
 }
 
 type ReactionRequest struct {

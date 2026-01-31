@@ -129,3 +129,26 @@ func (h *Hub) BroadcastToRoom(roomID string, message interface{}) {
 		}
 	}
 }
+
+// SendToUID 发送消息给指定用户的所有连接
+func (h *Hub) SendToUID(uid int, message interface{}) {
+	h.mutex.RLock()
+	defer h.mutex.RUnlock()
+
+	data, err := json.Marshal(message)
+	if err != nil {
+		log.Printf("消息序列化失败: %v", err)
+		return
+	}
+
+	for client := range h.clients {
+		if client.uid == uid {
+			select {
+			case client.send <- data:
+			default:
+				close(client.send)
+				delete(h.clients, client)
+			}
+		}
+	}
+}

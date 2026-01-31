@@ -6,7 +6,7 @@ import "time"
 type Card struct {
 	Type   string `json:"type"`   // 元素符号或特殊牌
 	Count  int    `json:"count"`  // 剩余数量
-	Effect string `json:"effect"` // 特殊效果: "reverse", "skip", "+2", "+4"
+	Effect string `json:"effect"` // 特殊效果: "reverse", "Au", "+2", "+4"
 }
 
 // 牌组配置
@@ -44,6 +44,7 @@ type GameState struct {
 	TurnEndTime      int64          `json:"turn_end_time"`      // 回合结束时间戳（毫秒）
 	PendingDrawCount int            `json:"pending_draw_count"` // 当前累计需加牌数
 	PendingDrawTypes []string       `json:"pending_draw_types"` // 当前累计加牌类型（如["+2","+4"]）
+	AllowedAnyPlayer int            `json:"allowed_any_player"` // 允许无视反应条件直接出牌的玩家索引，-1 表示无
 }
 
 // 玩家状态

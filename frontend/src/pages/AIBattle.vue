@@ -42,9 +42,9 @@ const ELEMENTS_DATA: Record<string, { name: string, color: string }> = {
 }
 
 const SPECIAL_CARDS: Record<string, { effect: string, color: string, name: string }> = {
-  'Skip': { effect: 'skip', color: 'bg-amber-400 text-white', name: '跳过' },
+  'Au': { effect: 'Au', color: 'bg-amber-400 text-white', name: 'Au: 跳过' },
   'Reverse': { effect: 'reverse', color: 'bg-indigo-500 text-white', name: '转向' },
-  '+2': { effect: 'draw2', color: 'bg-rose-500 text-white', name: '+2' },
+  '+2': { effect: '+2', color: 'bg-rose-500 text-white', name: '+2' },
   'Noble': { effect: 'wild', color: 'bg-gradient-to-br from-yellow-400 via-amber-500 to-yellow-600 text-white', name: '惰性气体' }
 }
 

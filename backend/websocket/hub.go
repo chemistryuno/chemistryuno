@@ -152,3 +152,18 @@ func (h *Hub) SendToUID(uid int, message interface{}) {
 		}
 	}
 }
+
+// IsUIDInRoom 检查指定用户是否在指定房间的连接列表中
+func (h *Hub) IsUIDInRoom(roomID string, uid int) bool {
+	h.mutex.RLock()
+	defer h.mutex.RUnlock()
+
+	if clients, ok := h.rooms[roomID]; ok {
+		for client := range clients {
+			if client.uid == uid {
+				return true
+			}
+		}
+	}
+	return false
+}

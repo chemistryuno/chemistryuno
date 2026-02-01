@@ -228,12 +228,15 @@ onMounted(() => {
     websocket.on('game_update', handleGameUpdate)
     websocket.on('player_joined', loadGameState)
     websocket.on('player_left', loadGameState)
-    websocket.on('room_terminated', (msg: any) => {
+    websocket.on('room_terminated', async (msg: any) => {
       isRedirecting.value = true
-      showAlert(
-        '检测到实验室核心管理权限异常：首席研究员（房主）已单方面中断连接。由于实验协议完整性受损，当前实验室即刻解散，所有合成进度已强制保存并销毁。', 
-        '⚠ 实验环境崩塌'
-      )
+      const reason = msg.message || '检测到实验室核心管理权限异常：首席研究员（房主）已单方面中断连接。由于实验协议完整性受损，当前实验室即刻解散。'
+      await showAlert(reason, '⚠ 实验结束')
+      router.push('/')
+    })
+    websocket.on('player_kicked', async (msg: any) => {
+      isRedirecting.value = true
+      await showAlert(msg.message || '由于消极游戏，您已被踢出', '⚠ 权限移除')
       router.push('/')
     })
   })

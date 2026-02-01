@@ -22,6 +22,7 @@ type GameRoom struct {
 	Room      *models.Room
 	GameState *models.GameState
 	mutex     sync.RWMutex
+	OfflineAt map[int]time.Time // UID -> 离线起始时间
 }
 
 // 初始化默认牌组配置
@@ -83,7 +84,8 @@ func CreateRoom(name string, hostUID int, hostName string, maxPlayers int, deckI
 	}
 
 	gameRoom := &GameRoom{
-		Room: room,
+		Room:      room,
+		OfflineAt: make(map[int]time.Time),
 	}
 
 	roomMutex.Lock()
@@ -103,6 +105,148 @@ func GetAllRooms() []*models.Room {
 		result = append(result, gr.Room)
 	}
 	return result
+}
+
+// StartRoomMonitor 启动房间监控协程
+func StartRoomMonitor() {
+	go func() {
+		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
+		for range ticker.C {
+			checkAllRooms()
+		}
+	}()
+}
+
+func checkAllRooms() {
+	roomMutex.RLock()
+	roomList := make([]*GameRoom, 0, len(rooms))
+	for _, gr := range rooms {
+		roomList = append(roomList, gr)
+	}
+	roomMutex.RUnlock()
+
+	for _, gr := range roomList {
+		gr.checkInactivity()
+	}
+}
+
+func (gr *GameRoom) checkInactivity() {
+	gr.mutex.Lock()
+	if gr.Room.Status != "playing" {
+		gr.mutex.Unlock()
+		return
+	}
+
+	roomID := gr.Room.ID
+	now := time.Now()
+	playersToKick := []int{}
+
+	// 1. 检测离线超过2分钟的玩家
+	for _, uid := range gr.Room.Players {
+		isOnline := websocket.GlobalHub.IsUIDInRoom(roomID, uid)
+		if !isOnline {
+			if _, exists := gr.OfflineAt[uid]; !exists {
+				gr.OfflineAt[uid] = now
+			} else if now.Sub(gr.OfflineAt[uid]) > 2*time.Minute {
+				playersToKick = append(playersToKick, uid)
+			}
+		} else {
+			delete(gr.OfflineAt, uid)
+		}
+	}
+	gr.mutex.Unlock()
+
+	// 2. 执行踢出操作
+	for _, uid := range playersToKick {
+		gr.kickPlayer(uid, "由于消极游戏，您已被踢出")
+	}
+
+	// 3. 检测玩家人数是否不足
+	gr.mutex.Lock()
+	if gr.Room.Status == "playing" && len(gr.Room.Players) < 2 {
+		gr.mutex.Unlock()
+		gr.terminateRoom("由于玩家人数不足，房间已被关闭")
+		return
+	}
+	gr.mutex.Unlock()
+}
+
+func (gr *GameRoom) kickPlayer(uid int, reason string) {
+	gr.mutex.Lock()
+	roomID := gr.Room.ID
+	isHost := gr.Room.HostUID == uid
+
+	// 通知被踢出的玩家
+	if websocket.GlobalHub != nil {
+		websocket.GlobalHub.SendToUID(uid, websocket.Message{
+			Type:    "player_kicked",
+			Message: reason,
+		})
+	}
+
+	if isHost {
+		gr.mutex.Unlock()
+		gr.terminateRoom("由于房主消极游戏，房间已被关闭")
+		return
+	}
+
+	// 移除玩家
+	newPlayers := []int{}
+	for _, pid := range gr.Room.Players {
+		if pid != uid {
+			newPlayers = append(newPlayers, pid)
+		}
+	}
+	gr.Room.Players = newPlayers
+
+	// 如果游戏正在进行，也从 GameState 中移除
+	if gr.GameState != nil {
+		newPS := []*models.PlayerState{}
+		kickedIndex := -1
+		for i, ps := range gr.GameState.Players {
+			if ps.UID != uid {
+				newPS = append(newPS, ps)
+			} else {
+				kickedIndex = i
+			}
+		}
+		gr.GameState.Players = newPS
+
+		// 调整当前玩家索引
+		if kickedIndex != -1 {
+			if gr.GameState.CurrentPlayer > kickedIndex {
+				gr.GameState.CurrentPlayer--
+			}
+			if gr.GameState.CurrentPlayer >= len(gr.GameState.Players) {
+				gr.GameState.CurrentPlayer = 0
+			}
+		}
+	}
+	gr.mutex.Unlock()
+
+	// 广播玩家离开消息
+	if websocket.GlobalHub != nil {
+		websocket.GlobalHub.BroadcastToRoom(roomID, websocket.Message{
+			Type: "player_left",
+			UID:  uid,
+			Data: fmt.Sprintf("玩家 %d 已被系统踢出", uid),
+		})
+	}
+}
+
+func (gr *GameRoom) terminateRoom(reason string) {
+	roomID := gr.Room.ID
+	roomMutex.Lock()
+	delete(rooms, roomID)
+	roomMutex.Unlock()
+
+	if websocket.GlobalHub != nil {
+		websocket.GlobalHub.BroadcastToRoom(roomID, websocket.Message{
+			Type:    "room_terminated",
+			Message: reason,
+		})
+	}
 }
 
 // 加入房间

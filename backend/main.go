@@ -2,6 +2,7 @@ package main
 
 import (
 	"chemistryuno/database"
+	"chemistryuno/game"
 	"chemistryuno/handlers"
 	"chemistryuno/middleware"
 	"chemistryuno/websocket"
@@ -31,6 +32,9 @@ func main() {
 	// 初始化WebSocket Hub
 	hub = websocket.NewHub()
 	go hub.Run()
+
+	// 启动房间监控（处理消极游戏踢人逻辑）
+	game.StartRoomMonitor()
 
 	// 创建Gin路由
 	r := gin.Default()

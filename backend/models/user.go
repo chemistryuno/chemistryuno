@@ -7,6 +7,7 @@ import (
 type User struct {
 	UID              int       `json:"uid" db:"uid"`
 	Username         string    `json:"username" db:"username"`
+	Email            string    `json:"email" db:"email"`
 	PasswordHash     string    `json:"-" db:"password"` // 不返回给前端
 	Avatar           string    `json:"avatar" db:"avatar"`
 	IsAdmin          bool      `json:"is_admin" db:"is_admin"`
@@ -18,12 +19,16 @@ type User struct {
 
 type RegisterRequest struct {
 	Username string `json:"username" binding:"required,min=3,max=20"`
+	Email    string `json:"email" binding:"required,email"`
+	Code     string `json:"code" binding:"required"`
 	Password string `json:"password" binding:"required,min=6"`
 }
 
 type LoginRequest struct {
-	Username string `json:"username" binding:"required"`
-	Password string `json:"password" binding:"required"`
+	Username string `json:"username" binding:"required"` // 可以是用户名或邮箱
+	Password string `json:"password"`
+	Code     string `json:"code"`   // 验证码登录时使用
+	Method   string `json:"method"` // "password" 或 "code"
 }
 
 type ChangePasswordRequest struct {

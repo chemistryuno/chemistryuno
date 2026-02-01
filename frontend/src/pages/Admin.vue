@@ -31,6 +31,7 @@ const { showAlert, showConfirm, showPrompt } = useDialog()
 const users = ref<any[]>([])
 const gameHistory = ref<any[]>([])
 const feedbacks = ref<any[]>([])
+const configs = ref<any>({})
 const deckConfig = ref<any>(null)
 const editingDeck = ref(false)
 const deckCardsEdit = ref<{ key: string, value: number, id: string }[]>([])
@@ -57,6 +58,9 @@ const loadData = async () => {
     } else if (activeTab.value === 'feedbacks') {
       const response = await adminAPI.getFeedbacks()
       feedbacks.value = response.data || []
+    } else if (activeTab.value === 'configs') {
+      const response = await adminAPI.getConfigs()
+      configs.value = response.data || {}
     }
   } catch (error) {
     console.error('加载数据失败:', error)
@@ -71,6 +75,20 @@ watch(activeTab, () => {
   loadData()
   searchTerm.value = ''
 })
+
+const handleUpdateConfig = async (key: string) => {
+  const cfg = configs.value[key]
+  const newValue = await showPrompt(`修改配置 [${key}]: \n${cfg.description}`, cfg.value, '⚙️ 修改系统配置')
+  if (newValue === null) return
+  
+  try {
+    await adminAPI.updateConfig(key, newValue)
+    await showAlert('配置更新成功', '成功')
+    loadData()
+  } catch (error: any) {
+    await showAlert(error.response?.data?.error || '更新配置失败', '错误')
+  }
+}
 
 const handleCreateUser = async () => {
   if (!newUser.value.username || !newUser.value.password) {
@@ -375,7 +393,8 @@ const filteredHistory = computed(() => {
               { id: 'deck', label: '核心库存配置 / REDUCTION', icon: Layers },
               { id: 'special', label: '稀有元素配置 / SPECIALS', icon: Star },
               { id: 'feedbacks', label: '反馈报告 / FEEDBACK', icon: MessageSquare },
-              { id: 'history', label: '历史实验记录 / TRACING', icon: History }
+              { id: 'configs', label: '系统参数 / CONFIGS', icon: Terminal },
+              { id: 'history', label: '历史记录 / TRACING', icon: History }
             ]"
             :key="tab.id"
             @click="activeTab = tab.id"
@@ -686,6 +705,86 @@ const filteredHistory = computed(() => {
                     </tr>
                   </tbody>
                 </table>
+              </div>
+            </div>
+
+            <!-- Configs Tab -->
+            <div v-if="activeTab === 'configs'" class="space-y-8">
+              <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                <h3 class="text-xl font-black italic uppercase text-white flex items-center gap-4">
+                  <Terminal class="w-5 h-5 text-orange-400" />
+                  系统核心参数配置 <span class="text-slate-600 font-mono not-italic text-xs">/ ROOT@ADMIN:~# settings --view</span>
+                </h3>
+              </div>
+              
+              <!-- 核心配置组 -->
+              <div class="space-y-4">
+                <div class="flex items-center gap-2 mb-2">
+                  <div class="h-px flex-1 bg-white/5"></div>
+                  <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest">基础协议参数</span>
+                  <div class="h-px flex-1 bg-white/5"></div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <template v-for="(cfg, key) in configs" :key="key">
+                    <div v-if="!String(key).startsWith('smtp_')" class="bg-black/20 border border-white/5 p-6 rounded-[2rem] group hover:border-orange-500/20 transition-all flex flex-col">
+                      <div class="flex items-center justify-between mb-4">
+                        <span class="text-[10px] font-mono text-orange-400 uppercase tracking-widest font-black flex items-center gap-2">
+                           <Cpu class="w-3 h-3" /> {{ key }}
+                        </span>
+                        <button @click="handleUpdateConfig(String(key))" class="p-2 rounded-xl bg-orange-500/10 text-orange-400 opacity-0 group-hover:opacity-100 transition-all hover:bg-orange-500 hover:text-white shadow-lg">
+                          <Edit2 class="w-4 h-4" />
+                        </button>
+                      </div>
+                      <div class="flex-1">
+                        <div class="text-2xl font-black text-white italic truncate mb-2">{{ cfg.value }}</div>
+                        <div class="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-relaxed">{{ cfg.description }}</div>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </div>
+
+              <!-- SMTP 配置组 -->
+              <div class="space-y-4">
+                <div class="flex items-center gap-2 mb-2">
+                  <div class="h-px flex-1 bg-white/5"></div>
+                  <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest">SMTP 邮件网关配置</span>
+                  <div class="h-px flex-1 bg-white/5"></div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <template v-for="(cfg, key) in configs" :key="key">
+                    <div v-if="String(key).startsWith('smtp_')" class="bg-blue-600/5 border border-blue-500/10 p-6 rounded-[2rem] group hover:border-blue-500/40 transition-all flex flex-col">
+                      <div class="flex items-center justify-between mb-4">
+                        <span class="text-[10px] font-mono text-blue-400 uppercase tracking-widest font-black flex items-center gap-2">
+                           <Mail class="w-3 h-3" /> {{ key }}
+                        </span>
+                        <button @click="handleUpdateConfig(String(key))" class="p-2 rounded-xl bg-blue-500/10 text-blue-400 opacity-0 group-hover:opacity-100 transition-all hover:bg-blue-500 hover:text-white shadow-lg">
+                          <Edit2 class="w-4 h-4" />
+                        </button>
+                      </div>
+                      <div class="flex-1">
+                        <div class="text-xl font-black text-blue-100 italic truncate mb-2">
+                          {{ String(key).includes('pass') ? '••••••••' : cfg.value }}
+                        </div>
+                        <div class="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-relaxed">{{ cfg.description }}</div>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </div>
+
+              <div class="p-8 rounded-[2rem] bg-orange-500/5 border border-orange-500/10 flex items-start gap-6">
+                <div class="p-4 rounded-2xl bg-orange-500/10 text-orange-400 shrink-0">
+                  <Activity class="w-6 h-6" />
+                </div>
+                <div class="space-y-2">
+                  <h4 class="text-sm font-black text-white uppercase italic">实验室配置说明</h4>
+                  <p class="text-xs text-slate-500 font-bold leading-relaxed">
+                    此处参数直接影响实验室核心协议逻辑。所有更改实时生效，请确保数值有效。
+                    <br/>
+                    <span class="text-orange-500/70">MOCK_MODE</span> 开启时，验证码将仅在控制台产生偏移输出，不会触发真实的邮件协议网关。
+                  </p>
+                </div>
               </div>
             </div>
 

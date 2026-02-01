@@ -34,10 +34,14 @@ api.interceptors.response.use(
 
 // 认证API
 export const authAPI = {
-  register: (username: string, password: string) => 
-    api.post('/auth/register', { username, password }),
-  login: (username: string, password: string) => 
-    api.post('/auth/login', { username, password }),
+  register: (data: any) => 
+    api.post('/auth/register', data),
+  login: (data: any) => 
+    api.post('/auth/login', data),
+  sendCode: (email: string, type: string) =>
+    api.post('/auth/send-code', { email, type }),
+  resetPassword: (data: any) =>
+    api.post('/auth/reset-password', data),
   getUserInfo: () => 
     api.get('/user/info'),
   changePassword: (oldPassword: string, newPassword: string) => 
@@ -118,6 +122,10 @@ export const adminAPI = {
     api.get('/admin/feedbacks'),
   updateFeedbackStatus: (id: number, status: string, note?: string) =>
     api.put(`/admin/feedbacks/${id}/status`, { status, note }),
+  getConfigs: () =>
+    api.get('/admin/configs'),
+  updateConfig: (key: string, value: string) =>
+    api.put('/admin/configs', { key, value }),
 }
 
 // 反应管理API

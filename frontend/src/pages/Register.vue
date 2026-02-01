@@ -1,17 +1,49 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { authAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
-import { Lock, User, FlaskConical, ShieldCheck, Zap, Loader2 } from 'lucide-vue-next'
+import { Lock, User, FlaskConical, ShieldCheck, Zap, Loader2, Mail, Key } from 'lucide-vue-next'
 
 const username = ref('')
+const email = ref('')
+const code = ref('')
 const password = ref('')
 const confirmPassword = ref('')
 const error = ref('')
 const loading = ref(false)
+const codeLoading = ref(false)
+const codeSent = ref(false)
+const countdown = ref(0)
 const router = useRouter()
 const { showAlert } = useDialog()
+
+const startCountdown = () => {
+  countdown.value = 60
+  const timer = setInterval(() => {
+    countdown.value--
+    if (countdown.value <= 0) clearInterval(timer)
+  }, 1000)
+}
+
+const sendCode = async () => {
+  if (!email.value || !email.value.includes('@')) {
+    error.value = '请输入有效的电子邮箱地址'
+    return
+  }
+  
+  codeLoading.value = true
+  try {
+    await authAPI.sendCode(email.value, 'register')
+    codeSent.value = true
+    startCountdown()
+    await showAlert('验证码已发送至您的邮箱，请查收（如果是模拟环境，请查看后端控制台）。', '验证码已发送')
+  } catch (err: any) {
+    error.value = err.response?.data?.error || '发送验证码失败'
+  } finally {
+    codeLoading.value = false
+  }
+}
 
 const handleSubmit = async () => {
   error.value = ''
@@ -21,14 +53,24 @@ const handleSubmit = async () => {
     return
   }
 
+  if (!code.value) {
+    error.value = '请输入邮箱验证码'
+    return
+  }
+
   loading.value = true
 
   try {
-    await authAPI.register(username.value, password.value)
+    await authAPI.register({
+      username: username.value,
+      email: email.value,
+      code: code.value,
+      password: password.value
+    })
     await showAlert('注册成功，请使用新凭据登录。', '研究员注册成功')
     router.push('/login')
   } catch (err: any) {
-    error.value = err.response?.data?.error || '注册失败，用户名可能已存在'
+    error.value = err.response?.data?.error || '注册失败，用户名或邮箱可能已存在，或验证码错误'
   } finally {
     loading.value = false
   }
@@ -40,12 +82,12 @@ const handleSubmit = async () => {
     <div class="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-500/5 rounded-full blur-[120px]"></div>
     <div class="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-500/5 rounded-full blur-[120px]"></div>
 
-    <div class="w-full max-w-md relative z-10 animate-in fade-in zoom-in duration-500">
+    <div class="w-full max-w-lg relative z-10 animate-in fade-in zoom-in duration-500">
       <div class="glass-panel-light rounded-[40px] shadow-[0_20px_60px_rgba(0,0,0,0.1)] dark:shadow-[0_20px_60px_rgba(0,0,0,0.3)] overflow-hidden">
-        <div class="p-10 md:p-12">
-          <div class="flex flex-col items-center mb-10">
-            <div class="w-20 h-20 bg-blue-600 rounded-3xl flex items-center justify-center mb-4 shadow-lg transform -rotate-3 hover:rotate-0 transition-transform duration-500">
-              <FlaskConical class="w-10 h-10 text-white" />
+        <div class="p-8 md:p-10">
+          <div class="flex flex-col items-center mb-8">
+            <div class="w-16 h-16 bg-blue-600 rounded-3xl flex items-center justify-center mb-4 shadow-lg transform -rotate-3 hover:rotate-0 transition-transform duration-500">
+              <FlaskConical class="w-8 h-8 text-white" />
             </div>
             <h1 class="text-3xl font-black text-slate-900 dark:text-white tracking-tighter">
               加入<span class="text-blue-600">实验室</span>
@@ -53,48 +95,86 @@ const handleSubmit = async () => {
             <p class="text-slate-500 dark:text-slate-400 text-sm mt-2 font-medium">创建您的研究员账户</p>
           </div>
 
-          <form @submit.prevent="handleSubmit" class="space-y-6">
+          <form @submit.prevent="handleSubmit" class="space-y-4">
             <div v-if="error" class="flex items-center gap-2 p-4 bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 text-red-600 text-sm rounded-2xl animate-shake">
               <div class="w-2 h-2 rounded-full bg-red-400"></div>
               {{ error }}
             </div>
 
-            <div class="space-y-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div class="relative group">
                 <div class="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-blue-500 transition-colors">
-                  <User :size="20" :stroke-width="2.5" />
+                  <User :size="18" :stroke-width="2.5" />
                 </div>
                 <input
                   v-model="username"
                   type="text"
                   required
-                  class="w-full pl-14 pr-6 py-5 bg-slate-100/50 dark:bg-black/40 border-2 border-transparent focus:border-blue-500 focus:bg-white dark:focus:bg-black/60 rounded-2xl text-slate-900 dark:text-slate-100 placeholder:text-slate-500/70 font-bold outline-none transition-all"
+                  class="w-full pl-12 pr-4 py-4 bg-slate-100/50 dark:bg-black/40 border-2 border-transparent focus:border-blue-500 focus:bg-white dark:focus:bg-black/60 rounded-2xl text-slate-900 dark:text-slate-100 placeholder:text-slate-500/70 font-bold outline-none transition-all text-sm"
                   placeholder="用户名"
                 />
               </div>
 
               <div class="relative group">
                 <div class="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-blue-500 transition-colors">
-                  <Lock :size="20" :stroke-width="2.5" />
+                  <Mail :size="18" :stroke-width="2.5" />
+                </div>
+                <input
+                  v-model="email"
+                  type="email"
+                  required
+                  class="w-full pl-12 pr-4 py-4 bg-slate-100/50 dark:bg-black/40 border-2 border-transparent focus:border-blue-500 focus:bg-white dark:focus:bg-black/60 rounded-2xl text-slate-900 dark:text-slate-100 placeholder:text-slate-500/70 font-bold outline-none transition-all text-sm"
+                  placeholder="电子邮箱"
+                />
+              </div>
+            </div>
+
+            <div class="relative group">
+              <div class="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-blue-500 transition-colors">
+                <Key :size="18" :stroke-width="2.5" />
+              </div>
+              <div class="flex gap-2">
+                <input
+                  v-model="code"
+                  type="text"
+                  required
+                  class="flex-1 pl-12 pr-4 py-4 bg-slate-100/50 dark:bg-black/40 border-2 border-transparent focus:border-blue-500 focus:bg-white dark:focus:bg-black/60 rounded-2xl text-slate-900 dark:text-slate-100 placeholder:text-slate-500/70 font-bold outline-none transition-all text-sm"
+                  placeholder="邮箱验证码"
+                />
+                <button
+                  type="button"
+                  @click="sendCode"
+                  :disabled="codeLoading || countdown > 0"
+                  class="px-4 bg-blue-600/10 hover:bg-blue-600/20 text-blue-600 dark:text-blue-400 rounded-2xl text-xs font-black transition-all whitespace-nowrap disabled:opacity-50"
+                >
+                  {{ countdown > 0 ? `${countdown}s` : '获取验证码' }}
+                </button>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div class="relative group">
+                <div class="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-blue-500 transition-colors">
+                  <Lock :size="18" :stroke-width="2.5" />
                 </div>
                 <input
                   v-model="password"
                   type="password"
                   required
-                  class="w-full pl-14 pr-6 py-5 bg-slate-100/50 dark:bg-black/40 border-2 border-transparent focus:border-blue-500 focus:bg-white dark:focus:bg-black/60 rounded-2xl text-slate-900 dark:text-slate-100 placeholder:text-slate-500/70 font-bold outline-none transition-all"
-                  placeholder="密 码"
+                  class="w-full pl-12 pr-4 py-4 bg-slate-100/50 dark:bg-black/40 border-2 border-transparent focus:border-blue-500 focus:bg-white dark:focus:bg-black/60 rounded-2xl text-slate-900 dark:text-slate-100 placeholder:text-slate-500/70 font-bold outline-none transition-all text-sm"
+                  placeholder="设定密码 (min 6)"
                 />
               </div>
 
               <div class="relative group">
                 <div class="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-blue-500 transition-colors">
-                  <ShieldCheck :size="20" :stroke-width="2.5" />
+                  <ShieldCheck :size="18" :stroke-width="2.5" />
                 </div>
                 <input
                   v-model="confirmPassword"
                   type="password"
                   required
-                  class="w-full pl-14 pr-6 py-5 bg-slate-100/50 dark:bg-black/40 border-2 border-transparent focus:border-blue-500 focus:bg-white dark:focus:bg-black/60 rounded-2xl text-slate-900 dark:text-slate-100 placeholder:text-slate-500/70 font-bold outline-none transition-all"
+                  class="w-full pl-12 pr-4 py-4 bg-slate-100/50 dark:bg-black/40 border-2 border-transparent focus:border-blue-500 focus:bg-white dark:focus:bg-black/60 rounded-2xl text-slate-900 dark:text-slate-100 placeholder:text-slate-500/70 font-bold outline-none transition-all text-sm"
                   placeholder="确认密码"
                 />
               </div>
@@ -103,37 +183,25 @@ const handleSubmit = async () => {
             <button
               type="submit"
               :disabled="loading"
-              class="w-full py-5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white rounded-2xl font-black text-lg shadow-[0_15px_30px_rgba(37,99,235,0.2)] dark:shadow-[0_15px_30px_rgba(37,99,235,0.3)] hover:shadow-[0_20px_40px_rgba(37,99,235,0.4)] transition-all flex items-center justify-center gap-3 transform active:scale-[0.98]"
+              class="w-full py-4 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white rounded-2xl font-black text-lg shadow-[0_15px_30px_rgba(37,99,235,0.2)] dark:shadow-[0_15px_30px_rgba(37,99,235,0.3)] transition-all flex items-center justify-center gap-3 transform active:scale-[0.98] mt-4"
             >
               <template v-if="loading">
                 <Loader2 class="w-6 h-6 animate-spin" />
               </template>
               <template v-else>
                 <Zap class="w-5 h-5 fill-current" />
-                立即注册
+                注册研究员凭证
               </template>
             </button>
           </form>
 
-          <div class="mt-10 text-center">
-            <p class="text-slate-500 dark:text-slate-400 font-medium">
-              已有账户？
-              <router-link to="/login" class="text-blue-600 font-black hover:underline cursor-pointer">
-                登录系统
+          <div class="mt-8 text-center pt-8 border-t border-slate-100 dark:border-white/5">
+            <p class="text-slate-400 dark:text-slate-500 text-[10px] font-black uppercase tracking-widest">
+              已有研究员账号？
+              <router-link to="/login" class="text-blue-600 hover:text-blue-500 transition-colors">
+                立即登录实验室
               </router-link>
             </p>
-          </div>
-        </div>
-        
-        <div class="bg-slate-50 dark:bg-black/20 p-6 flex justify-around border-t border-slate-100 dark:border-white/5">
-          <div class="flex flex-col items-center">
-            <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Protocol</span>
-            <span class="text-xs font-bold text-slate-600 dark:text-slate-400">Secure SHA-256</span>
-          </div>
-          <div class="w-px h-8 bg-slate-200 dark:bg-white/10"></div>
-          <div class="flex flex-col items-center">
-            <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Database</span>
-            <span class="text-xs font-bold text-slate-600 dark:text-slate-400">Chemistry DB</span>
           </div>
         </div>
       </div>

@@ -46,6 +46,8 @@ func main() {
 	r.POST("/auth/register", handlers.Register)
 	r.POST("/auth/login", handlers.Login)
 	r.POST("/auth/2fa/verify", handlers.Verify2FALogin)
+	r.POST("/auth/send-code", handlers.SendVerificationCode)
+	r.POST("/auth/reset-password", handlers.ResetPassword)
 
 	// 需要认证的路由
 	auth := r.Group("/")
@@ -110,6 +112,8 @@ func main() {
 		admin.GET("/game-history", handlers.GetGameHistory)
 		admin.GET("/feedbacks", handlers.GetAllFeedbacks)
 		admin.PUT("/feedbacks/:id/status", handlers.UpdateFeedbackStatus)
+		admin.GET("/configs", handlers.GetSystemConfigs)
+		admin.PUT("/configs", handlers.UpdateSystemConfig)
 	}
 
 	// 反应管理路由（co-worker和admin权限）

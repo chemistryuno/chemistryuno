@@ -39,12 +39,24 @@ func createTables() error {
 	CREATE TABLE IF NOT EXISTS users (
 		UID INTEGER PRIMARY KEY AUTOINCREMENT,
 		username TEXT UNIQUE NOT NULL,
+		email TEXT UNIQUE,
 		password TEXT NOT NULL,
 		avatar TEXT DEFAULT '',
 		is_admin BOOLEAN DEFAULT 0,
 		role TEXT DEFAULT 'user',
 		two_factor_enabled BOOLEAN DEFAULT 0,
 		two_factor_secret TEXT DEFAULT '',
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	);`
+
+	// 验证码表
+	verificationTable := `
+	CREATE TABLE IF NOT EXISTS verification_codes (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		email TEXT NOT NULL,
+		code TEXT NOT NULL,
+		type TEXT NOT NULL,
+		expires_at DATETIME NOT NULL,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);`
 
@@ -102,7 +114,16 @@ func createTables() error {
 		FOREIGN KEY (user_id) REFERENCES users(UID)
 	);`
 
-	tables := []string{userTable, deckConfigTable, gameHistoryTable, reactionsTable, feedbackTable}
+	// 系统配置表
+	systemConfigTable := `
+	CREATE TABLE IF NOT EXISTS system_configs (
+		key TEXT PRIMARY KEY,
+		value TEXT NOT NULL,
+		description TEXT,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	);`
+
+	tables := []string{userTable, verificationTable, deckConfigTable, gameHistoryTable, reactionsTable, feedbackTable, systemConfigTable}
 
 	for _, table := range tables {
 		if _, err := DB.Exec(table); err != nil {
@@ -110,45 +131,34 @@ func createTables() error {
 		}
 	}
 
+	// 初始化默认系统配置
+	initSystemConfigs()
+
 	// 增量更新表结构（针对已存在的数据库）——按需添加列以避免错误
 	columnExists := func(table, column string) bool {
-		var name string
-		err := DB.QueryRow("PRAGMA table_info(" + table + ")").Scan(&name)
+		rows, err := DB.Query("PRAGMA table_info(" + table + ")")
 		if err != nil {
-			// fallback: try scanning rows to find column
-			rows, rerr := DB.Query("PRAGMA table_info(" + table + ")")
-			if rerr != nil {
-				return false
-			}
-			defer rows.Close()
-			for rows.Next() {
-				var cid int
-				var colname, ctype string
-				var notnull, dflt_value, pk sql.NullString
-				// Using Scan with these placeholder types
-				_ = rows.Scan(&cid, &colname, &ctype, &notnull, &dflt_value, &pk)
-				if colname == column {
-					return true
-				}
-			}
 			return false
 		}
-		// If the simple scan succeeded, still perform proper check via rows
-		rows, _ := DB.Query("PRAGMA table_info(" + table + ")")
 		defer rows.Close()
+
 		for rows.Next() {
 			var cid int
 			var colname, ctype string
 			var notnull, dflt_value, pk sql.NullString
-			_ = rows.Scan(&cid, &colname, &ctype, &notnull, &dflt_value, &pk)
-			if colname == column {
-				return true
+			if err := rows.Scan(&cid, &colname, &ctype, &notnull, &dflt_value, &pk); err == nil {
+				if colname == column {
+					return true
+				}
 			}
 		}
 		return false
 	}
 
 	// users
+	if !columnExists("users", "email") {
+		_, _ = DB.Exec("ALTER TABLE users ADD COLUMN email TEXT")
+	}
 	if !columnExists("users", "two_factor_enabled") {
 		_, _ = DB.Exec("ALTER TABLE users ADD COLUMN two_factor_enabled BOOLEAN DEFAULT 0")
 	}
@@ -389,8 +399,8 @@ func createDefaultAdmin() error {
 
 	// 创建新的admin用户
 	createAdmin := `
-	INSERT INTO users (UID, username, password, is_admin, role, avatar) 
-	VALUES (100000000, 'admin', ?, 1, 'admin', '👑');`
+	INSERT INTO users (UID, username, email, password, is_admin, role, avatar) 
+	VALUES (100000000, 'admin', 'admin@example.com', ?, 1, 'admin', '👑');`
 
 	_, err = DB.Exec(createAdmin, string(hashedPassword))
 	if err != nil {
@@ -400,7 +410,61 @@ func createDefaultAdmin() error {
 	log.Println("✅ 创建默认管理员账户: admin / admin123")
 	return nil
 }
+func initSystemConfigs() {
+	configs := []struct {
+		key         string
+		value       string
+		description string
+	}{
+		{"email_verification_expiry", "10", "邮箱验证码有效期（分钟）"},
+		{"email_verification_length", "6", "邮箱验证码长度"},
+		{"email_mock_mode", "true", "是否开启邮箱模拟模式（不真实发送邮件）"},
+		{"smtp_host", "smtp.example.com", "SMTP 服务器地址"},
+		{"smtp_port", "587", "SMTP 端口号"},
+		{"smtp_user", "user@example.com", "SMTP 用户名"},
+		{"smtp_pass", "password", "SMTP 密码"},
+		{"smtp_from", "noreply@example.com", "发件人邮箱地址"},
+	}
 
+	for _, cfg := range configs {
+		_, _ = DB.Exec("INSERT OR IGNORE INTO system_configs (key, value, description) VALUES (?, ?, ?)", cfg.key, cfg.value, cfg.description)
+	}
+}
+
+func GetConfig(key string, defaultValue string) string {
+	var value string
+	err := DB.QueryRow("SELECT value FROM system_configs WHERE key = ?", key).Scan(&value)
+	if err != nil {
+		return defaultValue
+	}
+	return value
+}
+
+func SetConfig(key string, value string) error {
+	_, err := DB.Exec("UPDATE system_configs SET value = ?, updated_at = CURRENT_TIMESTAMP WHERE key = ?", value, key)
+	return err
+}
+
+func GetAllConfigs() (map[string]interface{}, error) {
+	rows, err := DB.Query("SELECT key, value, description FROM system_configs")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	configs := make(map[string]interface{})
+	for rows.Next() {
+		var key, value, description string
+		if err := rows.Scan(&key, &value, &description); err != nil {
+			return nil, err
+		}
+		configs[key] = map[string]string{
+			"value":       value,
+			"description": description,
+		}
+	}
+	return configs, nil
+}
 func Close() {
 	if DB != nil {
 		DB.Close()

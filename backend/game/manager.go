@@ -133,6 +133,17 @@ func checkAllRooms() {
 
 func (gr *GameRoom) checkInactivity() {
 	gr.mutex.Lock()
+	// 1. 匹配超时检测 (5分钟)
+	if gr.Room.Status == "waiting" {
+		if time.Since(gr.Room.CreatedAt) > 5*time.Minute {
+			gr.mutex.Unlock()
+			gr.terminateRoom("匹配超时，房间已自动关闭")
+			return
+		}
+		gr.mutex.Unlock()
+		return
+	}
+
 	if gr.Room.Status != "playing" {
 		gr.mutex.Unlock()
 		return
@@ -142,7 +153,7 @@ func (gr *GameRoom) checkInactivity() {
 	now := time.Now()
 	playersToKick := []int{}
 
-	// 1. 检测离线超过2分钟的玩家
+	// 2. 检测离线超过2分钟的玩家
 	for _, uid := range gr.Room.Players {
 		isOnline := websocket.GlobalHub.IsUIDInRoom(roomID, uid)
 		if !isOnline {

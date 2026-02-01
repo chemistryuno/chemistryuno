@@ -898,3 +898,39 @@ func BatchAddReactions(c *gin.Context) {
 		"count":   successCount,
 	})
 }
+
+// GetSystemConfigs 获取所有系统基础配置
+func GetSystemConfigs(c *gin.Context) {
+	configs, err := database.GetAllConfigs()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取配置失败"})
+		return
+	}
+	c.JSON(http.StatusOK, configs)
+}
+
+// UpdateSystemConfig 更新指定的系统配置
+func UpdateSystemConfig(c *gin.Context) {
+	var req struct {
+		Key   string `json:"key" binding:"required"`
+		Value string `json:"value" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数无效"})
+		return
+	}
+
+	if err := database.SetConfig(req.Key, req.Value); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新配置失败"})
+		return
+	}
+
+	// 特殊处理：如果是邮箱相关的配置，记录一条日志
+	if strings.Contains(req.Key, "email") {
+		uid, _ := c.Get("uid")
+		fmt.Printf("[ADMIN ACTION] 用户 %v 更新了邮箱配置 %s -> %s\n", uid, req.Key, req.Value)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "配置更新成功"})
+}

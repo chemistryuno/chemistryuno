@@ -8,8 +8,8 @@ defineProps<{
 
 defineEmits<{
   (e: 'changePassword'): void
-  (e: 'setup2FA'): void
-  (e: 'disable2FA'): void
+  (e: 'setup2fa'): void
+  (e: 'disable2fa'): void
   (e: 'deleteAccount'): void
 }>()
 </script>
@@ -40,7 +40,7 @@ defineEmits<{
 
       <button 
         v-if="!twoFactorEnabled"
-        @click="$emit('setup2FA')"
+        @click="$emit('setup2fa')"
         :disabled="twoFactorLoading"
         class="group relative flex flex-col items-start p-6 bg-slate-50 dark:bg-white/5 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 border border-slate-200 dark:border-white/5 hover:border-emerald-300 dark:hover:border-emerald-500/30 rounded-3xl transition-all text-left"
       >
@@ -54,7 +54,7 @@ defineEmits<{
 
       <button 
         v-else
-        @click="$emit('disable2FA')"
+        @click="$emit('disable2fa')"
         :disabled="twoFactorLoading"
         class="group relative flex flex-col items-start p-6 bg-emerald-50 dark:bg-emerald-500/5 hover:bg-red-50 dark:hover:bg-red-500/10 border border-emerald-200 dark:border-emerald-500/20 hover:border-red-300 dark:hover:border-red-500/30 rounded-3xl transition-all text-left"
       >

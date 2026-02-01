@@ -67,7 +67,6 @@ const allowedAny = computed(() => {
 })
 const winner = computed(() => gameState.value?.players?.find((p: any) => p.card_count === 0))
 
-// --- 人机实验室移植功能 ---
 const ELEMENTS_DATA: Record<string, { name: string, color: string }> = {
   'H': { name: '氢', color: 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 border-blue-200' },
   'O': { name: '氧', color: 'bg-red-100 dark:bg-red-900/30 text-red-600 border-red-200' },

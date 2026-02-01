@@ -4,7 +4,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { gameAPI, authAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
 import websocket from '../utils/websocket'
-import { Beaker, Plus, Users, Shield, LogOut, Settings, Play, Info, X, Loader2, Database, Bot, MessageSquare, Clock, Trash2 } from 'lucide-vue-next'
+import { Beaker, Plus, Users, Shield, LogOut, Settings, Play, Info, X, Loader2, Database, MessageSquare, Clock, Trash2 } from 'lucide-vue-next'
 import { cn } from '../utils/cn'
 
 const props = defineProps<{
@@ -246,15 +246,6 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
                   <Trash2 class="w-4 h-4" />
                 </button>
              </div>
-
-             <button 
-              @click="router.push('/ai-battle')" 
-              class="group relative flex items-center gap-3 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 hover:border-purple-500/50 px-8 py-5 rounded-[24px] font-black text-slate-900 dark:text-white transition-all hover:scale-[1.02] hover:-translate-y-1 active:scale-95 overflow-hidden shadow-sm"
-            >
-              <Bot class="w-5 h-5 text-purple-500 group-hover:animate-bounce" />
-              <span class="uppercase tracking-widest text-sm">人机实验室</span>
-              <div class="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-purple-500/5 to-transparent -translate-x-full group-hover:animate-shimmer"></div>
-            </button>
 
             <button 
               @click="showCreateModal = true" 

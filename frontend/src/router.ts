@@ -6,16 +6,9 @@ import GameRoom from './pages/GameRoom.vue'
 import Profile from './pages/Profile.vue'
 import Admin from './pages/Admin.vue'
 import Reactions from './pages/Reactions.vue'
-import AIBattle from './pages/AIBattle.vue'
 import Feedbacks from './pages/Feedbacks.vue'
 
 const routes = [
-  {
-    path: '/ai-battle',
-    name: 'AIBattle',
-    component: AIBattle,
-    meta: { requiresAuth: true }
-  },
   {
     path: '/login',
     name: 'Login',

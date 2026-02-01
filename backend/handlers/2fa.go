@@ -6,6 +6,7 @@ import (
 	"chemistryuno/utils"
 	"encoding/base64"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pquerna/otp/totp"
@@ -14,8 +15,8 @@ import (
 
 // Setup2FA 生成2FA密钥和二维码URL
 func Setup2FA(c *gin.Context) {
-	uid, exists := c.Get("uid")
-	if !exists {
+	uid := c.GetInt("uid")
+	if uid == 0 {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "未找到用户信息"})
 		return
 	}
@@ -42,7 +43,7 @@ func Setup2FA(c *gin.Context) {
 	// 临时保存密钥到数据库，但不启用
 	_, err = database.DB.Exec("UPDATE users SET two_factor_secret = ? WHERE UID = ?", key.Secret(), uid)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "保存2FA密钥到数据库失败"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "保存2FA密钥失败"})
 		return
 	}
 
@@ -60,26 +61,37 @@ func Enable2FA(c *gin.Context) {
 		Code string `json:"code" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "验证码格式错误"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "验证码参数缺失"})
 		return
 	}
 
 	var secret string
 	err := database.DB.QueryRow("SELECT two_factor_secret FROM users WHERE UID = ?", uid).Scan(&secret)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取2FA密钥失败"})
 		return
 	}
 
-	valid := totp.Validate(req.Code, secret)
+	if secret == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请先获取2FA设置二维码"})
+		return
+	}
+
+	// 允许 +/- 2 个步长的误差 (30秒 * 5 = 150秒窗口)
+	valid, _ := totp.ValidateCustom(req.Code, secret, time.Now().UTC(), totp.ValidateOpts{
+		Period: 30,
+		Skew:   2,
+		Digits: 6,
+	})
+
 	if !valid {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "验证码无效"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "验证码无效，请确保手机时间同步"})
 		return
 	}
 
 	_, err = database.DB.Exec("UPDATE users SET two_factor_enabled = 1 WHERE UID = ?", uid)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新2FA状态失败"})
 		return
 	}
 
@@ -100,11 +112,16 @@ func Disable2FA(c *gin.Context) {
 	var secret string
 	err := database.DB.QueryRow("SELECT two_factor_secret FROM users WHERE UID = ?", uid).Scan(&secret)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取2FA密钥失败"})
 		return
 	}
 
-	valid := totp.Validate(req.Code, secret)
+	valid, _ := totp.ValidateCustom(req.Code, secret, time.Now().UTC(), totp.ValidateOpts{
+		Period: 30,
+		Skew:   2,
+		Digits: 6,
+	})
+
 	if !valid {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "验证码无效"})
 		return
@@ -141,7 +158,12 @@ func Verify2FALogin(c *gin.Context) {
 		return
 	}
 
-	valid := totp.Validate(req.Code, user.TwoFactorSecret)
+	valid, _ := totp.ValidateCustom(req.Code, user.TwoFactorSecret, time.Now().UTC(), totp.ValidateOpts{
+		Period: 30,
+		Skew:   2,
+		Digits: 6,
+	})
+
 	if !valid {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "验证码无效"})
 		return

@@ -4,12 +4,12 @@
   "private": true,
   "scripts": {
     "init": "node init.js",
-    "init-win": "init.bat",
     "start": "node start.js",
-    "dev": "node start.js",
-    "install:frontend": "cd frontend && pnpm install",
-    "frontend": "cd frontend && pnpm dev",
-    "backend": "cd backend && go run main.go"
+    "dev": "pnpm start",
+    "install:frontend": "pnpm -C frontend install",
+    "frontend": "pnpm -C frontend dev",
+    "backend": "node -e \"const {spawn} = require('child_process'); spawn('go', ['run', 'main.go'], {cwd: 'backend', shell: true, stdio: 'inherit'})\"",
+    "clean": "node -e \"const fs = require('fs'); ['backend/data.db', 'backend/main.exe', 'backend/chemistryuno.exe'].forEach(f => fs.existsSync(f) && fs.unlinkSync(f))\""
   },
   "description": "Chemistry UNO Alpha - 化学元素版UNO游戏",
   "keywords": ["game", "uno", "chemistry", "vue", "go"],

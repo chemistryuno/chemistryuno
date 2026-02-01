@@ -83,7 +83,7 @@ body {
 }
 
 .glass-panel-light {
-  @apply bg-white/90 backdrop-blur-2xl border border-slate-200 dark:border-white/20 shadow-md dark:shadow-none;
+  @apply bg-white/90 dark:bg-[#121214]/80 backdrop-blur-2xl border border-slate-200 dark:border-white/10 shadow-md dark:shadow-none;
 }
 
 /* 2. Game Cards */

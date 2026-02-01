@@ -46,7 +46,7 @@ defineEmits<{
         </h2>
         <div class="flex items-center justify-center gap-2 pt-2">
           <span v-if="user.is_admin" class="bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[10px] font-black px-4 py-1.5 rounded-full border border-blue-500/20 flex items-center gap-2 uppercase tracking-[0.2em]">
-            <Shield class="w-3 h-3" /> 首席研究员 / CORE ADM
+            <Shield class="w-3 h-3" /> 首席研究员 / CORE ADMIN 
           </span>
           <span v-else class="bg-slate-500/10 text-slate-600 dark:text-slate-400 text-[10px] font-black px-4 py-1.5 rounded-full border border-slate-500/20 flex items-center gap-2 uppercase tracking-[0.2em]">
             <Fingerprint class="w-3 h-3" /> 各级研究员 / RESEARCHER

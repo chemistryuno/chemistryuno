@@ -57,6 +57,7 @@ func main() {
 		auth.POST("/feedback", handlers.CreateFeedback)
 		auth.GET("/feedbacks/my", handlers.GetMyFeedbacks)
 		auth.POST("/feedbacks/:id/urge", handlers.UrgeFeedback)
+		auth.POST("/feedback/withdraw", handlers.WithdrawFeedback)
 
 		// 玩家自定义卡组
 		auth.GET("/my-decks", handlers.GetMyDecks)
@@ -112,6 +113,7 @@ func main() {
 	{
 		reactions.GET("", handlers.GetReactions)
 		reactions.POST("/batch", handlers.BatchAddReactions)
+		reactions.PUT("/:id", handlers.UpdateReaction)
 		reactions.PUT("/approve/:group_id", handlers.ApproveReaction)
 		reactions.DELETE("/:id", handlers.DeleteReaction)
 	}

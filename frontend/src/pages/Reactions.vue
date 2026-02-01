@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="min-h-screen bg-slate-50 dark:bg-[#0a0a0c] text-slate-900 dark:text-slate-200 p-4 lg:p-10 font-sans selection:bg-blue-500/30">
     <div class="fixed inset-0 overflow-hidden pointer-events-none">
       <div class="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-blue-500/5 rounded-full blur-[120px]" />
@@ -17,10 +17,10 @@
           </div>
           <div>
             <h1 class="text-3xl font-black text-white italic tracking-tighter uppercase flex items-center gap-3">
-              Chemical Database <span class="text-xs font-mono bg-blue-500/20 text-blue-400 px-2 py-1 rounded border border-blue-500/30 not-italic">{{ user?.role?.toUpperCase() || 'USER' }}</span>
+              Experimental Wiki <span class="text-xs font-mono bg-blue-500/20 text-blue-400 px-2 py-1 rounded border border-blue-500/30 not-italic">{{ user?.role?.toUpperCase() || 'USER' }}</span>
             </h1>
             <p class="text-slate-500 text-sm font-bold tracking-widest uppercase mt-1">
-              {{ (user.role === 'admin' || user.role === 'co-worker') ? '化学反应库管理 / Reaction Database Manager' : '提交新反应 / Propose New Reaction' }}
+              {{ (user.role === 'admin' || user.role === 'co-worker') ? '化学反应库管理 / Reaction Database Manager' : '实验室化学反应百科 / Chemical Reaction Encyclopedia' }}
             </p>
           </div>
         </div>
@@ -47,12 +47,12 @@
       </header>
 
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <!-- 添加反应面板 -->
-        <div class="bg-[#111114] border border-white/10 p-8 rounded-[2rem] shadow-xl">
+        <!-- 添加反应面板 (仅限 co-worker 和 admin) -->
+        <div v-if="user.role !== 'user'" class="bg-[#111114] border border-white/10 p-8 rounded-[2rem] shadow-xl">
           <div class="flex items-center justify-between mb-6">
             <h3 class="text-xl font-black text-white flex items-center gap-3">
               <Plus class="w-6 h-6 text-blue-400" />
-              {{ (user.role === 'admin' || user.role === 'co-worker') ? '添加新反应' : '提交建议反应' }}
+              添加新反应
             </h3>
             <button 
               v-if="user.role === 'admin'"
@@ -72,104 +72,28 @@
           </div>
           
           <form @submit.prevent="handleAddReaction" class="space-y-6">
-            <!-- 规范化编辑器 -->
-            <div class="space-y-6">
-              <label class="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2">反应方程式编辑器</label>
-              <div class="flex flex-col gap-4">
-                <!-- 反应物区域 -->
-                <div class="space-y-3">
-                  <div v-for="(item, index) in editor.reactants" :key="'r-'+index" class="flex items-center gap-3 p-3 bg-blue-500/10 rounded-2xl border border-blue-500/20 group/item">
-                    <input 
-                      v-model="item.coefficient"
-                      type="text" 
-                      placeholder="1"
-                      class="w-14 px-2 py-2 bg-black/30 border border-blue-400/10 rounded-xl text-center text-blue-500 font-black placeholder:text-slate-800 focus:border-blue-500/40 outline-none transition-all"
-                    />
-                    <input 
-                      v-model="item.formula"
-                      type="text" 
-                      placeholder="Substance (e.g. H2SO4)"
-                      class="flex-1 px-3 py-2 bg-black/30 border border-blue-400/10 rounded-xl text-white font-mono placeholder:text-slate-800 focus:border-blue-500/40 outline-none transition-all"
-                    />
-                    <button @click.prevent="removeSubstance('reactants', index)" class="p-2 text-slate-700 hover:text-red-400 opacity-0 group-hover/item:opacity-100 transition-all">
-                      <Trash2 class="w-4 h-4" />
-                    </button>
-                  </div>
-                  <button 
-                    @click.prevent="addSubstance('reactants')"
-                    class="w-full py-3 bg-blue-500/10 hover:bg-blue-500/20 border border-dashed border-blue-500/30 rounded-2xl text-[10px] font-black text-blue-500 flex items-center justify-center gap-2 uppercase tracking-[0.2em] transition-all"
-                    :disabled="user.role === 'user' && editor.reactants.length >= 2"
-                    :class="{'opacity-50 cursor-not-allowed': user.role === 'user' && editor.reactants.length >= 2}"
-                  >
-                    <Plus class="w-3.5 h-3.5" /> Append Reactant
-                  </button>
-                </div>
-                <!-- 箭头/等号选择 -->
-                <div class="flex items-center justify-center gap-4 py-2">
-                  <div class="h-px flex-1 bg-gradient-to-r from-transparent to-blue-500/10" />
-                  <div class="relative group">
-                    <select v-model="editor.arrow" 
-                      class="appearance-none bg-[#181a20] border-2 border-blue-400/40 rounded-xl px-10 py-2 text-blue-400 font-black text-base focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 outline-none transition-all cursor-pointer shadow-lg shadow-blue-500/10 hover:bg-blue-500/10 duration-150"
-                    >
-                      <option value="=">=</option>
-                      <option value="→">→</option>
-                      <option value="⇌">⇌</option>
-                    </select>
-                    <FlaskConical class="w-4 h-4 text-blue-500/40 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    <svg class="w-4 h-4 text-blue-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
-                  </div>
-                  <div class="h-px flex-1 bg-gradient-to-l from-transparent to-blue-500/10" />
-                </div>
-                <!-- 生成物区域 -->
-                <div class="space-y-3">
-                  <div v-for="(item, index) in editor.products" :key="'p-'+index" class="flex items-center gap-3 p-3 bg-green-500/10 rounded-2xl border border-green-500/20 group/item">
-                    <input 
-                      v-model="item.coefficient"
-                      type="text" 
-                      placeholder="1"
-                      class="w-14 px-2 py-2 bg-black/30 border border-green-400/10 rounded-xl text-center text-green-500 font-black placeholder:text-slate-800 focus:border-green-500/40 outline-none transition-all"
-                    />
-                    <input 
-                      v-model="item.formula"
-                      type="text" 
-                      placeholder="Substance (e.g. Na2SO4)"
-                      class="flex-1 px-3 py-2 bg-black/30 border border-green-400/10 rounded-xl text-white font-mono placeholder:text-slate-800 focus:border-green-500/40 outline-none transition-all"
-                    />
-                    <button @click.prevent="removeSubstance('products', index)" class="p-2 text-slate-700 hover:text-red-400 opacity-0 group-hover/item:opacity-100 transition-all">
-                      <Trash2 class="w-4 h-4" />
-                    </button>
-                  </div>
-                  <button @click.prevent="addSubstance('products')" class="w-full py-3 bg-green-500/10 hover:bg-green-500/20 border border-dashed border-green-500/30 rounded-2xl text-[10px] font-black text-green-500 flex items-center justify-center gap-2 uppercase tracking-[0.2em] transition-all">
-                    <Plus class="w-3.5 h-3.5" /> Append Product
-                  </button>
-                </div>
-              </div>
-              <!-- 预览 -->
-              <div v-if="generatedDisplay" class="p-5 bg-blue-500/10 border border-blue-500/20 rounded-3xl shadow-inner group mt-2">
-                <span class="block text-[9px] font-black text-blue-400 uppercase tracking-[0.3em] mb-2 opacity-60">Synthesis Result Preview</span>
-                <span class="text-sm font-mono font-bold text-white break-all leading-relaxed">{{ generatedDisplay }}</span>
-              </div>
-              <!-- 提交按钮 -->
-              <button 
-                type="submit"
-                :disabled="loading"
-                class="w-full bg-blue-600 hover:bg-blue-500 px-6 py-4 rounded-2xl font-black text-white uppercase tracking-widest transition-all shadow-[0_10px_20px_rgba(37,99,235,0.2)] hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <span v-if="!loading">{{ (user.role === 'admin' || user.role === 'co-worker') ? '添加反应' : '提交建议' }}</span>
-                <span v-else class="flex items-center justify-center gap-2">
-                  <div class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                  处理中...
-                </span>
-              </button>
-            </div>
+            <EquationEditor ref="editorRef" v-model="generatedDisplay" />
+            
+            <button 
+              type="submit"
+              :disabled="loading"
+              class="w-full bg-blue-600 hover:bg-blue-500 px-6 py-4 rounded-2xl font-black text-white uppercase tracking-widest transition-all shadow-[0_10px_20px_rgba(37,99_235_0.2)] hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <span v-if="!loading">添加反应</span>
+              <span v-else class="flex items-center justify-center gap-2">
+                <div class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                处理中...
+              </span>
+            </button>
           </form>
         </div>
-        <!-- 反应列表 -->
-        <div class="lg:col-span-2 bg-[#111114] border border-white/10 p-8 rounded-[2rem] shadow-xl">
+
+        <!-- 反应列表 (全宽) -->
+        <div :class="user.role === 'user' ? 'lg:col-span-3' : 'lg:col-span-2'" class="bg-[#111114] border border-white/10 p-8 rounded-[2rem] shadow-xl">
           <div class="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
             <h3 class="text-xl font-black text-white flex items-center gap-3">
               <Database class="w-6 h-6 text-green-400" />
-              {{ (user.role === 'admin' || user.role === 'co-worker') ? '反应数据库' : '我的提交' }}
+              反应库索引 <span class="text-slate-600 text-[10px] font-mono not-italic uppercase tracking-widest">/ Global_Wiki</span>
             </h3>
             <div class="flex items-center gap-4">
               <div class="relative group">
@@ -208,12 +132,12 @@
                         'border-red-500/50 pl-4': reaction.status === 'rejected'
                       }">
                       <div class="flex flex-col gap-1.5 flex-1">
-                        <div v-if="user.role === 'admin' && (reaction.status === 'pending_coworker' || reaction.status === 'pending_admin')" class="flex items-center gap-2">
-                          <input 
-                            v-model="reaction.display"
-                            class="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-blue-400 text-sm tracking-tight w-full focus:outline-none focus:border-blue-500/50 transition-all font-bold"
-                            placeholder="修改方程式..."
-                          />
+                        <div v-if="editingReactionId === reaction.id" class="flex flex-col gap-2 p-4 bg-slate-100 dark:bg-slate-900/50 rounded-2xl border border-blue-500/20 my-2">
+                          <EquationEditor v-model="editForm.display" />
+                          <div class="flex gap-2 justify-end mt-2">
+                            <button @click="editingReactionId = null" class="px-3 py-1.5 text-xs font-bold text-slate-500 hover:text-slate-700">取消</button>
+                            <button @click="saveEdit(reaction.id)" class="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg shadow-lg">保存修改</button>
+                          </div>
                         </div>
                         <span v-else class="text-white text-sm tracking-tight leading-relaxed">{{ reaction.display }}</span>
                       </div>
@@ -258,6 +182,26 @@
                       >
                         Reject
                       </button>
+
+                      <!-- 直接修改 -->
+                      <button 
+                        v-if="user.role === 'admin' || user.role === 'co-worker'"
+                        @click="handleEdit(reaction)"
+                        class="p-2 hover:bg-blue-500/10 dark:hover:bg-blue-500/20 text-slate-400 hover:text-blue-500 rounded-xl transition-all"
+                        title="直接修改"
+                      >
+                        <Edit class="w-4 h-4" />
+                      </button>
+
+                      <!-- 反馈纠错 -->
+                      <button 
+                        v-else
+                        @click="handleReport(reaction)"
+                        class="p-2 hover:bg-amber-500/10 text-slate-400 hover:text-amber-500 rounded-xl transition-all"
+                        title="反馈纠错"
+                      >
+                        <MessageSquare class="w-4 h-4" />
+                      </button>
                       
                       <button 
                         v-if="canDelete(reaction)"
@@ -295,6 +239,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { reactionAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
+import EquationEditor from '../components/EquationEditor.vue'
 import { 
   ArrowLeft, 
   Beaker, 
@@ -305,7 +250,9 @@ import {
   CheckCircle,
   Clock,
   FlaskConical,
-  Upload
+  Upload,
+  MessageSquare,
+  Edit
 } from 'lucide-vue-next'
 
 const router = useRouter()
@@ -316,13 +263,39 @@ const reactions = ref<any[]>([])
 const loading = ref(false)
 const searchTerm = ref('')
 const fileInput = ref<HTMLInputElement | null>(null)
+const editorRef = ref<any>(null)
 
-// 方程式编辑器状态
-const editor = ref({
-  reactants: [{ coefficient: '', formula: '' }],
-  products: [{ coefficient: '', formula: '' }],
-  arrow: '='
-})
+// 编辑与反馈逻辑
+const editingReactionId = ref<number | null>(null)
+const editForm = ref({ display: '' })
+
+const handleEdit = (reaction: any) => {
+  editingReactionId.value = reaction.id
+  editForm.value.display = reaction.display
+}
+
+const saveEdit = async (id: number) => {
+  if (!editForm.value.display) return
+  try {
+    await reactionAPI.updateReaction(id, editForm.value.display)
+    editingReactionId.value = null
+    await loadReactions()
+    showAlert('方程式已直接修改并同步至所有终端', '修改成功')
+  } catch (e: any) {
+    showAlert(e.response?.data?.error || '修改失败', '错误')
+  }
+}
+
+const handleReport = (reaction: any) => {
+  const content = `【方程式纠错】\n\n原方程式：${reaction.display}\n建议修改：`
+  router.push({
+    path: '/',
+    query: { report: content }
+  })
+}
+
+// 方程式由组件同步
+const generatedDisplay = ref('')
 
 // 初始化用户信息并增加容错
 onMounted(() => {
@@ -397,39 +370,6 @@ const handleFileUpload = async (event: Event) => {
   reader.readAsText(file)
 }
 
-// 自动生成预览方程式
-const generatedDisplay = computed(() => {
-  const formatList = (list: { coefficient: string, formula: string }[]) => {
-    return list
-      .filter(item => item.formula.trim())
-      .map(item => {
-        const coef = item.coefficient.trim()
-        const formula = item.formula.trim()
-        // 隐藏所有 1
-        return (coef && coef !== '1') ? `${coef}${formula}` : formula
-      })
-      .join(' + ')
-  }
-
-  const left = formatList(editor.value.reactants)
-  const right = formatList(editor.value.products)
-  
-  if (!left || !right) return ''
-  return `${left} ${editor.value.arrow} ${right}`
-})
-
-const addSubstance = (type: 'reactants' | 'products') => {
-  editor.value[type].push({ coefficient: '', formula: '' })
-}
-
-const removeSubstance = (type: 'reactants' | 'products', index: number) => {
-  if (editor.value[type].length > 1) {
-    editor.value[type].splice(index, 1)
-  } else {
-    editor.value[type][index] = { coefficient: '', formula: '' }
-  }
-}
-
 const filteredReactions = computed(() => {
   return reactions.value.filter(r => 
     r.display.toLowerCase().includes(searchTerm.value.toLowerCase())
@@ -471,7 +411,7 @@ const handleApproveReaction = async (reaction: any, reject: boolean) => {
     const action = reject ? '拒绝' : '通过'
     await reactionAPI.approveReaction(reaction.group_id, reaction.display, reject)
     await loadReactions()
-    await showAlert(`该化学方程式已${action}`, '审核操作已完成')
+    await showAlert(该化学方程式已, '审核操作已完成')
   } catch (error: any) {
     await showAlert(error.response?.data?.error || '审核失败', '错误')
   }
@@ -488,11 +428,7 @@ const handleAddReaction = async () => {
   try {
     await reactionAPI.addReaction(display)
     // 重置编辑器
-    editor.value = {
-      reactants: [{ coefficient: '', formula: '' }],
-      products: [{ coefficient: '', formula: '' }],
-      arrow: '='
-    }
+    editorRef.value?.reset()
     // 重新加载数据
     await loadReactions()
     let msg = '反应添加成功！'

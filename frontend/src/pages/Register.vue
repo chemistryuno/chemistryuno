@@ -61,40 +61,40 @@ const handleSubmit = async () => {
 
             <div class="space-y-4">
               <div class="relative group">
-                <div class="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors">
+                <div class="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-blue-500 transition-colors">
                   <User :size="20" :stroke-width="2.5" />
                 </div>
                 <input
                   v-model="username"
                   type="text"
                   required
-                  class="w-full pl-14 pr-6 py-5 bg-slate-100/50 dark:bg-white/5 border-2 border-transparent focus:border-blue-500 focus:bg-white dark:focus:bg-white/10 rounded-2xl text-slate-900 dark:text-white placeholder:text-slate-400 font-bold outline-none transition-all"
+                  class="w-full pl-14 pr-6 py-5 bg-slate-100/50 dark:bg-black/40 border-2 border-transparent focus:border-blue-500 focus:bg-white dark:focus:bg-black/60 rounded-2xl text-slate-900 dark:text-slate-100 placeholder:text-slate-500/70 font-bold outline-none transition-all"
                   placeholder="用户名"
                 />
               </div>
 
               <div class="relative group">
-                <div class="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors">
+                <div class="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-blue-500 transition-colors">
                   <Lock :size="20" :stroke-width="2.5" />
                 </div>
                 <input
                   v-model="password"
                   type="password"
                   required
-                  class="w-full pl-14 pr-6 py-5 bg-slate-100/50 dark:bg-white/5 border-2 border-transparent focus:border-blue-500 focus:bg-white dark:focus:bg-white/10 rounded-2xl text-slate-900 dark:text-white placeholder:text-slate-400 font-bold outline-none transition-all"
+                  class="w-full pl-14 pr-6 py-5 bg-slate-100/50 dark:bg-black/40 border-2 border-transparent focus:border-blue-500 focus:bg-white dark:focus:bg-black/60 rounded-2xl text-slate-900 dark:text-slate-100 placeholder:text-slate-500/70 font-bold outline-none transition-all"
                   placeholder="密 码"
                 />
               </div>
 
               <div class="relative group">
-                <div class="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors">
+                <div class="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-blue-500 transition-colors">
                   <ShieldCheck :size="20" :stroke-width="2.5" />
                 </div>
                 <input
                   v-model="confirmPassword"
                   type="password"
                   required
-                  class="w-full pl-14 pr-6 py-5 bg-slate-100/50 dark:bg-white/5 border-2 border-transparent focus:border-blue-500 focus:bg-white dark:focus:bg-white/10 rounded-2xl text-slate-900 dark:text-white placeholder:text-slate-400 font-bold outline-none transition-all"
+                  class="w-full pl-14 pr-6 py-5 bg-slate-100/50 dark:bg-black/40 border-2 border-transparent focus:border-blue-500 focus:bg-white dark:focus:bg-black/60 rounded-2xl text-slate-900 dark:text-slate-100 placeholder:text-slate-500/70 font-bold outline-none transition-all"
                   placeholder="确认密码"
                 />
               </div>

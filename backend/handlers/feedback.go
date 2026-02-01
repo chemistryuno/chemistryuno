@@ -5,7 +5,9 @@ import (
 	"chemistryuno/models"
 	"chemistryuno/websocket"
 	"database/sql"
+	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -19,14 +21,92 @@ func CreateFeedback(c *gin.Context) {
 	}
 
 	uid := c.GetInt("uid")
-	_, err := database.DB.Exec("INSERT INTO feedbacks (user_id, content, type) VALUES (?, ?, ?)",
+	tx, err := database.DB.Begin()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库开启事务失败"})
+		return
+	}
+
+	// 正常插入反馈记录
+	_, err = tx.Exec("INSERT INTO feedbacks (user_id, content, type) VALUES (?, ?, ?)",
 		uid, feedback.Content, feedback.Type)
 	if err != nil {
+		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "提交反馈失败"})
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"message": "反馈已提交，感谢您的建议！"})
+	// 如果类型是方程式纠错，则尝试解析并直接写入待审核反应库
+	if feedback.Type == "equation" && strings.HasPrefix(feedback.Content, "【方程式纠错】") {
+		// 提取方程式部分
+		content := feedback.Content
+		idxStart := len("【方程式纠错】")
+		idxEnd := strings.Index(content, "\n\n")
+		if idxEnd == -1 {
+			idxEnd = len(content)
+		}
+
+		if idxEnd > idxStart {
+			formula := strings.TrimSpace(content[idxStart:idxEnd])
+			if formula != "" {
+				// 添加化学校验
+				if ok, errInfo := validateBalance(formula); !ok {
+					tx.Rollback()
+					c.JSON(http.StatusBadRequest, gin.H{"error": "方程式守恒校验失败: " + errInfo})
+					return
+				}
+				if isDup, oldDisplay := checkDuplicateReactants(formula); isDup {
+					tx.Rollback()
+					c.JSON(http.StatusBadRequest, gin.H{"error": "该反应已存在: " + oldDisplay})
+					return
+				}
+
+				rlist := parseReactants(formula)
+				if len(rlist) > 0 {
+					r1 := rlist[0]
+					r2 := r1
+					if len(rlist) > 1 {
+						r2 = rlist[1]
+					}
+
+					status := "pending_coworker"
+					role := c.GetString("role")
+					if role == "admin" {
+						status = "approved"
+					} else if role == "co-worker" {
+						status = "pending_admin"
+					}
+
+					groupID := fmt.Sprintf("fb-%d-%d", uid, time.Now().Unix())
+
+					_, err = tx.Exec(`
+						INSERT INTO reactions (r1, r2, display, status, group_id, created_by)
+						VALUES (?, ?, ?, ?, ?, ?)
+					`, r1, r2, formula, status, groupID, uid)
+
+					if err == nil && r1 != r2 {
+						_, err = tx.Exec(`
+							INSERT INTO reactions (r1, r2, display, status, group_id, created_by)
+							VALUES (?, ?, ?, ?, ?, ?)
+						`, r2, r1, formula, status, groupID, uid)
+					}
+
+					if err != nil {
+						tx.Rollback()
+						c.JSON(http.StatusInternalServerError, gin.H{"error": "同步至反应库失败"})
+						return
+					}
+				}
+			}
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "事务提交失败"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"message": "反馈已提交，方程式已同步至审核库，感谢您的贡献！"})
 }
 
 func GetAllFeedbacks(c *gin.Context) {
@@ -122,12 +202,13 @@ func UpdateFeedbackStatus(c *gin.Context) {
 // GetMyFeedbacks 返回当前用户的反馈列表
 func GetMyFeedbacks(c *gin.Context) {
 	uid := c.GetInt("uid")
+	nowStr := time.Now().UTC().Format("2006-01-02 15:04:05")
 	rows, err := database.DB.Query(`
 		SELECT id, user_id, (SELECT username FROM users WHERE UID = user_id), content, type, status, processed_by, processed_at, last_urged_at, urge_count, resolution_note, created_at
 		FROM feedbacks
-		WHERE user_id = ? AND remove_at IS NULL
+		WHERE user_id = ? AND (remove_at IS NULL OR remove_at > ?)
 		ORDER BY created_at DESC
-	`, uid)
+	`, uid, nowStr)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取反馈失败"})
 		return
@@ -198,4 +279,24 @@ func UrgeFeedback(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "催促已发送"})
+}
+
+// 撤回反馈
+func WithdrawFeedback(c *gin.Context) {
+	uid := c.GetInt("uid")
+	var req struct {
+		ID int `json:"id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的参数"})
+		return
+	}
+
+	_, err := database.DB.Exec("DELETE FROM feedbacks WHERE id = ? AND user_id = ?", req.ID, uid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "反馈已撤回"})
 }

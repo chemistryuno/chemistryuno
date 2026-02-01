@@ -1,10 +1,22 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { useRouter } from 'vue-router'
 import { authAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
 import ws from '../utils/websocket'
+import { 
+  ArrowLeft, 
+  MessageSquare, 
+  Clock, 
+  User, 
+  CheckCircle2, 
+  AlertCircle,
+  BellRing,
+  Trash2
+} from 'lucide-vue-next'
 
-const { showAlert } = useDialog()
+const router = useRouter()
+const { showAlert, showConfirm } = useDialog()
 const feedbacks = ref<any[]>([])
 const loading = ref(false)
 
@@ -17,6 +29,19 @@ const load = async () => {
     showAlert(e.response?.data?.error || '获取反馈失败', '错误')
   } finally {
     loading.value = false
+  }
+}
+
+const handleWithdraw = async (id: number) => {
+  const confirmed = await showConfirm('确认要撤回这条反馈吗？', '撤回反馈')
+  if (!confirmed) return
+
+  try {
+    await authAPI.withdrawFeedback(id)
+    await load()
+    showAlert('反馈已成功撤回', '撤回成功')
+  } catch (e: any) {
+    showAlert(e.response?.data?.error || '撤回失败', '错误')
   }
 }
 
@@ -37,6 +62,7 @@ onBeforeUnmount(() => {
 })
 
 const canUrge = (f: any) => {
+  if (f.status !== 'unread') return false
   if (!f.last_urged_at) return true
   const t = new Date(f.last_urged_at)
   const next = new Date(t.getTime() + 4 * 3600 * 1000)
@@ -57,40 +83,129 @@ const urge = async (id: number, idx: number) => {
 </script>
 
 <template>
-  <div class="min-h-screen p-6">
-    <h2 class="text-2xl font-bold mb-4">我的反馈 / Messages</h2>
+  <div class="min-h-screen bg-slate-50 dark:bg-[#0a0a0c] text-slate-900 dark:text-white p-4 md:p-8 selection:bg-blue-500/30">
+    <!-- Background Effects -->
+    <div class="fixed inset-0 overflow-hidden pointer-events-none">
+      <div class="absolute top-[-10%] right-[-10%] w-[50%] h-[50%] bg-blue-500/5 rounded-full blur-[120px]" />
+      <div class="absolute bottom-[-10%] left-[-10%] w-[50%] h-[50%] bg-purple-500/5 rounded-full blur-[120px]" />
+      <div class="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 brightness-50 contrast-150" />
+    </div>
 
-    <div v-if="loading" class="text-slate-500">加载中...</div>
+    <div class="max-w-4xl mx-auto relative z-10">
+      <!-- Back Button -->
+      <button 
+        @click="router.push('/')" 
+        class="group flex items-center gap-3 text-slate-400 hover:text-slate-900 dark:hover:text-white mb-10 transition-all px-4 py-2 rounded-full hover:bg-white dark:hover:bg-white/5 border border-transparent hover:border-slate-200 dark:hover:border-white/10"
+      >
+        <ArrowLeft class="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
+        <span class="font-bold tracking-wider uppercase text-xs">返回大厅 / Back to Hub</span>
+      </button>
 
-    <div v-else>
-      <div v-if="feedbacks.length === 0" class="text-slate-400">暂时没有提交的反馈。</div>
-
-      <div class="space-y-4">
-        <div v-for="(f, idx) in feedbacks" :key="f.id" class="bg-white dark:bg-[#0f0f10] p-4 rounded-lg border border-slate-200 dark:border-white/5">
-          <div class="flex justify-between items-start">
-            <div>
-              <div class="text-sm text-slate-500">类型: {{ f.type }} · 提交于: {{ f.created_at }}</div>
-              <div class="mt-2 text-base">{{ f.content }}</div>
-            </div>
-            <div class="text-right">
-              <div class="text-sm">状态: <span class="font-medium">{{ f.status }}</span></div>
-              <div v-if="f.processed_at" class="text-sm text-slate-400">处理于: {{ f.processed_at }}</div>
-              <div v-if="f.processed_by" class="text-sm text-slate-400">处理人 ID: {{ f.processed_by }}</div>
-            </div>
+      <div class="flex items-center justify-between mb-8">
+        <h2 class="text-3xl font-black uppercase tracking-tighter flex items-center gap-4">
+          <div class="p-3 bg-blue-500/10 rounded-2xl">
+            <MessageSquare class="w-8 h-8 text-blue-500" />
           </div>
+          反馈与消息 / Messages
+        </h2>
+      </div>
 
-          <div class="mt-3 flex items-center justify-between">
-            <div class="text-sm text-slate-400">催促次数: {{ f.urge_count || 0 }}</div>
-            <div>
-              <button
-                class="px-3 py-1 text-sm rounded bg-blue-500 text-white disabled:opacity-50"
-                :disabled="!canUrge(f)"
-                @click="urge(f.id, idx)"
-              >催促管理员</button>
-            </div>
-          </div>
-          <div v-if="f.resolution_note" class="mt-3 text-sm text-slate-300">处理说明：{{ f.resolution_note }}</div>
+      <div v-if="loading" class="flex flex-col items-center justify-center py-20">
+        <div class="w-10 h-10 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin mb-4"></div>
+        <p class="text-slate-400 font-medium">实验室正在检索记录...</p>
+      </div>
+
+      <div v-else>
+        <div v-if="feedbacks.length === 0" class="bg-white dark:bg-[#111114] border-2 border-dashed border-slate-200 dark:border-white/5 rounded-[2.5rem] p-20 flex flex-col items-center justify-center text-center">
+          <Clock class="w-16 h-16 text-slate-200 dark:text-white/5 mb-6" />
+          <h3 class="text-xl font-bold text-slate-400">尚无反馈记录</h3>
+          <p class="text-slate-500 mt-2">您的反馈对我们非常重要，请在游戏过程中随时提出建议。</p>
         </div>
+
+        <div class="grid gap-6">
+          <div v-for="(f, idx) in feedbacks" :key="f.id" 
+            class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 rounded-[2rem] p-8 shadow-sm transition-all hover:shadow-xl hover:scale-[1.01] group"
+          >
+            <div class="flex flex-col md:flex-row justify-between gap-6">
+              <div class="flex-1">
+                <div class="flex items-center gap-3 mb-4">
+                  <span class="px-3 py-1 bg-slate-100 dark:bg-white/5 rounded-full text-xs font-bold uppercase tracking-wider text-slate-500">
+                    {{ f.type }}
+                  </span>
+                  <span class="flex items-center gap-1.5 text-xs text-slate-400">
+                    <Clock class="w-3.5 h-3.5" />
+                    {{ f.created_at }}
+                  </span>
+                </div>
+                
+                <p class="text-lg font-medium leading-relaxed text-slate-700 dark:text-slate-200">
+                  {{ f.content }}
+                </p>
+
+                <div v-if="f.resolution_note" class="mt-6 p-5 bg-blue-500/5 dark:bg-blue-500/[0.03] border border-blue-500/10 rounded-2xl relative">
+                  <div class="absolute -top-3 left-4 px-2 bg-slate-50 dark:bg-[#0a0a0c] text-[10px] font-black uppercase tracking-tighter text-blue-500">
+                    处理回复 / Resolution Note
+                  </div>
+                  <p class="text-sm text-slate-600 dark:text-blue-200/80 leading-loose italic">
+                    "{{ f.resolution_note }}"
+                  </p>
+                </div>
+              </div>
+
+              <div class="md:w-64 flex flex-col justify-between items-end gap-6 border-l border-slate-100 dark:border-white/5 md:pl-8">
+                <div class="text-right flex flex-col items-end gap-2">
+                  <div class="flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-bold tracking-tight"
+                    :class="{
+                      'bg-amber-100 text-amber-600 dark:bg-amber-500/10 dark:text-amber-500': f.status === 'unread',
+                      'bg-green-100 text-green-600 dark:bg-green-500/10 dark:text-green-500': f.status === 'accepted',
+                      'bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-400': f.status === 'dismissed'
+                    }"
+                  >
+                    <component :is="f.status === 'accepted' ? CheckCircle2 : (f.status === 'unread' ? Clock : AlertCircle)" class="w-4 h-4" />
+                    {{ f.status === 'accepted' ? '已接受' : (f.status === 'dismissed' ? '不予受理' : '待处理') }}
+                  </div>
+                  
+                  <div v-if="f.processed_at" class="flex items-center gap-1.5 text-xs text-slate-400 mt-1">
+                    <User class="w-3.5 h-3.5" />
+                    管理员已检阅
+                  </div>
+                </div>
+
+                <div class="w-full">
+                  <button
+                    class="w-full flex items-center justify-center gap-2 py-3 px-6 rounded-xl font-bold transition-all disabled:opacity-30 disabled:cursor-not-allowed group/btn"
+                    :class="canUrge(f) 
+                      ? 'bg-blue-500 text-white shadow-[0_4px_20px_rgba(59,130,246,0.3)] hover:shadow-[0_8px_30px_rgba(59,130,246,0.4)] hover:-translate-y-0.5 active:translate-y-0' 
+                      : 'bg-slate-200 dark:bg-white/5 text-slate-400'"
+                    :disabled="!canUrge(f)"
+                    @click="urge(f.id, idx)"
+                  >
+                    <BellRing class="w-4 h-4 transition-transform group-hover/btn:rotate-12" />
+                    {{ canUrge(f) ? '催促管理员' : '已发送催促' }}
+                  </button>
+                  <p v-if="f.urge_count > 0" class="text-[10px] text-center mt-2 text-slate-400 font-bold uppercase tracking-widest">
+                    已催促 {{ f.urge_count }} 次
+                  </p>
+                  
+                  <button
+                    v-if="f.status === 'unread'"
+                    @click="handleWithdraw(f.id)"
+                    class="w-full mt-4 flex items-center justify-center gap-2 py-2 px-6 rounded-xl font-bold transition-all text-red-500 hover:bg-red-500/10 text-xs uppercase tracking-widest"
+                  >
+                    <Trash2 class="w-3.5 h-3.5" />
+                    撤回反馈
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-12 text-center">
+        <p class="text-xs text-slate-400 uppercase tracking-[0.2em] font-medium opacity-50">
+          CHEMISTRY UNO ALPHA · FEEDBACK SYSTEM
+        </p>
       </div>
     </div>
   </div>

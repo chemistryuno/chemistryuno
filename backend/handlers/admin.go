@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -244,7 +246,13 @@ func GetReactions(c *gin.Context) {
 		FROM reactions r
 		LEFT JOIN users u ON r.created_by = u.UID
 		GROUP BY r.display, r.status, r.group_id, r.created_by, u.username
-		ORDER BY MIN(r.created_at) DESC
+		ORDER BY 
+			CASE 
+				WHEN r.status = 'pending_admin' THEN 1 
+				WHEN r.status = 'pending_coworker' THEN 2 
+				ELSE 3 
+			END, 
+			MIN(r.created_at) DESC
 	`)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误"})
@@ -508,7 +516,19 @@ func AddReaction(c *gin.Context) {
 	// 自动识别 r1, r2
 	rlist := parseReactants(req.Display)
 	if len(rlist) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无法自动识别反应物，请检查方程式格式（如: A + B = C）"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无法自动识别反应物，请检查方程式格式（如: A + B -> C）"})
+		return
+	}
+
+	// 1. 校验质量守恒
+	if ok, errInfo := validateBalance(req.Display); !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "方程式校验失败: " + errInfo})
+		return
+	}
+
+	// 2. 校验反应物重复
+	if isDup, oldDisplay := checkDuplicateReactants(req.Display); isDup {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("该反应物组合已存在: %s", oldDisplay)})
 		return
 	}
 
@@ -566,6 +586,98 @@ func AddReaction(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": msg})
 }
 
+// 内部校验逻辑
+func normalizeSubscripts(s string) string {
+	subs := map[rune]rune{
+		'₀': '0', '₁': '1', '₂': '2', '₃': '3', '₄': '4',
+		'₅': '5', '₆': '6', '₇': '7', '₈': '8', '₉': '9',
+	}
+	var res strings.Builder
+	for _, r := range s {
+		if v, ok := subs[r]; ok {
+			res.WriteRune(v)
+		} else {
+			res.WriteRune(r)
+		}
+	}
+	return res.String()
+}
+
+func countElements(expr string) map[string]int {
+	counts := make(map[string]int)
+	expr = normalizeSubscripts(expr)
+	parts := strings.Split(expr, "+")
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		reCoeff := regexp.MustCompile(`^(\d+)?(.*)$`)
+		matches := reCoeff.FindStringSubmatch(part)
+		coeff := 1
+		if matches[1] != "" {
+			coeff, _ = strconv.Atoi(matches[1])
+		}
+		substance := matches[2]
+		reElem := regexp.MustCompile(`([A-Z][a-z]*)(\d*)`)
+		elemMatches := reElem.FindAllStringSubmatch(substance, -1)
+		for _, m := range elemMatches {
+			element := m[1]
+			count := 1
+			if m[2] != "" {
+				count, _ = strconv.Atoi(m[2])
+			}
+			counts[element] += count * coeff
+		}
+	}
+	return counts
+}
+
+func validateBalance(display string) (bool, string) {
+	cleanDisplay := strings.ReplaceAll(display, "＝", "->")
+	cleanDisplay = strings.ReplaceAll(cleanDisplay, "=", "->")
+	parts := strings.Split(cleanDisplay, "->")
+	if len(parts) != 2 {
+		return false, "方程式格式错误，应包含 '->' 或 '='"
+	}
+	leftCounts := countElements(parts[0])
+	rightCounts := countElements(parts[1])
+	allElements := make(map[string]bool)
+	for k := range leftCounts {
+		allElements[k] = true
+	}
+	for k := range rightCounts {
+		allElements[k] = true
+	}
+	for el := range allElements {
+		if leftCounts[el] != rightCounts[el] {
+			return false, fmt.Sprintf("元素 %s 不守恒 (左:%d, 右:%d)", el, leftCounts[el], rightCounts[el])
+		}
+	}
+	return true, ""
+}
+
+func checkDuplicateReactants(display string) (bool, string) {
+	rList := parseReactants(display)
+	if len(rList) < 2 {
+		return false, ""
+	}
+	sort.Strings(rList)
+	r1, r2 := rList[0], rList[1]
+
+	var existingDisplay string
+	err := database.DB.QueryRow(`
+		SELECT display FROM reactions 
+		WHERE status = 'approved' AND ((r1 = ? AND r2 = ?) OR (r1 = ? AND r2 = ?))
+		LIMIT 1
+	`, r1, r2, r2, r1).Scan(&existingDisplay)
+
+	if err == nil {
+		return true, existingDisplay
+	}
+	return false, ""
+}
+
 // 删除或拒绝化学反应 (Admin/Co-worker可以删除自己的)
 func DeleteReaction(c *gin.Context) {
 	reactionID := c.Param("id") // 接收 id，根据 id 查出 group_id 后删全组
@@ -593,6 +705,77 @@ func DeleteReaction(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "已从实验室档案中抹除"})
+}
+
+// 直接修改化学反应 (Admin/Co-worker)
+func UpdateReaction(c *gin.Context) {
+	reactionID := c.Param("id")
+	role := c.GetString("role")
+	uid := c.GetInt("uid")
+
+	if role != "admin" && role != "co-worker" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "权限不足"})
+		return
+	}
+
+	var req models.ReactionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// 校验
+	if ok, errInfo := validateBalance(req.Display); !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "方程式守恒校验失败: " + errInfo})
+		return
+	}
+
+	rlist := parseReactants(req.Display)
+	if len(rlist) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无法识别反应物"})
+		return
+	}
+	r1 := rlist[0]
+	r2 := r1
+	if len(rlist) > 1 {
+		r2 = rlist[1]
+	}
+
+	var groupID string
+	err := database.DB.QueryRow("SELECT group_id FROM reactions WHERE id = ?", reactionID).Scan(&groupID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "未找到原反应记录"})
+		return
+	}
+
+	tx, _ := database.DB.Begin()
+	_, err = tx.Exec("DELETE FROM reactions WHERE group_id = ?", groupID)
+	if err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新过程事务异常"})
+		return
+	}
+
+	// 统一设为 approved，因为是管理员或协作者直接修改
+	_, err = tx.Exec(`
+		INSERT INTO reactions (r1, r2, display, status, group_id, created_by)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`, r1, r2, req.Display, "approved", groupID, uid)
+	if err == nil && r1 != r2 {
+		_, err = tx.Exec(`
+			INSERT INTO reactions (r1, r2, display, status, group_id, created_by)
+			VALUES (?, ?, ?, ?, ?, ?)
+		`, r2, r1, req.Display, "approved", groupID, uid)
+	}
+
+	if err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "插入新记录失败"})
+		return
+	}
+
+	tx.Commit()
+	c.JSON(http.StatusOK, gin.H{"message": "方程式已直接修改并生效"})
 }
 
 // 批量导入化学反应 (JSON数组)
@@ -626,6 +809,14 @@ func BatchAddReactions(c *gin.Context) {
 	for _, req := range reqs {
 		rlist := parseReactants(req.Display)
 		if len(rlist) == 0 {
+			continue
+		}
+
+		// 批量导入也进行基础校验，不满足的跳过
+		if ok, _ := validateBalance(req.Display); !ok {
+			continue
+		}
+		if isDup, _ := checkDuplicateReactants(req.Display); isDup {
 			continue
 		}
 

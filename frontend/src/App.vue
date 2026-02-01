@@ -3,8 +3,10 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import websocket from './utils/websocket'
 import CustomDialog from './components/CustomDialog.vue'
 import FeedbackButton from './components/FeedbackButton.vue'
+import { useDialog } from './utils/dialog'
 
 const loading = ref(true)
+const { showAlert } = useDialog()
 
 const updateTheme = () => {
   if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
@@ -30,12 +32,22 @@ onMounted(() => {
     // 用户已登录，建立 WebSocket 连接
     websocket.connect()
   }
+
+  // 监听全局反馈更新
+  websocket.on('feedback_update', (msg: any) => {
+    if (msg && msg.status) {
+      const statusLabel = msg.status === 'accepted' ? '已受理' : '不予受理'
+      showAlert(`您的反馈有新进展：状态更新为 [${statusLabel}]。\n回复：${msg.resolution_note || '无'}`, '反馈通知')
+    }
+  })
+
   loading.value = false
 })
 
 onUnmounted(() => {
   const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
   mediaQuery.removeEventListener('change', updateTheme)
+  websocket.off('feedback_update', () => {})
 })
 </script>
 

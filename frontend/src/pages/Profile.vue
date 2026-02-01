@@ -6,7 +6,8 @@ import { useDialog } from '../utils/dialog'
 import { 
   ArrowLeft, 
   Shield, 
-  Award, 
+  Award,
+  MessageSquare
 } from 'lucide-vue-next'
 
 // Components
@@ -176,6 +177,22 @@ const handleDeleteAccount = async () => {
             @disable2fa="handleDisable2FA"
             @delete-account="handleDeleteAccount"
           />
+
+          <!-- Feedback History -->
+          <div @click="router.push('/feedbacks')" class="group cursor-pointer bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 rounded-[2.5rem] p-8 shadow-sm dark:shadow-none transition-all hover:shadow-xl hover:scale-[1.01] hover:border-blue-500/30 flex items-center justify-between">
+            <div class="flex items-center gap-6">
+              <div class="w-16 h-16 bg-blue-500/10 rounded-2xl flex items-center justify-center text-blue-500 group-hover:bg-blue-500 group-hover:text-white transition-all duration-500 group-hover:rotate-6">
+                <MessageSquare class="w-8 h-8" />
+              </div>
+              <div>
+                <h3 class="text-xl font-bold uppercase tracking-widest text-slate-800 dark:text-white">反馈与消息 / Feedback</h3>
+                <p class="text-slate-500 dark:text-slate-400 mt-1 font-medium">查看提交的建议、错误报告及管理员回复</p>
+              </div>
+            </div>
+            <div class="w-12 h-12 rounded-full border border-slate-200 dark:border-white/5 flex items-center justify-center text-slate-400 group-hover:bg-white dark:group-hover:bg-white/5 group-hover:translate-x-2 transition-all">
+              <ArrowLeft class="w-5 h-5 rotate-180" />
+            </div>
+          </div>
 
           <!-- Custom Decks Section -->
           <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 rounded-[2.5rem] p-10 shadow-sm dark:shadow-none transition-all hover:shadow-lg">

@@ -52,6 +52,8 @@ export const authAPI = {
     api.get('/feedbacks/my'),
   urgeFeedback: (id: number) =>
     api.post(`/feedbacks/${id}/urge`),
+  withdrawFeedback: (id: number) =>
+    api.post('/feedback/withdraw', { id }),
   
   // 2FA相关
   setup2FA: () => api.post('/user/2fa/setup'),
@@ -128,6 +130,8 @@ export const reactionAPI = {
     api.post('/reactions', { display }),
   batchAddReactions: (reactions: { display: string }[]) =>
     api.post('/reactions/batch', reactions),
+  updateReaction: (id: number, display: string) =>
+    api.put(`/reactions/${id}`, { display }),
   approveReaction: (groupId: string, display?: string, reject?: boolean) => 
     api.put(`/reactions/approve/${groupId}`, { display, reject }),
   deleteReaction: (reactionId: string) => 

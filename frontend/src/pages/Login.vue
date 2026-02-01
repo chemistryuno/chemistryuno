@@ -76,10 +76,10 @@ const handleLoginSuccess = (token: string, user: any) => {
             <div class="w-20 h-20 bg-blue-600 rounded-3xl flex items-center justify-center mb-4 shadow-lg transform rotate-3 hover:rotate-0 transition-transform duration-500">
               <Beaker class="w-10 h-10 text-white" />
             </div>
-            <h1 class="text-3xl font-black text-slate-900 dark:text-white tracking-tighter">
+            <h1 class="text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tighter">
               化学<span class="text-blue-600">UNO</span>
             </h1>
-            <p class="text-slate-400 dark:text-slate-500 text-xs font-bold uppercase tracking-[0.2em] mt-2">Laboratory System Access</p>
+            <p class="text-slate-400 dark:text-slate-500 text-xs font-bold uppercase tracking-[0.2em] mt-2 italic font-mono">Laboratory System Access</p>
           </div>
 
           <div v-if="error" class="bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 text-red-500 px-4 py-3 rounded-2xl mb-6 text-center text-xs font-bold">
@@ -88,32 +88,32 @@ const handleLoginSuccess = (token: string, user: any) => {
 
           <form v-if="!show2FA" @submit.prevent="handleSubmit" class="space-y-5">
             <div class="space-y-1.5">
-              <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">识别码 / Username</label>
+              <label class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">识别码 / Username</label>
               <div class="relative">
-                <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
+                <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 dark:text-slate-500">
                   <User class="w-4 h-4" />
                 </div>
                 <input
                   v-model="username"
                   type="text"
                   required
-                  class="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white pl-11 pr-4 py-3.5 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all placeholder:text-slate-400 text-sm font-medium"
+                  class="w-full bg-slate-100 dark:bg-black/40 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-slate-100 pl-11 pr-4 py-3.5 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all placeholder:text-slate-500/70 text-sm font-medium"
                   placeholder="Researcher ID"
                 />
               </div>
             </div>
 
             <div class="space-y-1.5">
-              <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">访问秘钥 / Password</label>
+              <label class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">访问秘钥 / Password</label>
               <div class="relative">
-                <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
+                <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 dark:text-slate-500">
                   <Lock class="w-4 h-4" />
                 </div>
                 <input
                   v-model="password"
                   type="password"
                   required
-                  class="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white pl-11 pr-4 py-3.5 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all placeholder:text-slate-400 text-sm font-medium"
+                  class="w-full bg-slate-100 dark:bg-black/40 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-slate-100 pl-11 pr-4 py-3.5 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all placeholder:text-slate-500/70 text-sm font-medium"
                   placeholder="Auth Token"
                 />
               </div>
@@ -141,9 +141,9 @@ const handleLoginSuccess = (token: string, user: any) => {
 
           <form v-else @submit.prevent="handle2FAVerify" class="space-y-5 animate-in slide-in-from-right-4 duration-300">
             <div class="space-y-1.5">
-              <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">双重验证 / 2FA Code</label>
+              <label class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">双重验证 / 2FA Code</label>
               <div class="relative">
-                <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
+                <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 dark:text-slate-500">
                   <Fingerprint class="w-4 h-4" />
                 </div>
                 <input
@@ -151,7 +151,7 @@ const handleLoginSuccess = (token: string, user: any) => {
                   type="text"
                   required
                   maxlength="6"
-                  class="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white pl-11 pr-4 py-3.5 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all placeholder:text-slate-400 text-sm font-medium tracking-[0.5em]"
+                  class="w-full bg-slate-100 dark:bg-black/40 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-slate-100 pl-11 pr-4 py-3.5 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all placeholder:text-slate-500/70 text-sm font-medium tracking-[0.5em]"
                   placeholder="000000"
                 />
               </div>

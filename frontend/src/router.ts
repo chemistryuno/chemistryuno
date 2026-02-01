@@ -8,6 +8,7 @@ import Profile from './pages/Profile.vue'
 import Admin from './pages/Admin.vue'
 import Reactions from './pages/Reactions.vue'
 import Feedbacks from './pages/Feedbacks.vue'
+import Ranking from './pages/Ranking.vue'
 
 const routes = [
   {
@@ -62,6 +63,12 @@ const routes = [
     path: '/reactions',
     name: 'Reactions',
     component: Reactions,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/ranking',
+    name: 'Ranking',
+    component: Ranking,
     meta: { requiresAuth: true }
   }
 ]

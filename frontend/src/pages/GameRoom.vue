@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { gameAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
 import websocket from '../utils/websocket'
-import { ArrowLeft, Play, RefreshCw, Zap, Activity, FlaskConical, Trophy, ChevronRight, Loader2, Users, Timer, Plus, QrCode, Copy, ExternalLink } from 'lucide-vue-next'
+import { ArrowLeft, Play, RefreshCw, Zap, Activity, FlaskConical, Trophy, ChevronRight, Loader2, Users, Timer, Plus, QrCode, Copy, ExternalLink, Sparkles } from 'lucide-vue-next'
 import { cn } from '../utils/cn'
 
 const route = useRoute()
@@ -187,7 +187,8 @@ const loadGameState = async () => {
       host_uid: data.host_uid,
       players: data.players,
       max_players: data.max_players,
-      status: data.status
+      status: data.status,
+      is_points_mode: data.is_points_mode
     }
     
     playersInfo.value = data.players_info || []
@@ -230,13 +231,13 @@ onMounted(() => {
     websocket.on('player_left', loadGameState)
     websocket.on('room_terminated', async (msg: any) => {
       isRedirecting.value = true
-      const reason = msg.message || '检测到实验室核心管理权限异常：首席研究员（房主）已单方面中断连接。由于实验协议完整性受损，当前实验室即刻解散。'
-      await showAlert(reason, '⚠ 实验结束')
+      const reason = msg.message || '房主已中断连接，实验室已关闭'
+      await showAlert(reason, '实验结束')
       router.push('/')
     })
     websocket.on('player_kicked', async (msg: any) => {
       isRedirecting.value = true
-      await showAlert(msg.message || '由于消极游戏，您已被踢出', '⚠ 权限移除')
+      await showAlert(msg.message || '由于消极游戏，您已被踢出', '权限移除')
       router.push('/')
     })
   })
@@ -644,8 +645,9 @@ onMounted(() => {
             <Play class="w-3 h-3 fill-current" />
             <span>启动</span>
           </button>
+
           <button @click="showHints = !showHints" class="w-9 h-9 flex items-center justify-center bg-slate-100 dark:bg-white/5 rounded-xl border border-slate-200 dark:border-white/10 text-slate-500 hover:text-blue-500">
-             <Trophy class="w-4 h-4" :class="showHints && 'fill-current text-blue-500'" />
+             <Sparkles class="w-4 h-4" :class="showHints && 'fill-current text-blue-500'" />
           </button>
           <button @click="showLogs = !showLogs" class="w-9 h-9 flex items-center justify-center bg-slate-100 dark:bg-white/5 rounded-xl border border-slate-200 dark:border-white/10 text-slate-500 hover:text-blue-500">
              <Zap class="w-4 h-4" :class="showLogs && 'fill-current text-blue-500'" />
@@ -719,6 +721,15 @@ onMounted(() => {
                 </div>
                 
                 <div v-else-if="roomInfo?.status === 'waiting'" class="space-y-4">
+                   <!-- 积分模式提示 -->
+                   <div v-if="roomInfo?.is_points_mode" class="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-center gap-3">
+                      <Trophy class="w-5 h-5 text-amber-500 shrink-0" />
+                      <div class="text-left">
+                         <p class="text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-500">Competitive Mode</p>
+                         <p class="text-[9px] font-bold text-slate-500 mt-0.5">积分竞技模式：胜者将获得积分，败者扣除积分。强制使用默认牌组。</p>
+                      </div>
+                   </div>
+
                    <div class="p-4 bg-blue-500/5 border border-blue-500/10 rounded-2xl flex flex-col items-center text-center">
                       <Users class="w-6 h-6 text-blue-500 mb-2" />
                       <span class="text-[10px] font-black uppercase tracking-widest text-blue-500">准备就绪?</span>
@@ -1143,6 +1154,34 @@ onMounted(() => {
                   实验由 <span class="text-slate-900 dark:text-white font-black">{{ winner?.username }}</span> 成功收官。
                 </p>
               </template>
+
+              <!-- 积分变动显示 (如有) -->
+              <div v-if="gameState?.points_changes" class="w-full mt-6 p-4 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl">
+                 <div class="flex items-center justify-between mb-3 border-b border-slate-200 dark:border-white/5 pb-2">
+                    <span class="text-[10px] font-black uppercase tracking-widest text-slate-500">Player_Rankings</span>
+                    <span class="text-[10px] font-black uppercase tracking-widest text-blue-500">Points_Δ</span>
+                 </div>
+                 <div class="space-y-2">
+                    <div 
+                      v-for="(val, uid) in gameState.points_changes" 
+                      :key="uid"
+                      class="flex items-center justify-between group"
+                    >
+                       <div class="flex items-center gap-2">
+                          <div class="w-1.5 h-1.5 rounded-full bg-slate-400"></div>
+                          <span class="text-xs font-bold text-slate-600 dark:text-slate-300 text-left">
+                            {{ gameState.players.find((p: any) => String(p.uid) === String(uid))?.username || 'User' }}
+                          </span>
+                       </div>
+                       <span :class="cn(
+                         'text-xs font-black font-mono',
+                         val >= 0 ? 'text-emerald-500' : 'text-rose-500'
+                       )">
+                         {{ val >= 0 ? '+' : '' }}{{ val }}
+                       </span>
+                    </div>
+                 </div>
+              </div>
            </div>
 
            <div class="w-full space-y-4">

@@ -70,8 +70,8 @@ export const authAPI = {
 export const gameAPI = {
   getRooms: () => 
     api.get('/rooms'),
-  createRoom: (name: string, maxPlayers: number, deckID: number) => 
-    api.post('/rooms', { name, max_players: maxPlayers, deck_id: deckID }),
+  createRoom: (name: string, maxPlayers: number, deckID: number, isPointsMode: boolean = false) => 
+    api.post('/rooms', { name, max_players: maxPlayers, deck_id: deckID, is_points_mode: isPointsMode }),
   getRoomState: (roomId: string) => 
     api.get(`/rooms/${roomId}`),
   joinRoom: (roomId: string) => 
@@ -98,6 +98,12 @@ export const gameAPI = {
     api.put(`/my-decks/${id}`, { name, cards }),
   deleteMyDeck: (id: number) =>
     api.delete(`/my-decks/${id}`),
+}
+
+export const pointsAPI = {
+  getLeaderboard: () => api.get('/points/leaderboard'),
+  createBounty: (target_uid: number, amount: number) => 
+    api.post('/points/bounty', { target_uid, amount }),
 }
 
 // 管理员API

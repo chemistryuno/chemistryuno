@@ -4,7 +4,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { gameAPI, authAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
 import websocket from '../utils/websocket'
-import { Beaker, Plus, Users, Shield, LogOut, Settings, Play, Info, X, Loader2, Database, MessageSquare, Clock, Trash2 } from 'lucide-vue-next'
+import { Beaker, Plus, Users, Shield, LogOut, Settings, Play, Info, X, Loader2, Database, MessageSquare, Clock, Trash2, Trophy } from 'lucide-vue-next'
 import { cn } from '../utils/cn'
 
 const props = defineProps<{
@@ -22,6 +22,7 @@ const showCreateModal = ref(false)
 const roomName = ref('')
 const maxPlayers = ref(4)
 const deckID = ref(0)
+const isPointsMode = ref(false)
 const loading = ref(false)
 const currentTime = ref(new Date())
 
@@ -91,7 +92,7 @@ const handleCreateRoom = async () => {
   loading.value = true
 
   try {
-    const response = await gameAPI.createRoom(roomName.value, maxPlayers.value, deckID.value)
+    const response = await gameAPI.createRoom(roomName.value, maxPlayers.value, deckID.value, isPointsMode.value)
     const room = response.data
     router.push(`/room/${room.id}`)
   } catch (error: any) {
@@ -182,6 +183,14 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
             </div>
 
             <div class="flex items-center gap-1.5">
+              <router-link 
+                to="/ranking" 
+                class="flex items-center gap-2 px-4 py-2 hover:bg-amber-500/10 rounded-2xl transition-all text-amber-500/70 hover:text-amber-400 group" 
+                title="积分排行榜"
+              >
+                <Trophy class="w-5 h-5 group-hover:scale-110 transition-transform" />
+                <span class="text-[10px] font-black uppercase tracking-widest hidden md:block">全球排名</span>
+              </router-link>
               <router-link to="/feedbacks" class="p-3 hover:bg-white/5 rounded-2xl transition-all text-slate-400 hover:text-white" title="消息中心">
                 <MessageSquare class="w-5 h-5" />
               </router-link>
@@ -258,80 +267,111 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
           </div>
         </div>
 
-        <!-- Experimental Nodes (Room List) -->
-        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-          <div v-if="rooms.length === 0" class="col-span-full py-32 flex flex-col items-center justify-center bg-slate-100/50 dark:bg-white/[0.02] border-2 border-dashed border-slate-200 dark:border-white/5 rounded-[40px] text-slate-400 dark:text-slate-600 transition-colors hover:bg-slate-100 dark:hover:bg-white/[0.03] hover:border-slate-300 dark:hover:border-white/10 group">
-            <div class="w-24 h-24 bg-slate-200/50 dark:bg-white/5 rounded-full flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-              <Info class="w-10 h-10 opacity-30" />
-            </div>
-            <p class="text-2xl font-black text-slate-400 dark:text-slate-500 tracking-tight">NO_ACTIVE_EXPERIMENTS</p>
-            <p class="text-sm mt-3 font-mono opacity-50 uppercase tracking-widest">请等待节点激活或手动创建</p>
-          </div>
-          <template v-else>
-            <div 
-              v-for="room in rooms"
-              :key="room.id" 
-              class="group relative bg-white/80 dark:bg-[#121216]/60 backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-[32px] p-1 transition-all hover:bg-white dark:hover:bg-[#16161c] hover:border-blue-500/30 hover:shadow-[0_20px_50px_rgba(0,0,0,0.1)] dark:hover:shadow-[0_20px_50px_rgba(0,0,0,0.5)] flex flex-col h-[320px]"
-            >
-              <div class="flex-1 p-6 flex flex-col">
-                <div class="flex justify-between items-start mb-6">
-                  <div class="flex flex-col">
-                    <span class="text-[10px] font-mono text-blue-600 dark:text-blue-500/60 uppercase tracking-widest mb-1">Experiment_ID_{{ room.id.substring(0, 4) }}</span>
-                    <h3 class="text-xl font-black text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors truncate max-w-[180px] leading-tight">
-                      {{ room.name }}
-                    </h3>
-                  </div>
-                  <div :class="cn(
-                    'px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border',
-                    room.status === 'waiting' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' : 
-                    room.status === 'playing' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20' : 
-                    'bg-slate-500/10 text-slate-500 dark:text-slate-400 border-slate-500/20'
-                  )">
-                    {{ room.status === 'waiting' ? '● Ready' : room.status === 'playing' ? '○ Active' : 'End' }}
-                  </div>
-                </div>
-
-                <div class="space-y-4 mb-auto">
-                  <div class="flex items-center gap-3 p-3 bg-slate-50 dark:bg-white/5 rounded-2xl border border-slate-100 dark:border-white/5 group-hover:border-slate-200 dark:group-hover:border-white/10 transition-colors">
-                    <div class="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                      <Users class="w-4 h-4 text-blue-600 dark:text-blue-400" />
+        <!-- Experimental Nodes (Room List Table) -->
+        <div class="bg-white/80 dark:bg-[#121216]/60 backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-[32px] overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="border-b border-slate-200 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.02]">
+                  <th class="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Experiment_Status</th>
+                  <th class="px-6 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Node_Identifier</th>
+                  <th class="px-6 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Protocol_Type</th>
+                  <th class="px-6 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Participants</th>
+                  <th class="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Access_Control</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-if="rooms.length === 0">
+                  <td colspan="5" class="py-32 text-center text-slate-400 dark:text-slate-600">
+                    <div class="flex flex-col items-center justify-center">
+                      <div class="w-20 h-20 bg-slate-100 dark:bg-white/5 rounded-full flex items-center justify-center mb-4">
+                        <Info class="w-8 h-8 opacity-20" />
+                      </div>
+                      <p class="text-xl font-black tracking-tight uppercase">No_Active_Nodes</p>
+                      <p class="text-[10px] font-mono mt-1 opacity-50 uppercase">等待核心激活...</p>
                     </div>
+                  </td>
+                </tr>
+                <tr 
+                  v-for="room in rooms" 
+                  :key="room.id"
+                  class="group border-b border-slate-200 dark:border-white/5 hover:bg-blue-500/[0.02] transition-colors"
+                >
+                  <td class="px-8 py-6">
+                    <div class="flex items-center gap-3">
+                      <div :class="cn(
+                        'w-2 h-2 rounded-full',
+                        room.status === 'waiting' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 
+                        room.status === 'playing' ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)] animate-pulse' : 
+                        'bg-slate-500'
+                      )"></div>
+                      <span :class="cn(
+                        'text-[10px] font-black uppercase tracking-widest',
+                        room.status === 'waiting' ? 'text-emerald-500' : 
+                        room.status === 'playing' ? 'text-amber-500' : 
+                        'text-slate-500'
+                      )">
+                        {{ room.status === 'waiting' ? 'Ready' : room.status === 'playing' ? 'Active' : 'Closed' }}
+                      </span>
+                    </div>
+                  </td>
+                  <td class="px-6 py-6">
                     <div class="flex flex-col">
-                      <span class="text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest font-bold leading-none mb-1">Participants</span>
-                      <span class="text-sm font-black text-slate-900 dark:text-white leading-none">
+                      <span class="text-sm font-black text-slate-900 dark:text-white group-hover:text-blue-500 transition-colors">
+                        {{ room.name }}
+                      </span>
+                      <span class="text-[9px] font-mono text-slate-400 dark:text-slate-600 mt-1 uppercase tracking-tighter">
+                        ID: {{ room.id }}
+                      </span>
+                    </div>
+                  </td>
+                  <td class="px-6 py-6">
+                    <div class="flex items-center gap-2">
+                      <div v-if="room.is_points_mode" class="px-2 py-0.5 bg-amber-500/10 border border-amber-500/20 rounded-md text-amber-500 text-[8px] font-black uppercase">
+                        Competitive
+                      </div>
+                      <div v-else class="px-2 py-0.5 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-md text-slate-500 text-[8px] font-black uppercase">
+                        Standard
+                      </div>
+                    </div>
+                  </td>
+                  <td class="px-6 py-6">
+                    <div class="flex items-center gap-2">
+                      <div class="flex -space-x-2">
+                        <div v-for="i in Math.min(3, room.players?.length || 0)" :key="i" class="w-6 h-6 rounded-lg bg-slate-200 dark:bg-white/10 border-2 border-white dark:border-[#121216] flex items-center justify-center text-[10px] text-slate-600 font-bold">
+                          {{ room.players[i-1].username[0].toUpperCase() }}
+                        </div>
+                        <div v-if="(room.players?.length || 0) > 3" class="w-6 h-6 rounded-lg bg-blue-500 border-2 border-white dark:border-[#121216] flex items-center justify-center text-[8px] text-white font-black">
+                          +{{ room.players.length - 3 }}
+                        </div>
+                      </div>
+                      <span class="text-[11px] font-black text-slate-900 dark:text-white ml-1">
                         {{ room.players?.length || 0 }} <span class="text-slate-400 dark:text-slate-600 font-normal">/ {{ room.max_players }}</span>
                       </span>
                     </div>
-                  </div>
-
-                  <div class="flex items-center gap-3 p-3 bg-slate-50 dark:bg-white/5 rounded-2xl border border-slate-100 dark:border-white/5 group-hover:border-slate-200 dark:group-hover:border-white/10 transition-colors">
-                    <div class="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center">
-                      <Shield class="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                    </div>
-                    <div class="flex flex-col">
-                      <span class="text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest font-bold leading-none mb-1">Safety_Level</span>
-                      <span class="text-sm font-black text-slate-900 dark:text-white leading-none uppercase">Standard_Alpha</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="mt-6">
-                  <button 
-                    v-if="room.status === 'waiting' && (room.players?.length || 0) < room.max_players"
-                    @click="handleJoinRoom(room.id)" 
-                    class="w-full h-14 bg-slate-100 dark:bg-white/5 hover:bg-blue-600 hover:text-white text-slate-900 dark:text-white border border-slate-200 dark:border-white/10 hover:border-blue-500 rounded-[20px] font-black transition-all flex items-center justify-center gap-2 group/btn relative overflow-hidden active:scale-95"
-                  >
-                    <Play class="w-4 h-4 fill-current group-hover/btn:translate-x-1 transition-transform" />
-                    <span class="uppercase tracking-widest text-xs">执行初始化</span>
-                  </button>
-                  <div v-else class="w-full h-14 bg-slate-100 dark:bg-slate-800/20 border border-slate-200 dark:border-white/5 rounded-[20px] flex items-center justify-center gap-2 grayscale opacity-50 cursor-not-allowed">
-                    <Loader2 class="w-4 h-4 animate-spin text-slate-400 dark:text-slate-500" />
-                    <span class="uppercase tracking-widest text-xs font-bold text-slate-400 dark:text-slate-500">正在进行中</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </template>
+                  </td>
+                  <td class="px-8 py-6 text-right">
+                    <template v-if="room.status === 'waiting' && (room.players?.length || 0) < room.max_players">
+                      <button 
+                        @click="handleJoinRoom(room.id)" 
+                        class="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-[14px] text-[10px] font-black uppercase tracking-widest transition-all hover:scale-105 active:scale-95 shadow-lg shadow-blue-500/20"
+                      >
+                        Join_Node
+                      </button>
+                    </template>
+                    <template v-else>
+                      <button 
+                        @click="handleJoinRoom(room.id)"
+                        class="px-6 py-2.5 bg-slate-100 dark:bg-white/5 hover:bg-white/10 text-slate-900 dark:text-white border border-slate-200 dark:border-white/10 rounded-[14px] text-[10px] font-black uppercase tracking-widest transition-all"
+                      >
+                        {{ room.status === 'playing' ? 'Spectate' : 'View' }}
+                      </button>
+                    </template>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </main>
 
@@ -415,6 +455,32 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
           </div>
 
           <div class="space-y-4">
+            <div class="flex justify-between items-center px-1">
+               <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest">高级配置</label>
+               <span class="text-[9px] text-blue-500/40">ADVANCED_PROTOCOL</span>
+            </div>
+            <div class="flex items-center gap-4 p-5 bg-white/5 border border-white/5 rounded-3xl group/toggle cursor-pointer transition-all hover:bg-white/10" @click="isPointsMode = !isPointsMode">
+              <div :class="cn(
+                'w-10 h-6 rounded-full relative transition-colors duration-300',
+                isPointsMode ? 'bg-blue-600' : 'bg-slate-700'
+              )">
+                <div :class="cn(
+                  'absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform duration-300',
+                  isPointsMode ? 'translate-x-4' : 'translate-x-0'
+                )"></div>
+              </div>
+              <div class="flex flex-col">
+                <span :class="cn('text-[10px] font-black uppercase tracking-wider', isPointsMode ? 'text-blue-400' : 'text-slate-400')">
+                  积分竞技模式
+                </span>
+                <span class="text-[9px] text-slate-500 mt-0.5">
+                  开启后强制使用默认牌组，胜负将影响全球排名
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="!isPointsMode" class="space-y-4">
             <div class="flex justify-between items-center px-1">
                <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest">选择实验牌组</label>
                <span class="text-[9px] text-blue-500/40">DECK_PROTOCOL</span>

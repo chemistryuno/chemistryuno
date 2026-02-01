@@ -1,6 +1,7 @@
 package database
 
 import (
+	"chemistryuno/models"
 	"database/sql"
 	"fmt"
 	"log"
@@ -46,7 +47,22 @@ func createTables() error {
 		role TEXT DEFAULT 'user',
 		two_factor_enabled BOOLEAN DEFAULT 0,
 		two_factor_secret TEXT DEFAULT '',
+		points INTEGER DEFAULT 1000,
+		last_decay_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	);`
+
+	// 悬赏表
+	bountyTable := `
+	CREATE TABLE IF NOT EXISTS bounties (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		target_uid INTEGER NOT NULL,
+		amount INTEGER NOT NULL,
+		created_by INTEGER NOT NULL,
+		status TEXT DEFAULT 'active',
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (target_uid) REFERENCES users(UID),
+		FOREIGN KEY (created_by) REFERENCES users(UID)
 	);`
 
 	// 验证码表
@@ -123,7 +139,7 @@ func createTables() error {
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);`
 
-	tables := []string{userTable, verificationTable, deckConfigTable, gameHistoryTable, reactionsTable, feedbackTable, systemConfigTable}
+	tables := []string{userTable, bountyTable, verificationTable, deckConfigTable, gameHistoryTable, reactionsTable, feedbackTable, systemConfigTable}
 
 	for _, table := range tables {
 		if _, err := DB.Exec(table); err != nil {
@@ -164,6 +180,12 @@ func createTables() error {
 	}
 	if !columnExists("users", "two_factor_secret") {
 		_, _ = DB.Exec("ALTER TABLE users ADD COLUMN two_factor_secret TEXT DEFAULT ''")
+	}
+	if !columnExists("users", "points") {
+		_, _ = DB.Exec("ALTER TABLE users ADD COLUMN points INTEGER DEFAULT 1000")
+	}
+	if !columnExists("users", "last_decay_at") {
+		_, _ = DB.Exec("ALTER TABLE users ADD COLUMN last_decay_at DATETIME DEFAULT CURRENT_TIMESTAMP")
 	}
 
 	// reactions
@@ -465,6 +487,25 @@ func GetAllConfigs() (map[string]interface{}, error) {
 	}
 	return configs, nil
 }
+
+func GetAllBounties() ([]models.Bounty, error) {
+	rows, err := DB.Query("SELECT id, target_uid, amount, created_by, status, created_at FROM bounties WHERE status = 'active'")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var bounties []models.Bounty
+	for rows.Next() {
+		var b models.Bounty
+		if err := rows.Scan(&b.ID, &b.TargetUID, &b.Amount, &b.CreatedBy, &b.Status, &b.CreatedAt); err != nil {
+			return nil, err
+		}
+		bounties = append(bounties, b)
+	}
+	return bounties, nil
+}
+
 func Close() {
 	if DB != nil {
 		DB.Close()

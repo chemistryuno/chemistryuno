@@ -35,6 +35,14 @@
               </span>
             </div>
             <div class="w-px h-8 bg-white/5" />
+            <router-link 
+              to="/ranking"
+              class="flex items-center gap-2 text-amber-500 hover:text-amber-400 transition-colors group"
+            >
+              <Trophy class="w-4 h-4 group-hover:scale-110 transition-transform" />
+              <span class="text-xs font-black uppercase tracking-widest">Rank</span>
+            </router-link>
+            <div class="w-px h-8 bg-white/5" />
             <button 
               @click="router.push('/')"
               class="flex items-center gap-2 text-slate-400 hover:text-white transition-colors group"
@@ -252,7 +260,8 @@ import {
   FlaskConical,
   Upload,
   MessageSquare,
-  Edit
+  Edit,
+  Trophy
 } from 'lucide-vue-next'
 
 const router = useRouter()
@@ -411,7 +420,7 @@ const handleApproveReaction = async (reaction: any, reject: boolean) => {
     const action = reject ? '拒绝' : '通过'
     await reactionAPI.approveReaction(reaction.group_id, reaction.display, reject)
     await loadReactions()
-    await showAlert(该化学方程式已, '审核操作已完成')
+    await showAlert(`该化学方程式已${action}`, '审核操作已完成')
   } catch (error: any) {
     await showAlert(error.response?.data?.error || '审核失败', '错误')
   }

@@ -34,9 +34,10 @@ func GetRooms(c *gin.Context) {
 // 创建房间
 func CreateRoom(c *gin.Context) {
 	var req struct {
-		Name       string `json:"name"`
-		MaxPlayers int    `json:"max_players" binding:"required,min=2,max=8"`
-		DeckID     int    `json:"deck_id"`
+		Name         string `json:"name"`
+		MaxPlayers   int    `json:"max_players" binding:"required,min=2,max=8"`
+		DeckID       int    `json:"deck_id"`
+		IsPointsMode bool   `json:"is_points_mode"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -47,7 +48,7 @@ func CreateRoom(c *gin.Context) {
 	uid := c.GetInt("uid")
 	username := c.GetString("username")
 
-	room, err := game.CreateRoom(req.Name, uid, username, req.MaxPlayers, req.DeckID)
+	room, err := game.CreateRoom(req.Name, uid, username, req.MaxPlayers, req.DeckID, req.IsPointsMode)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

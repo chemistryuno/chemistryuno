@@ -40,7 +40,7 @@ func getDefaultDeckConfig() map[string]int {
 }
 
 // 创建房间
-func CreateRoom(name string, hostUID int, hostName string, maxPlayers int, deckID int) (*models.Room, error) {
+func CreateRoom(name string, hostUID int, hostName string, maxPlayers int, deckID int, isPointsMode bool) (*models.Room, error) {
 	if name == "" {
 		const charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 		rand.Seed(time.Now().UnixNano())
@@ -56,8 +56,10 @@ func CreateRoom(name string, hostUID int, hostName string, maxPlayers int, deckI
 
 	// 加载牌组配置
 	var deckConfig models.DeckConfig
-	if deckID == 0 {
+	// 积分模式强制使用默认牌组
+	if isPointsMode || deckID == 0 {
 		deckConfig.Cards = getDefaultDeckConfig()
+		deckConfig.Name = "默认牌组"
 	} else {
 		var cardsJSON string
 		err := database.DB.QueryRow(
@@ -73,14 +75,16 @@ func CreateRoom(name string, hostUID int, hostName string, maxPlayers int, deckI
 	}
 
 	room := &models.Room{
-		ID:         roomID,
-		Name:       name,
-		HostUID:    hostUID,
-		Players:    []int{hostUID},
-		MaxPlayers: maxPlayers,
-		DeckConfig: &deckConfig,
-		Status:     "waiting",
-		CreatedAt:  time.Now(),
+		ID:           roomID,
+		Name:         name,
+		HostUID:      hostUID,
+		Players:      []int{hostUID},
+		Spectators:   []int{},
+		MaxPlayers:   maxPlayers,
+		DeckConfig:   &deckConfig,
+		Status:       "waiting",
+		IsPointsMode: isPointsMode,
+		CreatedAt:    time.Now(),
 	}
 
 	gameRoom := &GameRoom{
@@ -104,7 +108,78 @@ func GetAllRooms() []*models.Room {
 	for _, gr := range rooms {
 		result = append(result, gr.Room)
 	}
+
+	// 排序逻辑：waiting 优先，然后按创建时间从新到旧
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].Status != result[j].Status {
+			if result[i].Status == "waiting" {
+				return true
+			}
+			if result[j].Status == "waiting" {
+				return false
+			}
+		}
+		return result[i].CreatedAt.After(result[j].CreatedAt)
+	})
+
 	return result
+}
+
+// 积分结算逻辑
+func handlePointsCalculation(gr *GameRoom) {
+	finished := gr.GameState.FinishedPlayers
+	count := len(finished)
+	if count < 2 {
+		return
+	}
+
+	changes := make(map[int]int)
+	for i, uid := range finished {
+		points := 0
+		if i == count-1 && count > 1 {
+			// 最后一名得5分
+			points = 5
+		} else {
+			// 100 / 名次
+			rank := i + 1
+			points = 100 / rank
+		}
+
+		changes[uid] = points
+		database.DB.Exec("UPDATE users SET points = points + ? WHERE UID = ?", points, uid)
+	}
+	gr.GameState.PointsChanges = changes
+
+	// Handle Bounties
+	bounties, err := database.GetAllBounties()
+	if err == nil {
+		winnerUID := finished[0]
+		// Create a map of player UIDs in this game to quickly check against bounty targets
+		playerUIDsInGame := make(map[int]bool)
+		for _, ps := range gr.GameState.Players {
+			playerUIDsInGame[ps.UID] = true
+		}
+
+		for _, b := range bounties {
+			// If target was in game and didn't win (meaning someone else won, claiming the bounty)
+			if playerUIDsInGame[b.TargetUID] && winnerUID != b.TargetUID {
+				database.DB.Exec("UPDATE users SET points = points + ? WHERE UID = ?", b.Amount, winnerUID)
+
+				// Update changes map if the winner is in it (they should be)
+				changes[winnerUID] += b.Amount
+
+				database.DB.Exec("UPDATE bounties SET status = 'claimed' WHERE id = ?", b.ID)
+			}
+		}
+	}
+}
+
+func (gr *GameRoom) broadcastRoomUpdate() {
+	if websocket.GlobalHub != nil {
+		websocket.GlobalHub.BroadcastToRoom(gr.Room.ID, websocket.Message{
+			Type: "game_update",
+		})
+	}
 }
 
 // StartRoomMonitor 启动房间监控协程
@@ -197,6 +272,15 @@ func (gr *GameRoom) kickPlayer(uid int, reason string) {
 	}
 
 	if isHost {
+		// 房主被踢，如果是竞技模式，惩罚房主并由于连带责任惩罚其他玩家
+		if gr.Room.IsPointsMode {
+			database.DB.Exec("UPDATE users SET points = points - 50 WHERE UID = ?", uid)
+			for _, pid := range gr.Room.Players {
+				if pid != uid {
+					database.DB.Exec("UPDATE users SET points = CAST(points * 0.8 AS INTEGER) WHERE UID = ?", pid)
+				}
+			}
+		}
 		gr.mutex.Unlock()
 		gr.terminateRoom("由于房主消极游戏，房间已被关闭")
 		return
@@ -209,6 +293,15 @@ func (gr *GameRoom) kickPlayer(uid int, reason string) {
 			newPlayers = append(newPlayers, pid)
 		}
 	}
+
+	// 如果是竞技模式，对被踢出的玩家和房间内其他玩家进行积分惩罚
+	if gr.Room.IsPointsMode && gr.Room.Status == "playing" {
+		database.DB.Exec("UPDATE users SET points = points - 50 WHERE UID = ?", uid)
+		for _, pid := range newPlayers {
+			database.DB.Exec("UPDATE users SET points = CAST(points * 0.8 AS INTEGER) WHERE UID = ?", pid)
+		}
+	}
+
 	gr.Room.Players = newPlayers
 
 	// 如果游戏正在进行，也从 GameState 中移除
@@ -273,8 +366,26 @@ func JoinRoom(roomID string, uid int, username string) error {
 	gameRoom.mutex.Lock()
 	defer gameRoom.mutex.Unlock()
 
-	if gameRoom.Room.Status != "waiting" {
-		return errors.New("游戏已开始")
+	// 已经在房间里
+	for _, pid := range gameRoom.Room.Players {
+		if pid == uid {
+			return nil
+		}
+	}
+	for _, sid := range gameRoom.Room.Spectators {
+		if sid == uid {
+			return nil
+		}
+	}
+
+	// 游戏已开始，自动进入观战模式
+	if gameRoom.Room.Status == "playing" {
+		gameRoom.Room.Spectators = append(gameRoom.Room.Spectators, uid)
+		if gameRoom.GameState != nil {
+			gameRoom.GameState.Spectators = append(gameRoom.GameState.Spectators, uid)
+		}
+		gameRoom.broadcastRoomUpdate()
+		return nil
 	}
 
 	if len(gameRoom.Room.Players) >= gameRoom.Room.MaxPlayers {
@@ -453,6 +564,14 @@ func GetRoomState(roomID string, uid int) (map[string]interface{}, error) {
 		}
 	}
 	if !inRoom {
+		for _, sid := range gameRoom.Room.Spectators {
+			if sid == uid {
+				inRoom = true
+				break
+			}
+		}
+	}
+	if !inRoom {
 		return nil, errors.New("你不在该房间中")
 	}
 
@@ -476,24 +595,40 @@ func GetRoomState(roomID string, uid int) (map[string]interface{}, error) {
 	}
 
 	result := map[string]interface{}{
-		"id":           gameRoom.Room.ID,
-		"name":         gameRoom.Room.Name,
-		"host_uid":     gameRoom.Room.HostUID,
-		"players":      gameRoom.Room.Players,
-		"players_info": playersInfo,
-		"max_players":  gameRoom.Room.MaxPlayers,
-		"status":       gameRoom.Room.Status,
+		"id":             gameRoom.Room.ID,
+		"name":           gameRoom.Room.Name,
+		"host_uid":       gameRoom.Room.HostUID,
+		"players":        gameRoom.Room.Players,
+		"players_info":   playersInfo,
+		"max_players":    gameRoom.Room.MaxPlayers,
+		"status":         gameRoom.Room.Status,
+		"is_points_mode": gameRoom.Room.IsPointsMode,
 	}
 
 	if gameRoom.GameState != nil {
+		// 检查玩家是否由于已完成或中途加入而处于观战模式
+		isSpectator := false
+		for _, sid := range gameRoom.Room.Spectators {
+			if sid == uid {
+				isSpectator = true
+				break
+			}
+		}
+		for _, fuid := range gameRoom.GameState.FinishedPlayers {
+			if fuid == uid {
+				isSpectator = true
+				break
+			}
+		}
+
 		// 过滤其他玩家的手牌
 		filteredPlayers := []*models.PlayerState{}
 		for _, player := range gameRoom.GameState.Players {
-			if player.UID == uid {
-				// 当前玩家，显示全部信息
+			if player.UID == uid && !isSpectator {
+				// 当前活跃玩家，显示全部信息
 				filteredPlayers = append(filteredPlayers, player)
 			} else {
-				// 其他玩家，隐藏手牌详情
+				// 其他玩家或处于观战状态，隐藏手牌详情
 				filteredPlayer := &models.PlayerState{
 					UID:                   player.UID,
 					Username:              player.Username,
@@ -510,6 +645,8 @@ func GetRoomState(roomID string, uid int) (map[string]interface{}, error) {
 
 		result["game_state"] = map[string]interface{}{
 			"players":            filteredPlayers,
+			"spectators":         gameRoom.Room.Spectators,
+			"finished_players":   gameRoom.GameState.FinishedPlayers,
 			"current_player":     gameRoom.GameState.CurrentPlayer,
 			"direction":          gameRoom.GameState.Direction,
 			"last_card":          gameRoom.GameState.LastCard,
@@ -517,6 +654,7 @@ func GetRoomState(roomID string, uid int) (map[string]interface{}, error) {
 			"status":             gameRoom.GameState.Status,
 			"turn_end_time":      gameRoom.GameState.TurnEndTime,
 			"allowed_any_player": gameRoom.GameState.AllowedAnyPlayer,
+			"is_spectator":       isSpectator,
 		}
 	}
 
@@ -691,10 +829,62 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 
 	// 检查是否获胜
 	if currentPlayer.CardCount == 0 {
-		gameRoom.GameState.Status = "finished"
-		gameRoom.Room.Status = "finished"
-		// 记录游戏历史
-		saveGameHistory(roomID, uid, gameRoom.Room.Players)
+		// 进入完成状态
+		gameRoom.GameState.FinishedPlayers = append(gameRoom.GameState.FinishedPlayers, uid)
+
+		// 如果是房主胜利，移交房主权限给一个未完成的玩家
+		if gameRoom.Room.HostUID == uid {
+			for _, p := range gameRoom.GameState.Players {
+				isFinished := false
+				for _, fuid := range gameRoom.GameState.FinishedPlayers {
+					if p.UID == fuid {
+						isFinished = true
+						break
+					}
+				}
+				if !isFinished {
+					gameRoom.Room.HostUID = p.UID
+					break
+				}
+			}
+		}
+
+		// 检查是否场上只剩一人（或更少）未完成
+		activeCount := 0
+		var lastPlayerUID int
+		for _, p := range gameRoom.GameState.Players {
+			isFinished := false
+			for _, fuid := range gameRoom.GameState.FinishedPlayers {
+				if p.UID == fuid {
+					isFinished = true
+					break
+				}
+			}
+			if !isFinished {
+				activeCount++
+				lastPlayerUID = p.UID
+			}
+		}
+
+		if activeCount <= 1 {
+			// 最后一名也将加入列表
+			if activeCount == 1 {
+				gameRoom.GameState.FinishedPlayers = append(gameRoom.GameState.FinishedPlayers, lastPlayerUID)
+			}
+
+			gameRoom.GameState.Status = "finished"
+			gameRoom.Room.Status = "finished"
+			winnerUID := gameRoom.GameState.FinishedPlayers[0]
+			saveGameHistory(roomID, winnerUID, gameRoom.Room.Players)
+
+			if gameRoom.Room.IsPointsMode {
+				handlePointsCalculation(gameRoom)
+			}
+			return nil
+		}
+
+		gameRoom.GameState.CurrentPlayer = getNextPlayer(gameRoom.GameState)
+		gameRoom.GameState.TurnEndTime = time.Now().Add(30*time.Second).UnixNano() / int64(time.Millisecond)
 		return nil
 	}
 
@@ -753,13 +943,29 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 }
 
 func getNextPlayer(state *models.GameState) int {
-	next := state.CurrentPlayer + state.Direction
-	if next < 0 {
-		next = len(state.Players) - 1
-	} else if next >= len(state.Players) {
-		next = 0
+	next := state.CurrentPlayer
+	for {
+		next = next + state.Direction
+		if next < 0 {
+			next = len(state.Players) - 1
+		} else if next >= len(state.Players) {
+			next = 0
+		}
+
+		// 检查该玩家是否已经出完牌
+		uid := state.Players[next].UID
+		isFinished := false
+		for _, fuid := range state.FinishedPlayers {
+			if uid == fuid {
+				isFinished = true
+				break
+			}
+		}
+
+		if !isFinished {
+			return next
+		}
 	}
-	return next
 }
 
 func reshuffleDeck(gameRoom *GameRoom) {

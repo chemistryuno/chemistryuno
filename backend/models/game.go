@@ -21,20 +21,24 @@ type DeckConfig struct {
 
 // 游戏房间
 type Room struct {
-	ID         string      `json:"id"`
-	Name       string      `json:"name"`
-	HostUID    int         `json:"host_uid"`
-	Players    []int       `json:"players"`
-	MaxPlayers int         `json:"max_players"`
-	DeckConfig *DeckConfig `json:"deck_config"`
-	Status     string      `json:"status"` // "waiting", "playing", "finished"
-	CreatedAt  time.Time   `json:"created_at"`
+	ID           string      `json:"id"`
+	Name         string      `json:"name"`
+	HostUID      int         `json:"host_uid"`
+	Players      []int       `json:"players"`
+	Spectators   []int       `json:"spectators"`
+	MaxPlayers   int         `json:"max_players"`
+	DeckConfig   *DeckConfig `json:"deck_config"`
+	Status       string      `json:"status"` // "waiting", "playing", "finished"
+	IsPointsMode bool        `json:"is_points_mode"`
+	CreatedAt    time.Time   `json:"created_at"`
 }
 
 // 游戏状态
 type GameState struct {
 	RoomID           string         `json:"room_id"`
 	Players          []*PlayerState `json:"players"`
+	Spectators       []int          `json:"spectators"`
+	FinishedPlayers  []int          `json:"finished_players"` // 已完成比赛的玩家UID列表
 	CurrentPlayer    int            `json:"current_player"`
 	Direction        int            `json:"direction"` // 1: 顺时针, -1: 逆时针
 	LastCard         *PlayedCard    `json:"last_card"`
@@ -42,10 +46,12 @@ type GameState struct {
 	DiscardPile      []PlayedCard   `json:"discard_pile"`
 	AllUsedCards     []Card         `json:"-"`                  // 累计已排出的所有卡牌池（用于洗牌）
 	Status           string         `json:"status"`             // "playing", "finished"
+	IsPointsMode     bool           `json:"is_points_mode"`     // 同步房间配置
 	TurnEndTime      int64          `json:"turn_end_time"`      // 回合结束时间戳（毫秒）
 	PendingDrawCount int            `json:"pending_draw_count"` // 当前累计需加牌数
 	PendingDrawTypes []string       `json:"pending_draw_types"` // 当前累计加牌类型（如["+2","+4"]）
 	AllowedAnyPlayer int            `json:"allowed_any_player"` // 允许无视反应条件直接出牌的玩家索引，-1 表示无
+	PointsChanges    map[int]int    `json:"points_changes"`     // 回合结束时的积分变动 (UID -> points)
 }
 
 // 玩家状态

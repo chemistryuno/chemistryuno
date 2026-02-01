@@ -127,7 +127,16 @@ func main() {
 		reactions.DELETE("/:id", handlers.DeleteReaction)
 	}
 
+	// 积分和悬赏
+	points := r.Group("/points")
+	points.Use(middleware.AuthMiddleware())
+	{
+		points.GET("/leaderboard", handlers.GetLeaderboard)
+		points.POST("/bounty", handlers.CreateBounty)
+	}
+
 	log.Println("服务器启动在 :8080")
+	handlers.StartPointsTask()
 
 	// 后台清理任务：删除已到达 remove_at 的反馈（每小时运行）
 	go func() {

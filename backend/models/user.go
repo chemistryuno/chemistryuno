@@ -14,6 +14,8 @@ type User struct {
 	Role             string    `json:"role" db:"role"` // admin, co-worker, user
 	TwoFactorEnabled bool      `json:"two_factor_enabled" db:"two_factor_enabled"`
 	TwoFactorSecret  string    `json:"-" db:"two_factor_secret"`
+	Points           int       `json:"points" db:"points"`
+	LastDecayAt      time.Time `json:"last_decay_at" db:"last_decay_at"`
 	CreatedAt        time.Time `json:"created_at" db:"created_at"`
 }
 
@@ -44,7 +46,16 @@ type PromoteUserRequest struct {
 	Role string `json:"role" binding:"required,oneof=user co-worker admin"`
 }
 
-type ChemicalReaction struct {
+type Bounty struct {
+	ID        int       `json:"id" db:"id"`
+	TargetUID int       `json:"target_uid" db:"target_uid"`
+	Amount    int       `json:"amount" db:"amount"`
+	CreatedBy int       `json:"created_by" db:"created_by"`
+	Status    string    `json:"status" db:"status"`
+	CreatedAt time.Time `json:"created_at" db:"created_at"`
+}
+
+type Reaction struct {
 	ID        int       `json:"id" db:"id"`
 	R1        string    `json:"r1" db:"r1"`
 	R2        string    `json:"r2" db:"r2"`

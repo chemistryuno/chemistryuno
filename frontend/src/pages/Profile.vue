@@ -7,7 +7,8 @@ import {
   ArrowLeft, 
   Shield, 
   Award,
-  MessageSquare
+  MessageSquare,
+  Trophy
 } from 'lucide-vue-next'
 
 // Components
@@ -148,13 +149,25 @@ const handleDeleteAccount = async () => {
 
     <div class="max-w-6xl mx-auto relative z-10">
       <!-- Back Button -->
-      <button 
-        @click="router.push('/')" 
-        class="group flex items-center gap-3 text-slate-400 hover:text-slate-900 dark:hover:text-white mb-10 transition-all px-4 py-2 rounded-full hover:bg-white dark:hover:bg-white/5 border border-transparent hover:border-slate-200 dark:hover:border-white/10"
-      >
-        <ArrowLeft class="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-        <span class="font-bold tracking-wider uppercase text-xs">返回指挥大厅 / Back to Hub</span>
-      </button>
+      <div class="mb-10 flex items-center justify-between">
+        <button 
+          @click="router.push('/')" 
+          class="group flex items-center gap-3 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all px-4 py-2 rounded-xl hover:bg-white dark:hover:bg-white/5 border border-transparent hover:border-slate-200 dark:hover:border-white/10"
+        >
+          <ArrowLeft class="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
+          <span class="font-bold tracking-wider uppercase text-xs">返回指挥大厅</span>
+        </button>
+
+        <div class="flex items-center gap-3">
+          <router-link 
+            to="/ranking" 
+            class="flex items-center gap-2 px-4 py-2 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-500 hover:bg-amber-500/20 transition-all group"
+          >
+            <Trophy class="w-4 h-4 group-hover:scale-110 transition-transform" />
+            <span class="text-[10px] font-black uppercase tracking-widest">全球排名</span>
+          </router-link>
+        </div>
+      </div>
 
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
         <!-- Sidebar: Header and Stats -->

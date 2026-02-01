@@ -187,3 +187,28 @@ func VerifyReaction(c *gin.Context) {
 		"can_react": canReact,
 	})
 }
+
+// 发动双联反应
+func DoublePlay(c *gin.Context) {
+	roomID := c.Param("id")
+	uid := c.GetInt("uid")
+
+	var req struct {
+		Sub1 string `json:"sub1" binding:"required"`
+		Sub2 string `json:"sub2" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	err := game.DoublePlay(roomID, uid, req.Sub1, req.Sub2)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	broadcastUpdate(roomID)
+	c.JSON(http.StatusOK, gin.H{"message": "双联反应发动成功！"})
+}

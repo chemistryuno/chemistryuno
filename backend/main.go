@@ -83,6 +83,7 @@ func main() {
 		auth.POST("/rooms/:id/leave", handlers.LeaveRoom)
 		auth.POST("/rooms/:id/start", handlers.StartGame)
 		auth.POST("/rooms/:id/play", handlers.PlayCard)
+		auth.POST("/rooms/:id/play-double", handlers.DoublePlay)
 		auth.POST("/rooms/:id/draw", handlers.DrawCard)
 		auth.GET("/rooms/:id/substances", handlers.GetAvailableSubstances)
 		auth.POST("/game/check-reaction", handlers.VerifyReaction)

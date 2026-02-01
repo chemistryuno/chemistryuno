@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue'
-import { useRouter } from 'vue-router'
-import { gameAPI } from '../utils/api'
+import { useRouter, useRoute } from 'vue-router'
+import { gameAPI, authAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
 import websocket from '../utils/websocket'
-import { Beaker, Plus, Users, Shield, LogOut, Settings, Play, Info, X, Loader2, Database, Bot, MessageSquare } from 'lucide-vue-next'
+import { Beaker, Plus, Users, Shield, LogOut, Settings, Play, Info, X, Loader2, Database, Bot, MessageSquare, Clock, Trash2 } from 'lucide-vue-next'
 import { cn } from '../utils/cn'
 
 const props = defineProps<{
@@ -12,10 +12,12 @@ const props = defineProps<{
 }>()
 
 const router = useRouter()
-const { showAlert } = useDialog()
+const route = useRoute()
+const { showAlert, showConfirm } = useDialog()
 const user = ref(JSON.parse(localStorage.getItem('user') || '{}'))
 const rooms = ref<any[]>([])
 const decks = ref<any[]>([])
+const pendingFeedbacks = ref<any[]>([])
 const showCreateModal = ref(false)
 const roomName = ref('')
 const maxPlayers = ref(4)
@@ -41,6 +43,7 @@ let timeInterval: any
 onMounted(() => {
   loadRooms()
   loadDecks()
+  loadPendingFeedbacks()
   websocket.connect()
 
   roomInterval = setInterval(loadRooms, 3000)
@@ -60,6 +63,27 @@ const loadRooms = async () => {
     rooms.value = response.data || []
   } catch (error) {
     console.error('加载房间列表失败:', error)
+  }
+}
+
+const loadPendingFeedbacks = async () => {
+  try {
+    const res = await authAPI.getMyFeedbacks()
+    pendingFeedbacks.value = res.data.filter((f: any) => f.status === 'unread')
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+const handleQuickWithdraw = async (id: number) => {
+  const confirmed = await showConfirm('确认要直接撤回这条待处理的反馈吗？', '快速撤回')
+  if (!confirmed) return
+  try {
+    await authAPI.withdrawFeedback(id)
+    await loadPendingFeedbacks()
+    showAlert('反馈已成功撤回', '已撤回')
+  } catch (e: any) {
+    showAlert(e.response?.data?.error || '撤回失败', '错误')
   }
 }
 
@@ -206,6 +230,21 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
                  <p class="text-[10px] text-slate-500 uppercase font-bold tracking-widest mb-1">Active_Nodes</p>
                  <p class="text-2xl font-black text-blue-600 dark:text-blue-400">{{ activeNodesCount }}</p>
                </div>
+             </div>
+
+             <!-- Pending Feedback Alert -->
+             <div v-if="pendingFeedbacks.length > 0" class="hidden xl:flex items-center gap-4 px-6 py-3 bg-amber-500/10 border border-amber-500/20 rounded-[20px] animate-in slide-in-from-right-10 duration-500">
+                <div class="flex flex-col">
+                  <span class="text-[8px] font-black text-amber-600 dark:text-amber-500 uppercase tracking-widest">Pending_Comm</span>
+                  <span class="text-[10px] font-bold text-slate-600 dark:text-slate-400">您有 {{ pendingFeedbacks.length }} 条待处理反馈</span>
+                </div>
+                <button 
+                  @click="handleQuickWithdraw(pendingFeedbacks[0].id)"
+                  class="p-2 hover:bg-amber-500/20 text-amber-600 rounded-lg transition-all"
+                  title="撤回最新一条反馈"
+                >
+                  <Trash2 class="w-4 h-4" />
+                </button>
              </div>
 
              <button 

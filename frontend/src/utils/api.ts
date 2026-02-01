@@ -78,6 +78,8 @@ export const gameAPI = {
     api.post(`/rooms/${roomId}/start`),
   playCard: (roomId: string, card: any, substance: string) => 
     api.post(`/rooms/${roomId}/play`, { card, substance }),
+  playDouble: (roomId: string, sub1: string, sub2: string) =>
+    api.post(`/rooms/${roomId}/play-double`, { sub1, sub2 }),
   drawCard: (roomId: string) => 
     api.post(`/rooms/${roomId}/draw`),
   getAvailableSubstances: (roomId: string) => 

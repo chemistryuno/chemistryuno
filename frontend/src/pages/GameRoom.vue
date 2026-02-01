@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { gameAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
 import websocket from '../utils/websocket'
-import { ArrowLeft, Play, RefreshCw, Zap, FlaskConical, Trophy, ChevronRight, Loader2, Users, Timer } from 'lucide-vue-next'
+import { ArrowLeft, Play, RefreshCw, Zap, Activity, FlaskConical, Trophy, ChevronRight, Loader2, Users, Timer } from 'lucide-vue-next'
 import { cn } from '../utils/cn'
 
 const route = useRoute()
@@ -19,10 +19,92 @@ const availableSubstances = ref<string[]>([])
 const turnReadySubstances = ref<string[]>([])
 const selectedCard = ref<any>(null)
 const selectedSubstance = ref<string | null>(null)
+const doubleMode = ref(false)
+const firstDoubleSubstance = ref<string | null>(null)
+const secondDoubleSubstance = ref<string | null>(null)
 const substanceInput = ref('')
 const loading = ref(true)
 const timeRemaining = ref(30)
 let timerInterval: any = null
+
+const currentPlayerObj = computed(() => {
+  if (!gameState.value) return null
+  return gameState.value.players?.[gameState.value.current_player]
+})
+const isMyTurn = computed(() => {
+  if (!currentPlayerObj.value || !user.value) return false
+  return currentPlayerObj.value.uid === user.value.uid
+})
+const myData = computed(() => {
+  if (!gameState.value || !user.value) return null
+  return (gameState.value.players || []).find((p: any) => p.uid === user.value.uid)
+})
+const myIndex = computed(() => {
+  if (!gameState.value || !user.value) return -1
+  return (gameState.value.players || []).findIndex((p: any) => p.uid === user.value.uid)
+})
+const allowedAny = computed(() => {
+  if (!gameState.value) return false
+  return typeof gameState.value?.allowed_any_player !== 'undefined' && gameState.value?.allowed_any_player === myIndex.value
+})
+const winner = computed(() => gameState.value?.players?.find((p: any) => p.card_count === 0))
+
+// --- 人机实验室移植功能 ---
+const ELEMENTS_DATA: Record<string, { name: string, color: string }> = {
+  'H': { name: '氢', color: 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 border-blue-200' },
+  'O': { name: '氧', color: 'bg-red-100 dark:bg-red-900/30 text-red-600 border-red-200' },
+  'C': { name: '碳', color: 'bg-slate-700 text-white border-slate-800' },
+  'N': { name: '氮', color: 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 border-indigo-200' },
+  'S': { name: '硫', color: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 border-yellow-200' },
+  'Cl': { name: '氯', color: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 border-emerald-200' },
+  'Na': { name: '钠', color: 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 border-orange-200' },
+  'Mg': { name: '镁', color: 'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-600 border-cyan-200' },
+  'Al': { name: '铝', color: 'bg-zinc-100 dark:bg-zinc-900/30 text-zinc-600 border-zinc-200' },
+  'Cu': { name: '铜', color: 'bg-orange-200 dark:bg-orange-950/30 text-orange-700 border-orange-300' },
+  'Fe': { name: '铁', color: 'bg-stone-200 dark:bg-stone-900/30 text-stone-600 border-stone-300' },
+  'Zn': { name: '锌', color: 'bg-teal-100 dark:bg-teal-900/30 text-teal-600 border-teal-200' },
+  'Ag': { name: '银', color: 'bg-slate-100 dark:bg-slate-800 text-slate-500 border-slate-200' },
+  'K': { name: '钾', color: 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 border-purple-200' },
+  'Ca': { name: '钙', color: 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 border-amber-200' },
+}
+
+const SUBSTANCE_NAMES: Record<string, string> = {
+  'H2O': '水', 'H2': '氢气', 'O2': '氧气', 'HCl': '盐酸', 'H2SO4': '硫酸',
+  'NaOH': '氢氧化钠', 'NaCl': '氯化钠', 'CO2': '二氧化碳', 'CaO': '氧化钙',
+  'CuO': '氧化铜', 'Fe2O3': '氧化铁', 'Fe': '铁', 'Cu': '铜', 'Zn': '锌',
+  'Mg': '镁', 'Al': '铝', 'C': '碳', 'S': '硫', 'Cl2': '氯气', 'AgNO3': '硝酸银'
+}
+
+const formatFormula = (formula: string) => {
+  if (!formula) return ''
+  return formula.replace(/(\d+)/g, '<sub>$1</sub>')
+}
+
+const getSubstanceName = (formula: string) => {
+  if (SUBSTANCE_NAMES[formula]) return SUBSTANCE_NAMES[formula]
+  return formula
+}
+
+const exp = ref(Number(localStorage.getItem('chem_exp') || '0'))
+const level = computed(() => Math.floor(exp.value / 100) + 1)
+const achievements = ref<string[]>(JSON.parse(localStorage.getItem('chem_achievements') || '[]'))
+
+const checkAchievements = (substance: string) => {
+  if (!substance) return
+  if (substance.includes('Au') && !achievements.value.includes('炼金术士')) {
+    achievements.value.push('炼金术士')
+    showAlert('获得成就：炼金术士 (合成单质金)', '成就达成！')
+  }
+  localStorage.setItem('chem_achievements', JSON.stringify(achievements.value))
+}
+
+const addExp = (amount: number) => {
+  exp.value += amount
+  localStorage.setItem('chem_exp', exp.value.toString())
+}
+
+const showLogs = ref(false)
+// --- 移植结束 ---
 
 const startTimer = () => {
   if (timerInterval) clearInterval(timerInterval)
@@ -175,10 +257,27 @@ const handlePlayCard = async () => {
     return
   }
 
+  if (doubleMode.value) {
+    if (!firstDoubleSubstance.value) {
+      firstDoubleSubstance.value = selectedSubstance.value
+    } else if (!secondDoubleSubstance.value) {
+      secondDoubleSubstance.value = selectedSubstance.value
+    }
+    selectedCard.value = null
+    selectedSubstance.value = null
+    availableSubstances.value = []
+    return
+  }
+
   try {
     // 如果没有选中的卡片，则传递一个带类型的占位符，后端会根据物质消耗手牌
     const cardToPlay = selectedCard.value || { type: selectedSubstance.value, count: 1, effect: '' }
     await gameAPI.playCard(id, cardToPlay, selectedSubstance.value)
+    
+    // 增加经验值并检查成就
+    addExp(10)
+    checkAchievements(selectedSubstance.value)
+    
     selectedCard.value = null
     selectedSubstance.value = null
     availableSubstances.value = []
@@ -187,12 +286,64 @@ const handlePlayCard = async () => {
   }
 }
 
+const handleDoublePlay = async () => {
+  if (!firstDoubleSubstance.value || !secondDoubleSubstance.value) {
+    showAlert('请选择参与双联反应的两种物质', '未就绪')
+    return
+  }
+
+  try {
+    await gameAPI.playDouble(id, firstDoubleSubstance.value, secondDoubleSubstance.value)
+    
+    // 增加经验值
+    addExp(25)
+    checkAchievements(firstDoubleSubstance.value)
+    checkAchievements(secondDoubleSubstance.value)
+
+    firstDoubleSubstance.value = null
+    secondDoubleSubstance.value = null
+    doubleMode.value = false
+    selectedCard.value = null
+    selectedSubstance.value = null
+    availableSubstances.value = []
+  } catch (error: any) {
+    showAlert(error.response?.data?.error || '双联行动失败', '反应中断')
+  }
+}
+
+const toggleDoubleMode = () => {
+  if (!myData.value?.double_action_available) {
+    showAlert('双联反应尚未就绪，请先进行普通实验（行动）', '无法发动')
+    return
+  }
+  doubleMode.value = !doubleMode.value
+  firstDoubleSubstance.value = null
+  secondDoubleSubstance.value = null
+  selectedSubstance.value = null
+}
+
 const handleInputPlay = async () => {
   if (!substanceInput.value) return
+
+  if (doubleMode.value) {
+    const sub = substanceInput.value.toUpperCase()
+    if (!firstDoubleSubstance.value) {
+      firstDoubleSubstance.value = sub
+    } else if (!secondDoubleSubstance.value) {
+      secondDoubleSubstance.value = sub
+    }
+    substanceInput.value = ''
+    return
+  }
 
   try {
     // 为兼容原API，传一个空Card对象
     await gameAPI.playCard(id, { type: '', count: 0, effect: '' }, substanceInput.value)
+    
+    // 增加经验值并检查成就
+    addExp(10)
+    checkAchievements(substanceInput.value)
+
     substanceInput.value = ''
     selectedCard.value = null
     selectedSubstance.value = null
@@ -224,24 +375,26 @@ const handleLeaveRoom = async () => {
 }
 
 const getCardStyle = (card: any) => {
+  if (!card) return ''
   const nobleGases = ['He', 'Ne', 'Ar', 'Kr']
   if (nobleGases.includes(card.type)) return 'noble'
-  if (nobleGases.includes(card.type) || card.effect === 'Au' || card.effect === '+2' || card.effect === '+4') return 'special'
-  if (card.effect === 'wild' || card.effect === 'wild4' || card.type === 'Au') return 'noble'
+  if (card.effect === 'Au' || card.type === 'Au') return 'gold' // Au 特效
+  if (card.effect === '+2' || card.effect === '+4') return 'special'
+  
+  // 如果在 ELEMENTS_DATA 中有，返回对应的颜色类
+  if (ELEMENTS_DATA[card.type]) return '' 
+  
   return 'element'
 }
 
-const currentPlayerObj = computed(() => gameState.value?.players?.[gameState.value.current_player])
-const isMyTurn = computed(() => currentPlayerObj.value?.uid === user.value.uid)
-const myData = computed(() => gameState.value?.players?.find((p: any) => p.uid === user.value.uid))
-const myIndex = computed(() => {
-  return (gameState.value?.players || []).findIndex((p: any) => p.uid === user.value.uid)
-})
-const allowedAny = computed(() => {
-  return typeof gameState.value?.allowed_any_player !== 'undefined' && gameState.value?.allowed_any_player === myIndex.value
-})
-
-const winner = computed(() => gameState.value?.players?.find((p: any) => p.card_count === 0))
+const getDynamicCardClass = (card: any) => {
+  if (ELEMENTS_DATA[card.type]) return ELEMENTS_DATA[card.type].color
+  const style = getCardStyle(card)
+  if (style === 'noble') return 'bg-indigo-600 border-indigo-400'
+  if (style === 'gold') return 'bg-amber-500 border-amber-300'
+  if (style === 'special') return 'bg-rose-600 border-rose-400'
+  return ''
+}
 
 const playerPositions = [
   'bottom-2 sm:bottom-0 translate-y-0 sm:translate-y-1/2 translate-x-1/2 right-1/2',
@@ -309,6 +462,17 @@ onMounted(() => {
           >
             <ArrowLeft class="w-4 h-4 sm:w-5 sm:h-5 group-hover:-translate-x-1 transition-transform" />
           </button>
+          
+          <div class="hidden md:flex items-center gap-4 bg-slate-100/50 dark:bg-white/5 px-4 py-1.5 rounded-2xl border border-slate-200 dark:border-white/10">
+            <div class="flex flex-col items-end">
+              <span class="text-[7px] font-black text-slate-500 uppercase tracking-widest leading-none mb-1">Expertise</span>
+              <span class="text-[10px] font-black italic text-blue-500 leading-none">LV.{{ level }}</span>
+            </div>
+            <div class="w-16 h-1.5 bg-slate-200 dark:bg-white/10 rounded-full overflow-hidden">
+              <div class="h-full bg-blue-500 transition-all duration-1000" :style="{ width: (exp % 100) + '%' }"></div>
+            </div>
+          </div>
+
           <div class="h-6 sm:h-8 w-px bg-slate-200 dark:bg-white/10"></div>
           <div>
             <div class="flex items-center gap-2">
@@ -356,7 +520,52 @@ onMounted(() => {
       </div>
 
       <!-- Reaction Chamber (Main Table) -->
-      <div class="flex-1 relative flex items-center justify-center p-2 sm:p-12 overflow-hidden">
+      <div class="flex-1 relative flex items-center justify-center p-2 sm:p-12 overflow-hidden">          
+          <!-- Reaction Logs (Moved from AI Lab) -->
+          <div :class="cn(
+            'absolute right-4 top-4 bottom-4 w-64 z-[60] bg-white/80 dark:bg-black/80 backdrop-blur-2xl border border-slate-200 dark:border-white/10 rounded-[32px] shadow-2xl transition-all duration-500 flex flex-col overflow-hidden',
+            showLogs ? 'translate-x-0 opacity-100' : 'translate-x-[calc(100%+2rem)] opacity-0 pointer-events-none'
+          )">
+             <div class="p-6 border-b border-slate-200 dark:border-white/10 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                   <Activity class="w-4 h-4 text-blue-500" />
+                   <span class="text-xs font-black uppercase tracking-widest text-slate-500">Reaction Logs</span>
+                </div>
+                <button @click="showLogs = false" class="text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors">
+                   <ArrowLeft class="w-4 h-4 rotate-180" />
+                </button>
+             </div>
+             <div class="flex-1 overflow-y-auto p-4 custom-scrollbar">
+                <div v-if="!gameState?.discard_pile?.length" class="h-full flex flex-col items-center justify-center opacity-20 gap-3">
+                   <FlaskConical class="w-8 h-8" />
+                   <p class="text-[10px] font-black uppercase tracking-widest">No Records</p>
+                </div>
+                <div v-for="(play, idx) in [...(gameState?.discard_pile || [])].reverse()" :key="idx" class="mb-4 last:mb-0 group animate-in slide-in-from-right-4 duration-300">
+                   <div class="flex items-center gap-3 mb-1">
+                      <div class="w-1.5 h-1.5 rounded-full bg-blue-500 group-first:animate-pulse"></div>
+                      <span class="text-[9px] font-black text-slate-400 uppercase tracking-tighter">Turn #{{ (gameState?.discard_pile?.length || 0) - idx }}</span>
+                   </div>
+                   <div class="bg-slate-50 dark:bg-white/5 p-3 rounded-2xl border border-slate-200 dark:border-white/5">
+                      <p class="text-[11px] font-black text-blue-600 dark:text-blue-400 mb-1" v-html="formatFormula(play.substance)"></p>
+                      <div class="flex items-center justify-between text-[8px] font-bold text-slate-500 uppercase tracking-widest">
+                         <span>{{ getSubstanceName(play.substance) }}</span>
+                         <span class="opacity-40">@{{ gameState?.players?.find(p => p.uid === play.player_uid)?.username || 'User' }}</span>
+                      </div>
+                   </div>
+                </div>
+             </div>
+          </div>
+
+          <!-- Log Toggle Button -->
+          <button 
+            @click="showLogs = !showLogs"
+            :class="cn(
+              'absolute right-6 top-6 z-50 p-3 rounded-2xl border transition-all active:scale-95 group',
+              showLogs ? 'bg-blue-600 border-blue-500 text-white' : 'bg-white/50 dark:bg-black/40 border-slate-200 dark:border-white/10 text-slate-500 hover:text-blue-500'
+            )"
+          >
+             <Zap :class="cn('w-5 h-5 group-hover:animate-pulse', showLogs && 'fill-current')" />
+          </button>
         <!-- Table Console Background -->
         <div class="absolute w-full max-w-5xl aspect-square sm:aspect-[16/10] max-h-[90%] bg-slate-200/20 dark:bg-[#121216]/20 rounded-[40px] sm:rounded-[80px] border border-slate-200 dark:border-white/5 shadow-[inset_0_0_100px_rgba(0,0,0,0.05)] dark:shadow-[inset_0_0_100px_rgba(0,0,0,0.5)] pointer-events-none">
            <div class="absolute top-8 left-1/2 -translate-x-1/2 flex gap-12 opacity-30">
@@ -416,13 +625,14 @@ onMounted(() => {
                 <div class="absolute -inset-8 sm:-inset-12 bg-blue-600/10 rounded-full blur-3xl animate-pulse"></div>
                 <div :class="cn(
                   'game-card scale-[1.1] sm:scale-[1.3] pointer-events-none shadow-[0_20px_40px_rgba(0,0,0,0.1)] dark:shadow-[0_20px_40px_rgba(0,0,0,0.8)] z-10 text-white', 
-                  getCardStyle(gameState.last_card.card)
+                  getCardStyle(gameState?.last_card?.card),
+                  getDynamicCardClass(gameState?.last_card?.card)
                 )">
-                    <div class="absolute top-1 sm:top-2 left-1 sm:left-2 text-[6px] sm:text-[8px] uppercase font-black opacity-30 tracking-widest leading-none">Last</div>
+                    <div class="absolute top-1 sm:top-2 left-1 sm:left-2 text-[6px] sm:text-[8px] uppercase font-black opacity-30 tracking-widest leading-none">Latest</div>
                     <div class="flex flex-col items-center justify-center">
-                      <div class="text-xl sm:text-2xl tracking-tighter font-black">{{ gameState.last_card.card.type }}</div>
-                      <div v-if="gameState.last_card.card.effect" class="text-[8px] sm:text-[10px] font-bold bg-white/20 px-1.5 py-0.5 rounded-full mt-1 uppercase tracking-tighter">
-                        {{ ['He','Ne','Ar','Kr'].includes(gameState.last_card.card.type) ? '稀有气体（反转）' : gameState.last_card.card.effect === 'Au' ? 'Au: 跳过' : gameState.last_card.card.effect === '+2' ? '+2摸牌' : gameState.last_card.card.effect === '+4' ? '+4摸牌' : gameState.last_card.card.effect }}
+                      <div class="text-2xl sm:text-3xl tracking-tighter font-black font-mono italic">{{ gameState?.last_card?.card?.type }}</div>
+                      <div v-if="gameState?.last_card?.card?.effect || ['He','Ne','Ar','Kr'].includes(gameState?.last_card?.card?.type)" class="text-[8px] sm:text-[10px] font-bold bg-white/20 px-1.5 py-0.5 rounded-full mt-1 uppercase tracking-tighter">
+                        {{ ['He','Ne','Ar','Kr'].includes(gameState?.last_card?.card?.type) ? '转向' : gameState?.last_card?.card?.effect === 'Au' ? '跳过' : gameState?.last_card?.card?.effect === '+2' ? '+2' : gameState?.last_card?.card?.effect === '+4' ? '+4' : gameState?.last_card?.card?.effect }}
                       </div>
                     </div>
                 </div>
@@ -432,10 +642,15 @@ onMounted(() => {
                 <p class="text-[8px] sm:text-[10px] text-slate-500 dark:text-slate-600 font-black uppercase tracking-widest">Awaiting</p>
               </div>
                
-              <div v-if="gameState?.last_card" class="bg-white/70 dark:bg-blue-600/10 backdrop-blur-3xl px-3 sm:px-6 py-1.5 sm:py-2.5 rounded-xl sm:rounded-2xl border border-blue-200 dark:border-blue-500/20 text-[10px] sm:text-xs font-black text-blue-600 dark:text-blue-400 shadow-[0_10px_30px_rgba(0,0,0,0.05)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.3)] flex items-center gap-2 sm:gap-3 animate-in fade-in slide-in-from-top-4">
-                <div class="w-1.5 h-1.5 rounded-full bg-blue-500 dark:bg-blue-400 animate-pulse"></div>
-                <span class="uppercase tracking-widest text-[8px] sm:text-[9px] text-slate-400 dark:text-slate-500 hidden xs:inline">Reactant:</span>
-                <span class="truncate max-w-[100px]">{{ gameState.last_card.substance }}</span>
+              <div v-if="gameState?.last_card" class="flex flex-col items-center gap-2 mt-4 sm:mt-8">
+                <div class="bg-white/70 dark:bg-blue-600/10 backdrop-blur-3xl px-4 sm:px-8 py-2 sm:py-3 rounded-2xl sm:rounded-[24px] border border-blue-200 dark:border-blue-500/20 shadow-[0_10px_30px_rgba(0,0,0,0.05)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.3)] flex flex-col items-center animate-in fade-in slide-in-from-top-4">
+                  <div class="flex items-center gap-2 mb-1">
+                    <FlaskConical class="w-3 h-3 text-blue-500" />
+                    <span class="uppercase tracking-widest text-[7px] sm:text-[8px] font-black text-slate-400 dark:text-slate-500">Stability Verified</span>
+                  </div>
+                  <h3 class="text-xl sm:text-3xl font-black text-blue-600 dark:text-blue-400 tracking-tighter font-mono italic" v-html="formatFormula(gameState?.last_card?.substance)"></h3>
+                  <p class="text-[9px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-[0.2em] italic">{{ getSubstanceName(gameState?.last_card?.substance) }}</p>
+                </div>
               </div>
             </div>
           </div>
@@ -443,7 +658,7 @@ onMounted(() => {
           <!-- Player badges positions (radial) -->
           <template v-if="(gameState?.players || []).length > 0">
             <div 
-              v-for="(player, index) in gameState.players"
+              v-for="(player, index) in (gameState?.players || [])"
               :key="player.uid"
               :class="cn(
                 'absolute transition-all duration-700 z-30',
@@ -452,7 +667,7 @@ onMounted(() => {
             >
               <div :class="cn(
                 'p-1.5 sm:p-2 rounded-[20px] sm:rounded-[32px] transition-all duration-500 group/player border backdrop-blur-xl shadow-2xl flex items-center gap-2 sm:gap-4 min-w-[140px] sm:min-w-[180px]',
-                gameState.current_player === index 
+                gameState?.current_player === index 
                   ? 'bg-blue-600/10 border-blue-400 dark:border-blue-500 shadow-[0_0_40px_rgba(59,130,246,0.1)] dark:shadow-[0_0_40px_rgba(59,130,246,0.3)] scale-105 sm:scale-110' 
                   : 'bg-white/80 dark:bg-black/60 border-slate-200 dark:border-white/5 hover:border-blue-400 dark:hover:border-white/20'
               )">
@@ -465,13 +680,13 @@ onMounted(() => {
                        {{ player.avatar || '🧪' }}
                     </template>
                   </div>
-                  <div v-if="gameState.current_player === index" class="absolute -top-1 -right-1 bg-blue-600 dark:bg-blue-500 p-1 rounded-md sm:rounded-lg shadow-lg animate-bounce">
+                  <div v-if="gameState?.current_player === index" class="absolute -top-1 -right-1 bg-blue-600 dark:bg-blue-500 p-1 rounded-md sm:rounded-lg shadow-lg animate-bounce">
                     <Zap class="w-2.5 h-2.5 sm:w-3 sm:h-3 text-white fill-current" />
                   </div>
                 </div>
                 <div class="flex flex-col pr-1 sm:pr-2 min-w-0">
                   <div class="flex items-center gap-1 sm:gap-2">
-                     <span :class="cn('text-[9px] sm:text-[10px] font-bold uppercase tracking-tight truncate max-w-[60px] sm:max-w-[80px]', gameState.current_player === index ? 'text-blue-600 dark:text-blue-400' : 'text-slate-900 dark:text-white')">{{ player.username }}</span>
+                     <span :class="cn('text-[9px] sm:text-[10px] font-bold uppercase tracking-tight truncate max-w-[60px] sm:max-w-[80px]', gameState?.current_player === index ? 'text-blue-600 dark:text-blue-400' : 'text-slate-900 dark:text-white')">{{ player.username }}</span>
                      <span v-if="player.uid === user.uid" class="text-[7px] sm:text-[8px] bg-blue-500/20 text-blue-400 px-1 rounded font-mono">YOU</span>
                   </div>
                   <div class="flex items-center gap-2 sm:gap-3 mt-1 sm:mt-1.5">
@@ -481,9 +696,17 @@ onMounted(() => {
                         </div>
                         <span class="text-[9px] sm:text-[10px] font-mono text-slate-400">{{ player.card_count }} 张</span>
                      </div>
+                     <!-- 行动进度 / 双联反应就绪标志 -->
+                     <div v-if="player.double_action_available" class="flex items-center gap-1 bg-blue-500/10 px-1.5 py-0.5 rounded-full border border-blue-500/20">
+                        <Zap class="w-2 h-2 text-blue-400 fill-current" />
+                        <span class="text-[7px] sm:text-[8px] font-black text-blue-400 uppercase tracking-tighter">Ready</span>
+                     </div>
+                     <div v-else class="flex items-center gap-0.5 opacity-40">
+                        <div v-for="i in 2" :key="i" :class="cn('w-2 h-0.5 rounded-full', i <= (player.action_progress || 0) ? 'bg-blue-500' : 'bg-slate-700')"></div>
+                     </div>
                   </div>
                 </div>
-                <div v-if="gameState.current_player === index" class="absolute inset-0 rounded-[20px] sm:rounded-[32px] border-2 border-blue-500/50 animate-pulse pointer-events-none"></div>
+                <div v-if="gameState?.current_player === index" class="absolute inset-0 rounded-[20px] sm:rounded-[32px] border-2 border-blue-500/50 animate-pulse pointer-events-none"></div>
               </div>
             </div>
           </template>
@@ -550,11 +773,54 @@ onMounted(() => {
                   <ChevronRight class="w-4 h-4 text-white" />
                 </button>
               </div>
-              <div class="bg-blue-600 px-4 sm:px-8 py-1.5 sm:py-2.5 rounded-full shadow-[0_15px_30px_rgba(37,99,235,0.2)] dark:shadow-[0_15px_30px_rgba(37,99,235,0.4)] flex items-center gap-2 sm:gap-3 active:scale-95 transition-transform">
+              <div class="bg-blue-600 px-4 sm:px-8 py-1.5 sm:py-2.5 rounded-full shadow-[0_15px_30px_rgba(37,99,235,0.2)] dark:shadow-[0_15px_30px_rgba(37,99,235,0.4)] flex items-center gap-2 sm:gap-3 active:scale-95 transition-transform relative group">
                 <Zap class="w-3 h-3 sm:w-4 sm:h-4 fill-current animate-pulse text-white" />
                 <span class="text-[9px] sm:text-xs font-black uppercase tracking-widest sm:tracking-[0.3em] text-white">Your_Turn_Active ({{ timeRemaining }}s)</span>
+                
+                <!-- 双联行动按钮 -->
+                <button 
+                  v-if="myData?.double_action_available"
+                  @click.stop="toggleDoubleMode"
+                  :class="cn(
+                    'absolute -right-2 top-1/2 -translate-y-1/2 translate-x-full ml-4 px-4 py-2 rounded-2xl border-2 transition-all flex items-center gap-2 whitespace-nowrap overflow-hidden group/btn',
+                    doubleMode 
+                      ? 'bg-amber-500 border-amber-400 text-white shadow-[0_0_20px_rgba(245,158,11,0.4)]' 
+                      : 'bg-white/10 backdrop-blur-md border-white/20 text-white hover:bg-white/20'
+                  )"
+                >
+                   <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover/btn:animate-shimmer"></div>
+                   <Activity :class="cn('w-4 h-4', doubleMode && 'animate-spin')" />
+                   <div class="flex flex-col items-start leading-none">
+                      <span class="text-[10px] font-black uppercase tracking-tighter">{{ doubleMode ? '取消双联' : '双联反应' }}</span>
+                      <span class="text-[7px] font-bold opacity-70 uppercase tracking-tighter">Double Action</span>
+                   </div>
+                </button>
               </div>
-              <div class="w-px h-6 sm:h-10 bg-gradient-to-b from-blue-500 to-transparent opacity-50"></div>
+
+              <!-- 双联模式提示状态 -->
+              <div v-if="doubleMode" class="mt-4 flex flex-col items-center gap-2 animate-in slide-in-from-top-4 duration-500">
+                <div class="flex items-center gap-3">
+                  <div :class="cn('w-12 h-12 rounded-2xl flex items-center justify-center border-2 transition-all duration-500', firstDoubleSubstance ? 'bg-blue-500/20 border-blue-500 shadow-lg' : 'bg-slate-800/50 border-white/10 opacity-50')">
+                    <span v-if="firstDoubleSubstance" class="text-xs font-black">{{ firstDoubleSubstance }}</span>
+                    <FlaskConical v-else class="w-5 h-5 text-slate-500" />
+                  </div>
+                  <div class="w-4 h-0.5 bg-blue-500/30"></div>
+                  <div :class="cn('w-12 h-12 rounded-2xl flex items-center justify-center border-2 transition-all duration-500', secondDoubleSubstance ? 'bg-blue-500/20 border-blue-500 shadow-lg' : 'bg-slate-800/50 border-white/10 opacity-50')">
+                    <span v-if="secondDoubleSubstance" class="text-xs font-black">{{ secondDoubleSubstance }}</span>
+                    <FlaskConical v-else class="w-5 h-5 text-slate-500" />
+                  </div>
+                </div>
+                <div class="text-[8px] font-black text-amber-500 uppercase tracking-[0.2em] animate-pulse">
+                   {{ !firstDoubleSubstance ? '请选择/输入第一种参与物质' : !secondDoubleSubstance ? '请选择/输入第二种参与物质' : '反应就绪，点击执行' }}
+                </div>
+                <button 
+                  v-if="firstDoubleSubstance && secondDoubleSubstance"
+                  @click="handleDoublePlay"
+                  class="mt-2 bg-gradient-to-r from-amber-500 to-orange-600 px-6 py-2 rounded-xl text-white font-black text-[10px] uppercase tracking-widest shadow-xl hover:scale-105 active:scale-95 transition-all"
+                >
+                  启动双联反应仪式
+                </button>
+              </div>
            </div>
         </div>
 
@@ -572,6 +838,7 @@ onMounted(() => {
                 :class="cn(
                   'game-card flex-shrink-0 cursor-pointer transition-all duration-300 transform-gpu origin-bottom text-white',
                   getCardStyle(card),
+                  getDynamicCardClass(card),
                   selectedCard === card ? 'selected -translate-y-4 sm:-translate-y-8 scale-110 shadow-[0_20px_40px_rgba(0,0,0,0.5)] z-50 ring-2 ring-blue-500/50' : 'hover:-translate-y-6 hover:rotate-2 hover:z-40',
                   !isMyTurn && 'opacity-40 grayscale-[0.8] cursor-not-allowed pointer-events-none translate-y-8 sm:translate-y-12'
                 )"
@@ -579,15 +846,18 @@ onMounted(() => {
                   transform: `rotate(${(Number(index) - ((myData?.hand_cards?.length || 0) - 1) / 2) * (isMobile ? 1 : 2)}deg)`
                 }"
               >
-                <div class="absolute top-1 sm:top-2 left-1 sm:left-2 text-[6px] sm:text-[8px] font-black uppercase opacity-30 tracking-widest">Elem</div>
+                <div class="absolute top-1 sm:top-2 left-1 sm:left-2 text-[6px] sm:text-[8px] font-black uppercase opacity-30 tracking-widest">{{ ELEMENTS_DATA[card.type] ? 'Element' : 'Spec' }}</div>
                 <div class="flex flex-col items-center justify-center">
-                  <div class="text-lg sm:text-xl font-black tracking-tighter">{{ card.type }}</div>
-                  <div v-if="card.effect || ['He','Ne','Ar','Kr'].includes(card.type)" class="text-[8px] sm:text-[10px] font-bold bg-white/20 px-1.5 py-0.5 rounded-full mt-1 uppercase tracking-tighter">
-                    {{ ['He','Ne','Ar','Kr'].includes(card.type) ? '稀有气体（反转）' : card.effect === 'Au' ? 'Au: 跳过' : card.effect === '+2' ? '+2摸牌' : card.effect === '+4' ? '+4摸牌' : card.effect }}
+                  <div class="text-xl sm:text-2xl font-black font-mono italic tracking-tighter">{{ card.type }}</div>
+                  <div v-if="card.effect || ['He','Ne','Ar','Kr'].includes(card.type)" class="text-[7px] sm:text-[9px] font-bold bg-white/20 px-1.5 py-0.5 rounded-full mt-1 uppercase tracking-tighter">
+                    {{ ['He','Ne','Ar','Kr'].includes(card.type) ? '转向' : card.effect === 'Au' ? '跳过' : card.effect === '+2' ? '+2' : card.effect === '+4' ? '+4' : card.effect }}
+                  </div>
+                  <div v-else-if="ELEMENTS_DATA[card.type]" class="text-[8px] sm:text-[10px] font-bold opacity-80 mt-1 uppercase tracking-tighter font-serif italic text-black/40">
+                    {{ ELEMENTS_DATA[card.type].name }}
                   </div>
                 </div>
                 <div class="absolute bottom-1 sm:bottom-2 right-1 sm:right-2 text-[5px] sm:text-[7px] font-mono opacity-40 uppercase tracking-tighter">
-                  {{ card.effect ? 'Functional' : 'Passive' }}
+                  {{ card.effect ? 'Function' : 'Passive' }}
                 </div>
               </div>
             </template>

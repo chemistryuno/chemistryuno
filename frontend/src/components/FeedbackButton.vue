@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { MessageCircle, Send, X } from 'lucide-vue-next'
+import { MessageCircle, Send, X, ChevronDown } from 'lucide-vue-next'
 import { authAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
 import EquationEditor from './EquationEditor.vue'
@@ -9,6 +9,14 @@ const isOpen = ref(false)
 const content = ref('')
 const equationContent = ref('')
 const type = ref('general')
+
+const prefill = (newContent: string, newType: string = 'general') => {
+  isOpen.value = true
+  content.value = newContent
+  type.value = newType
+}
+
+defineExpose({ prefill })
 const isSubmitting = ref(false)
 const { showAlert } = useDialog()
 const editorRef = ref<any>(null)
@@ -65,15 +73,18 @@ const submitFeedback = async () => {
       <div class="space-y-4">
         <div>
           <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 block">Feedback Type</label>
-          <select 
-            v-model="type"
-            class="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm outline-none focus:border-blue-500/50"
-          >
-            <option value="general">一般建议</option>
-            <option value="bug">反馈Bug</option>
-            <option value="feature">功能请求</option>
-            <option value="equation">方程式纠错</option>
-          </select>
+          <div class="relative group">
+            <select 
+              v-model="type"
+              class="appearance-none w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-blue-500/50 transition-all cursor-pointer hover:bg-slate-200 dark:hover:bg-white/10"
+            >
+              <option value="general" class="dark:bg-slate-900">一般建议</option>
+              <option value="bug" class="dark:bg-slate-900">反馈Bug</option>
+              <option value="feature" class="dark:bg-slate-900">功能请求</option>
+              <option value="equation" class="dark:bg-slate-900">方程式纠错</option>
+            </select>
+            <ChevronDown class="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none transition-colors group-hover:text-blue-500" />
+          </div>
         </div>
 
         <!-- Equation Editor (Only for equation type) -->

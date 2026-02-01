@@ -55,20 +55,14 @@ func CreateFeedback(c *gin.Context) {
 					c.JSON(http.StatusBadRequest, gin.H{"error": "方程式守恒校验失败: " + errInfo})
 					return
 				}
-				if isDup, oldDisplay := checkDuplicateReactants(formula); isDup {
+				if isDup, oldDisplay := checkDuplicateReactants(formula, ""); isDup {
 					tx.Rollback()
 					c.JSON(http.StatusBadRequest, gin.H{"error": "该反应已存在: " + oldDisplay})
 					return
 				}
 
 				rlist := parseReactants(formula)
-				if len(rlist) > 0 {
-					r1 := rlist[0]
-					r2 := r1
-					if len(rlist) > 1 {
-						r2 = rlist[1]
-					}
-
+				if len(rlist) == 2 {
 					status := "pending_coworker"
 					role := c.GetString("role")
 					if role == "admin" {
@@ -79,21 +73,9 @@ func CreateFeedback(c *gin.Context) {
 
 					groupID := fmt.Sprintf("fb-%d-%d", uid, time.Now().Unix())
 
-					_, err = tx.Exec(`
-						INSERT INTO reactions (r1, r2, display, status, group_id, created_by)
-						VALUES (?, ?, ?, ?, ?, ?)
-					`, r1, r2, formula, status, groupID, uid)
-
-					if err == nil && r1 != r2 {
-						_, err = tx.Exec(`
-							INSERT INTO reactions (r1, r2, display, status, group_id, created_by)
-							VALUES (?, ?, ?, ?, ?, ?)
-						`, r2, r1, formula, status, groupID, uid)
-					}
-
-					if err != nil {
+					if err := saveReactionToDB(tx, rlist, formula, status, groupID, uid); err != nil {
 						tx.Rollback()
-						c.JSON(http.StatusInternalServerError, gin.H{"error": "同步至反应库失败"})
+						c.JSON(http.StatusInternalServerError, gin.H{"error": "同步至反应库失败: " + err.Error()})
 						return
 					}
 				}

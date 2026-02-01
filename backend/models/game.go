@@ -49,17 +49,20 @@ type GameState struct {
 
 // 玩家状态
 type PlayerState struct {
-	UID       int    `json:"uid"`
-	Username  string `json:"username"`
-	Avatar    string `json:"avatar"`
-	HandCards []Card `json:"hand_cards"` // 手牌
-	CardCount int    `json:"card_count"` // 手牌数量（其他玩家只能看到数量）
-	IsReady   bool   `json:"is_ready"`
+	UID                   int    `json:"uid"`
+	Username              string `json:"username"`
+	Avatar                string `json:"avatar"`
+	HandCards             []Card `json:"hand_cards"` // 手牌
+	CardCount             int    `json:"card_count"` // 手牌数量（其他玩家只能看到数量）
+	IsReady               bool   `json:"is_ready"`
+	DoubleActionAvailable bool   `json:"double_action_available"` // 是否可以使用双联反应（每2次普通行动可用1次）
+	ActionProgress        int    `json:"action_progress"`         // 行动进度（0->1->2(可用)）
 }
 
 // 已出牌
 type PlayedCard struct {
-	Card      Card   `json:"card"`
-	Substance string `json:"substance"` // 组成的物质
-	PlayerUID int    `json:"player_uid"`
+	Card      Card     `json:"card"`
+	Substance string   `json:"substance"` // 组成的物质
+	PlayerUID int      `json:"player_uid"`
+	Reactants []string `json:"reactants"` // 如果是双联反应，记录参与反应的两种物质
 }

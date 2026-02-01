@@ -4,6 +4,7 @@ import (
 	"chemistryuno/database"
 	"chemistryuno/models"
 	"chemistryuno/utils"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -286,10 +287,11 @@ func GetReactions(c *gin.Context) {
 // 获取所有已批准的反应 (Wiki)
 func GetAllReactions(c *gin.Context) {
 	rows, err := database.DB.Query(`
-		SELECT id, display, r1, r2, created_at
+		SELECT MIN(id), display, r1, r2, MIN(created_at)
 		FROM reactions
 		WHERE status = 'approved'
-		ORDER BY created_at DESC
+		GROUP BY group_id, display
+		ORDER BY MIN(created_at) DESC
 	`)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误"})
@@ -321,10 +323,11 @@ func GetAllReactions(c *gin.Context) {
 func GetMyReactions(c *gin.Context) {
 	uid := c.GetInt("uid")
 	rows, err := database.DB.Query(`
-		SELECT id, display, status, created_at
+		SELECT MIN(id), display, status, MIN(created_at)
 		FROM reactions
 		WHERE created_by = ?
-		ORDER BY created_at DESC
+		GROUP BY group_id, display, status
+		ORDER BY MIN(created_at) DESC
 	`, uid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误"})
@@ -404,15 +407,15 @@ func ApproveReaction(c *gin.Context) {
 	if !req.Reject && req.Display != "" {
 		// ... 保持原有的修改逻辑，但使用 newStatus ...
 		rlist := parseReactants(req.Display)
-		if len(rlist) == 0 {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "无法识别修改后的反应物"})
+		if len(rlist) != 2 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "修改后的方程式必须包含且仅包含两种不同的反应物"})
 			return
 		}
 
-		r1 := rlist[0]
-		r2 := r1
-		if len(rlist) > 1 {
-			r2 = rlist[1]
+		// 增加冲突校验
+		if isDup, oldDisplay := checkDuplicateReactants(req.Display, groupID); isDup {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("修改后的组合已存在: %s", oldDisplay)})
+			return
 		}
 
 		tx, err := database.DB.Begin()
@@ -436,21 +439,9 @@ func ApproveReaction(c *gin.Context) {
 			return
 		}
 
-		_, err = tx.Exec(`
-			INSERT INTO reactions (r1, r2, display, status, group_id, created_by)
-			VALUES (?, ?, ?, ?, ?, ?)
-		`, r1, r2, req.Display, newStatus, groupID, creatorID)
-
-		if err == nil && r1 != r2 {
-			_, err = tx.Exec(`
-				INSERT INTO reactions (r1, r2, display, status, group_id, created_by)
-				VALUES (?, ?, ?, ?, ?, ?)
-			`, r2, r1, req.Display, newStatus, groupID, creatorID)
-		}
-
-		if err != nil {
+		if err := saveReactionToDB(tx, rlist, req.Display, newStatus, groupID, creatorID); err != nil {
 			tx.Rollback()
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "处理审批事物失败"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "处理审批事务失败: " + err.Error()})
 			return
 		}
 		tx.Commit()
@@ -470,16 +461,20 @@ func ApproveReaction(c *gin.Context) {
 
 // 解析 display 得到 r1 和 r2
 func parseReactants(display string) []string {
-	// 找到等号、箭头或波浪号（允许各种常见化学方程式符号）
-	sep := "="
-	if !strings.Contains(display, "=") {
-		if strings.Contains(display, "->") {
-			sep = "->"
-		} else if strings.Contains(display, "→") {
-			sep = "→"
-		} else {
-			return nil
-		}
+	// 找到等号、箭头或波浪号（支持多种中英文化学方程式符号）
+	sep := ""
+	if strings.Contains(display, "=") {
+		sep = "="
+	} else if strings.Contains(display, "＝") {
+		sep = "＝"
+	} else if strings.Contains(display, "->") {
+		sep = "->"
+	} else if strings.Contains(display, "→") {
+		sep = "→"
+	}
+
+	if sep == "" {
+		return nil
 	}
 
 	parts := strings.Split(display, sep)
@@ -487,6 +482,7 @@ func parseReactants(display string) []string {
 	reactants := strings.Split(reactantPart, "+")
 
 	var result []string
+	unique := make(map[string]bool)
 	// 正则：忽略开头的数字系数（如 2H2O 匹配出 H2O）
 	re := regexp.MustCompile(`^\d*(.*)$`)
 	for _, r := range reactants {
@@ -494,7 +490,8 @@ func parseReactants(display string) []string {
 		match := re.FindStringSubmatch(trimmed)
 		if len(match) > 1 {
 			substance := strings.TrimSpace(match[1])
-			if substance != "" {
+			if substance != "" && !unique[substance] {
+				unique[substance] = true
 				result = append(result, substance)
 			}
 		}
@@ -527,15 +524,15 @@ func AddReaction(c *gin.Context) {
 	}
 
 	// 2. 校验反应物重复
-	if isDup, oldDisplay := checkDuplicateReactants(req.Display); isDup {
+	if isDup, oldDisplay := checkDuplicateReactants(req.Display, ""); isDup {
 		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("该反应物组合已存在: %s", oldDisplay)})
 		return
 	}
 
-	r1 := rlist[0]
-	r2 := r1
-	if len(rlist) > 1 {
-		r2 = rlist[1]
+	// 3. 严格校验反应物数量（仅支持双反应物）
+	if len(rlist) != 2 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "当前仅支持由两种不同物质组成的反应组合（如 A + B = C）"})
+		return
 	}
 
 	// 确定状态：
@@ -558,23 +555,9 @@ func AddReaction(c *gin.Context) {
 		return
 	}
 
-	// 插入 r1 -> r2
-	_, err = tx.Exec(`
-		INSERT INTO reactions (r1, r2, display, status, group_id, created_by)
-		VALUES (?, ?, ?, ?, ?, ?)
-	`, r1, r2, req.Display, status, groupID, uid)
-
-	if err == nil && r1 != r2 {
-		// 插入 r2 -> r1 (双向映射)
-		_, err = tx.Exec(`
-			INSERT INTO reactions (r1, r2, display, status, group_id, created_by)
-			VALUES (?, ?, ?, ?, ?, ?)
-		`, r2, r1, req.Display, status, groupID, uid)
-	}
-
-	if err != nil {
+	if err := saveReactionToDB(tx, rlist, req.Display, status, groupID, uid); err != nil {
 		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "添加反应失败"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "保存反应失败: " + err.Error()})
 		return
 	}
 
@@ -584,6 +567,43 @@ func AddReaction(c *gin.Context) {
 		msg = "反应已成功加入核心数据库"
 	}
 	c.JSON(http.StatusOK, gin.H{"message": msg})
+}
+
+// 统一保存反应到数据库的工具函数
+func saveReactionToDB(tx *sql.Tx, reactants []string, display, status, groupID string, creatorID int) error {
+	// 1. 去重并清理反应物
+	uniqueReactantsMap := make(map[string]bool)
+	var uniqueReactants []string
+	for _, r := range reactants {
+		r = strings.TrimSpace(r)
+		if r != "" && !uniqueReactantsMap[r] {
+			uniqueReactantsMap[r] = true
+			uniqueReactants = append(uniqueReactants, r)
+		}
+	}
+
+	// 严格要求必须有两个不同的反应物参与组合
+	if len(uniqueReactants) != 2 {
+		return fmt.Errorf("当前系统仅支持“双反应物”组合（如 A + B = C），请确保反应物恰好为两种不同的物质")
+	}
+
+	// 存储双向排列组合 (r1, r2) 和 (r2, r1)
+	// 这样可以保证 A 上能接 B，B 上也能接 A
+	for i := 0; i < len(uniqueReactants); i++ {
+		for j := 0; j < len(uniqueReactants); j++ {
+			if i == j {
+				continue
+			}
+			_, err := tx.Exec(`
+				INSERT INTO reactions (r1, r2, display, status, group_id, created_by)
+				VALUES (?, ?, ?, ?, ?, ?)
+			`, uniqueReactants[i], uniqueReactants[j], display, status, groupID, creatorID)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // 内部校验逻辑
@@ -619,6 +639,35 @@ func countElements(expr string) map[string]int {
 			coeff, _ = strconv.Atoi(matches[1])
 		}
 		substance := matches[2]
+
+		// 循环处理括号，从内向外
+		reBracket := regexp.MustCompile(`\(([^()]+)\)(\d*)`)
+		for {
+			loc := reBracket.FindStringSubmatchIndex(substance)
+			if loc == nil {
+				break
+			}
+			inner := substance[loc[2]:loc[3]]
+			mult := 1
+			if loc[4] != -1 && substance[loc[4]:loc[5]] != "" {
+				mult, _ = strconv.Atoi(substance[loc[4]:loc[5]])
+			}
+
+			// 解析括号内部元素并暂存入 counts
+			reElem := regexp.MustCompile(`([A-Z][a-z]*)(\d*)`)
+			eMatches := reElem.FindAllStringSubmatch(inner, -1)
+			for _, m := range eMatches {
+				eCount := 1
+				if m[2] != "" {
+					eCount, _ = strconv.Atoi(m[2])
+				}
+				counts[m[1]] += eCount * mult * coeff
+			}
+			// 移除已处理的括号部分
+			substance = substance[:loc[0]] + substance[loc[1]:]
+		}
+
+		// 处理剩余的非括号部分
 		reElem := regexp.MustCompile(`([A-Z][a-z]*)(\d*)`)
 		elemMatches := reElem.FindAllStringSubmatch(substance, -1)
 		for _, m := range elemMatches {
@@ -636,9 +685,10 @@ func countElements(expr string) map[string]int {
 func validateBalance(display string) (bool, string) {
 	cleanDisplay := strings.ReplaceAll(display, "＝", "->")
 	cleanDisplay = strings.ReplaceAll(cleanDisplay, "=", "->")
+	cleanDisplay = strings.ReplaceAll(cleanDisplay, "→", "->")
 	parts := strings.Split(cleanDisplay, "->")
 	if len(parts) != 2 {
-		return false, "方程式格式错误，应包含 '->' 或 '='"
+		return false, "方程式格式错误，应包含 '->'、'=' 或 '→'"
 	}
 	leftCounts := countElements(parts[0])
 	rightCounts := countElements(parts[1])
@@ -657,7 +707,7 @@ func validateBalance(display string) (bool, string) {
 	return true, ""
 }
 
-func checkDuplicateReactants(display string) (bool, string) {
+func checkDuplicateReactants(display string, excludeGroupID string) (bool, string) {
 	rList := parseReactants(display)
 	if len(rList) < 2 {
 		return false, ""
@@ -666,11 +716,19 @@ func checkDuplicateReactants(display string) (bool, string) {
 	r1, r2 := rList[0], rList[1]
 
 	var existingDisplay string
-	err := database.DB.QueryRow(`
+	query := `
 		SELECT display FROM reactions 
-		WHERE status = 'approved' AND ((r1 = ? AND r2 = ?) OR (r1 = ? AND r2 = ?))
-		LIMIT 1
-	`, r1, r2, r2, r1).Scan(&existingDisplay)
+		WHERE status != 'rejected' 
+		AND ((r1 = ? AND r2 = ?) OR (r1 = ? AND r2 = ?))`
+	args := []interface{}{r1, r2, r2, r1}
+
+	if excludeGroupID != "" {
+		query += " AND group_id != ?"
+		args = append(args, excludeGroupID)
+	}
+	query += " LIMIT 1"
+
+	err := database.DB.QueryRow(query, args...).Scan(&existingDisplay)
 
 	if err == nil {
 		return true, existingDisplay
@@ -711,7 +769,6 @@ func DeleteReaction(c *gin.Context) {
 func UpdateReaction(c *gin.Context) {
 	reactionID := c.Param("id")
 	role := c.GetString("role")
-	uid := c.GetInt("uid")
 
 	if role != "admin" && role != "co-worker" {
 		c.JSON(http.StatusForbidden, gin.H{"error": "权限不足"})
@@ -731,24 +788,37 @@ func UpdateReaction(c *gin.Context) {
 	}
 
 	rlist := parseReactants(req.Display)
-	if len(rlist) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无法识别反应物"})
+	if len(rlist) != 2 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "系统当前仅支持双反应物组合"})
 		return
-	}
-	r1 := rlist[0]
-	r2 := r1
-	if len(rlist) > 1 {
-		r2 = rlist[1]
 	}
 
 	var groupID string
-	err := database.DB.QueryRow("SELECT group_id FROM reactions WHERE id = ?", reactionID).Scan(&groupID)
+	var creatorID int
+	err := database.DB.QueryRow("SELECT group_id, created_by FROM reactions WHERE id = ?", reactionID).Scan(&groupID, &creatorID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "未找到原反应记录"})
 		return
 	}
 
-	tx, _ := database.DB.Begin()
+	// 增补：校验修改后的反应是否与其他反应冲突
+	if isDup, oldDisplay := checkDuplicateReactants(req.Display, groupID); isDup {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("修改后的组合已存在: %s", oldDisplay)})
+		return
+	}
+
+	status := "pending_coworker"
+	if role == "admin" {
+		status = "approved"
+	} else if role == "co-worker" {
+		status = "pending_admin"
+	}
+
+	tx, err := database.DB.Begin()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库事务启动失败"})
+		return
+	}
 	_, err = tx.Exec("DELETE FROM reactions WHERE group_id = ?", groupID)
 	if err != nil {
 		tx.Rollback()
@@ -756,21 +826,10 @@ func UpdateReaction(c *gin.Context) {
 		return
 	}
 
-	// 统一设为 approved，因为是管理员或协作者直接修改
-	_, err = tx.Exec(`
-		INSERT INTO reactions (r1, r2, display, status, group_id, created_by)
-		VALUES (?, ?, ?, ?, ?, ?)
-	`, r1, r2, req.Display, "approved", groupID, uid)
-	if err == nil && r1 != r2 {
-		_, err = tx.Exec(`
-			INSERT INTO reactions (r1, r2, display, status, group_id, created_by)
-			VALUES (?, ?, ?, ?, ?, ?)
-		`, r2, r1, req.Display, "approved", groupID, uid)
-	}
-
-	if err != nil {
+	// 统一设为对应角色的预期状态
+	if err := saveReactionToDB(tx, rlist, req.Display, status, groupID, creatorID); err != nil {
 		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "插入新记录失败"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "保存修改失败: " + err.Error()})
 		return
 	}
 
@@ -794,9 +853,11 @@ func BatchAddReactions(c *gin.Context) {
 		return
 	}
 
-	status := "pending"
+	status := "pending_coworker"
 	if role == "admin" {
 		status = "approved"
+	} else if role == "co-worker" {
+		status = "pending_admin"
 	}
 
 	tx, err := database.DB.Begin()
@@ -808,7 +869,7 @@ func BatchAddReactions(c *gin.Context) {
 	successCount := 0
 	for _, req := range reqs {
 		rlist := parseReactants(req.Display)
-		if len(rlist) == 0 {
+		if len(rlist) != 2 {
 			continue
 		}
 
@@ -816,31 +877,13 @@ func BatchAddReactions(c *gin.Context) {
 		if ok, _ := validateBalance(req.Display); !ok {
 			continue
 		}
-		if isDup, _ := checkDuplicateReactants(req.Display); isDup {
+		if isDup, _ := checkDuplicateReactants(req.Display, ""); isDup {
 			continue
-		}
-
-		r1 := rlist[0]
-		r2 := r1
-		if len(rlist) > 1 {
-			r2 = rlist[1]
 		}
 
 		groupID := fmt.Sprintf("%d-%d-%d", uid, time.Now().UnixNano(), successCount)
 
-		_, err = tx.Exec(`
-			INSERT INTO reactions (r1, r2, display, status, group_id, created_by)
-			VALUES (?, ?, ?, ?, ?, ?)
-		`, r1, r2, req.Display, status, groupID, uid)
-
-		if err == nil && r1 != r2 {
-			_, err = tx.Exec(`
-				INSERT INTO reactions (r1, r2, display, status, group_id, created_by)
-				VALUES (?, ?, ?, ?, ?, ?)
-			`, r2, r1, req.Display, status, groupID, uid)
-		}
-
-		if err == nil {
+		if err := saveReactionToDB(tx, rlist, req.Display, status, groupID, uid); err == nil {
 			successCount++
 		}
 	}

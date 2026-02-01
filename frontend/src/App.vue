@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import websocket from './utils/websocket'
 import CustomDialog from './components/CustomDialog.vue'
 import FeedbackButton from './components/FeedbackButton.vue'
@@ -7,6 +8,14 @@ import { useDialog } from './utils/dialog'
 
 const loading = ref(true)
 const { showAlert } = useDialog()
+const route = useRoute()
+const feedbackBtnRef = ref<any>(null)
+
+watch(() => route.query.report, (val) => {
+  if (val) {
+    feedbackBtnRef.value?.prefill(String(val), 'equation')
+  }
+})
 
 const updateTheme = () => {
   if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
@@ -65,7 +74,7 @@ onUnmounted(() => {
     <div class="transition-colors duration-300 min-h-screen bg-slate-50 dark:bg-[#0a0a0c] text-slate-900 dark:text-slate-200">
       <router-view></router-view>
       <CustomDialog />
-      <FeedbackButton />
+      <FeedbackButton ref="feedbackBtnRef" />
     </div>
   </template>
 </template>

@@ -34,7 +34,7 @@ func GetRooms(c *gin.Context) {
 // 创建房间
 func CreateRoom(c *gin.Context) {
 	var req struct {
-		Name       string `json:"name" binding:"required"`
+		Name       string `json:"name"`
 		MaxPlayers int    `json:"max_players" binding:"required,min=2,max=8"`
 		DeckID     int    `json:"deck_id"`
 	}
@@ -64,7 +64,11 @@ func JoinRoom(c *gin.Context) {
 
 	err := game.JoinRoom(roomID, uid, username)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		if err.Error() == "房间不存在" {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		}
 		return
 	}
 
@@ -79,7 +83,11 @@ func LeaveRoom(c *gin.Context) {
 
 	err := game.LeaveRoom(roomID, uid)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		if err.Error() == "房间不存在" {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		}
 		return
 	}
 
@@ -94,7 +102,11 @@ func StartGame(c *gin.Context) {
 
 	err := game.StartGame(roomID, uid)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		if err.Error() == "房间不存在" {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		}
 		return
 	}
 
@@ -109,7 +121,13 @@ func GetRoomState(c *gin.Context) {
 
 	state, err := game.GetRoomState(roomID, uid)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		if err.Error() == "房间不存在" {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		} else if err.Error() == "你不在该房间中" {
+			c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		}
 		return
 	}
 
@@ -133,7 +151,11 @@ func PlayCard(c *gin.Context) {
 
 	err := game.PlayCard(roomID, uid, req.Card, req.Substance)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		if err.Error() == "房间不存在" {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		}
 		return
 	}
 
@@ -148,7 +170,11 @@ func DrawCard(c *gin.Context) {
 
 	err := game.DrawCard(roomID, uid, 2)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		if err.Error() == "房间不存在" {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		}
 		return
 	}
 
@@ -163,7 +189,11 @@ func GetAvailableSubstances(c *gin.Context) {
 
 	substances, err := game.GetAvailableSubstances(roomID, uid)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		if err.Error() == "房间不存在" {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		}
 		return
 	}
 

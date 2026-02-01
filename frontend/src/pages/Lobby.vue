@@ -387,15 +387,14 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
         <form @submit.prevent="handleCreateRoom" class="p-10 space-y-8">
           <div class="space-y-3">
             <div class="flex justify-between items-center px-1">
-               <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest">实验空间命名</label>
+               <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest">实验空间命名 (可选)</label>
                <span class="text-[9px] text-blue-500/40">IDENTIFIER_ALPHA</span>
             </div>
             <input
               v-model="roomName"
               type="text"
-              required
               autofocus
-              placeholder="请输入实验代号..."
+              placeholder="默认随机分配名称..."
               class="w-full bg-black/40 border border-white/5 text-white px-6 py-5 rounded-3xl focus:ring-1 focus:ring-blue-500/50 focus:border-blue-500/50 outline-none transition-all placeholder:text-slate-800 font-mono text-sm"
             />
           </div>

@@ -40,6 +40,7 @@ type GameState struct {
 	LastCard         *PlayedCard    `json:"last_card"`
 	DrawPile         []Card         `json:"-"` // 摸牌堆（不发送给客户端）
 	DiscardPile      []PlayedCard   `json:"discard_pile"`
+	AllUsedCards     []Card         `json:"-"`                  // 累计已排出的所有卡牌池（用于洗牌）
 	Status           string         `json:"status"`             // "playing", "finished"
 	TurnEndTime      int64          `json:"turn_end_time"`      // 回合结束时间戳（毫秒）
 	PendingDrawCount int            `json:"pending_draw_count"` // 当前累计需加牌数

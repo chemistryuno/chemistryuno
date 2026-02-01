@@ -40,6 +40,16 @@ func getDefaultDeckConfig() map[string]int {
 
 // 创建房间
 func CreateRoom(name string, hostUID int, hostName string, maxPlayers int, deckID int) (*models.Room, error) {
+	if name == "" {
+		const charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+		rand.Seed(time.Now().UnixNano())
+		b := make([]byte, 6)
+		for i := range b {
+			b[i] = charset[rand.Intn(len(charset))]
+		}
+		name = "LAB-" + string(b)
+	}
+
 	// 生成简单的房间ID
 	roomID := fmt.Sprintf("room_%d_%d", time.Now().Unix(), rand.Intn(1000))
 
@@ -149,15 +159,20 @@ func LeaveRoom(roomID string, uid int) error {
 	}
 	gameRoom.Room.Players = newPlayers
 
-	// 如果房主离开，转移房主或删除房间
+	// 如果房主离开，不管有没有其他玩家，直接解散房间（游戏终止）
 	if gameRoom.Room.HostUID == uid {
-		if len(newPlayers) > 0 {
-			gameRoom.Room.HostUID = newPlayers[0]
-		} else {
-			roomMutex.Lock()
-			delete(rooms, roomID)
-			roomMutex.Unlock()
+		roomMutex.Lock()
+		delete(rooms, roomID)
+		roomMutex.Unlock()
+
+		// 通知房间内所有玩家游戏已终止
+		if websocket.GlobalHub != nil {
+			websocket.GlobalHub.BroadcastToRoom(roomID, websocket.Message{
+				Type: "room_terminated",
+				Data: "房主已离开房间，游戏终止",
+			})
 		}
+		return nil
 	}
 
 	return nil
@@ -286,13 +301,33 @@ func GetRoomState(roomID string, uid int) (map[string]interface{}, error) {
 		return nil, errors.New("你不在该房间中")
 	}
 
+	// 获取玩家详细信息（用于准备页面）
+	playersInfo := []map[string]interface{}{}
+	for _, pid := range gameRoom.Room.Players {
+		var username, avatar string
+		err := database.DB.QueryRow("SELECT username, avatar FROM users WHERE UID = ?", pid).
+			Scan(&username, &avatar)
+		if err != nil {
+			// 如果数据库查询失败，提供默认值
+			username = fmt.Sprintf("研究员_%d", pid)
+			avatar = "🧪"
+		}
+		playersInfo = append(playersInfo, map[string]interface{}{
+			"uid":      pid,
+			"username": username,
+			"avatar":   avatar,
+			"is_host":  pid == gameRoom.Room.HostUID,
+		})
+	}
+
 	result := map[string]interface{}{
-		"id":          gameRoom.Room.ID,
-		"name":        gameRoom.Room.Name,
-		"host_uid":    gameRoom.Room.HostUID,
-		"players":     gameRoom.Room.Players,
-		"max_players": gameRoom.Room.MaxPlayers,
-		"status":      gameRoom.Room.Status,
+		"id":           gameRoom.Room.ID,
+		"name":         gameRoom.Room.Name,
+		"host_uid":     gameRoom.Room.HostUID,
+		"players":      gameRoom.Room.Players,
+		"players_info": playersInfo,
+		"max_players":  gameRoom.Room.MaxPlayers,
+		"status":       gameRoom.Room.Status,
 	}
 
 	if gameRoom.GameState != nil {
@@ -449,6 +484,14 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 		activeEffect = card.Effect
 	}
 
+	// 如果有累计加牌，本轮只能打出相同或更高数值的加牌进行叠加
+	if gameRoom.GameState.PendingDrawCount > 0 {
+		// 细化逻辑：必须打出加牌
+		if activeEffect != "+2" && activeEffect != "+4" {
+			return errors.New("当前累计加牌中，请打出加牌叠加或点摸牌结算")
+		}
+	}
+
 	// 记录消耗的卡牌详情用于后续逻辑
 	var consumedCards []models.Card
 	sort.Ints(usedCards)
@@ -468,6 +511,8 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 		)
 		currentPlayer.CardCount--
 	}
+	// 将消耗的卡牌放入洗牌池
+	gameRoom.GameState.AllUsedCards = append(gameRoom.GameState.AllUsedCards, consumedCards...)
 
 	// 添加到弃牌堆
 	// 使用第一张消耗的卡作为代表
@@ -483,8 +528,20 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 		Substance: substance,
 		PlayerUID: uid,
 	}
-	gameRoom.GameState.LastCard = &playedCard
+	// 如果是反转牌，不更新场上的物质（不更新 LastCard），使下家仍需与之前的物质反应
+	if activeEffect != "reverse" {
+		gameRoom.GameState.LastCard = &playedCard
+	}
 	gameRoom.GameState.DiscardPile = append(gameRoom.GameState.DiscardPile, playedCard)
+
+	// 检查是否获胜
+	if currentPlayer.CardCount == 0 {
+		gameRoom.GameState.Status = "finished"
+		gameRoom.Room.Status = "finished"
+		// 记录游戏历史
+		saveGameHistory(roomID, uid, gameRoom.Room.Players)
+		return nil
+	}
 
 	// 加牌叠加规则
 	if activeEffect == "+2" || activeEffect == "+4" {
@@ -507,9 +564,11 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 		// 回合传递
 		gameRoom.GameState.CurrentPlayer = getNextPlayer(gameRoom.GameState)
 		gameRoom.GameState.TurnEndTime = time.Now().Add(30*time.Second).UnixNano() / int64(time.Millisecond)
-		if allowAny {
-			gameRoom.GameState.AllowedAnyPlayer = -1
-		}
+
+		// 结算罚牌后清空场面并允许下家随意出牌
+		gameRoom.GameState.LastCard = nil
+		gameRoom.GameState.AllowedAnyPlayer = gameRoom.GameState.CurrentPlayer
+
 		return nil
 	}
 	// 其他效果
@@ -520,15 +579,6 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 		// 使得跳过下一位玩家，并允许下下家任意出牌
 		gameRoom.GameState.CurrentPlayer = next1
 		gameRoom.GameState.AllowedAnyPlayer = next2
-	}
-
-	// 检查是否获胜
-	if currentPlayer.CardCount == 0 {
-		gameRoom.GameState.Status = "finished"
-		gameRoom.Room.Status = "finished"
-		// 记录游戏历史
-		saveGameHistory(roomID, uid, gameRoom.Room.Players)
-		return nil
 	}
 
 	// 行动进度更新
@@ -557,9 +607,32 @@ func getNextPlayer(state *models.GameState) int {
 	return next
 }
 
+func reshuffleDeck(gameRoom *GameRoom) {
+	if len(gameRoom.GameState.AllUsedCards) == 0 {
+		return
+	}
+	// 将池中卡牌放回摸牌堆
+	gameRoom.GameState.DrawPile = append(gameRoom.GameState.DrawPile, gameRoom.GameState.AllUsedCards...)
+	gameRoom.GameState.AllUsedCards = nil
+
+	// 重新洗牌
+	rand.Seed(time.Now().UnixNano())
+	rand.Shuffle(len(gameRoom.GameState.DrawPile), func(i, j int) {
+		gameRoom.GameState.DrawPile[i], gameRoom.GameState.DrawPile[j] =
+			gameRoom.GameState.DrawPile[j], gameRoom.GameState.DrawPile[i]
+	})
+}
+
 func drawCardsForPlayer(gameRoom *GameRoom, playerIndex int, count int) {
 	player := gameRoom.GameState.Players[playerIndex]
-	for i := 0; i < count && len(gameRoom.GameState.DrawPile) > 0; i++ {
+	for i := 0; i < count; i++ {
+		// 如果摸牌堆空了，尝试洗牌
+		if len(gameRoom.GameState.DrawPile) == 0 {
+			reshuffleDeck(gameRoom)
+		}
+		if len(gameRoom.GameState.DrawPile) == 0 {
+			break // 彻底没牌了
+		}
 		card := gameRoom.GameState.DrawPile[0]
 		gameRoom.GameState.DrawPile = gameRoom.GameState.DrawPile[1:]
 		player.HandCards = append(player.HandCards, card)
@@ -585,7 +658,17 @@ func DrawCard(roomID string, uid int, count int) error {
 		return errors.New("还没轮到你")
 	}
 
-	drawCardsForPlayer(gameRoom, gameRoom.GameState.CurrentPlayer, count)
+	actualCount := count
+	penaltyResolved := false
+	// 如果有挂起的加牌，结算加牌
+	if gameRoom.GameState.PendingDrawCount > 0 {
+		actualCount = gameRoom.GameState.PendingDrawCount
+		gameRoom.GameState.PendingDrawCount = 0
+		gameRoom.GameState.PendingDrawTypes = nil
+		penaltyResolved = true
+	}
+
+	drawCardsForPlayer(gameRoom, gameRoom.GameState.CurrentPlayer, actualCount)
 
 	// 行动进度更新
 	currentPlayer.ActionProgress++
@@ -596,6 +679,15 @@ func DrawCard(roomID string, uid int, count int) error {
 	// 摸牌后跳过回合
 	gameRoom.GameState.CurrentPlayer = getNextPlayer(gameRoom.GameState)
 	gameRoom.GameState.TurnEndTime = time.Now().Add(30*time.Second).UnixNano() / int64(time.Millisecond)
+
+	// 如果结算了罚牌，清空场面并允许下家随意出牌
+	if penaltyResolved {
+		gameRoom.GameState.LastCard = nil
+		gameRoom.GameState.AllowedAnyPlayer = gameRoom.GameState.CurrentPlayer
+	} else {
+		// 普通摸牌清除可能存在的 allowAny 标记
+		gameRoom.GameState.AllowedAnyPlayer = -1
+	}
 
 	return nil
 }
@@ -616,6 +708,11 @@ func GetAvailableSubstances(roomID string, uid int) ([]string, error) {
 	currentPlayer := gameRoom.GameState.Players[gameRoom.GameState.CurrentPlayer]
 	if currentPlayer.UID != uid {
 		return nil, errors.New("还没轮到你")
+	}
+
+	// 如果有挂起的加牌，除非手牌有加牌，否则不能进行任何普通化学反应
+	if gameRoom.GameState.PendingDrawCount > 0 {
+		return []string{}, nil
 	}
 
 	// 获取手牌能组成的所有物质
@@ -697,6 +794,11 @@ func DoublePlay(roomID string, uid int, sub1 string, sub2 string) error {
 		return errors.New("双联反应尚未就绪（每行动2次可使用1次）")
 	}
 
+	// 如果有挂起的加牌，禁止发动双联行动
+	if gameRoom.GameState.PendingDrawCount > 0 {
+		return errors.New("当前处于加牌结算状态，不可发动双联反应")
+	}
+
 	// 校验两物质是否能反应
 	if !CanReact(sub1, sub2) {
 		return errors.New(sub1 + " 与 " + sub2 + " 之间无法产生反应，不可发动双联行动")
@@ -744,14 +846,19 @@ func DoublePlay(roomID string, uid int, sub1 string, sub2 string) error {
 	// 消耗卡牌
 	sort.Ints(usedCards)
 	var representCard models.Card
+	var consumedCards []models.Card
 	for i := len(usedCards) - 1; i >= 0; i-- {
 		idx := usedCards[i]
+		c := currentPlayer.HandCards[idx]
+		consumedCards = append(consumedCards, c)
 		if i == len(usedCards)-1 {
-			representCard = currentPlayer.HandCards[idx]
+			representCard = c
 		}
 		currentPlayer.HandCards = append(currentPlayer.HandCards[:idx], currentPlayer.HandCards[idx+1:]...)
 		currentPlayer.CardCount--
 	}
+	// 将消耗的卡牌放入洗牌池
+	gameRoom.GameState.AllUsedCards = append(gameRoom.GameState.AllUsedCards, consumedCards...)
 
 	// 记录已出牌
 	playedCard := models.PlayedCard{
@@ -762,6 +869,15 @@ func DoublePlay(roomID string, uid int, sub1 string, sub2 string) error {
 	}
 	gameRoom.GameState.LastCard = &playedCard
 	gameRoom.GameState.DiscardPile = append(gameRoom.GameState.DiscardPile, playedCard)
+
+	// 检查是否获胜
+	if currentPlayer.CardCount == 0 {
+		gameRoom.GameState.Status = "finished"
+		gameRoom.Room.Status = "finished"
+		// 记录游戏历史
+		saveGameHistory(roomID, uid, gameRoom.Room.Players)
+		return nil
+	}
 
 	// 重置冷却
 	currentPlayer.ActionProgress = 0
@@ -789,9 +905,25 @@ func processRoomTimeout(roomID string) {
 	now := time.Now().UnixNano() / int64(time.Millisecond)
 	if gameRoom.GameState.TurnEndTime > 0 && now > gameRoom.GameState.TurnEndTime {
 		// 超时处理：强制摸牌并跳过
-		drawCardsForPlayer(gameRoom, gameRoom.GameState.CurrentPlayer, 2)
+		drawCount := 2
+		penaltyResolved := false
+		if gameRoom.GameState.PendingDrawCount > 0 {
+			drawCount = gameRoom.GameState.PendingDrawCount
+			gameRoom.GameState.PendingDrawCount = 0
+			gameRoom.GameState.PendingDrawTypes = nil
+			penaltyResolved = true
+		}
+		drawCardsForPlayer(gameRoom, gameRoom.GameState.CurrentPlayer, drawCount)
 		gameRoom.GameState.CurrentPlayer = getNextPlayer(gameRoom.GameState)
 		gameRoom.GameState.TurnEndTime = time.Now().Add(30*time.Second).UnixNano() / int64(time.Millisecond)
+
+		// 如果结算了罚牌，清空场面并允许下家随意出牌
+		if penaltyResolved {
+			gameRoom.GameState.LastCard = nil
+			gameRoom.GameState.AllowedAnyPlayer = gameRoom.GameState.CurrentPlayer
+		} else {
+			gameRoom.GameState.AllowedAnyPlayer = -1
+		}
 
 		// 广播更新
 		go func(id string) {

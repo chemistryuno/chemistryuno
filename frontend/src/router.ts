@@ -62,19 +62,19 @@ const routes = [
     path: '/data',
     name: 'DataConfig',
     component: DataConfig,
-    meta: { requiresAuth: true, coWorkerOnly: true }
+    meta: { requiresAuth: true }
   },
   {
     path: '/data/reactions',
     name: 'Reactions',
     component: Reactions,
-    meta: { requiresAuth: true, coWorkerOnly: true }
+    meta: { requiresAuth: true }
   },
   {
     path: '/data/substances',
     name: 'Substances',
     component: Substances,
-    meta: { requiresAuth: true, coWorkerOnly: true }
+    meta: { requiresAuth: true }
   },
   {
     path: '/ranking',

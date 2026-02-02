@@ -20,7 +20,7 @@ func GetSubstancesFromElements(cards []models.Card) []string {
 
 	// 从数据库中获取所有可能的物质并进行手牌校验
 	if database.DB != nil {
-		rows, err := database.DB.Query("SELECT formula FROM substances")
+		rows, err := database.DB.Query("SELECT formula FROM substances WHERE status = 'approved'")
 		if err == nil {
 			defer rows.Close()
 			for rows.Next() {

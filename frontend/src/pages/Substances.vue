@@ -54,7 +54,7 @@
               <Plus class="w-5 h-5 text-emerald-400" />
             </div>
             <h3 class="text-xl font-black text-white italic uppercase tracking-tight">
-              {{ editingId ? 'Edit Entry' : 'New Entry' }}
+              {{ editingId ? 'Edit Entry' : 'Discover Substance' }}
             </h3>
           </div>
           
@@ -64,7 +64,7 @@
               <input 
                 v-model="form.formula" 
                 type="text" 
-                class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm font-bold text-white focus:outline-none focus:border-emerald-500/50 transition-all placeholder:text-slate-700 uppercase italic tracking-tighter" 
+                class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm font-bold text-white focus:outline-none focus:border-emerald-500/50 transition-all placeholder:text-slate-700 italic tracking-tighter" 
                 placeholder="E.G. H2O"
               />
             </div>
@@ -84,7 +84,7 @@
                 :disabled="loading"
                 class="w-full bg-emerald-600 hover:bg-emerald-500 px-6 py-4 rounded-2xl font-black text-white uppercase tracking-widest transition-all shadow-[0_10px_20px_rgba(16,185,129,0.2)] hover:scale-[1.02] active:scale-95 disabled:opacity-50"
               >
-                {{ editingId ? 'Update Substance' : 'Add Substance' }}
+                {{ editingId ? 'Update Substance' : (user.role === 'admin' || user.role === 'co-worker' ? 'Add Substance' : 'Propose Substance') }}
               </button>
               <button 
                 v-if="editingId"
@@ -122,25 +122,53 @@
             <table class="w-full text-left">
               <thead>
                 <tr class="text-slate-600 text-[10px] font-black uppercase tracking-[0.2em] border-b border-white/5">
-                  <th class="px-6 py-4">Formula</th>
-                  <th class="px-6 py-4">Descriptor</th>
+                  <th class="px-6 py-4">Formula / Name</th>
+                  <th class="px-6 py-4">Status</th>
+                  <th class="px-6 py-4">Author</th>
                   <th class="px-6 py-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-white/5 font-mono">
                 <tr v-for="sub in filteredSubstances" :key="sub.id" class="hover:bg-white/5 transition-colors group">
                   <td class="px-6 py-5">
-                    <span class="text-lg font-black italic text-white group-hover:text-emerald-400 transition-colors tracking-tighter uppercase">{{ sub.formula }}</span>
+                    <div class="flex flex-col">
+                      <span class="text-lg font-black italic text-white group-hover:text-emerald-400 transition-colors tracking-tighter">{{ sub.formula }}</span>
+                      <span class="text-xs font-bold text-slate-500 group-hover:text-slate-300 transition-colors">{{ sub.name }}</span>
+                    </div>
                   </td>
                   <td class="px-6 py-5">
-                    <span class="text-xs font-bold text-slate-400 group-hover:text-white transition-colors">{{ sub.name }}</span>
+                    <span :class="[
+                      'px-2 py-1 rounded-md text-[10px] font-black uppercase letter-spacing-widest border',
+                      sub.status === 'approved' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                      sub.status === 'pending_admin' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
+                      sub.status === 'pending_coworker' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
+                      'bg-red-500/10 text-red-400 border-red-500/20'
+                    ]">
+                      {{ sub.status.replace('_', ' ') }}
+                    </span>
+                  </td>
+                  <td class="px-6 py-5">
+                    <div class="flex items-center gap-2 text-slate-400">
+                      <UserIcon class="w-3 h-3" />
+                      <span class="text-[10px] font-bold">{{ sub.creator_name }}</span>
+                    </div>
                   </td>
                   <td class="px-6 py-5 text-right">
                     <div class="flex justify-end gap-2">
+                      <!-- 审批按钮 -->
+                      <template v-if="canApprove(sub.status)">
+                        <button @click="approveSub(sub)" class="p-2 hover:bg-emerald-500/10 text-emerald-500/50 hover:text-emerald-400 rounded-xl transition-all" title="Approve">
+                          <Check class="w-4 h-4" />
+                        </button>
+                        <button @click="rejectSub(sub)" class="p-2 hover:bg-red-500/10 text-red-500/50 hover:text-red-500 rounded-xl transition-all" title="Reject">
+                          <X class="w-4 h-4" />
+                        </button>
+                      </template>
+                      
                       <button @click="editSub(sub)" class="p-2 hover:bg-emerald-500/10 text-slate-500 hover:text-emerald-400 rounded-xl transition-all">
                         <Edit class="w-4 h-4" />
                       </button>
-                      <button @click="deleteSub(sub.id)" class="p-2 hover:bg-red-500/10 text-slate-500 hover:text-red-500 rounded-xl transition-all">
+                      <button v-if="user?.role === 'admin'" @click="deleteSub(sub.id)" class="p-2 hover:bg-red-500/10 text-slate-500 hover:text-red-500 rounded-xl transition-all">
                         <Trash2 class="w-4 h-4" />
                       </button>
                     </div>
@@ -177,7 +205,10 @@ import {
   ArrowLeft, 
   Search as SearchIcon, 
   Trash2, 
-  Edit 
+  Edit,
+  Check,
+  X,
+  User as UserIcon
 } from 'lucide-vue-next'
 
 interface Substance {
@@ -185,6 +216,9 @@ interface Substance {
   formula: string
   name: string
   elements: string
+  status: string
+  creator_name: string
+  created_at: string
 }
 
 const { showAlert, showConfirm } = useDialog()
@@ -232,6 +266,42 @@ const editSub = (sub: Substance) => {
   form.value = { formula: sub.formula, name: sub.name }
 }
 
+const canApprove = (status: string) => {
+  if (user.value?.role === 'admin') {
+    return status === 'pending_admin' || status === 'pending_coworker'
+  }
+  if (user.value?.role === 'co-worker') {
+    return status === 'pending_coworker'
+  }
+  return false
+}
+
+const approveSub = async (sub: Substance) => {
+  try {
+    const res = await substanceAPI.approveSubstance(sub.id, { 
+      formula: sub.formula, 
+      name: sub.name, 
+      reject: false 
+    })
+    showAlert(`Status updated to ${res.data.status}`, 'Success')
+    fetchSubstances()
+  } catch (e: any) {
+    showAlert(e.response?.data?.error || 'Approval failed', 'Error')
+  }
+}
+
+const rejectSub = async (sub: Substance) => {
+  const confirmed = await showConfirm('Are you sure you want to reject this entry?', 'Reject Request')
+  if (!confirmed) return
+  try {
+    await substanceAPI.approveSubstance(sub.id, { reject: true })
+    showAlert('Substance rejected', 'System')
+    fetchSubstances()
+  } catch (e: any) {
+    showAlert(e.response?.data?.error || 'Operation failed', 'Error')
+  }
+}
+
 const deleteSub = async (id: number) => {
   const confirmed = await showConfirm('Are you sure you want to purge this record?', 'Warning')
   if (!confirmed) return
@@ -251,10 +321,10 @@ const closeModal = () => {
 
 const filteredSubstances = computed(() => {
   if (!searchTerm.value) return substances.value
-  const term = searchTerm.value.toLowerCase()
+  const term = searchTerm.value
   return substances.value.filter(s => 
-    s.formula.toLowerCase().includes(term) || 
-    s.name.toLowerCase().includes(term)
+    s.formula.includes(term) || 
+    s.name.toLowerCase().includes(term.toLowerCase())
   )
 })
 

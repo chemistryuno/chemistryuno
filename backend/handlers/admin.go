@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"regexp"
 	"sort"
@@ -937,31 +938,61 @@ type SubstanceRequest struct {
 
 // GetSubstances 获取所有物质
 func GetSubstances(c *gin.Context) {
-	rows, err := database.DB.Query("SELECT id, formula, name, elements FROM substances ORDER BY id DESC")
+	rows, err := database.DB.Query(`
+		SELECT s.id, s.formula, s.name, s.elements, s.status, s.created_by, u.username, s.created_at 
+		FROM substances s
+		LEFT JOIN users u ON s.created_by = u.UID
+		ORDER BY 
+			CASE 
+				WHEN s.status = 'pending_admin' THEN 1 
+				WHEN s.status = 'pending_coworker' THEN 2 
+				ELSE 3 
+			END, 
+			s.created_at DESC
+	`)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误: " + err.Error()})
 		return
 	}
 	defer rows.Close()
 
-	var results []map[string]interface{}
+	results := make([]map[string]interface{}, 0)
 	for rows.Next() {
 		var id int
-		var formula, name, elements string
-		if err := rows.Scan(&id, &formula, &name, &elements); err == nil {
-			results = append(results, map[string]interface{}{
-				"id":       id,
-				"formula":  formula,
-				"name":     name,
-				"elements": elements,
-			})
+		var formula, elementsVal, name, status, createdAt sql.NullString
+		var createdBy sql.NullInt64
+		var creatorNameNull sql.NullString
+
+		err := rows.Scan(&id, &formula, &name, &elementsVal, &status, &createdBy, &creatorNameNull, &createdAt)
+		if err != nil {
+			log.Printf("Scan error for substance ID %d: %v\n", id, err)
+			continue
 		}
+
+		displayCreator := "系统"
+		if creatorNameNull.Valid {
+			displayCreator = creatorNameNull.String
+		}
+
+		results = append(results, map[string]interface{}{
+			"id":           id,
+			"formula":      formula.String,
+			"name":         name.String,
+			"elements":     elementsVal.String,
+			"status":       status.String,
+			"created_by":   createdBy.Int64,
+			"creator_name": displayCreator,
+			"created_at":   createdAt.String,
+		})
 	}
 	c.JSON(http.StatusOK, results)
 }
 
 // AddSubstance 添加新物质
 func AddSubstance(c *gin.Context) {
+	uid := c.GetInt("uid")
+	role := c.GetString("role")
+
 	var req SubstanceRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
@@ -976,18 +1007,107 @@ func AddSubstance(c *gin.Context) {
 	}
 	elementsStr := strings.Join(elementsArr, ",")
 
-	_, err := database.DB.Exec("INSERT INTO substances (formula, name, elements) VALUES (?, ?, ?)", req.Formula, req.Name, elementsStr)
+	// 确定初始状态
+	status := "pending_coworker"
+	if role == "admin" {
+		status = "approved"
+	} else if role == "co-worker" {
+		status = "pending_admin"
+	}
+
+	_, err := database.DB.Exec("INSERT INTO substances (formula, name, elements, status, created_by) VALUES (?, ?, ?, ?, ?)",
+		req.Formula, req.Name, elementsStr, status, uid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "添加物质失败，可能已存在"})
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"message": "添加成功"})
+	msg := "物质已提交，等待审核"
+	if status == "approved" {
+		msg = "物质已成功添加到百科"
+	}
+	c.JSON(http.StatusCreated, gin.H{"message": msg, "status": status})
+}
+
+// ApproveSubstance 审批物质 (Admin/Co-worker)
+func ApproveSubstance(c *gin.Context) {
+	role := c.GetString("role")
+	if role != "admin" && role != "co-worker" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "需要协作者或管理员权限"})
+		return
+	}
+
+	id := c.Param("id")
+
+	var req struct {
+		Formula string `json:"formula"`
+		Name    string `json:"name"`
+		Reject  bool   `json:"reject"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数无效"})
+		return
+	}
+
+	var currentStatus string
+	err := database.DB.QueryRow("SELECT status FROM substances WHERE id = ?", id).Scan(&currentStatus)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "未找到该物质请求"})
+		return
+	}
+
+	newStatus := ""
+	if req.Reject {
+		newStatus = "rejected"
+	} else {
+		if role == "co-worker" {
+			if currentStatus != "pending_coworker" {
+				c.JSON(http.StatusForbidden, gin.H{"error": "当前状态不符合协作者审批权限"})
+				return
+			}
+			newStatus = "pending_admin"
+		} else if role == "admin" {
+			if currentStatus != "pending_admin" && currentStatus != "pending_coworker" {
+				c.JSON(http.StatusForbidden, gin.H{"error": "该物质不需要管理员再审批"})
+				return
+			}
+			newStatus = "approved"
+		}
+	}
+
+	// 如果提供了修改内容
+	if !req.Reject && (req.Formula != "" || req.Name != "") {
+		elementsMap := parseSubstanceForElements(req.Formula)
+		var elementsArr []string
+		for e := range elementsMap {
+			elementsArr = append(elementsArr, e)
+		}
+		elementsStr := strings.Join(elementsArr, ",")
+
+		_, err = database.DB.Exec("UPDATE substances SET formula = ?, name = ?, elements = ?, status = ? WHERE id = ?",
+			req.Formula, req.Name, elementsStr, newStatus, id)
+	} else {
+		_, err = database.DB.Exec("UPDATE substances SET status = ? WHERE id = ?", newStatus, id)
+	}
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库更新失败"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "审批已处理", "status": newStatus})
 }
 
 // UpdateSubstance 更新物质
 func UpdateSubstance(c *gin.Context) {
 	id := c.Param("id")
+	role := c.GetString("role")
+	if role != "admin" && role != "co-worker" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "无权编辑"})
+		return
+	}
+
 	var req SubstanceRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
@@ -1013,6 +1133,12 @@ func UpdateSubstance(c *gin.Context) {
 // DeleteSubstance 删除物质
 func DeleteSubstance(c *gin.Context) {
 	id := c.Param("id")
+	role := c.GetString("role")
+	if role != "admin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "只有管理员可以删除物质"})
+		return
+	}
+
 	_, err := database.DB.Exec("DELETE FROM substances WHERE id = ?", id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "删除失败"})

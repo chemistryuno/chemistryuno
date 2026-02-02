@@ -132,7 +132,10 @@ func createTables() error {
 		formula TEXT UNIQUE NOT NULL,
 		name TEXT,
 		elements TEXT NOT NULL,
-		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		status TEXT DEFAULT 'pending_coworker',
+		created_by INTEGER,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (created_by) REFERENCES users(UID)
 	);`
 
 	// 反馈表
@@ -170,9 +173,6 @@ func createTables() error {
 
 	// 初始化默认系统配置
 	initSystemConfigs()
-
-	// 初始化默认物质数据
-	initDefaultSubstances()
 
 	// 增量更新表结构（针对已存在的数据库）——按需添加列以避免错误
 	columnExists := func(table, column string) bool {
@@ -244,6 +244,21 @@ func createTables() error {
 	if !columnExists("reactions", "group_id") {
 		_, _ = DB.Exec("ALTER TABLE reactions ADD COLUMN group_id TEXT DEFAULT ''")
 	}
+
+	// substances
+	if !columnExists("substances", "status") {
+		_, _ = DB.Exec("ALTER TABLE substances ADD COLUMN status TEXT DEFAULT 'approved'")
+	}
+	if !columnExists("substances", "created_by") {
+		_, _ = DB.Exec("ALTER TABLE substances ADD COLUMN created_by INTEGER")
+	}
+
+	// 确保所有物质都有创建者和状态（针对旧数据）
+	_, _ = DB.Exec("UPDATE substances SET status = 'approved' WHERE status IS NULL")
+	_, _ = DB.Exec("UPDATE substances SET created_by = 100000000 WHERE created_by IS NULL")
+
+	// 初始化默认物质数据
+	initDefaultSubstances()
 
 	// feedbacks
 	if !columnExists("feedbacks", "processed_by") {
@@ -668,7 +683,7 @@ func initDefaultSubstances() {
 	}
 
 	for _, sub := range substances {
-		_, _ = DB.Exec("INSERT OR IGNORE INTO substances (formula, name, elements) VALUES (?, ?, ?)", sub.formula, sub.name, sub.elements)
+		_, _ = DB.Exec("INSERT OR IGNORE INTO substances (formula, name, elements, status, created_by) VALUES (?, ?, ?, 'approved', 100000000)", sub.formula, sub.name, sub.elements)
 	}
 }
 

@@ -115,6 +115,27 @@ func main() {
 
 		// WebSocket
 		auth.GET("/ws", handleWebSocket)
+
+		// 反应管理路由
+		reactions := auth.Group("/reactions")
+		{
+			reactions.GET("", handlers.GetReactions)
+			reactions.POST("/batch", middleware.CoWorkerMiddleware(), handlers.BatchAddReactions)
+			reactions.PUT("/:id", middleware.CoWorkerMiddleware(), handlers.UpdateReaction)
+			reactions.PUT("/approve/:group_id", middleware.CoWorkerMiddleware(), handlers.ApproveReaction)
+			reactions.DELETE("/:id", middleware.AdminMiddleware(), handlers.DeleteReaction)
+		}
+
+		// 物质管理路由
+		substances := auth.Group("/substances")
+		{
+			substances.GET("", handlers.GetSubstances)
+			substances.GET("/", handlers.GetSubstances)
+			substances.POST("", handlers.AddSubstance)
+			substances.PUT("/:id", middleware.CoWorkerMiddleware(), handlers.UpdateSubstance)
+			substances.PUT("/approve/:id", middleware.CoWorkerMiddleware(), handlers.ApproveSubstance)
+			substances.DELETE("/:id", middleware.AdminMiddleware(), handlers.DeleteSubstance)
+		}
 	}
 
 	// 管理员路由
@@ -133,27 +154,6 @@ func main() {
 		admin.PUT("/feedbacks/:id/status", handlers.UpdateFeedbackStatus)
 		admin.GET("/configs", handlers.GetSystemConfigs)
 		admin.PUT("/configs", handlers.UpdateSystemConfig)
-	}
-
-	// 反应管理路由（co-worker和admin权限）
-	reactions := r.Group("/reactions")
-	reactions.Use(middleware.AuthMiddleware(), middleware.CoWorkerMiddleware())
-	{
-		reactions.GET("", handlers.GetReactions)
-		reactions.POST("/batch", handlers.BatchAddReactions)
-		reactions.PUT("/:id", handlers.UpdateReaction)
-		reactions.PUT("/approve/:group_id", handlers.ApproveReaction)
-		reactions.DELETE("/:id", handlers.DeleteReaction)
-	}
-
-	// 物质管理路由（可以复用co-worker中间件）
-	substances := r.Group("/substances")
-	substances.Use(middleware.AuthMiddleware(), middleware.CoWorkerMiddleware())
-	{
-		substances.GET("", handlers.GetSubstances)
-		substances.POST("", handlers.AddSubstance)
-		substances.PUT("/:id", handlers.UpdateSubstance)
-		substances.DELETE("/:id", handlers.DeleteSubstance)
 	}
 
 	// 积分和悬赏

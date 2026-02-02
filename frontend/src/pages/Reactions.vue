@@ -55,12 +55,12 @@
       </header>
 
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <!-- 添加反应面板 (仅限 co-worker 和 admin) -->
-        <div v-if="user.role !== 'user'" class="bg-[#111114] border border-white/10 p-8 rounded-[2rem] shadow-xl">
+        <!-- 添加反应面板 -->
+        <div class="bg-[#111114] border border-white/10 p-8 rounded-[2rem] shadow-xl">
           <div class="flex items-center justify-between mb-6">
             <h3 class="text-xl font-black text-white flex items-center gap-3">
               <Plus class="w-6 h-6 text-blue-400" />
-              添加新反应
+              {{ editingId ? '编辑反应' : '发现新反应' }}
             </h3>
             <button 
               v-if="user.role === 'admin'"
@@ -97,7 +97,7 @@
         </div>
 
         <!-- 反应列表 (全宽) -->
-        <div :class="user.role === 'user' ? 'lg:col-span-3' : 'lg:col-span-2'" class="bg-[#111114] border border-white/10 p-8 rounded-[2rem] shadow-xl">
+        <div class="lg:col-span-2 bg-[#111114] border border-white/10 p-8 rounded-[2rem] shadow-xl">
           <div class="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
             <h3 class="text-xl font-black text-white flex items-center gap-3">
               <Database class="w-6 h-6 text-green-400" />

@@ -169,6 +169,8 @@ export const substanceAPI = {
     api.post('/substances', { formula, name }),
   updateSubstance: (id: number, formula: string, name: string) =>
     api.put(`/substances/${id}`, { formula, name }),
+  approveSubstance: (id: number, data: { formula?: string, name?: string, reject?: boolean }) =>
+    api.put(`/substances/approve/${id}`, data),
   deleteSubstance: (id: number) =>
     api.delete(`/substances/${id}`),
 }

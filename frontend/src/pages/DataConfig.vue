@@ -18,7 +18,7 @@
           </div>
           <div>
             <h1 class="text-3xl font-black text-white italic tracking-tighter uppercase flex items-center gap-3">
-              Data Hub <span class="text-xs font-mono bg-emerald-500/20 text-emerald-400 px-2 py-1 rounded border border-emerald-500/30 not-italic">ADMIN & CO-WORKER</span>
+              Data Hub <span class="text-xs font-mono bg-emerald-500/20 text-emerald-400 px-2 py-1 rounded border border-emerald-500/30 not-italic">{{ userRole }}</span>
             </h1>
             <p class="text-slate-500 text-sm font-bold tracking-widest uppercase mt-1">
               核心数据配置与管理中心 / Core configuration center
@@ -54,7 +54,7 @@
             </div>
             <h2 class="text-4xl font-black text-white italic tracking-tighter uppercase">反应方程式库</h2>
             <p class="text-slate-500 text-sm leading-relaxed font-medium">
-              管理游戏中允许的所有化学反应。审核、编辑或批量导入新的反应方程，这是游戏规则的核心。
+              查看或管理游戏中允许的所有化学反应。审核、编辑或提交新的反应方程，这是游戏规则的核心。
             </p>
             <div class="pt-6 flex items-center gap-2 group-hover:translate-x-3 transition-transform duration-500 text-emerald-400">
               <span class="text-xs font-black uppercase tracking-widest">进入配置界面</span>
@@ -78,7 +78,7 @@
             </div>
             <h2 class="text-4xl font-black text-white italic tracking-tighter uppercase">物质百科全书</h2>
             <p class="text-slate-500 text-sm leading-relaxed font-medium">
-              定义化学物质及其组成元素。系统会根据化学式自动分析并索引涉及的元素牌需求。
+              查阅或定义化学物质。你可以提交新发现的物质化学式，系统会自动分析涉及的元素需求。
             </p>
             <div class="pt-6 flex items-center gap-2 group-hover:translate-x-3 transition-transform duration-500 text-blue-400">
               <span class="text-xs font-black uppercase tracking-widest">进入配置界面</span>
@@ -104,7 +104,15 @@
 
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
+import { computed } from 'vue'
 import { Database, ArrowLeft, ArrowRight, FlaskConical, Beaker } from 'lucide-vue-next'
 
 const router = useRouter()
+const user = JSON.parse(localStorage.getItem('user') || '{}')
+
+const userRole = computed(() => {
+  const role = user.role?.toUpperCase() || 'USER'
+  if (role === 'ADMIN' || role === 'CO-WORKER') return `WIKI_CONSOLE [${role}]`
+  return `WIKI_READER`
+})
 </script>

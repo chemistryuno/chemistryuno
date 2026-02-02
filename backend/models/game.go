@@ -24,6 +24,7 @@ type Room struct {
 	ID           string      `json:"id"`
 	Name         string      `json:"name"`
 	HostUID      int         `json:"host_uid"`
+	HostUsername string      `json:"host_username"`
 	Players      []int       `json:"players"`
 	Spectators   []int       `json:"spectators"`
 	MaxPlayers   int         `json:"max_players"`

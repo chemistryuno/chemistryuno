@@ -339,7 +339,7 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
                     <div class="flex items-center gap-2">
                       <div class="flex -space-x-2">
                         <div v-for="i in Math.min(3, room.players?.length || 0)" :key="i" class="w-6 h-6 rounded-lg bg-slate-200 dark:bg-white/10 border-2 border-white dark:border-[#121216] flex items-center justify-center text-[10px] text-slate-600 font-bold">
-                          {{ room.players[i-1].username[0].toUpperCase() }}
+                          {{ i === 1 ? (room.host_username?.[0]?.toUpperCase() || 'H') : 'R' }}
                         </div>
                         <div v-if="(room.players?.length || 0) > 3" class="w-6 h-6 rounded-lg bg-blue-500 border-2 border-white dark:border-[#121216] flex items-center justify-center text-[8px] text-white font-black">
                           +{{ room.players.length - 3 }}

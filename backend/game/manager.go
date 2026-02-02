@@ -96,6 +96,7 @@ func CreateRoom(name string, hostUID int, hostName string, maxPlayers int, deckI
 		ID:           roomID,
 		Name:         name,
 		HostUID:      hostUID,
+		HostUsername: hostName,
 		Players:      []int{hostUID},
 		Spectators:   []int{},
 		MaxPlayers:   maxPlayers,
@@ -555,6 +556,15 @@ func LeaveRoom(roomID string, uid int) error {
 		}
 	}
 	gameRoom.Room.Players = newPlayers
+
+	// 移除观战者
+	newSpectators := []int{}
+	for _, sid := range gameRoom.Room.Spectators {
+		if sid != uid {
+			newSpectators = append(newSpectators, sid)
+		}
+	}
+	gameRoom.Room.Spectators = newSpectators
 
 	// 如果房主离开，不管有没有其他玩家，直接解散房间（游戏终止）
 	if gameRoom.Room.HostUID == uid {

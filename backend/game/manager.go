@@ -151,7 +151,6 @@ func handlePointsCalculation(gr *GameRoom) {
 		return
 	}
 
-	isDuel := count == 2
 	changes := make(map[int]int)
 
 	for i, uid := range finished {
@@ -163,11 +162,6 @@ func handlePointsCalculation(gr *GameRoom) {
 			// 100 / 名次
 			rank := i + 1
 			points = 100 / rank
-		}
-
-		// 单挑判定：如果是两人的单挑，胜者额外获得20%系统补增
-		if isDuel && i == 0 {
-			points = int(float64(points) * 1.2)
 		}
 
 		changes[uid] = points

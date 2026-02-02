@@ -85,7 +85,7 @@ const handleSubmit = async () => {
                   type="password"
                   required
                   class="w-full pl-12 pr-4 py-4 bg-slate-100/50 dark:bg-black/40 border-2 border-transparent focus:border-blue-500 focus:bg-white dark:focus:bg-black/60 rounded-2xl text-slate-900 dark:text-slate-100 placeholder:text-slate-500/70 font-bold outline-none transition-all text-sm"
-                  placeholder="设定密码 (min 6)"
+                  placeholder="设定密码 (至少6位)"
                 />
               </div>
 

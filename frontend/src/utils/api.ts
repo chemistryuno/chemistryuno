@@ -26,7 +26,14 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       localStorage.removeItem('token')
       localStorage.removeItem('user')
-      window.location.href = '/login'
+      
+      // 避免在登录页面或执行登录 API 时强制刷新/跳转
+      const isLoginPage = window.location.pathname === '/login'
+      const isAuthRequest = error.config.url.includes('/auth/login') || error.config.url.includes('/auth/webauthn/login')
+      
+      if (!isLoginPage && !isAuthRequest) {
+        window.location.href = '/login'
+      }
     }
     return Promise.reject(error)
   }
@@ -78,6 +85,8 @@ export const gameAPI = {
     api.post(`/rooms/${roomId}/leave`),
   startGame: (roomId: string) => 
     api.post(`/rooms/${roomId}/start`),
+  initiateDuel: (target_uid: number) =>
+    api.post('/game/duel', { target_uid }),
   playCard: (roomId: string, card: any, substance: string) => 
     api.post(`/rooms/${roomId}/play`, { card, substance }),
   playDouble: (roomId: string, sub1: string, sub2: string) =>

@@ -50,6 +50,14 @@ onMounted(() => {
     }
   })
 
+  // 监听单挑开始请求
+  websocket.on('duel_start', (msg: any) => {
+    if (msg.room_id) {
+      showAlert('量子隧道已建立，正在进入单挑战场...', '单挑协议启动')
+      window.location.href = `/room/${msg.room_id}`
+    }
+  })
+
   loading.value = false
 })
 

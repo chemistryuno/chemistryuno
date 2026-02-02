@@ -117,6 +117,44 @@ func CreateRoom(name string, hostUID int, hostName string, maxPlayers int, deckI
 	return room, nil
 }
 
+// StartDuel 创建单挑房间
+func StartDuel(challengerUID int, challengerName string, targetUID int, targetName string) (*models.Room, error) {
+	// 默认配置
+	deckConfig := models.DeckConfig{
+		Cards: getDefaultDeckConfig(),
+		Name:  "默认牌组",
+	}
+
+	roomID := fmt.Sprintf("duel_%d_%d", time.Now().Unix(), rand.Intn(1000))
+	room := &models.Room{
+		ID:           roomID,
+		Name:         fmt.Sprintf("Duel: %s VS %s", challengerName, targetName),
+		HostUID:      challengerUID,
+		HostUsername: challengerName,
+		Players:      []int{challengerUID, targetUID},
+		Spectators:   []int{},
+		MaxPlayers:   2,
+		DeckConfig:   &deckConfig,
+		Status:       "waiting",
+		IsPointsMode: true, // 单挑默认积分模式
+		IsDuel:       true,
+		ChallengerID: challengerUID,
+		TargetID:     targetUID,
+		CreatedAt:    time.Now(),
+	}
+
+	gameRoom := &GameRoom{
+		Room:      room,
+		OfflineAt: make(map[int]time.Time),
+	}
+
+	roomMutex.Lock()
+	rooms[roomID] = gameRoom
+	roomMutex.Unlock()
+
+	return room, nil
+}
+
 // 获取所有房间
 func GetAllRooms() []*models.Room {
 	roomMutex.RLock()
@@ -192,10 +230,24 @@ func handlePointsCalculation(gr *GameRoom) {
 		for rows.Next() {
 			var bid, targetUID, amount int
 			if err := rows.Scan(&bid, &targetUID, &amount); err == nil {
-				// 如果被悬赏者输了（不是第一名）
-				if targetUID != winnerUID {
-					totalBountyForWinner += amount
-					database.DB.Exec("UPDATE bounties SET status = 'claimed' WHERE id = ?", bid)
+				if gr.Room.IsDuel && targetUID == gr.Room.TargetID {
+					// 单挑模式特别处理
+					if winnerUID == gr.Room.ChallengerID {
+						// 发起者赢：获得全部悬赏
+						totalBountyForWinner += amount
+						database.DB.Exec("UPDATE bounties SET status = 'claimed' WHERE id = ?", bid)
+					} else if winnerUID == gr.Room.TargetID {
+						// 被挑战者赢：获得一半悬赏
+						reward := amount / 2
+						totalBountyForWinner += reward
+						database.DB.Exec("UPDATE bounties SET status = 'claimed' WHERE id = ?", bid)
+					}
+				} else {
+					// 普通模式：只要被悬赏者输了（不是第一名），胜者就能获得该悬赏
+					if targetUID != winnerUID {
+						totalBountyForWinner += amount
+						database.DB.Exec("UPDATE bounties SET status = 'claimed' WHERE id = ?", bid)
+					}
 				}
 			}
 		}

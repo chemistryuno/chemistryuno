@@ -31,6 +31,9 @@ type Room struct {
 	DeckConfig   *DeckConfig `json:"deck_config"`
 	Status       string      `json:"status"` // "waiting", "playing", "finished"
 	IsPointsMode bool        `json:"is_points_mode"`
+	IsDuel       bool        `json:"is_duel"`       // 是否是单挑模式
+	ChallengerID int         `json:"challenger_id"` // 发起者 UID
+	TargetID     int         `json:"target_id"`     // 被挑战者 UID
 	CreatedAt    time.Time   `json:"created_at"`
 }
 

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"chemistryuno/database"
 	"chemistryuno/game"
 	"chemistryuno/models"
 	"chemistryuno/websocket"
@@ -242,4 +243,58 @@ func DoublePlay(c *gin.Context) {
 
 	broadcastUpdate(roomID)
 	c.JSON(http.StatusOK, gin.H{"message": "双联反应发动成功！"})
+}
+
+// InitiateDuel 发起单挑
+func InitiateDuel(c *gin.Context) {
+	var req struct {
+		TargetUID int `json:"target_uid" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+
+	challengerUID := c.GetInt("uid")
+	challengerName := c.GetString("username")
+
+	if challengerUID == req.TargetUID {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "不能挑战自己"})
+		return
+	}
+
+	// 检查目标是否存在且在线
+	if websocket.GlobalHub == nil || !websocket.GlobalHub.IsUIDOnline(req.TargetUID) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "目标用户不在线"})
+		return
+	}
+
+	// 获取目标用户名
+	var targetName string
+	err := database.DB.QueryRow("SELECT username FROM users WHERE UID = ?", req.TargetUID).Scan(&targetName)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "目标用户不存在"})
+		return
+	}
+
+	// 创建单挑房间
+	room, err := game.StartDuel(challengerUID, challengerName, req.TargetUID, targetName)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// 通过 WebSocket 通知双方玩家进入房间
+	msg := websocket.Message{
+		Type:   "duel_start",
+		RoomID: room.ID,
+	}
+
+	// 发送给发起者
+	websocket.GlobalHub.SendToUID(challengerUID, msg)
+	// 发送给被挑战者
+	websocket.GlobalHub.SendToUID(req.TargetUID, msg)
+
+	c.JSON(http.StatusOK, room)
 }

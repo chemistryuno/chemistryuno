@@ -6,7 +6,7 @@ import { Beaker, Lock, User, Loader2, Fingerprint, Shield, Cpu } from 'lucide-vu
 import websocket from '../utils/websocket'
 import { get } from '@github/webauthn-json'
 
-const identifier = ref('')
+const identifier = ref(localStorage.getItem('last_username') || '')
 const password = ref('')
 
 const twoFactorCode = ref('')
@@ -19,6 +19,9 @@ const router = useRouter()
 const handleSubmit = async () => {
   error.value = ''
   loading.value = true
+  
+  // 保存最后一次输入的用户名
+  localStorage.setItem('last_username', identifier.value)
 
   try {
     const response = await authAPI.login({
@@ -72,6 +75,10 @@ const handleWebAuthnLogin = async () => {
   }
   error.value = ''
   loading.value = true
+  
+  // 保存用户名
+  localStorage.setItem('last_username', identifier.value)
+
   try {
     const res = await api.get(`/auth/webauthn/login/begin?username=${identifier.value}`)
     const credential = await get(res.data)

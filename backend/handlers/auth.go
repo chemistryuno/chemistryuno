@@ -19,6 +19,7 @@ func Register(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	fmt.Printf("注册尝试 - 用户: %s, 来源IP: %s\n", req.Username, c.ClientIP())
 
 	// 1. 检查用户名是否已存在
 	var count int
@@ -61,6 +62,7 @@ func Login(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	fmt.Printf("登录尝试 - 用户: %s, 来源IP: %s\n", req.Username, c.ClientIP())
 
 	// 查询用户
 	var user models.User

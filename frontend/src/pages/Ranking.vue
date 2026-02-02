@@ -156,14 +156,23 @@
                     </div>
                   </td>
                   <td class="px-8 py-6 text-right">
-                    <button 
-                      v-if="player.uid !== user.uid"
-                      @click="openBountyModal(player)"
-                      class="px-4 py-2 bg-rose-600/10 hover:bg-rose-600 text-rose-500 hover:text-white border border-rose-500/20 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all active:scale-95 flex items-center gap-2 ml-auto"
-                    >
-                      <Crosshair class="w-3 h-3" />
-                      Issue_Bounty
-                    </button>
+                    <div v-if="player.uid !== user.uid" class="flex flex-col items-end gap-2">
+                      <button 
+                        v-if="player.is_online"
+                        @click="handleDuel(player)"
+                        class="px-4 py-2 bg-blue-600/10 hover:bg-blue-600 text-blue-500 hover:text-white border border-blue-500/20 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all active:scale-95 flex items-center gap-2"
+                      >
+                        <Swords class="w-3 h-3" />
+                        Duel_Protocol
+                      </button>
+                      <button 
+                        @click="openBountyModal(player)"
+                        class="px-4 py-2 bg-rose-600/10 hover:bg-rose-600 text-rose-500 hover:text-white border border-rose-500/20 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all active:scale-95 flex items-center gap-2"
+                      >
+                        <Crosshair class="w-3 h-3" />
+                        Issue_Bounty
+                      </button>
+                    </div>
                     <div v-else class="text-[9px] font-black text-blue-500 uppercase tracking-widest italic pr-4">
                       Protocol_Master
                     </div>
@@ -258,9 +267,9 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { pointsAPI } from '../utils/api'
+import { pointsAPI, gameAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
-import { Trophy, ArrowLeft, Loader2, Target, RefreshCw, ShieldCheck, Crosshair, Flame, X } from 'lucide-vue-next'
+import { Trophy, ArrowLeft, Loader2, Target, RefreshCw, ShieldCheck, Crosshair, Flame, X, Swords } from 'lucide-vue-next'
 import { cn } from '../utils/cn'
 
 const router = useRouter()
@@ -321,6 +330,16 @@ const handleCreateBounty = async () => {
     showAlert(error.response?.data?.error || '发布悬赏失败', '系统通讯故障')
   } finally {
     submitting.value = false
+  }
+}
+
+const handleDuel = async (player: any) => {
+  try {
+    const res = await gameAPI.initiateDuel(player.uid)
+    // 后端会通过 WebSocket 广播 duel_start，这里只需提示
+    showAlert(`已向 ${player.username} 发起单挑协议，正在建立量子隧道...`, '协议启动')
+  } catch (error: any) {
+    showAlert(error.response?.data?.error || '发起单挑失败', '系统通讯故障')
   }
 }
 

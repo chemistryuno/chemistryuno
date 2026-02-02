@@ -45,6 +45,9 @@ func main() {
 	// 创建Gin路由
 	r := gin.Default()
 
+	// 信任本地代理，确保 c.ClientIP() 能获取到真实 IP
+	r.SetTrustedProxies([]string{"127.0.0.1"})
+
 	// 中间件
 	r.Use(middleware.CORSMiddleware())
 
@@ -99,6 +102,7 @@ func main() {
 		// 游戏相关
 		auth.GET("/rooms", handlers.GetRooms)
 		auth.POST("/rooms", handlers.CreateRoom)
+		auth.POST("/game/duel", handlers.InitiateDuel)
 		auth.GET("/rooms/:id", handlers.GetRoomState)
 		auth.POST("/rooms/:id/join", handlers.JoinRoom)
 		auth.POST("/rooms/:id/leave", handlers.LeaveRoom)

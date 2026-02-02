@@ -376,7 +376,7 @@ const handleInputPlay = async () => {
   if (!substanceInput.value) return
 
   if (doubleMode.value) {
-    const sub = substanceInput.value.toUpperCase()
+    const sub = substanceInput.value
     if (!firstDoubleSubstance.value) {
       firstDoubleSubstance.value = sub
     } else if (!secondDoubleSubstance.value) {
@@ -717,7 +717,7 @@ onMounted(() => {
                             <span class="text-xs font-black dark:text-white" v-html="formatFormula(sub)"></span>
                             <div class="w-1.5 h-1.5 rounded-full bg-emerald-500 group-hover:scale-125 transition-transform shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
                          </div>
-                         <p class="text-[9px] font-bold text-slate-400 mt-1 uppercase tracking-tighter">{{ getSubstanceName(sub) }}</p>
+                         <p class="text-[9px] font-bold text-slate-400 mt-1 tracking-tighter">{{ getSubstanceName(sub) }}</p>
                       </button>
                    </div>
                    <div v-else class="py-10 flex flex-col items-center justify-center opacity-30 text-center">
@@ -774,7 +774,7 @@ onMounted(() => {
                    )">
                       <span class="text-[28px] sm:text-[36px] font-black font-mono italic drop-shadow-lg" v-html="formatFormula(sub)"></span>
                       <div class="px-3 py-1 bg-white/10 backdrop-blur-md rounded-lg border border-white/20 max-w-[85%]">
-                         <span class="text-[8px] font-black tracking-widest uppercase truncate block text-center">{{ getSubstanceName(sub) }}</span>
+                         <span class="text-[8px] font-black tracking-widest truncate block text-center">{{ getSubstanceName(sub) }}</span>
                       </div>
                    </div>
                 </div>
@@ -793,7 +793,7 @@ onMounted(() => {
                 <div class="absolute top-5 left-5 opacity-20 text-[10px] uppercase font-black tracking-widest">Reaction Result</div>
                 <span class="text-[40px] sm:text-[52px] font-black font-mono italic drop-shadow-lg" v-html="formatFormula(gameState?.last_card?.substance)"></span>
                 <div class="px-6 py-2 bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 max-w-[85%]">
-                   <span class="text-[10px] sm:text-xs font-black tracking-widest uppercase text-center block leading-tight">{{ getSubstanceName(gameState?.last_card?.substance) }}</span>
+                   <span class="text-[10px] sm:text-xs font-black tracking-widest text-center block leading-tight">{{ getSubstanceName(gameState?.last_card?.substance) }}</span>
                 </div>
                 <div class="absolute bottom-5 right-5 opacity-30">
                    <FlaskConical class="w-5 h-5 fill-current" />
@@ -811,7 +811,7 @@ onMounted(() => {
              </div>
           </div>
           
-          <div v-else class="flex flex-col items-center gap-10 sm:gap-14 animate-in fade-in zoom-in duration-1000">
+          <div v-else-if="roomInfo?.status === 'waiting'" class="flex flex-col items-center gap-10 sm:gap-14 animate-in fade-in zoom-in duration-1000">
              <div class="relative">
                 <div class="absolute inset-0 bg-blue-500/10 rounded-full blur-[80px] animate-pulse"></div>
                 <div class="w-32 h-32 sm:w-40 sm:h-40 rounded-[48px] sm:rounded-[64px] border-4 border-dashed border-blue-500/30 flex items-center justify-center rotate-45 group hover:rotate-0 transition-all duration-700">
@@ -891,7 +891,7 @@ onMounted(() => {
                    </div>
                    <div class="bg-slate-50 dark:bg-white/5 p-3 rounded-2xl border border-slate-200 dark:border-white/5">
                       <p class="text-[11px] font-black text-blue-600 dark:text-blue-400 mb-1" v-html="formatFormula(play.substance)"></p>
-                      <div class="flex items-center justify-between text-[8px] font-bold text-slate-500 uppercase tracking-widest">
+                      <div class="flex items-center justify-between text-[8px] font-bold text-slate-500 tracking-widest">
                          <span>{{ getSubstanceName(play.substance) }}</span>
                          <span class="opacity-40">@{{ gameState?.players?.find((p: any) => p.uid === play.player_uid)?.username || 'User' }}</span>
                       </div>
@@ -920,7 +920,7 @@ onMounted(() => {
                   v-model="substanceInput" 
                   @keyup.enter="handleInputPlay"
                   placeholder="手动注入化学式 (如 H2O)" 
-                  class="bg-transparent border-none outline-none text-xs sm:text-sm px-4 py-1.5 w-40 sm:w-60 font-black tracking-widest uppercase placeholder:text-slate-400 text-slate-900 dark:text-white"
+                  class="bg-transparent border-none outline-none text-xs sm:text-sm px-4 py-1.5 w-40 sm:w-60 font-black tracking-widest placeholder:text-slate-400 text-slate-900 dark:text-white"
                 />
                 
                 <div class="flex items-center gap-1.5">
@@ -1096,7 +1096,7 @@ onMounted(() => {
                   )">
                     <FlaskConical :class="cn('w-4 h-4 sm:w-6 sm:h-6', selectedSubstance === substance ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-600')" />
                   </div>
-                  <span :class="cn('font-black tracking-widest text-[9px] sm:text-[11px] uppercase truncate w-full text-center', selectedSubstance === substance ? 'text-blue-600 dark:text-white' : 'text-slate-500')">{{ substance }}</span>
+                  <span :class="cn('font-black tracking-widest text-[9px] sm:text-[11px] truncate w-full text-center', selectedSubstance === substance ? 'text-blue-600 dark:text-white' : 'text-slate-500')">{{ substance }}</span>
                   <div v-if="selectedSubstance === substance" class="absolute inset-0 bg-blue-500/5 animate-pulse"></div>
                 </button>
              </div>

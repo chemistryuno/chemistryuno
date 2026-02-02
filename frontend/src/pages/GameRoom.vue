@@ -236,6 +236,9 @@ onMounted(() => {
     websocket.on('game_update', handleGameUpdate)
     websocket.on('player_joined', loadGameState)
     websocket.on('player_left', loadGameState)
+    websocket.on('action_toast', (msg: any) => {
+      showAlert(msg.data, '实验状态变更')
+    })
     websocket.on('room_terminated', async (msg: any) => {
       isRedirecting.value = true
       const reason = msg.message || '房主已中断连接，实验室已关闭'
@@ -808,6 +811,24 @@ onMounted(() => {
                    'w-full h-full border-2 border-blue-500/10 rounded-full',
                    gameState?.direction === 1 ? 'animate-spin-slow' : 'animate-reverse-spin-slow'
                 )" style="border-style: double;"></div>
+             </div>
+          </div>
+
+          <!-- Waiting for play state (Au triggered or Initial) -->
+          <div v-else-if="gameState?.status === 'playing' && !gameState?.last_card" class="flex flex-col items-center gap-6 animate-in fade-in zoom-in duration-700">
+             <div class="relative group">
+                <div class="absolute -inset-12 bg-emerald-500/10 rounded-full blur-[80px] group-hover:bg-emerald-500/20 transition-all animate-pulse"></div>
+                <div class="w-32 h-32 sm:w-40 sm:h-40 rounded-[48px] sm:rounded-[64px] border-4 border-emerald-500/30 flex items-center justify-center relative z-10">
+                   <Zap class="w-12 h-12 sm:w-16 sm:h-16 text-emerald-500/40" />
+                </div>
+             </div>
+             <div class="text-center relative z-10">
+                <h3 class="text-xl sm:text-2xl font-black text-slate-800 dark:text-white uppercase tracking-[0.3em]">
+                   等待 {{ allPlayers[gameState?.current_player]?.username || '研究员' }} 出牌
+                </h3>
+                <p class="text-[10px] font-bold text-slate-500 mt-2 uppercase italic tracking-tighter">
+                   Reaction Reactor Reseted _ New Deployment Window Open
+                </p>
              </div>
           </div>
           

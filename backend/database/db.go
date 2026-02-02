@@ -125,6 +125,16 @@ func createTables() error {
 		FOREIGN KEY (created_by) REFERENCES users(UID)
 	);`
 
+	// 物质表
+	substancesTable := `
+	CREATE TABLE IF NOT EXISTS substances (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		formula TEXT UNIQUE NOT NULL,
+		name TEXT,
+		elements TEXT NOT NULL,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	);`
+
 	// 反馈表
 	feedbackTable := `
 	CREATE TABLE IF NOT EXISTS feedbacks (
@@ -150,7 +160,7 @@ func createTables() error {
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);`
 
-	tables := []string{userTable, bountyTable, deckConfigTable, gameHistoryTable, credentialTable, reactionsTable, feedbackTable, systemConfigTable}
+	tables := []string{userTable, bountyTable, deckConfigTable, gameHistoryTable, credentialTable, reactionsTable, substancesTable, feedbackTable, systemConfigTable}
 
 	for _, table := range tables {
 		if _, err := DB.Exec(table); err != nil {
@@ -160,6 +170,9 @@ func createTables() error {
 
 	// 初始化默认系统配置
 	initSystemConfigs()
+
+	// 初始化默认物质数据
+	initDefaultSubstances()
 
 	// 增量更新表结构（针对已存在的数据库）——按需添加列以避免错误
 	columnExists := func(table, column string) bool {
@@ -524,6 +537,39 @@ func GetAllBounties() ([]models.Bounty, error) {
 		bounties = append(bounties, b)
 	}
 	return bounties, nil
+}
+
+func initDefaultSubstances() {
+	substances := []struct {
+		formula  string
+		name     string
+		elements string
+	}{
+		{"H2O", "水", "H,O"},
+		{"CO2", "二氧化碳", "C,O"},
+		{"NaCl", "氯化钠", "Na,Cl"},
+		{"H2SO4", "硫酸", "H,S,O"},
+		{"NaOH", "氢氧化钠", "Na,O,H"},
+		{"HCl", "盐酸", "H,Cl"},
+		{"O2", "氧气", "O"},
+		{"H2", "氢气", "H"},
+		{"Cl2", "氯气", "Cl"},
+		{"Na2CO3", "碳酸钠", "Na,C,O"},
+		{"CaCO3", "碳酸钙", "Ca,C,O"},
+		{"CaO", "氧化钙", "Ca,O"},
+		{"Ca(OH)2", "氢氧化钙", "Ca,O,H"},
+		{"N2", "氮气", "N"},
+		{"NH3", "氨气", "N,H"},
+		{"Fe", "铁", "Fe"},
+		{"Fe2O3", "氧化铁", "Fe,O"},
+		{"Cu", "铜", "Cu"},
+		{"CuO", "氧化铜", "Cu,O"},
+		{"KMnO4", "高锰酸钾", "K,Mn,O"},
+	}
+
+	for _, sub := range substances {
+		_, _ = DB.Exec("INSERT OR IGNORE INTO substances (formula, name, elements) VALUES (?, ?, ?)", sub.formula, sub.name, sub.elements)
+	}
 }
 
 func Close() {

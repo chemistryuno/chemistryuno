@@ -162,7 +162,10 @@ func GetAllRooms() []*models.Room {
 
 	result := []*models.Room{}
 	for _, gr := range rooms {
-		result = append(result, gr.Room)
+		// 消除已结束的房间，只展示等待中或进行中的房间
+		if gr.Room.Status != "finished" {
+			result = append(result, gr.Room)
+		}
 	}
 
 	// 排序逻辑：waiting 优先，然后按创建时间从新到旧
@@ -912,6 +915,7 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 	requiredElements := parseSubstance(substance)
 	usedCards := []int{} // 记录将要从手牌中移除的索引
 	for elemName := range requiredElements {
+		// 普通反应只需要查验元素种类，每种元素消耗 1 张对应手牌
 		found := false
 		for i, hCard := range currentPlayer.HandCards {
 			// 检查该卡片是否已被标记为使用
@@ -1090,8 +1094,8 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 		// 传递到下家
 		gameRoom.GameState.CurrentPlayer = getNextPlayer(gameRoom.GameState)
 		gameRoom.GameState.TurnEndTime = time.Now().Add(30*time.Second).UnixNano() / int64(time.Millisecond)
-		// 如果之前允许任意出牌的标记被消费，清除
-		if allowAny {
+		// 如果之前允许任意出牌的标记被消费（且未产生新转移），清除
+		if gameRoom.GameState.AllowedAnyPlayer == curIdx {
 			gameRoom.GameState.AllowedAnyPlayer = -1
 		}
 		return nil
@@ -1115,9 +1119,20 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 	case "reverse":
 		gameRoom.GameState.Direction *= -1
 	case "Au":
-		// 使得跳过下一位玩家，并允许下下家任意出牌
+		// 使得跳过下一位玩家，并允许下下家任意出牌，同时清空场面
+		gameRoom.GameState.LastCard = nil
 		gameRoom.GameState.CurrentPlayer = next1
 		gameRoom.GameState.AllowedAnyPlayer = next2
+
+		// 显式广播跳过信息
+		if websocket.GlobalHub != nil {
+			skippedPlayer := gameRoom.GameState.Players[next1].Username
+			nextPlayer := gameRoom.GameState.Players[next2].Username
+			websocket.GlobalHub.BroadcastToRoom(gameRoom.Room.ID, websocket.Message{
+				Type: "action_toast",
+				Data: fmt.Sprintf("Au 金元素触发！跳过研究员 %s，等待 %s 出牌...", skippedPlayer, nextPlayer),
+			})
+		}
 	}
 
 	// 行动进度更新
@@ -1128,8 +1143,8 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 
 	// 下一位玩家（大多数情况均走到这里）
 	gameRoom.GameState.CurrentPlayer = getNextPlayer(gameRoom.GameState)
-	// 如果之前允许任意出牌的标记被消费，清除（保险）
-	if allowAny {
+	// 如果之前允许任意出牌的标记被消费（且未在此处产生新的转移，如 Au 效果），清除
+	if gameRoom.GameState.AllowedAnyPlayer == curIdx {
 		gameRoom.GameState.AllowedAnyPlayer = -1
 	}
 	gameRoom.GameState.TurnEndTime = time.Now().Add(30*time.Second).UnixNano() / int64(time.Millisecond)
@@ -1273,7 +1288,9 @@ func GetAvailableSubstances(roomID string, uid int) ([]string, error) {
 	substances := GetSubstancesFromElements(currentPlayer.HandCards)
 
 	// 如果有上一张牌，过滤出能反应的物质
-	if gameRoom.GameState.LastCard != nil {
+	// 如果该玩家被允许无视条件出牌（如 Au 效果或罚牌结算后），则返回全部可用物质
+	allowAny := gameRoom.GameState.AllowedAnyPlayer == gameRoom.GameState.CurrentPlayer
+	if gameRoom.GameState.LastCard != nil && !allowAny {
 		reactable := []string{}
 		lastSubstance := gameRoom.GameState.LastCard.Substance
 		for _, sub := range substances {
@@ -1338,7 +1355,8 @@ func DoublePlay(roomID string, uid int, sub1 string, sub2 string) error {
 	}
 
 	// 检查是否轮到该玩家
-	currentPlayer := gameRoom.GameState.Players[gameRoom.GameState.CurrentPlayer]
+	curIdx := gameRoom.GameState.CurrentPlayer
+	currentPlayer := gameRoom.GameState.Players[curIdx]
 	if currentPlayer.UID != uid {
 		return errors.New("还没轮到你")
 	}
@@ -1346,6 +1364,29 @@ func DoublePlay(roomID string, uid int, sub1 string, sub2 string) error {
 	// 检查冷却
 	if !currentPlayer.DoubleActionAvailable {
 		return errors.New("双联反应尚未就绪（每行动2次可使用1次）")
+	}
+
+	// 如果当前玩家被允许无视反应条件出牌（如上家使用了罚牌结算或 Au 效果），则跳过与上家的反应检查
+	// 但双联模式核心逻辑是 sub1 与 sub2 必须自身能反应，这里我们保留 sub1 与 sub2 的反应检查
+	// 如果上家有 LastCard，我们逻辑上要求 sub1 必须能接上 LastCard，除非 allowAny
+	allowAny := gameRoom.GameState.AllowedAnyPlayer == gameRoom.GameState.CurrentPlayer
+	if !allowAny && gameRoom.GameState.LastCard != nil {
+		canConnect := false
+		if len(gameRoom.GameState.LastCard.Reactants) > 0 {
+			for _, r := range gameRoom.GameState.LastCard.Reactants {
+				if CanReact(r, sub1) {
+					canConnect = true
+					break
+				}
+			}
+		} else {
+			if CanReact(gameRoom.GameState.LastCard.Substance, sub1) {
+				canConnect = true
+			}
+		}
+		if !canConnect {
+			return errors.New("所选的第一种物质 " + sub1 + " 无法与上一张牌反应")
+		}
 	}
 
 	// 如果有挂起的加牌，禁止发动双联行动
@@ -1362,38 +1403,41 @@ func DoublePlay(roomID string, uid int, sub1 string, sub2 string) error {
 	req1 := parseSubstance(sub1)
 	req2 := parseSubstance(sub2)
 	allReqs := make(map[string]int)
-	for k, v := range req1 {
-		allReqs[k] += v
+	// 双联反应查验重复元素：两物质中都有的元素消耗 2 张，唯一的消耗 1 张
+	for k := range req1 {
+		allReqs[k]++
 	}
-	for k, v := range req2 {
-		allReqs[k] += v
+	for k := range req2 {
+		allReqs[k]++
 	}
 
 	// 检查手牌
 	usedCards := []int{}
 	for elemName, count := range allReqs {
 		foundCount := 0
-		for i, hCard := range currentPlayer.HandCards {
-			alreadyUsed := false
-			for _, uIdx := range usedCards {
-				if uIdx == i {
-					alreadyUsed = true
+		for c := 0; c < count; c++ {
+			found := false
+			for i, hCard := range currentPlayer.HandCards {
+				alreadyUsed := false
+				for _, uIdx := range usedCards {
+					if uIdx == i {
+						alreadyUsed = true
+						break
+					}
+				}
+				if alreadyUsed {
+					continue
+				}
+				if hCard.Type == elemName {
+					usedCards = append(usedCards, i)
+					found = true
+					foundCount++
 					break
 				}
 			}
-			if alreadyUsed {
-				continue
+			if !found {
+				return errors.New("手牌对应元素牌不足: " + elemName + " (需要 " + fmt.Sprint(count) + " 张)")
 			}
-			if hCard.Type == elemName {
-				usedCards = append(usedCards, i)
-				foundCount++
-				if foundCount == count {
-					break
-				}
-			}
-		}
-		if foundCount < count {
-			return errors.New("手牌元素不足以组成以上两种物质")
 		}
 	}
 
@@ -1424,6 +1468,53 @@ func DoublePlay(roomID string, uid int, sub1 string, sub2 string) error {
 	gameRoom.GameState.LastCard = &playedCard
 	gameRoom.GameState.DiscardPile = append(gameRoom.GameState.DiscardPile, playedCard)
 
+	// 处理特殊效果（如果双联中包含功能牌）
+	for _, c := range consumedCards {
+		effect := c.Type
+		if c.Effect != "" {
+			effect = c.Effect
+		}
+		switch effect {
+		case "+2":
+			gameRoom.GameState.PendingDrawCount += 2
+			gameRoom.GameState.PendingDrawTypes = append(gameRoom.GameState.PendingDrawTypes, "+2")
+		case "+4":
+			gameRoom.GameState.PendingDrawCount += 4
+			gameRoom.GameState.PendingDrawTypes = append(gameRoom.GameState.PendingDrawTypes, "+4")
+		case "reverse":
+			gameRoom.GameState.Direction *= -1
+		case "Au":
+			// 双联中的 Au 效果：跳过下一位并清空场面
+			playersLen := len(gameRoom.GameState.Players)
+			next1Body := gameRoom.GameState.CurrentPlayer + gameRoom.GameState.Direction
+			if next1Body < 0 {
+				next1Body = playersLen - 1
+			} else if next1Body >= playersLen {
+				next1Body = 0
+			}
+
+			next2Body := next1Body + gameRoom.GameState.Direction
+			if next2Body < 0 {
+				next2Body = playersLen - 1
+			} else if next2Body >= playersLen {
+				next2Body = 0
+			}
+
+			gameRoom.GameState.CurrentPlayer = next1Body
+			gameRoom.GameState.AllowedAnyPlayer = next2Body
+			gameRoom.GameState.LastCard = nil
+
+			if websocket.GlobalHub != nil {
+				skippedPlayer := gameRoom.GameState.Players[next1Body].Username
+				nextPlayer := gameRoom.GameState.Players[next2Body].Username
+				websocket.GlobalHub.BroadcastToRoom(gameRoom.Room.ID, websocket.Message{
+					Type: "action_toast",
+					Data: fmt.Sprintf("Au 金元素双联触发！跳过研究员 %s，等待 %s 出牌...", skippedPlayer, nextPlayer),
+				})
+			}
+		}
+	}
+
 	// 检查是否获胜
 	if currentPlayer.CardCount == 0 {
 		gameRoom.GameState.Status = "finished"
@@ -1439,6 +1530,10 @@ func DoublePlay(roomID string, uid int, sub1 string, sub2 string) error {
 
 	// 下一位玩家
 	gameRoom.GameState.CurrentPlayer = getNextPlayer(gameRoom.GameState)
+	// 如果之前允许任意出牌的标记被消费（且未在此处产生新的转移，如 Au 效果），清除
+	if gameRoom.GameState.AllowedAnyPlayer == curIdx {
+		gameRoom.GameState.AllowedAnyPlayer = -1
+	}
 	gameRoom.GameState.TurnEndTime = time.Now().Add(30*time.Second).UnixNano() / int64(time.Millisecond)
 
 	return nil

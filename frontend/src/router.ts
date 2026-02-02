@@ -1,7 +1,6 @@
 import { createRouter, createWebHistory, type RouteLocationNormalized, type NavigationGuardNext } from 'vue-router'
 import Login from './pages/Login.vue'
 import Register from './pages/Register.vue'
-import ForgotPassword from './pages/ForgotPassword.vue'
 import Lobby from './pages/Lobby.vue'
 import GameRoom from './pages/GameRoom.vue'
 import Profile from './pages/Profile.vue'
@@ -9,6 +8,8 @@ import Admin from './pages/Admin.vue'
 import Reactions from './pages/Reactions.vue'
 import Feedbacks from './pages/Feedbacks.vue'
 import Ranking from './pages/Ranking.vue'
+import DataConfig from './pages/DataConfig.vue'
+import Substances from './pages/Substances.vue'
 
 const routes = [
   {
@@ -21,12 +22,6 @@ const routes = [
     path: '/register',
     name: 'Register',
     component: Register,
-    meta: { guestOnly: true }
-  },
-  {
-    path: '/forgot-password',
-    name: 'ForgotPassword',
-    component: ForgotPassword,
     meta: { guestOnly: true }
   },
   {
@@ -64,10 +59,22 @@ const routes = [
     meta: { requiresAuth: true, adminOnly: true }
   },
   {
-    path: '/reactions',
+    path: '/data',
+    name: 'DataConfig',
+    component: DataConfig,
+    meta: { requiresAuth: true, coWorkerOnly: true }
+  },
+  {
+    path: '/data/reactions',
     name: 'Reactions',
     component: Reactions,
-    meta: { requiresAuth: true }
+    meta: { requiresAuth: true, coWorkerOnly: true }
+  },
+  {
+    path: '/data/substances',
+    name: 'Substances',
+    component: Substances,
+    meta: { requiresAuth: true, coWorkerOnly: true }
   },
   {
     path: '/ranking',

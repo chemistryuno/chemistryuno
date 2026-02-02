@@ -928,3 +928,116 @@ func UpdateSystemConfig(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "配置更新成功"})
 }
+
+// SubstanceRequest 定义物质请求结构
+type SubstanceRequest struct {
+	Formula string `json:"formula" binding:"required"`
+	Name    string `json:"name" binding:"required"`
+}
+
+// GetSubstances 获取所有物质
+func GetSubstances(c *gin.Context) {
+	rows, err := database.DB.Query("SELECT id, formula, name, elements FROM substances ORDER BY id DESC")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误"})
+		return
+	}
+	defer rows.Close()
+
+	var results []map[string]interface{}
+	for rows.Next() {
+		var id int
+		var formula, name, elements string
+		if err := rows.Scan(&id, &formula, &name, &elements); err == nil {
+			results = append(results, map[string]interface{}{
+				"id":       id,
+				"formula":  formula,
+				"name":     name,
+				"elements": elements,
+			})
+		}
+	}
+	c.JSON(http.StatusOK, results)
+}
+
+// AddSubstance 添加新物质
+func AddSubstance(c *gin.Context) {
+	var req SubstanceRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+
+	// 自动分析元素
+	elementsMap := parseSubstanceForElements(req.Formula)
+	var elementsArr []string
+	for e := range elementsMap {
+		elementsArr = append(elementsArr, e)
+	}
+	elementsStr := strings.Join(elementsArr, ",")
+
+	_, err := database.DB.Exec("INSERT INTO substances (formula, name, elements) VALUES (?, ?, ?)", req.Formula, req.Name, elementsStr)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "添加物质失败，可能已存在"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"message": "添加成功"})
+}
+
+// UpdateSubstance 更新物质
+func UpdateSubstance(c *gin.Context) {
+	id := c.Param("id")
+	var req SubstanceRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+
+	elementsMap := parseSubstanceForElements(req.Formula)
+	var elementsArr []string
+	for e := range elementsMap {
+		elementsArr = append(elementsArr, e)
+	}
+	elementsStr := strings.Join(elementsArr, ",")
+
+	_, err := database.DB.Exec("UPDATE substances SET formula = ?, name = ?, elements = ? WHERE id = ?", req.Formula, req.Name, elementsStr, id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新物质失败"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "更新成功"})
+}
+
+// DeleteSubstance 删除物质
+func DeleteSubstance(c *gin.Context) {
+	id := c.Param("id")
+	_, err := database.DB.Exec("DELETE FROM substances WHERE id = ?", id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "删除失败"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "删除成功"})
+}
+
+// 内部工具：解析化学式获取涉及的元素
+func parseSubstanceForElements(substance string) map[string]bool {
+	result := make(map[string]bool)
+	i := 0
+	for i < len(substance) {
+		c := substance[i]
+		if c >= 'A' && c <= 'Z' {
+			start := i
+			i++
+			for i < len(substance) && substance[i] >= 'a' && substance[i] <= 'z' {
+				i++
+			}
+			element := substance[start:i]
+			result[element] = true
+		} else {
+			i++
+		}
+	}
+	return result
+}

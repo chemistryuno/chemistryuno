@@ -153,12 +153,24 @@ export const reactionAPI = {
     api.post('/reactions', { display }),
   batchAddReactions: (reactions: { display: string }[]) =>
     api.post('/reactions/batch', reactions),
-  updateReaction: (id: number, display: string) =>
+  updateReaction: (id: number, display: string) => 
     api.put(`/reactions/${id}`, { display }),
-  approveReaction: (groupId: string, display?: string, reject?: boolean) => 
+  approveReaction: (groupId: string, display: string, reject: boolean = false) =>
     api.put(`/reactions/approve/${groupId}`, { display, reject }),
-  deleteReaction: (reactionId: string) => 
+  deleteReaction: (reactionId: number) => 
     api.delete(`/reactions/${reactionId}`),
+}
+
+// 物质管理API
+export const substanceAPI = {
+  getSubstances: () =>
+    api.get('/substances'),
+  addSubstance: (formula: string, name: string) =>
+    api.post('/substances', { formula, name }),
+  updateSubstance: (id: number, formula: string, name: string) =>
+    api.put(`/substances/${id}`, { formula, name }),
+  deleteSubstance: (id: number) =>
+    api.delete(`/substances/${id}`),
 }
 
 export default api

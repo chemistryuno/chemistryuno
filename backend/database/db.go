@@ -565,6 +565,23 @@ func initDefaultSubstances() {
 		{"Cu", "铜", "Cu"},
 		{"CuO", "氧化铜", "Cu,O"},
 		{"KMnO4", "高锰酸钾", "K,Mn,O"},
+		{"He", "氦气", "He"},
+		{"Ne", "氖气", "Ne"},
+		{"Ar", "氩气", "Ar"},
+		{"Kr", "氪气", "Kr"},
+		{"Au", "金", "Au"},
+		{"Zn", "锌", "Zn"},
+		{"Al", "铝", "Al"},
+		{"Mg", "镁", "Mg"},
+		{"AgNO3", "硝酸银", "Ag,N,O"},
+		{"CuSO4", "硫酸铜", "Cu,S,O"},
+		{"BaCl2", "氯化钡", "Ba,Cl"},
+		{"CO", "一氧化碳", "C,O"},
+		{"SO2", "二氧化硫", "S,O"},
+		{"H2O2", "过氧化氢", "H,O"},
+		{"NH4Cl", "氯化铵", "N,H,Cl"},
+		{"KClO3", "氯酸钾", "K,Cl,O"},
+		{"MnO2", "二氧化锰", "Mn,O"},
 	}
 
 	for _, sub := range substances {

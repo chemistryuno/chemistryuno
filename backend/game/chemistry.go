@@ -54,9 +54,9 @@ func GetSubstancesFromElements(cards []models.Card) []string {
 // 检查是否可以用当前元素组成某个物质
 func canFormSubstance(substance string, elements map[string]int) bool {
 	required := parseSubstance(substance)
-	for elem := range required {
-		// 普通反应只需要查验元素种类，每种元素只需 1 张手牌
-		if elements[elem] < 1 {
+	for elem, count := range required {
+		// 校验手牌中该元素的数量是否满足化学式需求
+		if elements[elem] < count {
 			return false
 		}
 	}
@@ -127,7 +127,8 @@ func parseSubstance(substance string) map[string]int {
 func CanReact(substance1, substance2 string) bool {
 	// 特殊卡牌逻辑：稀有气体和功能牌可以与任何物质反应（即可以接在任何牌后面）
 	specialSubstances := map[string]bool{
-		"He": true, "Ne": true, "Ar": true, "Kr": true, "Au": true, "+2": true, "+4": true,
+		"He": true, "Ne": true, "Ar": true, "Kr": true, "Xe": true, "Rn": true,
+		"Au": true, "+2": true, "+4": true,
 	}
 	if specialSubstances[substance1] || specialSubstances[substance2] {
 		return true

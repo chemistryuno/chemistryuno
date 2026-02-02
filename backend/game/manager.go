@@ -914,29 +914,33 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 	}
 	requiredElements := parseSubstance(substance)
 	usedCards := []int{} // 记录将要从手牌中移除的索引
-	for elemName := range requiredElements {
-		// 普通反应只需要查验元素种类，每种元素消耗 1 张对应手牌
-		found := false
-		for i, hCard := range currentPlayer.HandCards {
-			// 检查该卡片是否已被标记为使用
-			alreadyUsed := false
-			for _, usedIdx := range usedCards {
-				if usedIdx == i {
-					alreadyUsed = true
+	for elemName, count := range requiredElements {
+		// 根据化学式中元素的系数，消耗对应数量的手牌
+		foundCount := 0
+		for c := 0; c < count; c++ {
+			found := false
+			for i, hCard := range currentPlayer.HandCards {
+				// 检查该卡片是否已被标记为使用
+				alreadyUsed := false
+				for _, usedIdx := range usedCards {
+					if usedIdx == i {
+						alreadyUsed = true
+						break
+					}
+				}
+				if alreadyUsed {
+					continue
+				}
+				if hCard.Type == elemName {
+					usedCards = append(usedCards, i)
+					found = true
+					foundCount++
 					break
 				}
 			}
-			if alreadyUsed {
-				continue
+			if !found {
+				return errors.New("缺少元素牌: " + elemName + " (需要 " + fmt.Sprint(count) + " 张)")
 			}
-			if hCard.Type == elemName {
-				usedCards = append(usedCards, i)
-				found = true
-				break
-			}
-		}
-		if !found {
-			return errors.New("缺少元素牌: " + elemName)
 		}
 	}
 
@@ -1121,13 +1125,17 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 	case "Au":
 		// 使得跳过下一位玩家，并允许下下家任意出牌，同时清空场面
 		gameRoom.GameState.LastCard = nil
-		gameRoom.GameState.CurrentPlayer = next1
-		gameRoom.GameState.AllowedAnyPlayer = next2
+		// 1. 先跳过第一个人 (考虑到已完成玩家)
+		skippedIdx := getNextPlayer(gameRoom.GameState)
+		gameRoom.GameState.CurrentPlayer = skippedIdx
+		// 2. 找到真正该出牌的人
+		targetIdx := getNextPlayer(gameRoom.GameState)
+		gameRoom.GameState.AllowedAnyPlayer = targetIdx
 
 		// 显式广播跳过信息
 		if websocket.GlobalHub != nil {
-			skippedPlayer := gameRoom.GameState.Players[next1].Username
-			nextPlayer := gameRoom.GameState.Players[next2].Username
+			skippedPlayer := gameRoom.GameState.Players[skippedIdx].Username
+			nextPlayer := gameRoom.GameState.Players[targetIdx].Username
 			websocket.GlobalHub.BroadcastToRoom(gameRoom.Room.ID, websocket.Message{
 				Type: "action_toast",
 				Data: fmt.Sprintf("Au 金元素触发！跳过研究员 %s，等待 %s 出牌...", skippedPlayer, nextPlayer),
@@ -1292,10 +1300,26 @@ func GetAvailableSubstances(roomID string, uid int) ([]string, error) {
 	allowAny := gameRoom.GameState.AllowedAnyPlayer == gameRoom.GameState.CurrentPlayer
 	if gameRoom.GameState.LastCard != nil && !allowAny {
 		reactable := []string{}
-		lastSubstance := gameRoom.GameState.LastCard.Substance
-		for _, sub := range substances {
-			if CanReact(lastSubstance, sub) {
-				reactable = append(reactable, sub)
+		if len(gameRoom.GameState.LastCard.Reactants) > 0 {
+			// 如果上一次是双联反应，则只需与其中任一物质参与反应即可
+			for _, sub := range substances {
+				canSubReact := false
+				for _, r := range gameRoom.GameState.LastCard.Reactants {
+					if CanReact(r, sub) {
+						canSubReact = true
+						break
+					}
+				}
+				if canSubReact {
+					reactable = append(reactable, sub)
+				}
+			}
+		} else {
+			lastSubstance := gameRoom.GameState.LastCard.Substance
+			for _, sub := range substances {
+				if CanReact(lastSubstance, sub) {
+					reactable = append(reactable, sub)
+				}
 			}
 		}
 		return reactable, nil
@@ -1403,12 +1427,12 @@ func DoublePlay(roomID string, uid int, sub1 string, sub2 string) error {
 	req1 := parseSubstance(sub1)
 	req2 := parseSubstance(sub2)
 	allReqs := make(map[string]int)
-	// 双联反应查验重复元素：两物质中都有的元素消耗 2 张，唯一的消耗 1 张
-	for k := range req1 {
-		allReqs[k]++
+	// 双联反应查验各物质元素需求之和
+	for k, v := range req1 {
+		allReqs[k] += v
 	}
-	for k := range req2 {
-		allReqs[k]++
+	for k, v := range req2 {
+		allReqs[k] += v
 	}
 
 	// 检查手牌
@@ -1485,28 +1509,17 @@ func DoublePlay(roomID string, uid int, sub1 string, sub2 string) error {
 			gameRoom.GameState.Direction *= -1
 		case "Au":
 			// 双联中的 Au 效果：跳过下一位并清空场面
-			playersLen := len(gameRoom.GameState.Players)
-			next1Body := gameRoom.GameState.CurrentPlayer + gameRoom.GameState.Direction
-			if next1Body < 0 {
-				next1Body = playersLen - 1
-			} else if next1Body >= playersLen {
-				next1Body = 0
-			}
-
-			next2Body := next1Body + gameRoom.GameState.Direction
-			if next2Body < 0 {
-				next2Body = playersLen - 1
-			} else if next2Body >= playersLen {
-				next2Body = 0
-			}
-
-			gameRoom.GameState.CurrentPlayer = next1Body
-			gameRoom.GameState.AllowedAnyPlayer = next2Body
 			gameRoom.GameState.LastCard = nil
+			// 1. 先跳过第一个人 (考虑到已完成玩家)
+			skippedIdx := getNextPlayer(gameRoom.GameState)
+			gameRoom.GameState.CurrentPlayer = skippedIdx
+			// 2. 找到真正该出牌的人
+			targetIdx := getNextPlayer(gameRoom.GameState)
+			gameRoom.GameState.AllowedAnyPlayer = targetIdx
 
 			if websocket.GlobalHub != nil {
-				skippedPlayer := gameRoom.GameState.Players[next1Body].Username
-				nextPlayer := gameRoom.GameState.Players[next2Body].Username
+				skippedPlayer := gameRoom.GameState.Players[skippedIdx].Username
+				nextPlayer := gameRoom.GameState.Players[targetIdx].Username
 				websocket.GlobalHub.BroadcastToRoom(gameRoom.Room.ID, websocket.Message{
 					Type: "action_toast",
 					Data: fmt.Sprintf("Au 金元素双联触发！跳过研究员 %s，等待 %s 出牌...", skippedPlayer, nextPlayer),

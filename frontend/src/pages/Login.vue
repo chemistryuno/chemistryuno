@@ -141,7 +141,7 @@ const handleWebAuthnLogin = async () => {
               <div class="space-y-1.5">
                 <div class="flex justify-between items-center px-1">
                   <label class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">访问秘钥</label>
-                  <router-link to="/forgot-password" class="text-[10px] font-black text-blue-600 hover:text-blue-500 uppercase tracking-widest">找回凭证?</router-link>
+                  <div class="text-[10px] font-black text-gray-500 uppercase tracking-widest cursor-not-allowed">找回凭证?</div>
                 </div>
                 <div class="relative group">
                   <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 dark:text-slate-500 group-focus-within:text-blue-500 transition-colors">

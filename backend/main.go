@@ -146,6 +146,16 @@ func main() {
 		reactions.DELETE("/:id", handlers.DeleteReaction)
 	}
 
+	// 物质管理路由（可以复用co-worker中间件）
+	substances := r.Group("/substances")
+	substances.Use(middleware.AuthMiddleware(), middleware.CoWorkerMiddleware())
+	{
+		substances.GET("", handlers.GetSubstances)
+		substances.POST("", handlers.AddSubstance)
+		substances.PUT("/:id", handlers.UpdateSubstance)
+		substances.DELETE("/:id", handlers.DeleteSubstance)
+	}
+
 	// 积分和悬赏
 	points := r.Group("/points")
 	points.Use(middleware.AuthMiddleware())

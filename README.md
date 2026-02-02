@@ -60,7 +60,7 @@ npm start
 
 如果启动时遇到编译错误：
 
-**方式1: 自动修复 (推荐)**
+##### 方式1: 自动修复 (推荐)
 
 ```powershell
 .\fix-and-start.ps1

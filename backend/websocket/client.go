@@ -12,7 +12,7 @@ const (
 	writeWait      = 10 * time.Second
 	pongWait       = 60 * time.Second
 	pingPeriod     = (pongWait * 9) / 10
-	maxMessageSize = 512
+	maxMessageSize = 65536 // 增加最大消息限制为 64KB，防止加载游戏数据时断连
 )
 
 type Client struct {

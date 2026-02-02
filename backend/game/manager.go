@@ -61,7 +61,6 @@ func CreateRoom(name string, hostUID int, hostName string, maxPlayers int, deckI
 
 	if name == "" {
 		const charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-		rand.Seed(time.Now().UnixNano())
 		b := make([]byte, 6)
 		for i := range b {
 			b[i] = charset[rand.Intn(len(charset))]
@@ -638,7 +637,6 @@ func StartGame(roomID string, uid int) error {
 	}
 
 	// 洗牌
-	rand.Seed(time.Now().UnixNano())
 	rand.Shuffle(len(gameRoom.GameState.DrawPile), func(i, j int) {
 		gameRoom.GameState.DrawPile[i], gameRoom.GameState.DrawPile[j] =
 			gameRoom.GameState.DrawPile[j], gameRoom.GameState.DrawPile[i]
@@ -989,7 +987,6 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 				}
 			}
 			if len(unfinishedPlayers) > 0 {
-				rand.Seed(time.Now().UnixNano())
 				gameRoom.Room.HostUID = unfinishedPlayers[rand.Intn(len(unfinishedPlayers))]
 			}
 		}
@@ -1122,7 +1119,6 @@ func reshuffleDeck(gameRoom *GameRoom) {
 	gameRoom.GameState.AllUsedCards = nil
 
 	// 重新洗牌
-	rand.Seed(time.Now().UnixNano())
 	rand.Shuffle(len(gameRoom.GameState.DrawPile), func(i, j int) {
 		gameRoom.GameState.DrawPile[i], gameRoom.GameState.DrawPile[j] =
 			gameRoom.GameState.DrawPile[j], gameRoom.GameState.DrawPile[i]

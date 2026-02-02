@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { gameAPI, authAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
 import websocket from '../utils/websocket'
-import { Beaker, Plus, Users, Shield, LogOut, Settings, Play, Info, X, Loader2, Database, MessageSquare, Clock, Trash2, Trophy } from 'lucide-vue-next'
+import { Beaker, Plus, Users, Shield, LogOut, Settings, Play, Info, X, Loader2, Database, MessageSquare, Trash2, Trophy } from 'lucide-vue-next'
 import { cn } from '../utils/cn'
 
 const props = defineProps<{
@@ -12,7 +12,6 @@ const props = defineProps<{
 }>()
 
 const router = useRouter()
-const route = useRoute()
 const { showAlert, showConfirm } = useDialog()
 const user = ref(JSON.parse(localStorage.getItem('user') || '{}'))
 const rooms = ref<any[]>([])
@@ -70,7 +69,7 @@ const loadRooms = async () => {
 const loadPendingFeedbacks = async () => {
   try {
     const res = await authAPI.getMyFeedbacks()
-    pendingFeedbacks.value = res.data.filter((f: any) => f.status === 'unread')
+    pendingFeedbacks.value = (res.data || []).filter((f: any) => f.status === 'unread')
   } catch (e) {
     console.error(e)
   }

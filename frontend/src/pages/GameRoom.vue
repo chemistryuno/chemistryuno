@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { gameAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
 import websocket from '../utils/websocket'
-import { ArrowLeft, Play, RefreshCw, Zap, Activity, FlaskConical, Trophy, ChevronRight, Loader2, Users, Timer, Plus, QrCode, Copy, ExternalLink, Sparkles } from 'lucide-vue-next'
+import { ArrowLeft, Play, RefreshCw, Zap, Activity, FlaskConical, Trophy, ChevronRight, Loader2, Users, Timer, Plus, QrCode, Copy, Sparkles } from 'lucide-vue-next'
 import { cn } from '../utils/cn'
 
 const route = useRoute()

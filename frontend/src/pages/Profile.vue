@@ -19,6 +19,7 @@ import CustomDecks from '../components/profile/CustomDecks.vue'
 import ChangeAvatarModal from '../components/profile/ChangeAvatarModal.vue'
 import ChangePasswordModal from '../components/profile/ChangePasswordModal.vue'
 import TwoFactorSetupModal from '../components/profile/TwoFactorSetupModal.vue'
+import HardwareKeyModal from '../components/profile/HardwareKeyModal.vue'
 
 const router = useRouter()
 const { showAlert, showConfirm, showPrompt } = useDialog()
@@ -30,6 +31,7 @@ const loading = ref(false)
 const twoFactorLoading = ref(false)
 const show2FASetup = ref(false)
 const qrCode = ref('')
+const showHardwareKeys = ref(false)
 
 const fetchLatestUserInfo = async () => {
   try {
@@ -188,11 +190,15 @@ const handleDeleteAccount = async () => {
             @change-password="showChangePassword = true"
             @setup2fa="handleSetup2FA"
             @disable2fa="handleDisable2FA"
+            @manage-hardware-keys="showHardwareKeys = true"
             @delete-account="handleDeleteAccount"
           />
 
-          <!-- Feedback History -->
-          <div @click="router.push('/feedbacks')" class="group cursor-pointer bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 rounded-[2.5rem] p-8 shadow-sm dark:shadow-none transition-all hover:shadow-xl hover:scale-[1.01] hover:border-blue-500/30 flex items-center justify-between">
+          <!-- Feedback Section -->
+          <router-link 
+            to="/feedbacks/my"
+            class="group flex items-center justify-between p-8 bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 rounded-[2.5rem] shadow-sm dark:shadow-none transition-all hover:shadow-lg"
+          >
             <div class="flex items-center gap-6">
               <div class="w-16 h-16 bg-blue-500/10 rounded-2xl flex items-center justify-center text-blue-500 group-hover:bg-blue-500 group-hover:text-white transition-all duration-500 group-hover:rotate-6">
                 <MessageSquare class="w-8 h-8" />
@@ -205,7 +211,7 @@ const handleDeleteAccount = async () => {
             <div class="w-12 h-12 rounded-full border border-slate-200 dark:border-white/5 flex items-center justify-center text-slate-400 group-hover:bg-white dark:group-hover:bg-white/5 group-hover:translate-x-2 transition-all">
               <ArrowLeft class="w-5 h-5 rotate-180" />
             </div>
-          </div>
+          </router-link>
 
           <!-- Custom Decks Section -->
           <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 rounded-[2.5rem] p-10 shadow-sm dark:shadow-none transition-all hover:shadow-lg">
@@ -250,6 +256,11 @@ const handleDeleteAccount = async () => {
       :loading="twoFactorLoading"
       @close="show2FASetup = false"
       @enable="handleEnable2FA"
+    />
+
+    <HardwareKeyModal 
+      :show="showHardwareKeys"
+      @close="showHardwareKeys = false"
     />
   </div>
 </template>

@@ -30,7 +30,14 @@ backendProcess.on('error', (err) => {
   process.exit(1);
 });
 
-// 等待1.5秒后启动前端，确保后端先建立基础
+backendProcess.on('exit', (code) => {
+  if (code !== 0 && code !== null) {
+    console.error(`❌ 后端进程异常退出，退出码: ${code}`);
+    process.exit(1);
+  }
+});
+
+// 等待 5 秒后启动前端，确保后端有足够时间编译并启动
 setTimeout(() => {
   console.log('\n🎨 启动前端开发服务器...');
   const frontendPath = path.join(__dirname, 'frontend');
@@ -49,6 +56,14 @@ setTimeout(() => {
     console.log('💡 提示: 请确保已安装 pnpm (npm install -g pnpm)');
     backendProcess.kill();
     process.exit(1);
+  });
+
+  frontendProcess.on('exit', (code) => {
+    if (code !== 0 && code !== null) {
+      console.error(`❌ 前端进程异常退出，退出码: ${code}`);
+      backendProcess.kill();
+      process.exit(1);
+    }
   });
 
   // 统一退出逻辑

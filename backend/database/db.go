@@ -30,12 +30,6 @@ func InitDB(filepath string) error {
 		return err
 	}
 
-	// 迁移：添加新列
-	DB.Exec("ALTER TABLE users ADD COLUMN monthly_points INTEGER DEFAULT 0")
-	DB.Exec("ALTER TABLE users ADD COLUMN last_weekly_decay_at DATETIME DEFAULT CURRENT_TIMESTAMP")
-	DB.Exec("ALTER TABLE users ADD COLUMN last_monthly_reset_at DATETIME DEFAULT CURRENT_TIMESTAMP")
-	DB.Exec("ALTER TABLE users RENAME COLUMN last_decay_at TO last_weekly_decay_at") // 尝试重命名旧列
-
 	log.Println("数据库初始化成功")
 	return nil
 }
@@ -58,6 +52,7 @@ func createTables() error {
 		banned_until DATETIME DEFAULT NULL,
 		last_weekly_decay_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		last_monthly_reset_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		webauthn_id TEXT DEFAULT '',
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);`
 
@@ -96,6 +91,24 @@ func createTables() error {
 		started_at DATETIME,
 		finished_at DATETIME,
 		FOREIGN KEY (winner_uid) REFERENCES users(UID)
+	);`
+
+	// 硬件密钥凭证表 (WebAuthn)
+	credentialTable := `
+	CREATE TABLE IF NOT EXISTS user_credentials (
+		id BLOB PRIMARY KEY,
+		user_uid INTEGER NOT NULL,
+		public_key BLOB NOT NULL,
+		attestation_type TEXT NOT NULL,
+		transport TEXT,
+		sign_count INTEGER DEFAULT 0,
+		user_present BOOLEAN DEFAULT 0,
+		user_verified BOOLEAN DEFAULT 0,
+		backup_eligible BOOLEAN DEFAULT 0,
+		backup_state BOOLEAN DEFAULT 0,
+		clone_warning BOOLEAN DEFAULT 0,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (user_uid) REFERENCES users(UID)
 	);`
 
 	// 化学反应表
@@ -137,7 +150,7 @@ func createTables() error {
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);`
 
-	tables := []string{userTable, bountyTable, deckConfigTable, gameHistoryTable, reactionsTable, feedbackTable, systemConfigTable}
+	tables := []string{userTable, bountyTable, deckConfigTable, gameHistoryTable, credentialTable, reactionsTable, feedbackTable, systemConfigTable}
 
 	for _, table := range tables {
 		if _, err := DB.Exec(table); err != nil {
@@ -179,14 +192,27 @@ func createTables() error {
 	if !columnExists("users", "points") {
 		_, _ = DB.Exec("ALTER TABLE users ADD COLUMN points INTEGER DEFAULT 1000")
 	}
+	if !columnExists("users", "monthly_points") {
+		_, _ = DB.Exec("ALTER TABLE users ADD COLUMN monthly_points INTEGER DEFAULT 0")
+	}
 	if !columnExists("users", "negative_play_count") {
 		_, _ = DB.Exec("ALTER TABLE users ADD COLUMN negative_play_count INTEGER DEFAULT 0")
 	}
 	if !columnExists("users", "banned_until") {
 		_, _ = DB.Exec("ALTER TABLE users ADD COLUMN banned_until DATETIME DEFAULT NULL")
 	}
-	if !columnExists("users", "last_decay_at") {
-		_, _ = DB.Exec("ALTER TABLE users ADD COLUMN last_decay_at DATETIME DEFAULT CURRENT_TIMESTAMP")
+	if !columnExists("users", "webauthn_id") {
+		_, _ = DB.Exec("ALTER TABLE users ADD COLUMN webauthn_id TEXT DEFAULT ''")
+	}
+	if !columnExists("users", "last_weekly_decay_at") {
+		if columnExists("users", "last_decay_at") {
+			_, _ = DB.Exec("ALTER TABLE users RENAME COLUMN last_decay_at TO last_weekly_decay_at")
+		} else {
+			_, _ = DB.Exec("ALTER TABLE users ADD COLUMN last_weekly_decay_at DATETIME DEFAULT CURRENT_TIMESTAMP")
+		}
+	}
+	if !columnExists("users", "last_monthly_reset_at") {
+		_, _ = DB.Exec("ALTER TABLE users ADD COLUMN last_monthly_reset_at DATETIME DEFAULT CURRENT_TIMESTAMP")
 	}
 
 	// reactions

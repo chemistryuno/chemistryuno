@@ -54,6 +54,10 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/feedbacks/my',
+    redirect: '/feedbacks'
+  },
+  {
     path: '/admin',
     name: 'Admin',
     component: Admin,

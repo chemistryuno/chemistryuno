@@ -1,9 +1,10 @@
 ﻿<script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { authAPI } from '../utils/api'
-import { Beaker, Lock, User, Loader2, Fingerprint, Shield } from 'lucide-vue-next'
+import api, { authAPI } from '../utils/api'
+import { Beaker, Lock, User, Loader2, Fingerprint, Shield, Cpu } from 'lucide-vue-next'
 import websocket from '../utils/websocket'
+import { get } from '@github/webauthn-json'
 
 const identifier = ref('')
 const password = ref('')
@@ -62,6 +63,29 @@ const handleLoginSuccess = (token: string, user: any) => {
   localStorage.setItem('user', JSON.stringify(user))
   websocket.connect()
   router.push('/')
+}
+
+const handleWebAuthnLogin = async () => {
+  if (!identifier.value) {
+    error.value = '请输入用户名以调起硬件密钥'
+    return
+  }
+  error.value = ''
+  loading.value = true
+  try {
+    const res = await api.get(`/auth/webauthn/login/begin?username=${identifier.value}`)
+    const credential = await get(res.data)
+    const resFinish = await api.post(`/auth/webauthn/login/finish?username=${identifier.value}`, credential)
+    
+    // WebAuthn 登录返回的数据结构已统一
+    const { token, user } = resFinish.data
+    handleLoginSuccess(token, user)
+  } catch (err: any) {
+    console.error('WebAuthn login error:', err)
+    error.value = err.response?.data?.error || '硬件密钥验证取消或失败'
+  } finally {
+    loading.value = false
+  }
 }
 </script>
 
@@ -138,6 +162,22 @@ const handleLoginSuccess = (token: string, user: any) => {
                 <template v-else>
                   授权并进入
                 </template>
+              </button>
+
+              <div class="relative flex items-center py-2">
+                <div class="flex-grow border-t border-slate-100 dark:border-white/5"></div>
+                <span class="flex-shrink mx-4 text-[10px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-widest">OR</span>
+                <div class="flex-grow border-t border-slate-100 dark:border-white/5"></div>
+              </div>
+
+              <button
+                type="button"
+                @click="handleWebAuthnLogin"
+                :disabled="loading"
+                class="w-full h-14 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300 font-bold rounded-2xl active:scale-95 transition-all text-xs uppercase tracking-widest flex items-center justify-center gap-2 group border border-slate-200 dark:border-white/5"
+              >
+                <Cpu class="w-4 h-4 text-blue-500" />
+                使用物理研究密钥登录
               </button>
             </form>
           </div>

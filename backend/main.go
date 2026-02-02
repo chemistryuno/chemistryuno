@@ -39,6 +39,9 @@ func main() {
 	// 启动房间监控（处理消极游戏踢人逻辑）
 	game.StartRoomMonitor()
 
+	// 初始化 WebAuthn
+	handlers.InitWebAuthn()
+
 	// 创建Gin路由
 	r := gin.Default()
 
@@ -50,6 +53,10 @@ func main() {
 	r.POST("/auth/login", handlers.Login)
 	r.POST("/auth/2fa/verify", handlers.Verify2FALogin)
 	r.POST("/auth/2fa/reset-password", handlers.ResetPasswordBy2FA)
+
+	// WebAuthn 登录 (公开)
+	r.GET("/auth/webauthn/login/begin", handlers.BeginLogin)
+	r.POST("/auth/webauthn/login/finish", handlers.FinishLogin)
 
 	// 需要认证的路由
 	auth := r.Group("/")
@@ -82,6 +89,12 @@ func main() {
 		auth.POST("/user/2fa/setup", handlers.Setup2FA)
 		auth.POST("/user/2fa/enable", handlers.Enable2FA)
 		auth.POST("/user/2fa/disable", handlers.Disable2FA)
+
+		// WebAuthn 注册与管理
+		auth.GET("/user/webauthn/register/begin", handlers.BeginRegistration)
+		auth.POST("/user/webauthn/register/finish", handlers.FinishRegistration)
+		auth.GET("/user/webauthn/credentials", handlers.ListCredentials)
+		auth.DELETE("/user/webauthn/credentials/:id", handlers.RemoveCredential)
 
 		// 游戏相关
 		auth.GET("/rooms", handlers.GetRooms)

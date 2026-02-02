@@ -2,7 +2,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { authAPI } from '../utils/api'
-import { Beaker, Lock, User, Loader2, Fingerprint, ArrowLeft, ShieldCheck } from 'lucide-vue-next'
+import { Lock, User, Loader2, Fingerprint, ArrowLeft, ShieldCheck } from 'lucide-vue-next'
 
 const username = ref('')
 const code = ref('')

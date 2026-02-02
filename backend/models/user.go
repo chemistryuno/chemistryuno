@@ -2,24 +2,63 @@ package models
 
 import (
 	"time"
+
+	"github.com/go-webauthn/webauthn/webauthn"
 )
 
 type User struct {
-	UID                int        `json:"uid" db:"uid"`
-	Username           string     `json:"username" db:"username"`
-	PasswordHash       string     `json:"-" db:"password"` // 不返回给前端
-	Avatar             string     `json:"avatar" db:"avatar"`
-	IsAdmin            bool       `json:"is_admin" db:"is_admin"`
-	Role               string     `json:"role" db:"role"` // admin, co-worker, user
-	TwoFactorEnabled   bool       `json:"two_factor_enabled" db:"two_factor_enabled"`
-	TwoFactorSecret    string     `json:"-" db:"two_factor_secret"`
-	Points             int        `json:"points" db:"points"`
-	MonthlyPoints      int        `json:"monthly_points" db:"monthly_points"`
-	NegativePlayCount  int        `json:"negative_play_count" db:"negative_play_count"`
-	BannedUntil        *time.Time `json:"banned_until" db:"banned_until"`
-	LastWeeklyDecayAt  time.Time  `json:"last_weekly_decay_at" db:"last_weekly_decay_at"`
-	LastMonthlyResetAt time.Time  `json:"last_monthly_reset_at" db:"last_monthly_reset_at"`
-	CreatedAt          time.Time  `json:"created_at" db:"created_at"`
+	UID                int                   `json:"uid" db:"uid"`
+	Username           string                `json:"username" db:"username"`
+	PasswordHash       string                `json:"-" db:"password"` // 不返回给前端
+	Avatar             string                `json:"avatar" db:"avatar"`
+	IsAdmin            bool                  `json:"is_admin" db:"is_admin"`
+	Role               string                `json:"role" db:"role"` // admin, co-worker, user
+	TwoFactorEnabled   bool                  `json:"two_factor_enabled" db:"two_factor_enabled"`
+	TwoFactorSecret    string                `json:"-" db:"two_factor_secret"`
+	Points             int                   `json:"points" db:"points"`
+	MonthlyPoints      int                   `json:"monthly_points" db:"monthly_points"`
+	NegativePlayCount  int                   `json:"negative_play_count" db:"negative_play_count"`
+	BannedUntil        *time.Time            `json:"banned_until" db:"banned_until"`
+	LastWeeklyDecayAt  time.Time             `json:"last_weekly_decay_at" db:"last_weekly_decay_at"`
+	LastMonthlyResetAt time.Time             `json:"last_monthly_reset_at" db:"last_monthly_reset_at"`
+	WebAuthnIDRaw      string                `json:"-" db:"webauthn_id"`
+	CreatedAt          time.Time             `json:"created_at" db:"created_at"`
+	Credentials        []webauthn.Credential `json:"-" db:"-"`
+}
+
+func (u *User) WebAuthnID() []byte {
+	return []byte(u.WebAuthnIDRaw)
+}
+
+func (u *User) WebAuthnName() string {
+	return u.Username
+}
+
+func (u *User) WebAuthnDisplayName() string {
+	return u.Username
+}
+
+func (u *User) WebAuthnIcon() string {
+	return u.Avatar
+}
+
+func (u *User) WebAuthnCredentials() []webauthn.Credential {
+	return u.Credentials
+}
+
+type UserCredential struct {
+	ID              []byte    `json:"id" db:"id"`
+	UserUID         int       `json:"user_uid" db:"user_uid"`
+	PublicKey       []byte    `json:"public_key" db:"public_key"`
+	AttestationType string    `json:"attestation_type" db:"attestation_type"`
+	Transport       string    `json:"transport" db:"transport"`
+	SignCount       uint32    `json:"sign_count" db:"sign_count"`
+	UserPresent     bool      `json:"user_present" db:"user_present"`
+	UserVerified    bool      `json:"user_verified" db:"user_verified"`
+	BackupEligible  bool      `json:"backup_eligible" db:"backup_eligible"`
+	BackupState     bool      `json:"backup_state" db:"backup_state"`
+	CloneWarning    bool      `json:"clone_warning" db:"clone_warning"`
+	CreatedAt       time.Time `json:"created_at" db:"created_at"`
 }
 
 type RegisterRequest struct {

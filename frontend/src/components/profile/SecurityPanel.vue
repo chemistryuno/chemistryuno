@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Lock, Shield, UserX, Loader2 } from 'lucide-vue-next'
+import { Lock, Shield, UserX, Loader2, Cpu } from 'lucide-vue-next'
 
 defineProps<{
   twoFactorEnabled: boolean
@@ -10,6 +10,7 @@ defineEmits<{
   (e: 'changePassword'): void
   (e: 'setup2fa'): void
   (e: 'disable2fa'): void
+  (e: 'manageHardwareKeys'): void
   (e: 'deleteAccount'): void
 }>()
 </script>
@@ -64,6 +65,17 @@ defineEmits<{
         <span class="text-lg font-bold text-emerald-600 group-hover:text-red-600">管理双重验证</span>
         <span class="text-slate-500 text-xs mt-1">2FA 已激活。点击可停用验证保护。</span>
         <div class="absolute top-6 right-6 w-3 h-3 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.5)]" />
+      </button>
+
+      <button 
+        @click="$emit('manageHardwareKeys')"
+        class="group relative flex flex-col items-start p-6 bg-slate-50 dark:bg-white/5 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 border border-slate-200 dark:border-white/5 hover:border-indigo-300 dark:hover:border-indigo-500/30 rounded-3xl transition-all text-left"
+      >
+        <div class="bg-indigo-500/10 dark:bg-indigo-500/20 p-3 rounded-2xl mb-4 group-hover:scale-110 transition-transform">
+          <Cpu class="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+        </div>
+        <span class="text-lg font-bold text-slate-900 dark:text-white">硬件安全密钥</span>
+        <span class="text-slate-500 text-xs mt-1">配置 FIDO2 / WebAuthn 硬件设备或生物识别</span>
       </button>
 
       <button 

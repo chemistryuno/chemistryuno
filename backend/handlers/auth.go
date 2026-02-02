@@ -9,68 +9,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// 发送验证码
-func SendVerificationCode(c *gin.Context) {
-	var req struct {
-		Email string `json:"email" binding:"required,email"`
-		Type  string `json:"type" binding:"required"` // register, login, reset
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "邮箱格式错误"})
-		return
-	}
-
-	code := utils.GenerateCode()
-	err := utils.SaveVerificationCode(req.Email, code, req.Type)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "保存验证码失败"})
-		return
-	}
-
-	err = utils.SendEmailCode(req.Email, code, req.Type)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "发送验证码失败"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "验证码已发送"})
-}
-
-// 找回密码（使用验证码重置）
-func ResetPassword(c *gin.Context) {
-	var req struct {
-		Email    string `json:"email" binding:"required,email"`
-		Code     string `json:"code" binding:"required"`
-		Password string `json:"password" binding:"required,min=6"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	// 校验验证码
-	if !utils.VerifyEmailCode(req.Email, req.Code, "reset") {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "验证码无效或已过期"})
-		return
-	}
-
-	// 加密新密码
-	hashedPassword, err := utils.HashPassword(req.Password)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "密码加密失败"})
-		return
-	}
-
-	// 更新密码
-	_, err = database.DB.Exec("UPDATE users SET password = ? WHERE email = ?", hashedPassword, req.Email)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "重置密码失败"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "密码已重置，请重新登录"})
-}
-
 // 用户注册
 func Register(c *gin.Context) {
 	var req models.RegisterRequest
@@ -79,34 +17,28 @@ func Register(c *gin.Context) {
 		return
 	}
 
-	// 1. 校验验证码
-	if !utils.VerifyEmailCode(req.Email, req.Code, "register") {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "验证码无效或已过期"})
-		return
-	}
-
-	// 2. 检查用户名或邮箱是否已存在
+	// 1. 检查用户名是否已存在
 	var count int
-	err := database.DB.QueryRow("SELECT COUNT(*) FROM users WHERE username = ? OR email = ?", req.Username, req.Email).Scan(&count)
+	err := database.DB.QueryRow("SELECT COUNT(*) FROM users WHERE username = ?", req.Username).Scan(&count)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误"})
 		return
 	}
 	if count > 0 {
-		c.JSON(http.StatusConflict, gin.H{"error": "用户名或邮箱已存在"})
+		c.JSON(http.StatusConflict, gin.H{"error": "用户名已存在"})
 		return
 	}
 
-	// 3. 加密密码
+	// 2. 加密密码
 	hashedPassword, err := utils.HashPassword(req.Password)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "密码加密失败"})
 		return
 	}
 
-	// 4. 插入用户
-	result, err := database.DB.Exec("INSERT INTO users (username, email, password, avatar, role) VALUES (?, ?, ?, ?, ?)",
-		req.Username, req.Email, hashedPassword, "🧪", "user")
+	// 3. 插入用户
+	result, err := database.DB.Exec("INSERT INTO users (username, password, avatar, role) VALUES (?, ?, ?, ?)",
+		req.Username, hashedPassword, "🧪", "user")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建用户失败"})
 		return
@@ -127,35 +59,26 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	// 查询用户（支持用户名或邮箱登录）
+	// 查询用户
 	var user models.User
 	err := database.DB.QueryRow(
-		"SELECT UID, username, COALESCE(email, ''), password, avatar, is_admin, role, two_factor_enabled, two_factor_secret FROM users WHERE username = ? OR email = ?",
-		req.Username, req.Username,
-	).Scan(&user.UID, &user.Username, &user.Email, &user.PasswordHash, &user.Avatar, &user.IsAdmin, &user.Role, &user.TwoFactorEnabled, &user.TwoFactorSecret)
+		"SELECT UID, username, password, avatar, is_admin, role, two_factor_enabled, two_factor_secret FROM users WHERE username = ?",
+		req.Username,
+	).Scan(&user.UID, &user.Username, &user.PasswordHash, &user.Avatar, &user.IsAdmin, &user.Role, &user.TwoFactorEnabled, &user.TwoFactorSecret)
 
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "用户不存在"})
 		return
 	}
 
-	// 验证逻辑
-	if req.Method == "code" {
-		// 验证码登录
-		if !utils.VerifyEmailCode(user.Email, req.Code, "login") {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "验证码无效或已过期"})
-			return
-		}
-	} else {
-		// 密码登录
-		if !utils.CheckPassword(req.Password, user.PasswordHash) {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "用户名或密码错误"})
-			return
-		}
+	// 密码登录
+	if !utils.CheckPassword(req.Password, user.PasswordHash) {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "用户名或密码错误"})
+		return
 	}
 
-	// 如果开启了2FA，且请求中没有验证码，且不是验证码直接登录（或者我们规定验证码登录也需要2FA，这里简单处理：验证码登录优先级高于2FA）
-	if user.TwoFactorEnabled && req.Method != "code" {
+	// 如果开启了2FA
+	if user.TwoFactorEnabled {
 		c.JSON(http.StatusOK, gin.H{
 			"two_factor_required": true,
 			"uid":                 user.UID,
@@ -175,7 +98,6 @@ func Login(c *gin.Context) {
 		"user": gin.H{
 			"uid":      user.UID,
 			"username": user.Username,
-			"email":    user.Email,
 			"avatar":   user.Avatar,
 			"is_admin": user.IsAdmin,
 			"role":     user.Role,
@@ -263,9 +185,9 @@ func GetUserInfo(c *gin.Context) {
 
 	var user models.User
 	err := database.DB.QueryRow(
-		"SELECT UID, username, COALESCE(email, ''), avatar, is_admin, role, two_factor_enabled, created_at FROM users WHERE UID = ?",
+		"SELECT UID, username, avatar, is_admin, role, two_factor_enabled, created_at FROM users WHERE UID = ?",
 		uid,
-	).Scan(&user.UID, &user.Username, &user.Email, &user.Avatar, &user.IsAdmin, &user.Role, &user.TwoFactorEnabled, &user.CreatedAt)
+	).Scan(&user.UID, &user.Username, &user.Avatar, &user.IsAdmin, &user.Role, &user.TwoFactorEnabled, &user.CreatedAt)
 
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})

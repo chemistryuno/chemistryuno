@@ -40,7 +40,6 @@ func createTables() error {
 	CREATE TABLE IF NOT EXISTS users (
 		UID INTEGER PRIMARY KEY AUTOINCREMENT,
 		username TEXT UNIQUE NOT NULL,
-		email TEXT UNIQUE,
 		password TEXT NOT NULL,
 		avatar TEXT DEFAULT '',
 		is_admin BOOLEAN DEFAULT 0,
@@ -48,6 +47,8 @@ func createTables() error {
 		two_factor_enabled BOOLEAN DEFAULT 0,
 		two_factor_secret TEXT DEFAULT '',
 		points INTEGER DEFAULT 1000,
+		negative_play_count INTEGER DEFAULT 0,
+		banned_until DATETIME DEFAULT NULL,
 		last_decay_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);`
@@ -63,17 +64,6 @@ func createTables() error {
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		FOREIGN KEY (target_uid) REFERENCES users(UID),
 		FOREIGN KEY (created_by) REFERENCES users(UID)
-	);`
-
-	// 验证码表
-	verificationTable := `
-	CREATE TABLE IF NOT EXISTS verification_codes (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		email TEXT NOT NULL,
-		code TEXT NOT NULL,
-		type TEXT NOT NULL,
-		expires_at DATETIME NOT NULL,
-		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);`
 
 	// 牌组配置表
@@ -139,7 +129,7 @@ func createTables() error {
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);`
 
-	tables := []string{userTable, bountyTable, verificationTable, deckConfigTable, gameHistoryTable, reactionsTable, feedbackTable, systemConfigTable}
+	tables := []string{userTable, bountyTable, deckConfigTable, gameHistoryTable, reactionsTable, feedbackTable, systemConfigTable}
 
 	for _, table := range tables {
 		if _, err := DB.Exec(table); err != nil {
@@ -172,9 +162,6 @@ func createTables() error {
 	}
 
 	// users
-	if !columnExists("users", "email") {
-		_, _ = DB.Exec("ALTER TABLE users ADD COLUMN email TEXT")
-	}
 	if !columnExists("users", "two_factor_enabled") {
 		_, _ = DB.Exec("ALTER TABLE users ADD COLUMN two_factor_enabled BOOLEAN DEFAULT 0")
 	}
@@ -183,6 +170,12 @@ func createTables() error {
 	}
 	if !columnExists("users", "points") {
 		_, _ = DB.Exec("ALTER TABLE users ADD COLUMN points INTEGER DEFAULT 1000")
+	}
+	if !columnExists("users", "negative_play_count") {
+		_, _ = DB.Exec("ALTER TABLE users ADD COLUMN negative_play_count INTEGER DEFAULT 0")
+	}
+	if !columnExists("users", "banned_until") {
+		_, _ = DB.Exec("ALTER TABLE users ADD COLUMN banned_until DATETIME DEFAULT NULL")
 	}
 	if !columnExists("users", "last_decay_at") {
 		_, _ = DB.Exec("ALTER TABLE users ADD COLUMN last_decay_at DATETIME DEFAULT CURRENT_TIMESTAMP")
@@ -421,8 +414,8 @@ func createDefaultAdmin() error {
 
 	// 创建新的admin用户
 	createAdmin := `
-	INSERT INTO users (UID, username, email, password, is_admin, role, avatar) 
-	VALUES (100000000, 'admin', 'admin@example.com', ?, 1, 'admin', '👑');`
+	INSERT INTO users (UID, username, password, is_admin, role, avatar) 
+	VALUES (100000000, 'admin', ?, 1, 'admin', '👑');`
 
 	_, err = DB.Exec(createAdmin, string(hashedPassword))
 	if err != nil {
@@ -438,14 +431,7 @@ func initSystemConfigs() {
 		value       string
 		description string
 	}{
-		{"email_verification_expiry", "10", "邮箱验证码有效期（分钟）"},
-		{"email_verification_length", "6", "邮箱验证码长度"},
-		{"email_mock_mode", "true", "是否开启邮箱模拟模式（不真实发送邮件）"},
-		{"smtp_host", "smtp.example.com", "SMTP 服务器地址"},
-		{"smtp_port", "587", "SMTP 端口号"},
-		{"smtp_user", "user@example.com", "SMTP 用户名"},
-		{"smtp_pass", "password", "SMTP 密码"},
-		{"smtp_from", "noreply@example.com", "发件人邮箱地址"},
+		{"points_decay_rate", "50", "每周积分衰减量"},
 	}
 
 	for _, cfg := range configs {

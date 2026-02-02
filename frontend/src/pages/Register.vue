@@ -6,44 +6,12 @@ import { useDialog } from '../utils/dialog'
 import { Lock, User, FlaskConical, ShieldCheck, Zap, Loader2, Mail, Key } from 'lucide-vue-next'
 
 const username = ref('')
-const email = ref('')
-const code = ref('')
 const password = ref('')
 const confirmPassword = ref('')
 const error = ref('')
 const loading = ref(false)
-const codeLoading = ref(false)
-const codeSent = ref(false)
-const countdown = ref(0)
 const router = useRouter()
 const { showAlert } = useDialog()
-
-const startCountdown = () => {
-  countdown.value = 60
-  const timer = setInterval(() => {
-    countdown.value--
-    if (countdown.value <= 0) clearInterval(timer)
-  }, 1000)
-}
-
-const sendCode = async () => {
-  if (!email.value || !email.value.includes('@')) {
-    error.value = '请输入有效的电子邮箱地址'
-    return
-  }
-  
-  codeLoading.value = true
-  try {
-    await authAPI.sendCode(email.value, 'register')
-    codeSent.value = true
-    startCountdown()
-    await showAlert('验证码已发送至您的邮箱，请查收（如果是模拟环境，请查看后端控制台）。', '验证码已发送')
-  } catch (err: any) {
-    error.value = err.response?.data?.error || '发送验证码失败'
-  } finally {
-    codeLoading.value = false
-  }
-}
 
 const handleSubmit = async () => {
   error.value = ''
@@ -53,24 +21,17 @@ const handleSubmit = async () => {
     return
   }
 
-  if (!code.value) {
-    error.value = '请输入邮箱验证码'
-    return
-  }
-
   loading.value = true
 
   try {
     await authAPI.register({
       username: username.value,
-      email: email.value,
-      code: code.value,
       password: password.value
     })
     await showAlert('注册成功，请使用新凭据登录。', '研究员注册成功')
     router.push('/login')
   } catch (err: any) {
-    error.value = err.response?.data?.error || '注册失败，用户名或邮箱可能已存在，或验证码错误'
+    error.value = err.response?.data?.error || '注册失败，用户名可能已存在'
   } finally {
     loading.value = false
   }
@@ -101,55 +62,17 @@ const handleSubmit = async () => {
               {{ error }}
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div class="relative group">
-                <div class="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-blue-500 transition-colors">
-                  <User :size="18" :stroke-width="2.5" />
-                </div>
-                <input
-                  v-model="username"
-                  type="text"
-                  required
-                  class="w-full pl-12 pr-4 py-4 bg-slate-100/50 dark:bg-black/40 border-2 border-transparent focus:border-blue-500 focus:bg-white dark:focus:bg-black/60 rounded-2xl text-slate-900 dark:text-slate-100 placeholder:text-slate-500/70 font-bold outline-none transition-all text-sm"
-                  placeholder="用户名"
-                />
-              </div>
-
-              <div class="relative group">
-                <div class="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-blue-500 transition-colors">
-                  <Mail :size="18" :stroke-width="2.5" />
-                </div>
-                <input
-                  v-model="email"
-                  type="email"
-                  required
-                  class="w-full pl-12 pr-4 py-4 bg-slate-100/50 dark:bg-black/40 border-2 border-transparent focus:border-blue-500 focus:bg-white dark:focus:bg-black/60 rounded-2xl text-slate-900 dark:text-slate-100 placeholder:text-slate-500/70 font-bold outline-none transition-all text-sm"
-                  placeholder="电子邮箱"
-                />
-              </div>
-            </div>
-
             <div class="relative group">
               <div class="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-blue-500 transition-colors">
-                <Key :size="18" :stroke-width="2.5" />
+                <User :size="18" :stroke-width="2.5" />
               </div>
-              <div class="flex gap-2">
-                <input
-                  v-model="code"
-                  type="text"
-                  required
-                  class="flex-1 pl-12 pr-4 py-4 bg-slate-100/50 dark:bg-black/40 border-2 border-transparent focus:border-blue-500 focus:bg-white dark:focus:bg-black/60 rounded-2xl text-slate-900 dark:text-slate-100 placeholder:text-slate-500/70 font-bold outline-none transition-all text-sm"
-                  placeholder="邮箱验证码"
-                />
-                <button
-                  type="button"
-                  @click="sendCode"
-                  :disabled="codeLoading || countdown > 0"
-                  class="px-4 bg-blue-600/10 hover:bg-blue-600/20 text-blue-600 dark:text-blue-400 rounded-2xl text-xs font-black transition-all whitespace-nowrap disabled:opacity-50"
-                >
-                  {{ countdown > 0 ? `${countdown}s` : '获取验证码' }}
-                </button>
-              </div>
+              <input
+                v-model="username"
+                type="text"
+                required
+                class="w-full pl-12 pr-4 py-4 bg-slate-100/50 dark:bg-black/40 border-2 border-transparent focus:border-blue-500 focus:bg-white dark:focus:bg-black/60 rounded-2xl text-slate-900 dark:text-slate-100 placeholder:text-slate-500/70 font-bold outline-none transition-all text-sm"
+                placeholder="用户名"
+              />
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">

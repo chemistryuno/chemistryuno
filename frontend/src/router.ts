@@ -1,7 +1,6 @@
 import { createRouter, createWebHistory, type RouteLocationNormalized, type NavigationGuardNext } from 'vue-router'
 import Login from './pages/Login.vue'
 import Register from './pages/Register.vue'
-import ForgotPassword from './pages/ForgotPassword.vue'
 import Lobby from './pages/Lobby.vue'
 import GameRoom from './pages/GameRoom.vue'
 import Profile from './pages/Profile.vue'
@@ -21,12 +20,6 @@ const routes = [
     path: '/register',
     name: 'Register',
     component: Register,
-    meta: { guestOnly: true }
-  },
-  {
-    path: '/forgot-password',
-    name: 'ForgotPassword',
-    component: ForgotPassword,
     meta: { guestOnly: true }
   },
   {

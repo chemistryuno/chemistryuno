@@ -272,6 +272,25 @@ func (gr *GameRoom) kickPlayer(uid int, reason string) {
 	}
 
 	if isHost {
+		// 记录消极游戏行为并处理封禁
+		if reason == "由于消极游戏，您已被踢出" {
+			var count int
+			database.DB.QueryRow("SELECT negative_play_count FROM users WHERE UID = ?", uid).Scan(&count)
+			count++
+			if count >= 3 {
+				bannedUntil := time.Now().Add(30 * time.Minute)
+				database.DB.Exec("UPDATE users SET negative_play_count = 0, banned_until = ? WHERE UID = ?", bannedUntil, uid)
+				if websocket.GlobalHub != nil {
+					websocket.GlobalHub.SendToUID(uid, websocket.Message{
+						Type:    "player_banned",
+						Message: "由于多次消极游戏，您的账号已被封禁 30 分钟。请健康游戏。",
+					})
+				}
+			} else {
+				database.DB.Exec("UPDATE users SET negative_play_count = ? WHERE UID = ?", count, uid)
+			}
+		}
+
 		// 房主被踢，如果是竞技模式，惩罚房主并由于连带责任惩罚其他玩家
 		if gr.Room.IsPointsMode {
 			database.DB.Exec("UPDATE users SET points = points - 50 WHERE UID = ?", uid)
@@ -294,13 +313,29 @@ func (gr *GameRoom) kickPlayer(uid int, reason string) {
 		}
 	}
 
-	// 如果是竞技模式，对被踢出的玩家和房间内其他玩家进行积分惩罚
-	if gr.Room.IsPointsMode && gr.Room.Status == "playing" {
-		database.DB.Exec("UPDATE users SET points = points - 50 WHERE UID = ?", uid)
-		for _, pid := range newPlayers {
-			database.DB.Exec("UPDATE users SET points = CAST(points * 0.8 AS INTEGER) WHERE UID = ?", pid)
+	// 记录消极游戏行为并处理封禁
+	if reason == "由于消极游戏，您已被踢出" {
+		var count int
+		database.DB.QueryRow("SELECT negative_play_count FROM users WHERE UID = ?", uid).Scan(&count)
+		count++
+		
+		if count >= 3 {
+			// 封禁30分钟
+			bannedUntil := time.Now().Add(30 * time.Minute)
+			database.DB.Exec("UPDATE users SET negative_play_count = 0, banned_until = ? WHERE UID = ?", bannedUntil, uid)
+			
+			if websocket.GlobalHub != nil {
+				websocket.GlobalHub.SendToUID(uid, websocket.Message{
+					Type:    "player_banned",
+					Message: "由于多次消极游戏，您的账号已被封禁 30 分钟。请健康游戏。",
+				})
+			}
+		} else {
+			database.DB.Exec("UPDATE users SET negative_play_count = ? WHERE UID = ?", count, uid)
 		}
 	}
+
+	// 如果是竞技模式，对被踢出的玩家和房间内其他玩家进行积分惩罚
 
 	gr.Room.Players = newPlayers
 

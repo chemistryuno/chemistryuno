@@ -38,10 +38,6 @@ export const authAPI = {
     api.post('/auth/register', data),
   login: (data: any) => 
     api.post('/auth/login', data),
-  sendCode: (email: string, type: string) =>
-    api.post('/auth/send-code', { email, type }),
-  resetPassword: (data: any) =>
-    api.post('/auth/reset-password', data),
   getUserInfo: () => 
     api.get('/user/info'),
   changePassword: (oldPassword: string, newPassword: string) => 

@@ -11,6 +11,8 @@ require (
 	modernc.org/sqlite v1.44.3
 )
 
+require golang.org/x/oauth2 v0.34.0 // indirect
+
 require (
 	github.com/boombuler/barcode v1.0.1-0.20190219062509-6c824513bacc // indirect
 	github.com/bytedance/sonic v1.9.1 // indirect

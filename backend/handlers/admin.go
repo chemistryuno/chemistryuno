@@ -926,11 +926,5 @@ func UpdateSystemConfig(c *gin.Context) {
 		return
 	}
 
-	// 特殊处理：如果是邮箱相关的配置，记录一条日志
-	if strings.Contains(req.Key, "email") {
-		uid, _ := c.Get("uid")
-		fmt.Printf("[ADMIN ACTION] 用户 %v 更新了邮箱配置 %s -> %s\n", uid, req.Key, req.Value)
-	}
-
 	c.JSON(http.StatusOK, gin.H{"message": "配置更新成功"})
 }

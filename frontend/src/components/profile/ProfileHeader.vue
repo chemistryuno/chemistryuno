@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Shield, Fingerprint, Calendar, Award, User as UserIcon, RefreshCw, Mail } from 'lucide-vue-next'
+import { Shield, Fingerprint, Calendar, Award, User as UserIcon, RefreshCw } from 'lucide-vue-next'
 
 defineProps<{
   user: any
@@ -55,10 +55,6 @@ defineEmits<{
       </div>
 
       <div class="w-full mt-10 pt-10 border-t border-slate-200 dark:border-white/5 space-y-4">
-        <div v-if="user.email" class="flex justify-between items-center text-xs">
-          <span class="text-slate-500 font-bold uppercase tracking-widest flex items-center gap-2"><Mail class="w-3 h-3" /> Linked Email</span>
-          <span class="font-mono text-slate-500 dark:text-slate-400">{{ user.email }}</span>
-        </div>
         <div class="flex justify-between items-center text-xs">
           <span class="text-slate-500 font-bold uppercase tracking-widest flex items-center gap-2"><Fingerprint class="w-3 h-3" /> System UID</span>
           <span class="font-mono text-blue-600 dark:text-blue-400/80">{{ user.uid }}</span>

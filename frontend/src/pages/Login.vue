@@ -2,17 +2,11 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { authAPI } from '../utils/api'
-import { Beaker, Lock, User, Loader2, Fingerprint, Mail, Key, Shield } from 'lucide-vue-next'
-import { cn } from '../utils/cn'
+import { Beaker, Lock, User, Loader2, Fingerprint, Shield } from 'lucide-vue-next'
 import websocket from '../utils/websocket'
 
-const identifier = ref('') // Can be username or email
+const identifier = ref('')
 const password = ref('')
-const loginMode = ref<'password' | 'code'>('password')
-const verificationCode = ref('')
-const codeSent = ref(false)
-const countdown = ref(0)
-const codeLoading = ref(false)
 
 const twoFactorCode = ref('')
 const show2FA = ref(false)
@@ -21,56 +15,15 @@ const error = ref('')
 const loading = ref(false)
 const router = useRouter()
 
-const startCountdown = () => {
-  countdown.value = 60
-  const timer = setInterval(() => {
-    countdown.value--
-    if (countdown.value <= 0) clearInterval(timer)
-  }, 1000)
-}
-
-const sendCode = async () => {
-  if (!identifier.value || !identifier.value.includes('@')) {
-    error.value = '邮箱验证码登录需要输入电子邮箱地址'
-    return
-  }
-  
-  codeLoading.value = true
-  try {
-    await authAPI.sendCode(identifier.value, 'login')
-    codeSent.value = true
-    startCountdown()
-  } catch (err: any) {
-    error.value = err.response?.data?.error || '发送验证码失败'
-  } finally {
-    codeLoading.value = false
-  }
-}
-
 const handleSubmit = async () => {
   error.value = ''
   loading.value = true
 
   try {
-    let response;
-    if (loginMode.value === 'password') {
-      response = await authAPI.login({
-        username: identifier.value,
-        password: password.value,
-        method: 'password'
-      })
-    } else {
-      if (!verificationCode.value) {
-        error.value = '请输入验证码'
-        loading.value = false
-        return
-      }
-      response = await authAPI.login({
-        username: identifier.value,
-        code: verificationCode.value,
-        method: 'code'
-      })
-    }
+    const response = await authAPI.login({
+      username: identifier.value,
+      password: password.value,
+    })
     
     if (response.data.two_factor_required) {
       show2FA.value = true
@@ -82,7 +35,7 @@ const handleSubmit = async () => {
     const { token, user } = response.data
     handleLoginSuccess(token, user)
   } catch (err: any) {
-    error.value = err.response?.data?.error || '身份验证失败，请核对凭据'
+    error.value = err.response?.data?.error || '身份验证失败，请核对凭证'
   } finally {
     loading.value = false
   }
@@ -135,41 +88,28 @@ const handleLoginSuccess = (token: string, user: any) => {
           </div>
 
           <div v-if="!show2FA" class="space-y-6">
-            <div class="flex p-1 bg-slate-100 dark:bg-black/40 rounded-xl mb-2">
-              <button 
-                @click="loginMode = 'password'"
-                :class="cn('flex-1 py-2 text-xs font-black rounded-lg transition-all', loginMode === 'password' ? 'bg-white dark:bg-slate-800 shadow-sm text-blue-600' : 'text-slate-500')"
-              >密码登录</button>
-              <button 
-                @click="loginMode = 'code'"
-                :class="cn('flex-1 py-2 text-xs font-black rounded-lg transition-all', loginMode === 'code' ? 'bg-white dark:bg-slate-800 shadow-sm text-blue-600' : 'text-slate-500')"
-              >验证码登录</button>
-            </div>
-
             <form @submit.prevent="handleSubmit" class="space-y-5">
               <div class="space-y-1.5">
                 <label class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">
-                  {{ loginMode === 'password' ? '账号 (用户名/邮箱)' : '电子邮箱' }}
+                  账号
                 </label>
                 <div class="relative group">
                   <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 dark:text-slate-500 group-focus-within:text-blue-500 transition-colors">
-                    <User v-if="loginMode === 'password'" class="w-4 h-4" />
-                    <Mail v-else class="w-4 h-4" />
+                    <User class="w-4 h-4" />
                   </div>
                   <input
                     v-model="identifier"
                     type="text"
                     required
                     class="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-slate-100 pl-11 pr-4 py-4 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all placeholder:text-slate-500/50 text-sm font-bold"
-                    :placeholder="loginMode === 'password' ? '用户名 或 邮箱' : 'your@email.com'"
+                    placeholder="请输入用户名"
                   />
                 </div>
               </div>
 
-              <div v-if="loginMode === 'password'" class="space-y-1.5">
+              <div class="space-y-1.5">
                 <div class="flex justify-between items-center px-1">
                   <label class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">访问秘钥</label>
-                  <router-link to="/forgot-password" class="text-[10px] font-black text-blue-600 hover:text-blue-500 uppercase tracking-widest">找回密码</router-link>
                 </div>
                 <div class="relative group">
                   <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 dark:text-slate-500 group-focus-within:text-blue-500 transition-colors">
@@ -182,32 +122,6 @@ const handleLoginSuccess = (token: string, user: any) => {
                     class="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-slate-100 pl-11 pr-4 py-4 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all placeholder:text-slate-500/50 text-sm font-bold"
                     placeholder="请输入密码"
                   />
-                </div>
-              </div>
-
-              <div v-else class="space-y-1.5">
-                <label class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">验证码</label>
-                <div class="flex gap-2">
-                  <div class="relative flex-1 group">
-                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 dark:text-slate-500 group-focus-within:text-blue-500 transition-colors">
-                      <Key class="w-4 h-4" />
-                    </div>
-                    <input
-                      v-model="verificationCode"
-                      type="text"
-                      required
-                      class="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-slate-100 pl-11 pr-4 py-4 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all placeholder:text-slate-500/50 text-sm font-bold"
-                      placeholder="6位验证码"
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    @click="sendCode"
-                    :disabled="codeLoading || countdown > 0"
-                    class="px-4 bg-blue-600/10 hover:bg-blue-600/20 text-blue-600 dark:text-blue-400 rounded-2xl text-[10px] font-black transition-all whitespace-nowrap disabled:opacity-50"
-                  >
-                    {{ countdown > 0 ? `${countdown}s` : '获取验证码' }}
-                  </button>
                 </div>
               </div>
 

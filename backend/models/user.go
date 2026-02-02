@@ -7,7 +7,6 @@ import (
 type User struct {
 	UID              int       `json:"uid" db:"uid"`
 	Username         string    `json:"username" db:"username"`
-	Email            string    `json:"email" db:"email"`
 	PasswordHash     string    `json:"-" db:"password"` // 不返回给前端
 	Avatar           string    `json:"avatar" db:"avatar"`
 	IsAdmin          bool      `json:"is_admin" db:"is_admin"`
@@ -15,22 +14,20 @@ type User struct {
 	TwoFactorEnabled bool      `json:"two_factor_enabled" db:"two_factor_enabled"`
 	TwoFactorSecret  string    `json:"-" db:"two_factor_secret"`
 	Points           int       `json:"points" db:"points"`
+	NegativePlayCount int      `json:"negative_play_count" db:"negative_play_count"`
+	BannedUntil      *time.Time `json:"banned_until" db:"banned_until"`
 	LastDecayAt      time.Time `json:"last_decay_at" db:"last_decay_at"`
 	CreatedAt        time.Time `json:"created_at" db:"created_at"`
 }
 
 type RegisterRequest struct {
 	Username string `json:"username" binding:"required,min=3,max=20"`
-	Email    string `json:"email" binding:"required,email"`
-	Code     string `json:"code" binding:"required"`
 	Password string `json:"password" binding:"required,min=6"`
 }
 
 type LoginRequest struct {
-	Username string `json:"username" binding:"required"` // 可以是用户名或邮箱
-	Password string `json:"password"`
-	Code     string `json:"code"`   // 验证码登录时使用
-	Method   string `json:"method"` // "password" 或 "code"
+	Username string `json:"username" binding:"required"`
+	Password string `json:"password" binding:"required"`
 }
 
 type ChangePasswordRequest struct {

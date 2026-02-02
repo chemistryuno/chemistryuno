@@ -46,8 +46,6 @@ func main() {
 	r.POST("/auth/register", handlers.Register)
 	r.POST("/auth/login", handlers.Login)
 	r.POST("/auth/2fa/verify", handlers.Verify2FALogin)
-	r.POST("/auth/send-code", handlers.SendVerificationCode)
-	r.POST("/auth/reset-password", handlers.ResetPassword)
 
 	// 需要认证的路由
 	auth := r.Group("/")

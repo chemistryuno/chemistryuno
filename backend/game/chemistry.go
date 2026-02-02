@@ -54,9 +54,9 @@ func GetSubstancesFromElements(cards []models.Card) []string {
 // 检查是否可以用当前元素组成某个物质
 func canFormSubstance(substance string, elements map[string]int) bool {
 	required := parseSubstance(substance)
-	for elem, count := range required {
-		// 校验手牌中该元素的数量是否满足化学式需求
-		if elements[elem] < count {
+	for elem := range required {
+		// 普通反应时，仅考虑元素种类，不考虑元素系数
+		if elements[elem] < 1 {
 			return false
 		}
 	}
@@ -134,7 +134,7 @@ func CanReact(substance1, substance2 string) bool {
 		return true
 	}
 
-	// 优先且唯一通过数据库查询判定，确保反应的严谨性
+	// 优先查询数据库判定
 	if database.DB != nil {
 		var count int
 		// 查询已批准的反应，检查该组合是否存在
@@ -144,7 +144,8 @@ func CanReact(substance1, substance2 string) bool {
 		}
 	}
 
-	return false
+	// 兜底使用 JudgeReaction 进行逻辑判定 (普通反应)
+	return JudgeReaction(substance1, substance2)
 }
 
 // 获取能与指定物质反应的所有物质

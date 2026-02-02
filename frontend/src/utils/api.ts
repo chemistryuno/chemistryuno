@@ -87,6 +87,8 @@ export const gameAPI = {
     api.post(`/rooms/${roomId}/start`),
   initiateDuel: (target_uid: number) =>
     api.post('/game/duel', { target_uid }),
+  respondToDuel: (target_uid: number, accept: boolean) =>
+    api.post('/game/duel/respond', { target_uid, accept }),
   playCard: (roomId: string, card: any, substance: string) => 
     api.post(`/rooms/${roomId}/play`, { card, substance }),
   playDouble: (roomId: string, sub1: string, sub2: string) =>

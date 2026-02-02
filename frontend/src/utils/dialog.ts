@@ -80,12 +80,19 @@ export const useDialog = () => {
     state.show = false
   }
 
+  const closeDialog = () => {
+    if (state.show) {
+      handleCancel()
+    }
+  }
+
   return {
     state,
     showAlert,
     showConfirm,
     showPrompt,
     handleConfirm,
-    handleCancel
+    handleCancel,
+    closeDialog
   }
 }

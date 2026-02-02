@@ -6,7 +6,10 @@ import (
 	"chemistryuno/utils"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
+	"os"
+	"strings"
 	"sync"
 
 	"github.com/gin-gonic/gin"
@@ -23,22 +26,63 @@ var (
 
 func InitWebAuthn() {
 	var err error
+
+	// 从环境变量获取 RPID，默认为 localhost
+	rpid := os.Getenv("WEBAUTHN_RPID")
+	if rpid == "" {
+		rpid = "localhost"
+	}
+
+	// 基础允许列表
+	origins := []string{
+		"http://localhost:5173",
+		"http://127.0.0.1:5173",
+		"http://localhost:5000",
+		"http://127.0.0.1:5000",
+		"http://localhost:8080",
+		"http://127.0.0.1:8080",
+	}
+
+	// 自动补充基于 RPID 的 Origin
+	if rpid != "" && rpid != "localhost" && rpid != "127.0.0.1" {
+		// 避免重复添加
+		origins = append(origins, "http://"+rpid)
+		origins = append(origins, "https://"+rpid)
+	}
+
+	// 支持从环境变量指定额外的跨域来源，支持逗号分隔，并自动整理格式
+	extraOriginsStr := os.Getenv("WEBAUTHN_ORIGIN")
+	if extraOriginsStr != "" {
+		parts := strings.Split(extraOriginsStr, ",")
+		for _, p := range parts {
+			trimmed := strings.TrimSpace(p)
+			if trimmed != "" {
+				// 移除可能误填的末尾斜杠
+				trimmed = strings.TrimSuffix(trimmed, "/")
+				origins = append(origins, trimmed)
+			}
+		}
+	}
+
+	// 去重
+	uniqueOrigins := make([]string, 0)
+	originMap := make(map[string]bool)
+	for _, o := range origins {
+		if !originMap[o] {
+			originMap[o] = true
+			uniqueOrigins = append(uniqueOrigins, o)
+		}
+	}
+
 	webAuthn, err = webauthn.New(&webauthn.Config{
 		RPDisplayName: "Chemistry Uno",
-		RPID:          "localhost",
-		RPOrigins: []string{
-			"http://localhost:5173",
-			"http://127.0.0.1:5173",
-			"http://localhost:5000",
-			"http://127.0.0.1:5000",
-			"http://localhost:8080",
-			"http://127.0.0.1:8080",
-			"http://localhost:4173",
-			"http://127.0.0.1:4173",
-		},
+		RPID:          rpid,
+		RPOrigins:     uniqueOrigins,
 	})
 	if err != nil {
-		fmt.Printf("WebAuthn 初始化失败: %v\n", err)
+		log.Printf("WebAuthn 初始化失败: %v", err)
+	} else {
+		log.Printf("WebAuthn 已初始化 - RPID: %s, 白名单: %v", rpid, uniqueOrigins)
 	}
 }
 
@@ -51,20 +95,32 @@ func BeginRegistration(c *gin.Context) {
 		return
 	}
 
-	// 如果 WebAuthnIDRaw 为空，生成一个
+	// 如果 WebAuthnIDRaw 为空，生成一个并更新内存中的 user 对象
 	if user.WebAuthnIDRaw == "" {
-		user.WebAuthnIDRaw = uuid.New().String()
-		database.DB.Exec("UPDATE users SET webauthn_id = ? WHERE UID = ?", user.WebAuthnIDRaw, user.UID)
+		newID := uuid.New().String()
+		user.WebAuthnIDRaw = newID
+		_, dbErr := database.DB.Exec("UPDATE users SET webauthn_id = ? WHERE UID = ?", newID, user.UID)
+		if dbErr != nil {
+			fmt.Printf("更新用户 WebAuthnID 失败: %v\n", dbErr)
+		}
 	}
 
 	// 获取已有的凭证
 	user.Credentials = getUserCredentials(user.UID)
 
+	if webAuthn == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "WebAuthn 服务未初始化，请检查后端配置"})
+		return
+	}
+
 	options, sessionData, err := webAuthn.BeginRegistration(user)
 	if err != nil {
+		fmt.Printf("WebAuthn BeginRegistration 失败: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
+	log.Printf("WebAuthn BeginRegistration - RPID: %s, User: %s, Origin: %s", webAuthn.Config.RPID, user.Username, c.Request.Header.Get("Origin"))
 
 	// 存储会话
 	sessionID := uuid.New().String()
@@ -111,7 +167,7 @@ func FinishRegistration(c *gin.Context) {
 	} else {
 		rpid = "NIL (Initialization Failed)"
 	}
-	fmt.Printf("WebAuthn FinishRegistration - Origin: %s, RPID: %s\n", c.Request.Header.Get("Origin"), rpid)
+	log.Printf("WebAuthn FinishRegistration - Origin: %s, RPID: %s", c.Request.Header.Get("Origin"), rpid)
 
 	if webAuthn == nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "WebAuthn 服务未初始化，请检查配置"})
@@ -120,8 +176,13 @@ func FinishRegistration(c *gin.Context) {
 
 	credential, err := webAuthn.FinishRegistration(user, *sessionData, c.Request)
 	if err != nil {
-		fmt.Printf("WebAuthn FinishRegistration 失败: %v\n", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		log.Printf("WebAuthn FinishRegistration 失败: %v (Origin: %s)", err, c.Request.Header.Get("Origin"))
+		// 如果是 Origin 验证失败，给出更具体的提示
+		errMsg := err.Error()
+		if strings.Contains(errMsg, "origin") {
+			errMsg = fmt.Sprintf("域名验证失败: %v。请检查后端 WEBAUTHN_RPID 和 WEBAUTHN_ORIGIN 配置。当前请求域名: %s", err, c.Request.Header.Get("Origin"))
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": errMsg})
 		return
 	}
 
@@ -152,6 +213,11 @@ func BeginLogin(c *gin.Context) {
 	user.Credentials = getUserCredentials(user.UID)
 	if len(user.Credentials) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "该用户未绑定硬件密钥"})
+		return
+	}
+
+	if webAuthn == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "WebAuthn 服务未初始化，请检查配置"})
 		return
 	}
 
@@ -203,10 +269,20 @@ func FinishLogin(c *gin.Context) {
 	delete(sessionStore, sessionID)
 	sessionMutex.Unlock()
 
+	if webAuthn == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "WebAuthn 服务未初始化，请检查配置"})
+		return
+	}
+
 	user.Credentials = getUserCredentials(user.UID)
 	credential, err := webAuthn.FinishLogin(user, *sessionData, c.Request)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		log.Printf("WebAuthn FinishLogin 失败: %v (Origin: %s)", err, c.Request.Header.Get("Origin"))
+		errMsg := err.Error()
+		if strings.Contains(errMsg, "origin") {
+			errMsg = fmt.Sprintf("域名验证失败: %v。请检查后端 WEBAUTHN_RPID 和 WEBAUTHN_ORIGIN 配置。当前请求域名: %s", err, c.Request.Header.Get("Origin"))
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": errMsg})
 		return
 	}
 

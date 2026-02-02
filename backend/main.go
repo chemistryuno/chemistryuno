@@ -103,6 +103,7 @@ func main() {
 		auth.GET("/rooms", handlers.GetRooms)
 		auth.POST("/rooms", handlers.CreateRoom)
 		auth.POST("/game/duel", handlers.InitiateDuel)
+		auth.POST("/game/duel/respond", handlers.RespondToDuel)
 		auth.GET("/rooms/:id", handlers.GetRoomState)
 		auth.POST("/rooms/:id/join", handlers.JoinRoom)
 		auth.POST("/rooms/:id/leave", handlers.LeaveRoom)

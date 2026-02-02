@@ -38,6 +38,23 @@ func isBanned(uid int) (bool, time.Time, error) {
 	return false, time.Time{}, nil
 }
 
+// IsPlayerIdle 检查玩家是否由于已在游戏中而忙碌
+func IsPlayerIdle(uid int) bool {
+	roomMutex.RLock()
+	defer roomMutex.RUnlock()
+
+	for _, gr := range rooms {
+		if gr.Room.Status == "playing" {
+			for _, puid := range gr.Room.Players {
+				if puid == uid {
+					return false
+				}
+			}
+		}
+	}
+	return true
+}
+
 // 初始化默认牌组配置
 func getDefaultDeckConfig() map[string]int {
 	return map[string]int{
@@ -914,8 +931,9 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 	}
 	requiredElements := parseSubstance(substance)
 	usedCards := []int{} // 记录将要从手牌中移除的索引
-	for elemName, count := range requiredElements {
-		// 根据化学式中元素的系数，消耗对应数量的手牌
+	for elemName := range requiredElements {
+		// 普通反应时，仅考虑元素种类，不考虑元素系数
+		count := 1
 		foundCount := 0
 		for c := 0; c < count; c++ {
 			found := false
@@ -1390,28 +1408,7 @@ func DoublePlay(roomID string, uid int, sub1 string, sub2 string) error {
 		return errors.New("双联反应尚未就绪（每行动2次可使用1次）")
 	}
 
-	// 如果当前玩家被允许无视反应条件出牌（如上家使用了罚牌结算或 Au 效果），则跳过与上家的反应检查
-	// 但双联模式核心逻辑是 sub1 与 sub2 必须自身能反应，这里我们保留 sub1 与 sub2 的反应检查
-	// 如果上家有 LastCard，我们逻辑上要求 sub1 必须能接上 LastCard，除非 allowAny
-	allowAny := gameRoom.GameState.AllowedAnyPlayer == gameRoom.GameState.CurrentPlayer
-	if !allowAny && gameRoom.GameState.LastCard != nil {
-		canConnect := false
-		if len(gameRoom.GameState.LastCard.Reactants) > 0 {
-			for _, r := range gameRoom.GameState.LastCard.Reactants {
-				if CanReact(r, sub1) {
-					canConnect = true
-					break
-				}
-			}
-		} else {
-			if CanReact(gameRoom.GameState.LastCard.Substance, sub1) {
-				canConnect = true
-			}
-		}
-		if !canConnect {
-			return errors.New("所选的第一种物质 " + sub1 + " 无法与上一张牌反应")
-		}
-	}
+	// 当玩家选择自身两物质反应时，不考虑先前出牌（即跳过与场上 LastCard 的连接检查）
 
 	// 如果有挂起的加牌，禁止发动双联行动
 	if gameRoom.GameState.PendingDrawCount > 0 {
@@ -1427,12 +1424,12 @@ func DoublePlay(roomID string, uid int, sub1 string, sub2 string) error {
 	req1 := parseSubstance(sub1)
 	req2 := parseSubstance(sub2)
 	allReqs := make(map[string]int)
-	// 双联反应查验各物质元素需求之和
-	for k, v := range req1 {
-		allReqs[k] += v
+	// 仅考虑元素种类，分别计算元素，若两物质中有相同元素，计算两次
+	for k := range req1 {
+		allReqs[k]++
 	}
-	for k, v := range req2 {
-		allReqs[k] += v
+	for k := range req2 {
+		allReqs[k]++
 	}
 
 	// 检查手牌

@@ -1,10 +1,10 @@
 @echo off
 chcp 65001 >nul
-title Chemistry UNO Alpha - 初始化脚本
+title Chemistry UNO Mendeleef - 初始化脚本
 
 echo.
 echo 🧪 ============================================
-echo 🧪 Chemistry UNO Alpha - 项目初始化脚本
+echo 🧪 Chemistry UNO Mendeleef - 项目初始化脚本
 echo 🧪 ============================================
 echo.
 
@@ -81,7 +81,7 @@ cd ..
 echo.
 echo ⚙️  创建配置文件...
 if not exist .env (
-    echo # Chemistry UNO Alpha 配置文件> .env
+    echo # Chemistry UNO Mendeleef 配置文件> .env
     echo # 后端配置>> .env
     echo PORT=8080>> .env
     echo JWT_SECRET=chemistry-uno-secret-key-change-in-production>> .env

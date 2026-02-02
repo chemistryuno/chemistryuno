@@ -220,7 +220,7 @@
                       class="w-full h-16 bg-black/40 border border-white/10 text-white px-6 py-5 rounded-2xl focus:ring-1 focus:ring-rose-500 outline-none transition-all font-mono text-lg"
                    />
                    <div class="absolute right-4 top-1/2 -translate-y-1/2 text-rose-500/30 font-mono uppercase text-[10px] font-black tracking-widest pointer-events-none">
-                     Points_Alpha
+                     Points_Mendeleef
                    </div>
                 </div>
                 <p class="text-[9px] text-slate-500 leading-relaxed text-left px-2">

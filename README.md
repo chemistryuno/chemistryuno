@@ -1,4 +1,4 @@
-# Chemistry UNO Alpha 🧪
+# Chemistry UNO V1.0.0 Mendeleef 🧪
 
 一个基于化学元素的UNO卡牌游戏，支持多玩家在线对战，包含完整的用户权限系统和化学反应数据库管理。
 

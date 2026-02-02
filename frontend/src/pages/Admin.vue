@@ -313,7 +313,7 @@ const filteredHistory = computed(() => {
           </div>
           <div>
             <h1 class="text-3xl font-black text-white italic tracking-tighter uppercase flex items-center gap-3">
-              System Override <span class="text-xs font-mono bg-orange-500/20 text-orange-400 px-2 py-1 rounded border border-orange-500/30 not-italic">v4.0.2</span>
+              System Override <span class="text-xs font-mono bg-orange-500/20 text-orange-400 px-2 py-1 rounded border border-orange-500/30 not-italic">V1.0.0 Mendeleef</span>
             </h1>
             <p class="text-slate-500 text-sm font-bold tracking-widest uppercase mt-1">实验室核心控制台 / Core Admin Console</p>
           </div>
@@ -735,7 +735,7 @@ const filteredHistory = computed(() => {
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   <template v-for="(cfg, key) in configs" :key="key">
-                    <div v-if="!String(key).startsWith('smtp_')" class="bg-black/20 border border-white/5 p-6 rounded-[2rem] group hover:border-orange-500/20 transition-all flex flex-col">
+                    <div class="bg-black/20 border border-white/5 p-6 rounded-[2rem] group hover:border-orange-500/20 transition-all flex flex-col">
                       <div class="flex items-center justify-between mb-4">
                         <span class="text-[10px] font-mono text-orange-400 uppercase tracking-widest font-black flex items-center gap-2">
                            <Cpu class="w-3 h-3" /> {{ key }}
@@ -753,35 +753,6 @@ const filteredHistory = computed(() => {
                 </div>
               </div>
 
-              <!-- SMTP 配置组 -->
-              <div class="space-y-4">
-                <div class="flex items-center gap-2 mb-2">
-                  <div class="h-px flex-1 bg-white/5"></div>
-                  <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest">SMTP 邮件网关配置</span>
-                  <div class="h-px flex-1 bg-white/5"></div>
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  <template v-for="(cfg, key) in configs" :key="key">
-                    <div v-if="String(key).startsWith('smtp_')" class="bg-blue-600/5 border border-blue-500/10 p-6 rounded-[2rem] group hover:border-blue-500/40 transition-all flex flex-col">
-                      <div class="flex items-center justify-between mb-4">
-                        <span class="text-[10px] font-mono text-blue-400 uppercase tracking-widest font-black flex items-center gap-2">
-                           <Mail class="w-3 h-3" /> {{ key }}
-                        </span>
-                        <button @click="handleUpdateConfig(String(key))" class="p-2 rounded-xl bg-blue-500/10 text-blue-400 opacity-0 group-hover:opacity-100 transition-all hover:bg-blue-500 hover:text-white shadow-lg">
-                          <Edit2 class="w-4 h-4" />
-                        </button>
-                      </div>
-                      <div class="flex-1">
-                        <div class="text-xl font-black text-blue-100 italic truncate mb-2">
-                          {{ String(key).includes('pass') ? '••••••••' : cfg.value }}
-                        </div>
-                        <div class="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-relaxed">{{ cfg.description }}</div>
-                      </div>
-                    </div>
-                  </template>
-                </div>
-              </div>
-
               <div class="p-8 rounded-[2rem] bg-orange-500/5 border border-orange-500/10 flex items-start gap-6">
                 <div class="p-4 rounded-2xl bg-orange-500/10 text-orange-400 shrink-0">
                   <Activity class="w-6 h-6" />
@@ -790,8 +761,6 @@ const filteredHistory = computed(() => {
                   <h4 class="text-sm font-black text-white uppercase italic">实验室配置说明</h4>
                   <p class="text-xs text-slate-500 font-bold leading-relaxed">
                     此处参数直接影响实验室核心协议逻辑。所有更改实时生效，请确保数值有效。
-                    <br/>
-                    <span class="text-orange-500/70">MOCK_MODE</span> 开启时，验证码将仅在控制台产生偏移输出，不会触发真实的邮件协议网关。
                   </p>
                 </div>
               </div>

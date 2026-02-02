@@ -4,7 +4,7 @@ const { spawn, execSync } = require('child_process');
 const path = require('path');
 const os = require('os');
 
-console.log('🚀 正在启动 Chemistry UNO Alpha...\n');
+console.log('🚀 正在启动 Chemistry UNO V1.0.0 Mendeleef (PRODUCTION)...\n');
 
 const isWindows = process.platform === 'win32';
 const shell = isWindows ? 'cmd.exe' : true;

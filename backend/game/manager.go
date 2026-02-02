@@ -359,8 +359,8 @@ func (gr *GameRoom) kickPlayer(uid int, reason string) {
 	}
 
 	if isHost {
-		// 记录消极游戏行为并处理封禁
-		if reason == "由于消极游戏，您已被踢出" {
+		// 记录消极游戏行为并处理封禁（仅在游戏开始后计入）
+		if reason == "由于消极游戏，您已被踢出" && gr.Room.Status == "playing" {
 			var count int
 			database.DB.QueryRow("SELECT negative_play_count FROM users WHERE UID = ?", uid).Scan(&count)
 			count++
@@ -378,8 +378,8 @@ func (gr *GameRoom) kickPlayer(uid int, reason string) {
 			}
 		}
 
-		// 房主被踢，如果是竞技模式，惩罚房主并由于连带责任惩罚其他玩家
-		if gr.Room.IsPointsMode {
+		// 房主被踢，如果是竞技模式，惩罚房主并由于连带责任惩罚其他玩家（仅在游戏开始后计入）
+		if gr.Room.IsPointsMode && gr.Room.Status == "playing" {
 			database.DB.Exec("UPDATE users SET points = points - 50 WHERE UID = ?", uid)
 			for _, pid := range gr.Room.Players {
 				if pid != uid {
@@ -400,8 +400,8 @@ func (gr *GameRoom) kickPlayer(uid int, reason string) {
 		}
 	}
 
-	// 记录消极游戏行为并处理封禁
-	if reason == "由于消极游戏，您已被踢出" {
+	// 记录消极游戏行为并处理封禁（仅在游戏开始后计入）
+	if reason == "由于消极游戏，您已被踢出" && gr.Room.Status == "playing" {
 		var count int
 		database.DB.QueryRow("SELECT negative_play_count FROM users WHERE UID = ?", uid).Scan(&count)
 		count++
@@ -423,6 +423,10 @@ func (gr *GameRoom) kickPlayer(uid int, reason string) {
 	}
 
 	// 如果是竞技模式，对被踢出的玩家和房间内其他玩家进行积分惩罚
+	if gr.Room.IsPointsMode && gr.Room.Status == "playing" {
+		// 被踢出者扣除 30 积分作为惩罚
+		database.DB.Exec("UPDATE users SET points = points - 30 WHERE UID = ?", uid)
+	}
 
 	gr.Room.Players = newPlayers
 

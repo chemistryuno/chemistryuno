@@ -5,7 +5,6 @@ import (
 	"chemistryuno/websocket"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -101,58 +100,4 @@ func CreateBounty(c *gin.Context) {
 
 	tx.Commit()
 	c.JSON(http.StatusOK, gin.H{"message": "悬赏成功"})
-}
-
-// 积分系统后台任务 (每月刷新和每周衰减)
-func StartPointsTask() {
-	go func() {
-		decayTicker := time.NewTicker(24 * time.Hour) // 每天检查一次是否需要衰减
-		defer decayTicker.Stop()
-
-		for range decayTicker.C {
-			now := time.Now()
-
-			// 1. 每月刷新 (每月1号0点)
-			if now.Day() == 1 {
-				// 我们简单处理：如果本月还没刷新过（根据系统某处的记录，或者简单的根据当前内存状态）
-				// 这里为了演示，执行一个简单的逻辑：如果当前小时是0，则重置所有积分
-				// 实际生产环境建议记录 "last_monthly_reset" 到系统配置表
-			}
-
-			// 2. 每周排行榜前10%积分降低2%
-			// 假设每周一执行
-			if now.Weekday() == time.Monday {
-				processWeeklyDecay()
-			}
-		}
-	}()
-}
-
-func processWeeklyDecay() {
-	// 获取总人数
-	var totalUsers int
-	database.DB.QueryRow("SELECT COUNT(*) FROM users").Scan(&totalUsers)
-	topCount := totalUsers / 10
-	if topCount < 1 {
-		topCount = 1
-	}
-
-	// 获取前10%的用户UID
-	rows, err := database.DB.Query("SELECT UID FROM users ORDER BY points DESC LIMIT ?", topCount)
-	if err != nil {
-		return
-	}
-	defer rows.Close()
-
-	var uids []int
-	for rows.Next() {
-		var uid int
-		rows.Scan(&uid)
-		uids = append(uids, uid)
-	}
-
-	// 降低2%
-	for _, uid := range uids {
-		database.DB.Exec("UPDATE users SET points = CAST(points * 0.98 AS INTEGER) WHERE UID = ?", uid)
-	}
 }

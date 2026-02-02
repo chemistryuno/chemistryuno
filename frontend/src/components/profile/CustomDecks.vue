@@ -145,7 +145,7 @@ onMounted(loadDecks)
                 <input 
                   v-model="newDeckName"
                   type="text" 
-                  placeholder="EXPERIMENTAL DECK ALPHA"
+                  placeholder="EXPERIMENTAL DECK LEGACY"
                   class="w-full bg-slate-100 dark:bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-lg font-black uppercase tracking-tight focus:border-blue-500 transition-all outline-none"
                 />
              </div>

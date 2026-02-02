@@ -3,7 +3,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { authAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
-import { Lock, User, FlaskConical, ShieldCheck, Zap, Loader2, Mail, Key } from 'lucide-vue-next'
+import { Lock, User, FlaskConical, ShieldCheck, Zap, Loader2, Key } from 'lucide-vue-next'
 
 const username = ref('')
 const password = ref('')

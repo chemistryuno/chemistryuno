@@ -141,7 +141,7 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
               <Beaker class="w-8 h-8 text-blue-500 group-hover:rotate-12 transition-transform" />
               <div>
                  <h1 class="text-lg font-black tracking-tighter text-slate-900 dark:text-white leading-none">CHEMISTRY <span class="text-blue-500">UNO</span></h1>
-                 <p class="text-[10px] text-blue-500/50 font-mono tracking-widest leading-none mt-1 uppercase">Lab_Control_v4</p>
+                 <p class="text-[10px] text-blue-500/50 font-mono tracking-widest leading-none mt-1 uppercase">V1.0.0 Mendeleef</p>
               </div>
             </div>
 
@@ -176,7 +176,7 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
                      <Shield class="w-2.5 h-2.5 text-yellow-500" /> Research_Lead
                    </template>
                    <template v-else>
-                     Researcher_Alpha
+                     Researcher_Mendeleef
                    </template>
                  </span>
                </div>
@@ -386,7 +386,7 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
             <span class="hidden sm:inline">AES_ENCRYPTION_ENABLED</span>
           </div>
           <div>
-            &copy; 2024 LAB_V4-ALPHA PROTCOL. ALL RIGHTS RESERVED.
+            &copy; 2026 MENDELEEF PROTCOL (PRODUCTION). ALL RIGHTS RESERVED.
           </div>
         </div>
       </footer>
@@ -419,7 +419,7 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
           <div class="space-y-3">
             <div class="flex justify-between items-center px-1">
                <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest">实验空间命名 (可选)</label>
-               <span class="text-[9px] text-blue-500/40">IDENTIFIER_ALPHA</span>
+               <span class="text-[9px] text-blue-500/40">IDENTIFIER_MENDELEEF</span>
             </div>
             <input
               v-model="roomName"

@@ -5,7 +5,7 @@ const fs = require('fs');
 const path = require('path');
 
 console.log('🧪 ============================================');
-console.log('🧪 Chemistry UNO Alpha - 项目初始化脚本');
+console.log('🧪 Chemistry UNO V1.0.0 Mendeleef - 项目初始化脚本');
 console.log('🧪 ============================================\n');
 
 const isWindows = process.platform === 'win32';
@@ -166,7 +166,7 @@ async function createConfigFiles() {
   // 创建 .env 文件（如果不存在）
   const envPath = path.join(__dirname, '.env');
   if (!fs.existsSync(envPath)) {
-    const envContent = `# Chemistry UNO Alpha 配置文件
+    const envContent = `# Chemistry UNO Mendeleef 配置文件
 # 后端配置
 PORT=8080
 JWT_SECRET=chemistry-uno-secret-key-change-in-production

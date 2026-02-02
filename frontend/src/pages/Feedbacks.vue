@@ -215,7 +215,7 @@ const urge = async (id: number, idx: number) => {
 
       <div class="mt-12 text-center">
         <p class="text-xs text-slate-400 uppercase tracking-[0.2em] font-medium opacity-50">
-          CHEMISTRY UNO ALPHA · FEEDBACK SYSTEM
+          CHEMISTRY UNO MENDELEEF · FEEDBACK SYSTEM
         </p>
       </div>
     </div>

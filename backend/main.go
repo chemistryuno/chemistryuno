@@ -23,6 +23,9 @@ var upgrader = ws.Upgrader{
 var hub *websocket.Hub
 
 func main() {
+	// 设置生产模式
+	gin.SetMode(gin.ReleaseMode)
+
 	// 初始化数据库
 	if err := database.InitDB("./data.db"); err != nil {
 		log.Fatal("数据库初始化失败:", err)

@@ -25,6 +25,18 @@ type GameRoom struct {
 	OfflineAt map[int]time.Time // UID -> 离线起始时间
 }
 
+func isBanned(uid int) (bool, time.Time, error) {
+	var bannedUntil *time.Time
+	err := database.DB.QueryRow("SELECT banned_until FROM users WHERE UID = ?", uid).Scan(&bannedUntil)
+	if err != nil {
+		return false, time.Time{}, err
+	}
+	if bannedUntil != nil && time.Now().Before(*bannedUntil) {
+		return true, *bannedUntil, nil
+	}
+	return false, time.Time{}, nil
+}
+
 // 初始化默认牌组配置
 func getDefaultDeckConfig() map[string]int {
 	return map[string]int{
@@ -41,6 +53,11 @@ func getDefaultDeckConfig() map[string]int {
 
 // 创建房间
 func CreateRoom(name string, hostUID int, hostName string, maxPlayers int, deckID int, isPointsMode bool) (*models.Room, error) {
+	banned, until, _ := isBanned(hostUID)
+	if banned {
+		return nil, fmt.Errorf("您的账号由于多次消极游戏已被封禁，直到 %s", until.Format("15:04:05"))
+	}
+
 	if name == "" {
 		const charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 		rand.Seed(time.Now().UnixNano())
@@ -318,12 +335,12 @@ func (gr *GameRoom) kickPlayer(uid int, reason string) {
 		var count int
 		database.DB.QueryRow("SELECT negative_play_count FROM users WHERE UID = ?", uid).Scan(&count)
 		count++
-		
+
 		if count >= 3 {
 			// 封禁30分钟
 			bannedUntil := time.Now().Add(30 * time.Minute)
 			database.DB.Exec("UPDATE users SET negative_play_count = 0, banned_until = ? WHERE UID = ?", bannedUntil, uid)
-			
+
 			if websocket.GlobalHub != nil {
 				websocket.GlobalHub.SendToUID(uid, websocket.Message{
 					Type:    "player_banned",
@@ -390,6 +407,11 @@ func (gr *GameRoom) terminateRoom(reason string) {
 
 // 加入房间
 func JoinRoom(roomID string, uid int, username string) error {
+	banned, until, _ := isBanned(uid)
+	if banned {
+		return fmt.Errorf("您的账号由于多次消极游戏已被封禁，直到 %s", until.Format("15:04:05"))
+	}
+
 	roomMutex.RLock()
 	gameRoom, exists := rooms[roomID]
 	roomMutex.RUnlock()

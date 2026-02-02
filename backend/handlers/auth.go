@@ -4,7 +4,9 @@ import (
 	"chemistryuno/database"
 	"chemistryuno/models"
 	"chemistryuno/utils"
+	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -62,12 +64,20 @@ func Login(c *gin.Context) {
 	// 查询用户
 	var user models.User
 	err := database.DB.QueryRow(
-		"SELECT UID, username, password, avatar, is_admin, role, two_factor_enabled, two_factor_secret FROM users WHERE username = ?",
+		"SELECT UID, username, password, avatar, is_admin, role, two_factor_enabled, two_factor_secret, banned_until FROM users WHERE username = ?",
 		req.Username,
-	).Scan(&user.UID, &user.Username, &user.PasswordHash, &user.Avatar, &user.IsAdmin, &user.Role, &user.TwoFactorEnabled, &user.TwoFactorSecret)
+	).Scan(&user.UID, &user.Username, &user.PasswordHash, &user.Avatar, &user.IsAdmin, &user.Role, &user.TwoFactorEnabled, &user.TwoFactorSecret, &user.BannedUntil)
 
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "用户不存在"})
+		return
+	}
+
+	// 检查封禁状态
+	if user.BannedUntil != nil && time.Now().Before(*user.BannedUntil) {
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": fmt.Sprintf("您的账号已被封禁，直到 %s", user.BannedUntil.Format("2006-01-02 15:04:05")),
+		})
 		return
 	}
 

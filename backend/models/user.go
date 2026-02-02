@@ -5,19 +5,21 @@ import (
 )
 
 type User struct {
-	UID               int        `json:"uid" db:"uid"`
-	Username          string     `json:"username" db:"username"`
-	PasswordHash      string     `json:"-" db:"password"` // 不返回给前端
-	Avatar            string     `json:"avatar" db:"avatar"`
-	IsAdmin           bool       `json:"is_admin" db:"is_admin"`
-	Role              string     `json:"role" db:"role"` // admin, co-worker, user
-	TwoFactorEnabled  bool       `json:"two_factor_enabled" db:"two_factor_enabled"`
-	TwoFactorSecret   string     `json:"-" db:"two_factor_secret"`
-	Points            int        `json:"points" db:"points"`
-	NegativePlayCount int        `json:"negative_play_count" db:"negative_play_count"`
-	BannedUntil       *time.Time `json:"banned_until" db:"banned_until"`
-	LastDecayAt       time.Time  `json:"last_decay_at" db:"last_decay_at"`
-	CreatedAt         time.Time  `json:"created_at" db:"created_at"`
+	UID                int        `json:"uid" db:"uid"`
+	Username           string     `json:"username" db:"username"`
+	PasswordHash       string     `json:"-" db:"password"` // 不返回给前端
+	Avatar             string     `json:"avatar" db:"avatar"`
+	IsAdmin            bool       `json:"is_admin" db:"is_admin"`
+	Role               string     `json:"role" db:"role"` // admin, co-worker, user
+	TwoFactorEnabled   bool       `json:"two_factor_enabled" db:"two_factor_enabled"`
+	TwoFactorSecret    string     `json:"-" db:"two_factor_secret"`
+	Points             int        `json:"points" db:"points"`
+	MonthlyPoints      int        `json:"monthly_points" db:"monthly_points"`
+	NegativePlayCount  int        `json:"negative_play_count" db:"negative_play_count"`
+	BannedUntil        *time.Time `json:"banned_until" db:"banned_until"`
+	LastWeeklyDecayAt  time.Time  `json:"last_weekly_decay_at" db:"last_weekly_decay_at"`
+	LastMonthlyResetAt time.Time  `json:"last_monthly_reset_at" db:"last_monthly_reset_at"`
+	CreatedAt          time.Time  `json:"created_at" db:"created_at"`
 }
 
 type RegisterRequest struct {

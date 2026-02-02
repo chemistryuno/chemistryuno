@@ -122,6 +122,13 @@ const addExp = (amount: number) => {
 
 const showLogs = ref(false)
 const showHints = ref(true)
+
+// 如果是积分赛，强制关闭提示并锁定
+watch(() => roomInfo.value?.is_points_mode, (val) => {
+  if (val) {
+    showHints.value = false
+  }
+})
 // --- 移植结束 ---
 
 const startTimer = () => {
@@ -646,7 +653,7 @@ onMounted(() => {
             <span>启动</span>
           </button>
 
-          <button @click="showHints = !showHints" class="w-9 h-9 flex items-center justify-center bg-slate-100 dark:bg-white/5 rounded-xl border border-slate-200 dark:border-white/10 text-slate-500 hover:text-blue-500">
+          <button v-if="!roomInfo?.is_points_mode" @click="showHints = !showHints" class="w-9 h-9 flex items-center justify-center bg-slate-100 dark:bg-white/5 rounded-xl border border-slate-200 dark:border-white/10 text-slate-500 hover:text-blue-500">
              <Sparkles class="w-4 h-4" :class="showHints && 'fill-current text-blue-500'" />
           </button>
           <button @click="showLogs = !showLogs" class="w-9 h-9 flex items-center justify-center bg-slate-100 dark:bg-white/5 rounded-xl border border-slate-200 dark:border-white/10 text-slate-500 hover:text-blue-500">

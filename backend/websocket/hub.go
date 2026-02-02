@@ -69,6 +69,18 @@ func (h *Hub) Run() {
 	}
 }
 
+// IsUIDOnline 检查指定 UID 是否在线
+func (h *Hub) IsUIDOnline(uid int) bool {
+	h.mutex.RLock()
+	defer h.mutex.RUnlock()
+	for client := range h.clients {
+		if client.uid == uid {
+			return true
+		}
+	}
+	return false
+}
+
 // Register 注册一个新客户端
 func (h *Hub) Register(client *Client) {
 	h.register <- client

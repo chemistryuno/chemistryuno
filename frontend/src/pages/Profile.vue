@@ -62,11 +62,11 @@ const handleSetup2FA = async () => {
   }
 }
 
-const handleEnable2FA = async (code: string) => {
-  if (!code) return
+const handleEnable2FA = async (code: string, password: string) => {
+  if (!code || !password) return
   twoFactorLoading.value = true
   try {
-    await authAPI.enable2FA(code)
+    await authAPI.enable2FA(code, password)
     await showAlert('双重验证已成功开启', '成功')
     show2FASetup.value = false
     fetchLatestUserInfo()
@@ -93,10 +93,10 @@ const handleDisable2FA = async () => {
   }
 }
 
-const handleChangePassword = async (oldPassword: string, newPassword: string) => {
+const handleChangePassword = async (oldPassword: string, newPassword: string, code: string) => {
   loading.value = true
   try {
-    await authAPI.changePassword(oldPassword, newPassword)
+    await authAPI.changePassword(oldPassword, newPassword, code)
     await showAlert('密码修改成功，请重新登录', '重置成功')
     handleLogout()
   } catch (error: any) {
@@ -239,6 +239,7 @@ const handleDeleteAccount = async () => {
     <ChangePasswordModal 
       :show="showChangePassword"
       :loading="loading"
+      :is2fa-enabled="user.two_factor_enabled"
       @close="showChangePassword = false"
       @save="handleChangePassword"
     />

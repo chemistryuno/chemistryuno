@@ -30,6 +30,12 @@ func InitDB(filepath string) error {
 		return err
 	}
 
+	// 迁移：添加新列
+	DB.Exec("ALTER TABLE users ADD COLUMN monthly_points INTEGER DEFAULT 0")
+	DB.Exec("ALTER TABLE users ADD COLUMN last_weekly_decay_at DATETIME DEFAULT CURRENT_TIMESTAMP")
+	DB.Exec("ALTER TABLE users ADD COLUMN last_monthly_reset_at DATETIME DEFAULT CURRENT_TIMESTAMP")
+	DB.Exec("ALTER TABLE users RENAME COLUMN last_decay_at TO last_weekly_decay_at") // 尝试重命名旧列
+
 	log.Println("数据库初始化成功")
 	return nil
 }
@@ -47,9 +53,11 @@ func createTables() error {
 		two_factor_enabled BOOLEAN DEFAULT 0,
 		two_factor_secret TEXT DEFAULT '',
 		points INTEGER DEFAULT 1000,
+		monthly_points INTEGER DEFAULT 0,
 		negative_play_count INTEGER DEFAULT 0,
 		banned_until DATETIME DEFAULT NULL,
-		last_decay_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		last_weekly_decay_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		last_monthly_reset_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);`
 

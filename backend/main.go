@@ -46,6 +46,7 @@ func main() {
 	r.POST("/auth/register", handlers.Register)
 	r.POST("/auth/login", handlers.Login)
 	r.POST("/auth/2fa/verify", handlers.Verify2FALogin)
+	r.POST("/auth/2fa/reset-password", handlers.ResetPasswordBy2FA)
 
 	// 需要认证的路由
 	auth := r.Group("/")
@@ -134,7 +135,6 @@ func main() {
 	}
 
 	log.Println("服务器启动在 :8080")
-	handlers.StartPointsTask()
 
 	// 后台清理任务：删除已到达 remove_at 的反馈（每小时运行）
 	go func() {

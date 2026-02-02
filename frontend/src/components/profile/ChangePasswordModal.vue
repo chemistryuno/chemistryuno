@@ -1,18 +1,20 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { Key, Lock, Eye, EyeOff, Loader2 } from 'lucide-vue-next'
+import { Key, Lock, Eye, EyeOff, Loader2, Fingerprint } from 'lucide-vue-next'
 
 defineProps<{
   show: boolean
   loading: boolean
+  is2faEnabled: boolean
 }>()
 
 const emit = defineEmits<{
   (e: 'close'): void
-  (e: 'save', oldPw: string, newPw: string): void
+  (e: 'save', oldPw: string, newPw: string, code: string): void
 }>()
 
 const oldPassword = ref('')
+const code = ref('')
 const newPassword = ref('')
 const confirmPassword = ref('')
 const showPasswords = ref(false)
@@ -22,7 +24,7 @@ const handleSave = () => {
     alert('两次输入的密码不一致')
     return
   }
-  emit('save', oldPassword.value, newPassword.value)
+  emit('save', oldPassword.value, newPassword.value, code.value)
 }
 </script>
 
@@ -32,7 +34,21 @@ const handleSave = () => {
       <h3 class="text-2xl font-black mb-8 italic uppercase text-center text-white">重置实验凭证 / Reset Key</h3>
       <form @submit.prevent="handleSave" class="space-y-5">
         <div class="space-y-4">
-          <div class="relative group">
+          <!-- 2FA Enabled view -->
+          <div v-if="is2faEnabled" class="relative group">
+            <Fingerprint class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 group-focus-within:text-blue-500 transition-colors" />
+            <input
+              v-model="code"
+              type="text"
+              maxlength="6"
+              placeholder="请输入 6 位 2FA 验证码"
+              class="w-full bg-white/5 border border-white/10 focus:border-blue-500/50 rounded-2xl py-4 pl-12 pr-4 outline-none transition-all text-white placeholder:text-slate-600 font-mono tracking-[0.3em] text-center"
+              required
+            />
+          </div>
+          
+          <!-- Classic view if NO 2FA -->
+          <div v-else class="relative group">
             <Key class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 group-focus-within:text-blue-500 transition-colors" />
             <input
               v-model="oldPassword"

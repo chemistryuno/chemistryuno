@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"chemistryuno/database"
+	"chemistryuno/websocket"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -10,12 +12,18 @@ import (
 
 // 获取排行榜
 func GetLeaderboard(c *gin.Context) {
-	rows, err := database.DB.Query(`
-		SELECT UID, username, avatar, points 
+	mode := c.Query("mode") // "total" or "monthly"
+	orderBy := "points"
+	if mode == "monthly" {
+		orderBy = "monthly_points"
+	}
+
+	rows, err := database.DB.Query(fmt.Sprintf(`
+		SELECT UID, username, avatar, points, monthly_points 
 		FROM users 
-		ORDER BY points DESC 
+		ORDER BY %s DESC 
 		LIMIT 100
-	`)
+	`, orderBy))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取排行榜失败"})
 		return
@@ -26,19 +34,27 @@ func GetLeaderboard(c *gin.Context) {
 	for rows.Next() {
 		var uid int
 		var username, avatar string
-		var points int
-		rows.Scan(&uid, &username, &avatar, &points)
+		var points, monthlyPoints int
+		rows.Scan(&uid, &username, &avatar, &points, &monthlyPoints)
 
 		// 获取该玩家当前的悬赏金额
 		var totalBounty int
 		database.DB.QueryRow("SELECT COALESCE(SUM(amount), 0) FROM bounties WHERE target_uid = ? AND status = 'active'", uid).Scan(&totalBounty)
 
+		// 检查是否在线
+		isOnline := false
+		if websocket.GlobalHub != nil {
+			isOnline = websocket.GlobalHub.IsUIDOnline(uid)
+		}
+
 		leaderboard = append(leaderboard, map[string]interface{}{
-			"uid":      uid,
-			"username": username,
-			"avatar":   avatar,
-			"points":   points,
-			"bounty":   totalBounty,
+			"uid":            uid,
+			"username":       username,
+			"avatar":         avatar,
+			"points":         points,
+			"monthly_points": monthlyPoints,
+			"bounty":         totalBounty,
+			"is_online":      isOnline,
 		})
 	}
 

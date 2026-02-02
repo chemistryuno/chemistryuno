@@ -58,17 +58,24 @@ func Setup2FA(c *gin.Context) {
 func Enable2FA(c *gin.Context) {
 	uid := c.GetInt("uid")
 	var req struct {
-		Code string `json:"code" binding:"required"`
+		Code     string `json:"code" binding:"required"`
+		Password string `json:"password" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "验证码参数缺失"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数缺失或格式错误"})
 		return
 	}
 
-	var secret string
-	err := database.DB.QueryRow("SELECT two_factor_secret FROM users WHERE UID = ?", uid).Scan(&secret)
+	var userPassword, secret string
+	err := database.DB.QueryRow("SELECT password, two_factor_secret FROM users WHERE UID = ?", uid).Scan(&userPassword, &secret)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取2FA密钥失败"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取用户信息失败"})
+		return
+	}
+
+	// 开启2FA时必须验证当前密码
+	if !utils.CheckPassword(req.Password, userPassword) {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "密码错误，身份核验失败"})
 		return
 	}
 

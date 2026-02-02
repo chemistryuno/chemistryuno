@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/pquerna/otp/totp"
 )
 
 // 用户注册
@@ -119,24 +120,46 @@ func Login(c *gin.Context) {
 func ChangePassword(c *gin.Context) {
 	uid := c.GetInt("uid")
 
-	var req models.ChangePasswordRequest
+	var req struct {
+		Code        string `json:"code"` // Changed from OldPassword to Code (optional if 2FA not enabled)
+		OldPassword string `json:"old_password"`
+		NewPassword string `json:"new_password" binding:"required,min=6"`
+	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	// 获取当前密码
-	var currentPassword string
-	err := database.DB.QueryRow("SELECT password FROM users WHERE UID = ?", uid).Scan(&currentPassword)
+	// 获取用户信息
+	var user models.User
+	err := database.DB.QueryRow("SELECT password, two_factor_enabled, two_factor_secret FROM users WHERE UID = ?", uid).Scan(&user.PasswordHash, &user.TwoFactorEnabled, &user.TwoFactorSecret)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误"})
 		return
 	}
 
-	// 验证旧密码
-	if !utils.CheckPassword(req.OldPassword, currentPassword) {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "旧密码错误"})
-		return
+	// 验证逻辑
+	if user.TwoFactorEnabled {
+		// 如果开启了2FA，强制使用2FA验证码重置密码，不校验旧密码
+		if req.Code == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "请提供 2FA 验证码以授权密码修改"})
+			return
+		}
+		valid, _ := totp.ValidateCustom(req.Code, user.TwoFactorSecret, time.Now().UTC(), totp.ValidateOpts{
+			Period: 30,
+			Skew:   2,
+			Digits: 6,
+		})
+		if !valid {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "2FA 验证码无效"})
+			return
+		}
+	} else {
+		// 如果未开启2FA，仍然使用旧密码验证（作为兜底）
+		if !utils.CheckPassword(req.OldPassword, user.PasswordHash) {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "当前密码错误"})
+			return
+		}
 	}
 
 	// 加密新密码
@@ -154,6 +177,63 @@ func ChangePassword(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "密码修改成功"})
+}
+
+// 通过2FA重置密码
+func ResetPasswordBy2FA(c *gin.Context) {
+	var req struct {
+		Username    string `json:"username" binding:"required"`
+		Code        string `json:"code" binding:"required"`
+		NewPassword string `json:"new_password" binding:"required,min=6"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数无效"})
+		return
+	}
+
+	var user models.User
+	err := database.DB.QueryRow(
+		"SELECT UID, two_factor_enabled, two_factor_secret FROM users WHERE username = ?",
+		req.Username,
+	).Scan(&user.UID, &user.TwoFactorEnabled, &user.TwoFactorSecret)
+
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "账户不存在"})
+		return
+	}
+
+	if !user.TwoFactorEnabled {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "该账户未开启 2FA，无法通过此方式找回。请联系管理员。"})
+		return
+	}
+
+	// 验证 2FA 码
+	valid, _ := totp.ValidateCustom(req.Code, user.TwoFactorSecret, time.Now().UTC(), totp.ValidateOpts{
+		Period: 30,
+		Skew:   2,
+		Digits: 6,
+	})
+
+	if !valid {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "验证码无效"})
+		return
+	}
+
+	// 加密新密码
+	hashedPassword, err := utils.HashPassword(req.NewPassword)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "密码处理失败"})
+		return
+	}
+
+	// 更新密码
+	_, err = database.DB.Exec("UPDATE users SET password = ? WHERE UID = ?", hashedPassword, user.UID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新密码失败"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "密码重置成功，请使用新密码登录"})
 }
 
 // 更新头像

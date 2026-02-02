@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math/rand"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -150,7 +151,9 @@ func handlePointsCalculation(gr *GameRoom) {
 		return
 	}
 
+	isDuel := count == 2
 	changes := make(map[int]int)
+
 	for i, uid := range finished {
 		points := 0
 		if i == count-1 && count > 1 {
@@ -162,31 +165,50 @@ func handlePointsCalculation(gr *GameRoom) {
 			points = 100 / rank
 		}
 
+		// 单挑判定：如果是两人的单挑，胜者额外获得20%系统补增
+		if isDuel && i == 0 {
+			points = int(float64(points) * 1.2)
+		}
+
 		changes[uid] = points
-		database.DB.Exec("UPDATE users SET points = points + ? WHERE UID = ?", points, uid)
+		database.DB.Exec("UPDATE users SET points = points + ?, monthly_points = monthly_points + ? WHERE UID = ?", points, points, uid)
 	}
 	gr.GameState.PointsChanges = changes
 
-	// Handle Bounties
-	bounties, err := database.GetAllBounties()
+	// 悬赏逻辑处理
+	winnerUID := finished[0]
+	playerUIDs := []int{}
+	for _, p := range gr.GameState.Players {
+		playerUIDs = append(playerUIDs, p.UID)
+	}
+
+	// 查找针对这些玩家的悬赏 (SQL 注入防护：手动构建占位符)
+	placeholders := make([]string, len(playerUIDs))
+	args := make([]interface{}, len(playerUIDs))
+	for i, uid := range playerUIDs {
+		placeholders[i] = "?"
+		args[i] = uid
+	}
+	query := fmt.Sprintf("SELECT id, target_uid, amount FROM bounties WHERE status = 'active' AND target_uid IN (%s)", strings.Join(placeholders, ","))
+
+	rows, err := database.DB.Query(query, args...)
 	if err == nil {
-		winnerUID := finished[0]
-		// Create a map of player UIDs in this game to quickly check against bounty targets
-		playerUIDsInGame := make(map[int]bool)
-		for _, ps := range gr.GameState.Players {
-			playerUIDsInGame[ps.UID] = true
+		defer rows.Close()
+		totalBountyForWinner := 0
+		for rows.Next() {
+			var bid, targetUID, amount int
+			if err := rows.Scan(&bid, &targetUID, &amount); err == nil {
+				// 如果被悬赏者输了（不是第一名）
+				if targetUID != winnerUID {
+					totalBountyForWinner += amount
+					database.DB.Exec("UPDATE bounties SET status = 'claimed' WHERE id = ?", bid)
+				}
+			}
 		}
 
-		for _, b := range bounties {
-			// If target was in game and didn't win (meaning someone else won, claiming the bounty)
-			if playerUIDsInGame[b.TargetUID] && winnerUID != b.TargetUID {
-				database.DB.Exec("UPDATE users SET points = points + ? WHERE UID = ?", b.Amount, winnerUID)
-
-				// Update changes map if the winner is in it (they should be)
-				changes[winnerUID] += b.Amount
-
-				database.DB.Exec("UPDATE bounties SET status = 'claimed' WHERE id = ?", b.ID)
-			}
+		if totalBountyForWinner > 0 {
+			database.DB.Exec("UPDATE users SET points = points + ?, monthly_points = monthly_points + ? WHERE UID = ?", totalBountyForWinner, totalBountyForWinner, winnerUID)
+			changes[winnerUID] += totalBountyForWinner
 		}
 	}
 }
@@ -208,6 +230,60 @@ func StartRoomMonitor() {
 			checkAllRooms()
 		}
 	}()
+
+	// 启动定期维护协程（每周衰减、每月重置）
+	go func() {
+		ticker := time.NewTicker(1 * time.Hour)
+		defer ticker.Stop()
+		for range ticker.C {
+			performPeriodicMaintenance()
+		}
+	}()
+}
+
+func performPeriodicMaintenance() {
+	now := time.Now()
+
+	// 1. 每月1号重置月榜积分
+	if now.Day() == 1 {
+		// 检查数据库中是否存在已重置的记录，避免在一个小时内重复重置
+		// 这里简单处理：重置所有非当月1号重置的玩家
+		database.DB.Exec("UPDATE users SET monthly_points = 0, last_monthly_reset_at = ? WHERE strftime('%Y-%m', last_monthly_reset_at) != ?", now.Format("2006-01-02 15:04:05"), now.Format("2006-01"))
+	}
+
+	// 2. 每周衰减前10%玩家积分2%
+	// 我们查找上一次衰减在7天前的记录
+	rows, err := database.DB.Query("SELECT COUNT(*) FROM users")
+	if err != nil {
+		return
+	}
+	var totalUsers int
+	rows.Next()
+	rows.Scan(&totalUsers)
+	rows.Close()
+
+	if totalUsers == 0 {
+		return
+	}
+
+	topCount := totalUsers / 10
+	if topCount < 1 {
+		topCount = 1
+	}
+
+	// 找到前10%的积分阈值
+	var threshold int
+	err = database.DB.QueryRow("SELECT points FROM users ORDER BY points DESC LIMIT 1 OFFSET ?", topCount-1).Scan(&threshold)
+	if err == nil {
+		// 对积分超过阈值且上一次衰减在7天前的玩家进行衰减
+		database.DB.Exec(`
+			UPDATE users SET 
+				points = CAST(points * 0.98 AS INTEGER),
+				last_weekly_decay_at = ? 
+			WHERE points >= ? 
+			AND last_weekly_decay_at < datetime(?, '-7 days')`,
+			now.Format("2006-01-02 15:04:05"), threshold, now.Format("2006-01-02 15:04:05"))
+	}
 }
 
 func checkAllRooms() {
@@ -889,8 +965,9 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 		// 进入完成状态
 		gameRoom.GameState.FinishedPlayers = append(gameRoom.GameState.FinishedPlayers, uid)
 
-		// 如果是房主胜利，移交房主权限给一个未完成的玩家
+		// 如果是房主胜利，将房主身份随机分配给一个未完成比赛的玩家
 		if gameRoom.Room.HostUID == uid {
+			unfinishedPlayers := []int{}
 			for _, p := range gameRoom.GameState.Players {
 				isFinished := false
 				for _, fuid := range gameRoom.GameState.FinishedPlayers {
@@ -900,9 +977,12 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 					}
 				}
 				if !isFinished {
-					gameRoom.Room.HostUID = p.UID
-					break
+					unfinishedPlayers = append(unfinishedPlayers, p.UID)
 				}
+			}
+			if len(unfinishedPlayers) > 0 {
+				rand.Seed(time.Now().UnixNano())
+				gameRoom.Room.HostUID = unfinishedPlayers[rand.Intn(len(unfinishedPlayers))]
 			}
 		}
 

@@ -25,6 +25,28 @@
       </header>
 
       <main class="flex-1 max-w-[1000px] mx-auto w-full px-6 py-12">
+        <!-- Mode Switch Tabs -->
+        <div class="flex items-center gap-2 mb-8 bg-white/5 p-1.5 rounded-[20px] border border-white/5 w-fit">
+          <button 
+            @click="rankingMode = 'total'"
+            :class="cn(
+              'px-6 py-2.5 rounded-[15px] text-[10px] font-black uppercase tracking-widest transition-all',
+              rankingMode === 'total' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'text-slate-500 hover:text-slate-300'
+            )"
+          >
+            全量积分
+          </button>
+          <button 
+            @click="rankingMode = 'monthly'"
+            :class="cn(
+              'px-6 py-2.5 rounded-[15px] text-[10px] font-black uppercase tracking-widest transition-all',
+              rankingMode === 'monthly' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:text-slate-300'
+            )"
+          >
+            本月活跃 (月榜)
+          </button>
+        </div>
+
         <!-- Stats Overview -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
           <div class="bg-white/5 border border-white/10 rounded-[32px] p-8 flex flex-col items-center text-center">
@@ -91,18 +113,21 @@
                   </td>
                   <td class="px-6 py-6">
                     <div class="flex items-center gap-4">
-                       <div class="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-xl overflow-hidden">
+                       <div class="relative w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-xl overflow-hidden">
                           <template v-if="player.avatar && player.avatar.startsWith('data:')">
                             <img :src="player.avatar" class="w-full h-full object-cover" />
                           </template>
                           <template v-else>
                             {{ player.avatar || '🧪' }}
                           </template>
+                          <!-- Online Status Badge -->
+                          <div v-if="player.is_online" class="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-[#121216] rounded-full"></div>
                        </div>
                        <div class="flex flex-col">
-                          <span class="text-sm font-black text-white group-hover:text-blue-400 transition-colors">
+                          <span class="text-sm font-black text-white group-hover:text-blue-400 transition-colors flex items-center gap-2">
                             {{ player.username }}
-                            <span v-if="player.uid === user.uid" class="ml-2 text-[8px] bg-blue-600 px-1.5 py-0.5 rounded uppercase font-black tracking-widest">You</span>
+                            <span v-if="player.is_online" class="text-[7px] text-emerald-500 font-black uppercase tracking-tighter">Online</span>
+                            <span v-if="player.uid === user.uid" class="text-[8px] bg-blue-600 px-1.5 py-0.5 rounded uppercase font-black tracking-widest">You</span>
                           </span>
                           <span class="text-[9px] font-mono text-slate-500 uppercase tracking-tighter mt-1">ID: {{ player.uid }}</span>
                        </div>
@@ -111,9 +136,11 @@
                   <td class="px-6 py-6">
                     <div class="flex flex-col">
                        <span class="text-lg font-black text-white font-mono tracking-tighter">
-                         {{ player.points }}
+                         {{ rankingMode === 'monthly' ? player.monthly_points : player.points }}
                        </span>
-                       <span class="text-[8px] font-black text-slate-600 uppercase tracking-widest mt-0.5">Current_Score</span>
+                       <span class="text-[8px] font-black text-slate-600 uppercase tracking-widest mt-0.5">
+                         {{ rankingMode === 'monthly' ? 'Monthly_Status' : 'Total_Contribution' }}
+                       </span>
                     </div>
                   </td>
                   <td class="px-6 py-6">
@@ -243,6 +270,7 @@ const user = ref(JSON.parse(localStorage.getItem('user') || '{}'))
 const leaderboard = ref<any[]>([])
 const loading = ref(true)
 const userPoints = ref(0)
+const rankingMode = ref<'total' | 'monthly'>('total')
 
 const showBountyModal = ref(false)
 const selectedTarget = ref<any>(null)
@@ -252,10 +280,10 @@ const submitting = ref(false)
 const loadLeaderboard = async () => {
   try {
     loading.value = true
-    const response = await pointsAPI.getLeaderboard()
+    const response = await pointsAPI.getLeaderboard(rankingMode.value)
     leaderboard.value = response.data
     
-    // 同时也尝试更新一下本地的用户分数实时显示（如果有的话，在此简化为从榜单里找自己）
+    // 同时也尝试更新一下本地的用户分数实时显示
     const self = leaderboard.value.find(p => p.uid === user.value.uid)
     if (self) userPoints.value = self.points
   } catch (error) {
@@ -264,6 +292,11 @@ const loadLeaderboard = async () => {
     loading.value = false
   }
 }
+
+import { watch } from 'vue'
+watch(rankingMode, () => {
+  loadLeaderboard()
+})
 
 const openBountyModal = (player: any) => {
   selectedTarget.value = player

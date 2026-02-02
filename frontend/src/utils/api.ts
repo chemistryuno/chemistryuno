@@ -38,10 +38,12 @@ export const authAPI = {
     api.post('/auth/register', data),
   login: (data: any) => 
     api.post('/auth/login', data),
+  resetPasswordBy2FA: (data: any) =>
+    api.post('/auth/2fa/reset-password', data),
   getUserInfo: () => 
     api.get('/user/info'),
-  changePassword: (oldPassword: string, newPassword: string) => 
-    api.put('/user/password', { old_password: oldPassword, new_password: newPassword }),
+  changePassword: (oldPassword: string, newPassword: string, code: string = '') => 
+    api.put('/user/password', { old_password: oldPassword, new_password: newPassword, code }),
   updateAvatar: (avatar: string) => 
     api.put('/user/avatar', { avatar }),
   deleteAccount: () => 
@@ -57,7 +59,7 @@ export const authAPI = {
   
   // 2FA相关
   setup2FA: () => api.post('/user/2fa/setup'),
-  enable2FA: (code: string) => api.post('/user/2fa/enable', { code }),
+  enable2FA: (code: string, password: string) => api.post('/user/2fa/enable', { code, password }),
   disable2FA: (code: string) => api.post('/user/2fa/disable', { code }),
   verify2FALogin: (uid: number, code: string) => api.post('/auth/2fa/verify', { uid, code }),
 }
@@ -97,7 +99,7 @@ export const gameAPI = {
 }
 
 export const pointsAPI = {
-  getLeaderboard: () => api.get('/points/leaderboard'),
+  getLeaderboard: (mode: string = 'total') => api.get(`/points/leaderboard?mode=${mode}`),
   createBounty: (target_uid: number, amount: number) => 
     api.post('/points/bounty', { target_uid, amount }),
 }

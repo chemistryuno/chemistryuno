@@ -3,13 +3,13 @@
 import (
 	"chemistryuno/database"
 	"chemistryuno/models"
+	"chemistryuno/repository"
 	"chemistryuno/websocket"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"math/rand"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 )
@@ -27,8 +27,8 @@ type GameRoom struct {
 }
 
 func isBanned(uid int) (bool, time.Time, error) {
-	var bannedUntil *time.Time
-	err := database.LegacyDB.QueryRow("SELECT banned_until FROM users WHERE UID = ?", uid).Scan(&bannedUntil)
+	userRepo := repository.NewUserRepository()
+	bannedUntil, _, err := userRepo.CheckBanStatus(uint(uid))
 	if err != nil {
 		return false, time.Time{}, err
 	}
@@ -71,17 +71,17 @@ func getDefaultDeckConfig() map[string]int {
 
 // 获取当前全局牌组配置
 func getGlobalDeckConfigFromDB() (map[string]int, string) {
-	var cardsJSON, name string
-	err := database.LegacyDB.QueryRow("SELECT name, cards FROM deck_configs WHERE is_global = 1 LIMIT 1").Scan(&name, &cardsJSON)
+	deckRepo := repository.NewDeckRepository()
+	deck, err := deckRepo.FindGlobalDeck()
 	if err != nil {
 		return getDefaultDeckConfig(), "默认牌组"
 	}
 
 	var cards map[string]int
-	if err := json.Unmarshal([]byte(cardsJSON), &cards); err != nil {
+	if err := json.Unmarshal([]byte(deck.Cards), &cards); err != nil {
 		return getDefaultDeckConfig(), "默认牌组"
 	}
-	return cards, name
+	return cards, deck.Name
 }
 
 // 创建房间
@@ -113,12 +113,7 @@ func CreateRoom(name string, hostUID int, hostName string, maxPlayers int, deckI
 		deckConfig.IsGlobal = true
 		deckConfig.ID = 1
 	} else {
-		var cardsJSON string
-		err := database.LegacyDB.QueryRow(
-			"SELECT id, name, cards FROM deck_configs WHERE id = ?",
-			deckID,
-		).Scan(&deckConfig.ID, &deckConfig.Name, &cardsJSON)
-
+		deck, err := repository.DeckRepo.FindByID(deckID)
 		if err != nil {
 			cards, dname := getGlobalDeckConfigFromDB()
 			deckConfig.Cards = cards
@@ -126,7 +121,9 @@ func CreateRoom(name string, hostUID int, hostName string, maxPlayers int, deckI
 			deckConfig.IsGlobal = true
 			deckConfig.ID = 1
 		} else {
-			json.Unmarshal([]byte(cardsJSON), &deckConfig.Cards)
+			deckConfig.ID = deck.ID
+			deckConfig.Name = deck.Name
+			deckConfig.Cards = deck.Cards
 		}
 	}
 
@@ -248,7 +245,8 @@ func handlePointsCalculation(gr *GameRoom) {
 		}
 
 		changes[uid] = points
-		database.LegacyDB.Exec("UPDATE users SET points = points + ?, monthly_points = monthly_points + ? WHERE UID = ?", points, points, uid)
+		repository.UserRepo.IncrementPoints(uid, points)
+		repository.UserRepo.IncrementMonthlyPoints(uid, points)
 	}
 	gr.GameState.PointsChanges = changes
 
@@ -259,48 +257,40 @@ func handlePointsCalculation(gr *GameRoom) {
 		playerUIDs = append(playerUIDs, p.UID)
 	}
 
-	// 查找针对这些玩家的悬赏 (SQL 注入防护：手动构建占位符)
-	placeholders := make([]string, len(playerUIDs))
-	args := make([]interface{}, len(playerUIDs))
-	for i, uid := range playerUIDs {
-		placeholders[i] = "?"
-		args[i] = uid
-	}
-	query := fmt.Sprintf("SELECT id, target_uid, amount FROM bounties WHERE status = 'active' AND target_uid IN (%s)", strings.Join(placeholders, ","))
-
-	rows, err := database.LegacyDB.Query(query, args...)
-	if err == nil {
-		defer rows.Close()
-		totalBountyForWinner := 0
-		for rows.Next() {
-			var bid, targetUID, amount int
-			if err := rows.Scan(&bid, &targetUID, &amount); err == nil {
-				if gr.Room.IsDuel && targetUID == gr.Room.TargetID {
-					// 单挑模式特别处理
-					if winnerUID == gr.Room.ChallengerID {
-						// 发起者赢：获得全部悬赏
-						totalBountyForWinner += amount
-						database.LegacyDB.Exec("UPDATE bounties SET status = 'claimed' WHERE id = ?", bid)
-					} else if winnerUID == gr.Room.TargetID {
-						// 被挑战者赢：获得一半悬赏
-						reward := amount / 2
-						totalBountyForWinner += reward
-						database.LegacyDB.Exec("UPDATE bounties SET status = 'claimed' WHERE id = ?", bid)
-					}
-				} else {
-					// 普通模式：只要被悬赏者输了（不是第一名），胜者就能获得该悬赏
-					if targetUID != winnerUID {
-						totalBountyForWinner += amount
-						database.LegacyDB.Exec("UPDATE bounties SET status = 'claimed' WHERE id = ?", bid)
-					}
+	// 查找针对这些玩家的悬赏
+	totalBountyForWinner := 0
+	for _, targetUID := range playerUIDs {
+		bounties, err := repository.BountyRepo.FindActiveByTarget(targetUID)
+		if err != nil {
+			continue
+		}
+		for _, bounty := range bounties {
+			if gr.Room.IsDuel && targetUID == gr.Room.TargetID {
+				// 单挑模式特别处理
+				if winnerUID == gr.Room.ChallengerID {
+					// 发起者赢：获得全部悬赏
+					totalBountyForWinner += bounty.Amount
+					repository.BountyRepo.UpdateStatus(bounty.ID, "claimed")
+				} else if winnerUID == gr.Room.TargetID {
+					// 被挑战者赢：获得一半悬赏
+					reward := bounty.Amount / 2
+					totalBountyForWinner += reward
+					repository.BountyRepo.UpdateStatus(bounty.ID, "claimed")
+				}
+			} else {
+				// 普通模式：只要被悬赏者输了（不是第一名），胜者就能获得该悬赏
+				if targetUID != winnerUID {
+					totalBountyForWinner += bounty.Amount
+					repository.BountyRepo.UpdateStatus(bounty.ID, "claimed")
 				}
 			}
 		}
+	}
 
-		if totalBountyForWinner > 0 {
-			database.LegacyDB.Exec("UPDATE users SET points = points + ?, monthly_points = monthly_points + ? WHERE UID = ?", totalBountyForWinner, totalBountyForWinner, winnerUID)
-			changes[winnerUID] += totalBountyForWinner
-		}
+	if totalBountyForWinner > 0 {
+		repository.UserRepo.IncrementPoints(winnerUID, totalBountyForWinner)
+		repository.UserRepo.IncrementMonthlyPoints(winnerUID, totalBountyForWinner)
+		changes[winnerUID] += totalBountyForWinner
 	}
 }
 
@@ -337,14 +327,13 @@ func performPeriodicMaintenance() {
 
 	// 1. 每月1号重置月榜积分
 	if now.Day() == 1 {
-		// 检查数据库中是否存在已重置的记录，避免在一个小时内重复重置
-		// 这里简单处理：重置所有非当月1号重置的玩家
-		database.LegacyDB.Exec("UPDATE users SET monthly_points = 0, last_monthly_reset_at = ? WHERE strftime('%Y-%m', last_monthly_reset_at) != ?", now.Format("2006-01-02 15:04:05"), now.Format("2006-01"))
+		// 使用 Repository 重置月度积分
+		repository.UserRepo.ResetMonthlyPointsIfNeeded()
 	}
 
 	// 2. 每周衰减前10%玩家积分2%
 	// 我们查找上一次衰减在7天前的记录
-	rows, err := database.LegacyDB.Query("SELECT COUNT(*) FROM users")
+	rows, err := database.GormDB.Raw("SELECT COUNT(*) FROM users").Rows()
 	if err != nil {
 		return
 	}
@@ -364,16 +353,14 @@ func performPeriodicMaintenance() {
 
 	// 找到前10%的积分阈值
 	var threshold int
-	err = database.LegacyDB.QueryRow("SELECT points FROM users ORDER BY points DESC LIMIT 1 OFFSET ?", topCount-1).Scan(&threshold)
+	err = database.GormDB.Raw("SELECT points FROM users ORDER BY points DESC LIMIT 1 OFFSET ?", topCount-1).Scan(&threshold).Error
 	if err == nil {
 		// 对积分超过阈值且上一次衰减在7天前的玩家进行衰减
-		database.LegacyDB.Exec(`
-			UPDATE users SET 
-				points = CAST(points * 0.98 AS INTEGER),
-				last_weekly_decay_at = ? 
-			WHERE points >= ? 
-			AND last_weekly_decay_at < DATE_SUB(?, INTERVAL 7 DAY)`,
-			now.Format("2006-01-02 15:04:05"), threshold, now.Format("2006-01-02 15:04:05"))
+		now := time.Now()
+		weekAgo := now.Add(-7 * 24 * time.Hour)
+		database.GormDB.Exec(
+			"UPDATE users SET points = CAST(points * 0.98 AS INTEGER), last_weekly_decay_at = ? WHERE points >= ? AND last_weekly_decay_at < ?",
+			now, threshold, weekAgo)
 	}
 }
 
@@ -458,12 +445,12 @@ func (gr *GameRoom) kickPlayer(uid int, reason string) {
 	if isHost {
 		// 记录消极游戏行为并处理封禁（仅在游戏开始后计入）
 		if reason == "由于消极游戏，您已被踢出" && gr.Room.Status == "playing" {
-			var count int
-			database.LegacyDB.QueryRow("SELECT negative_play_count FROM users WHERE UID = ?", uid).Scan(&count)
+			count, _ := repository.UserRepo.GetNegativePlayCount(uid)
 			count++
 			if count >= 3 {
 				bannedUntil := time.Now().Add(30 * time.Minute)
-				database.LegacyDB.Exec("UPDATE users SET negative_play_count = 0, banned_until = ? WHERE UID = ?", bannedUntil, uid)
+				repository.UserRepo.UpdateBanStatus(uid, bannedUntil)
+				repository.UserRepo.UpdateNegativePlayCount(uid, 0)
 				if websocket.GlobalHub != nil {
 					websocket.GlobalHub.SendToUID(uid, websocket.Message{
 						Type:    "player_banned",
@@ -471,16 +458,16 @@ func (gr *GameRoom) kickPlayer(uid int, reason string) {
 					})
 				}
 			} else {
-				database.LegacyDB.Exec("UPDATE users SET negative_play_count = ? WHERE UID = ?", count, uid)
+				repository.UserRepo.UpdateNegativePlayCount(uid, count)
 			}
 		}
 
 		// 房主被踢，如果是竞技模式，惩罚房主并由于连带责任惩罚其他玩家（仅在游戏开始后计入）
 		if gr.Room.IsPointsMode && gr.Room.Status == "playing" {
-			database.LegacyDB.Exec("UPDATE users SET points = points - 50 WHERE UID = ?", uid)
+			repository.UserRepo.DeductPoints(uid, 50)
 			for _, pid := range gr.Room.Players {
 				if pid != uid {
-					database.LegacyDB.Exec("UPDATE users SET points = CAST(points * 0.8 AS INTEGER) WHERE UID = ?", pid)
+					repository.UserRepo.DeductPointsPercentage(pid, 20) // 80% = 100 - 20
 				}
 			}
 		}
@@ -522,7 +509,7 @@ func (gr *GameRoom) kickPlayer(uid int, reason string) {
 	// 如果是竞技模式，对被踢出的玩家和房间内其他玩家进行积分惩罚
 	if gr.Room.IsPointsMode && gr.Room.Status == "playing" {
 		// 被踢出者扣除 30 积分作为惩罚
-		database.LegacyDB.Exec("UPDATE users SET points = points - 30 WHERE UID = ?", uid)
+		repository.UserRepo.DeductPoints(uid, 30)
 	}
 
 	gr.Room.Players = newPlayers
@@ -748,9 +735,9 @@ func StartGame(roomID string, uid int) error {
 
 	// 初始化玩家
 	for _, pid := range shuffledPlayers {
-		var username, avatar string
-		database.LegacyDB.QueryRow("SELECT username, avatar FROM users WHERE UID = ?", pid).
-			Scan(&username, &avatar)
+		user, _ := repository.UserRepo.FindByID(pid)
+		username := user.Username
+		avatar := user.Avatar
 
 		player := &models.PlayerState{
 			UID:                   pid,
@@ -814,13 +801,12 @@ func GetRoomState(roomID string, uid int) (map[string]interface{}, error) {
 	// 获取玩家详细信息（用于准备页面）
 	playersInfo := []map[string]interface{}{}
 	for _, pid := range gameRoom.Room.Players {
-		var username, avatar string
-		err := database.LegacyDB.QueryRow("SELECT username, avatar FROM users WHERE UID = ?", pid).
-			Scan(&username, &avatar)
-		if err != nil {
-			// 如果数据库查询失败，提供默认值
-			username = fmt.Sprintf("研究员_%d", pid)
-			avatar = "🧪"
+		user, err := repository.UserRepo.FindByID(pid)
+		username := fmt.Sprintf("研究员_%d", pid)
+		avatar := "🧪"
+		if err == nil {
+			username = user.Username
+			avatar = user.Avatar
 		}
 		playersInfo = append(playersInfo, map[string]interface{}{
 			"uid":      pid,
@@ -1437,20 +1423,16 @@ func GetAvailableSubstances(roomID string, uid int) ([]string, error) {
 }
 
 func saveGameHistory(roomID string, winnerUID int, players []int) {
-	playersJSON, _ := json.Marshal(players)
-	database.LegacyDB.Exec(
-		"INSERT INTO game_history (room_id, winner_uid, players, started_at, finished_at) VALUES (?, ?, ?, DATE_SUB(NOW(), INTERVAL 1 HOUR), NOW())",
-		roomID, winnerUID, string(playersJSON),
-	)
+	repository.GameRepo.SaveHistory(roomID, winnerUID, players)
 
 	// 更新玩家的总场次
 	for _, uid := range players {
-		database.LegacyDB.Exec("UPDATE users SET total_games = total_games + 1 WHERE UID = ?", uid)
+		repository.UserRepo.IncrementTotalGames(uid)
 	}
 
 	// 更新胜利者的胜利场数
 	if winnerUID > 0 {
-		database.LegacyDB.Exec("UPDATE users SET win_count = win_count + 1 WHERE UID = ?", winnerUID)
+		repository.UserRepo.IncrementWinCount(winnerUID)
 	}
 
 	fmt.Println("游戏历史已保存，玩家统计已更新")

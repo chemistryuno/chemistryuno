@@ -5,6 +5,7 @@ import (
 	"chemistryuno/game"
 	"chemistryuno/handlers"
 	"chemistryuno/middleware"
+	"chemistryuno/repository"
 	"chemistryuno/utils"
 	"chemistryuno/websocket"
 	"context"
@@ -246,17 +247,17 @@ func main() {
 
 	// 后台清理任务：删除已到达 remove_at 的反馈（每小时运行）
 	go func() {
+		feedbackRepo := repository.NewFeedbackRepository()
 		ticker := time.NewTicker(1 * time.Hour)
 		defer ticker.Stop()
 		for {
 			<-ticker.C
-			nowStr := time.Now().UTC().Format("2006-01-02 15:04:05")
-			res, err := database.LegacyDB.Exec("DELETE FROM feedbacks WHERE remove_at IS NOT NULL AND remove_at <= ?", nowStr)
+			ra, err := feedbackRepo.DeleteExpired()
 			if err != nil {
 				log.Printf("清理过期反馈失败: %v", err)
 				continue
 			}
-			if ra, _ := res.RowsAffected(); ra > 0 {
+			if ra > 0 {
 				log.Printf("已删除 %d 条过期反馈", ra)
 			}
 		}

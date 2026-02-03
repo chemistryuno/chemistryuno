@@ -1,10 +1,9 @@
 ﻿package handlers
 
 import (
-	"chemistryuno/database"
 	"chemistryuno/models"
+	"chemistryuno/repository"
 	"chemistryuno/utils"
-	"database/sql"
 	"encoding/base64"
 	"fmt"
 	"net/http"
@@ -43,7 +42,8 @@ func Setup2FA(c *gin.Context) {
 	qrCodeBase64 := "data:image/png;base64," + base64.StdEncoding.EncodeToString(png)
 
 	// 临时保存密钥到数据库，但不启用
-	_, err = database.LegacyDB.Exec("UPDATE users SET two_factor_secret = ? WHERE UID = ?", key.Secret(), uid)
+	userRepo := repository.NewUserRepository()
+	err = userRepo.Update2FASecret(uint(uid), key.Secret())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "保存2FA密钥失败"})
 		return
@@ -68,12 +68,14 @@ func Enable2FA(c *gin.Context) {
 		return
 	}
 
-	var userPassword, secret string
-	err := database.LegacyDB.QueryRow("SELECT password, two_factor_secret FROM users WHERE UID = ?", uid).Scan(&userPassword, &secret)
+	userRepo := repository.NewUserRepository()
+	user, err := userRepo.FindByID(uint(uid))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取用户信息失败"})
 		return
 	}
+	userPassword := user.Password
+	secret := user.TwoFactorSecret
 
 	// 开启2FA时必须验证当前密码
 	if !utils.CheckPassword(req.Password, userPassword) {
@@ -98,7 +100,7 @@ func Enable2FA(c *gin.Context) {
 		return
 	}
 
-	_, err = database.LegacyDB.Exec("UPDATE users SET two_factor_enabled = 1 WHERE UID = ?", uid)
+	err = userRepo.Enable2FA(uint(uid))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新2FA状态失败"})
 		return
@@ -118,14 +120,14 @@ func Disable2FA(c *gin.Context) {
 		return
 	}
 
-	var secret string
-	err := database.LegacyDB.QueryRow("SELECT two_factor_secret FROM users WHERE UID = ?", uid).Scan(&secret)
+	userRepo := repository.NewUserRepository()
+	user, err := userRepo.FindByID(uint(uid))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取2FA密钥失败"})
 		return
 	}
 
-	valid, _ := totp.ValidateCustom(req.Code, secret, time.Now().UTC(), totp.ValidateOpts{
+	valid, _ := totp.ValidateCustom(req.Code, user.TwoFactorSecret, time.Now().UTC(), totp.ValidateOpts{
 		Period: 30,
 		Skew:   2,
 		Digits: 6,
@@ -136,7 +138,7 @@ func Disable2FA(c *gin.Context) {
 		return
 	}
 
-	_, err = database.LegacyDB.Exec("UPDATE users SET two_factor_enabled = 0, two_factor_secret = '' WHERE UID = ?", uid)
+	err = userRepo.Disable2FA(uint(uid))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误"})
 		return
@@ -157,15 +159,24 @@ func Verify2FALogin(c *gin.Context) {
 		return
 	}
 
-	var user models.User
-	err := database.LegacyDB.QueryRow(
-		"SELECT UID, username, password, avatar, is_admin, role, two_factor_enabled, two_factor_secret, banned_until, frozen_until FROM users WHERE UID = ?",
-		req.UID,
-	).Scan(&user.UID, &user.Username, &user.PasswordHash, &user.Avatar, &user.IsAdmin, &user.Role, &user.TwoFactorEnabled, &user.TwoFactorSecret, &user.BannedUntil, &user.FrozenUntil)
-
+	userRepo := repository.NewUserRepository()
+	dbUser, err := userRepo.FindByID(uint(req.UID))
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "用户不存在"})
 		return
+	}
+
+	user := models.User{
+		UID:              int(dbUser.UID),
+		Username:         dbUser.Username,
+		PasswordHash:     dbUser.Password,
+		Avatar:           dbUser.Avatar,
+		IsAdmin:          dbUser.IsAdmin,
+		Role:             dbUser.Role,
+		TwoFactorEnabled: dbUser.TwoFactorEnabled,
+		TwoFactorSecret:  dbUser.TwoFactorSecret,
+		BannedUntil:      dbUser.BannedUntil,
+		FrozenUntil:      dbUser.FrozenUntil,
 	}
 
 	// 安全检查1: 验证用户确实启用了2FA
@@ -220,22 +231,17 @@ func Verify2FALogin(c *gin.Context) {
 	}
 
 	// 获取当前可用公告
+	announcementRepo := repository.NewAnnouncementRepository()
+	dbAnnouncements, _ := announcementRepo.FindActive()
 	var announcements []models.Announcement
-	rows, _ := database.LegacyDB.Query(`
-		SELECT id, title, content, type, is_ticker FROM announcements 
-		WHERE active = 1 AND (expires_at IS NULL OR expires_at > ?)`, time.Now())
-	if rows != nil {
-		for rows.Next() {
-			var a models.Announcement
-			var title sql.NullString
-			if err := rows.Scan(&a.ID, &title, &a.Content, &a.Type, &a.IsTicker); err == nil {
-				if title.Valid {
-					a.Title = title.String
-				}
-				announcements = append(announcements, a)
-			}
-		}
-		rows.Close()
+	for _, a := range dbAnnouncements {
+		announcements = append(announcements, models.Announcement{
+			ID:       int(a.ID),
+			Title:    a.Title,
+			Content:  a.Content,
+			Type:     a.Type,
+			IsTicker: a.IsTicker,
+		})
 	}
 
 	c.JSON(http.StatusOK, gin.H{

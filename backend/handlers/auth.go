@@ -3,11 +3,10 @@
 import (
 	"chemistryuno/database"
 	"chemistryuno/models"
+	"chemistryuno/repository"
 	"chemistryuno/utils"
-	"database/sql"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -23,14 +22,15 @@ func Register(c *gin.Context) {
 	}
 	fmt.Printf("注册尝试 - 用户: %s, 来源IP: %s\n", req.Username, c.ClientIP())
 
+	userRepo := repository.NewUserRepository()
+
 	// 1. 检查用户名是否已存在
-	var count int
-	err := database.LegacyDB.QueryRow("SELECT COUNT(*) FROM users WHERE username = ?", req.Username).Scan(&count)
+	exists, err := userRepo.ExistsByUsername(req.Username)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误"})
 		return
 	}
-	if count > 0 {
+	if exists {
 		c.JSON(http.StatusConflict, gin.H{"error": "用户名已存在"})
 		return
 	}
@@ -42,18 +42,23 @@ func Register(c *gin.Context) {
 		return
 	}
 
-	// 3. 插入用户
-	result, err := database.LegacyDB.Exec("INSERT INTO users (username, password, avatar, role) VALUES (?, ?, ?, ?)",
-		req.Username, hashedPassword, "🧪", "user")
+	// 3. 创建用户
+	user := &database.User{
+		Username: req.Username,
+		Password: hashedPassword,
+		Avatar:   "🧪",
+		Role:     "user",
+	}
+
+	err = userRepo.Create(user)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建用户失败"})
 		return
 	}
 
-	userUID, _ := result.LastInsertId()
 	c.JSON(http.StatusCreated, gin.H{
 		"message": "注册成功",
-		"uid":     userUID,
+		"uid":     user.UID,
 	})
 }
 
@@ -66,16 +71,25 @@ func Login(c *gin.Context) {
 	}
 	fmt.Printf("登录尝试 - 用户: %s, 来源IP: %s\n", req.Username, c.ClientIP())
 
-	// 查询用户
-	var user models.User
-	err := database.LegacyDB.QueryRow(
-		"SELECT UID, username, password, avatar, is_admin, role, two_factor_enabled, two_factor_secret, banned_until, frozen_until FROM users WHERE username = ?",
-		req.Username,
-	).Scan(&user.UID, &user.Username, &user.PasswordHash, &user.Avatar, &user.IsAdmin, &user.Role, &user.TwoFactorEnabled, &user.TwoFactorSecret, &user.BannedUntil, &user.FrozenUntil)
-
+	userRepo := repository.NewUserRepository()
+	dbUser, err := userRepo.FindByUsername(req.Username)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "用户不存在"})
 		return
+	}
+
+	// 转换为models.User
+	user := models.User{
+		UID:              int(dbUser.UID),
+		Username:         dbUser.Username,
+		PasswordHash:     dbUser.Password,
+		Avatar:           dbUser.Avatar,
+		IsAdmin:          dbUser.IsAdmin,
+		Role:             dbUser.Role,
+		TwoFactorEnabled: dbUser.TwoFactorEnabled,
+		TwoFactorSecret:  dbUser.TwoFactorSecret,
+		BannedUntil:      dbUser.BannedUntil,
+		FrozenUntil:      dbUser.FrozenUntil,
 	}
 
 	// 检查封禁状态
@@ -121,22 +135,18 @@ func Login(c *gin.Context) {
 	}
 
 	// 4. 获取当前可用公告 (登陆触发器)
+	announcementRepo := repository.NewAnnouncementRepository()
+	dbAnnouncements, _ := announcementRepo.FindActive()
 	var announcements []models.Announcement
-	rows, _ := database.LegacyDB.Query(`
-		SELECT id, title, content, type, is_ticker, close_delay FROM announcements 
-		WHERE active = 1 AND (expires_at IS NULL OR expires_at > ?)`, time.Now())
-	if rows != nil {
-		for rows.Next() {
-			var a models.Announcement
-			var title sql.NullString
-			if err := rows.Scan(&a.ID, &title, &a.Content, &a.Type, &a.IsTicker, &a.CloseDelay); err == nil {
-				if title.Valid {
-					a.Title = title.String
-				}
-				announcements = append(announcements, a)
-			}
-		}
-		rows.Close()
+	for _, a := range dbAnnouncements {
+		announcements = append(announcements, models.Announcement{
+			ID:         int(a.ID),
+			Title:      a.Title,
+			Content:    a.Content,
+			Type:       a.Type,
+			IsTicker:   a.IsTicker,
+			CloseDelay: a.CloseDelay,
+		})
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -166,9 +176,10 @@ func ChangePassword(c *gin.Context) {
 		return
 	}
 
+	userRepo := repository.NewUserRepository()
+
 	// 获取用户信息
-	var user models.User
-	err := database.LegacyDB.QueryRow("SELECT password, two_factor_enabled, two_factor_secret FROM users WHERE UID = ?", uid).Scan(&user.PasswordHash, &user.TwoFactorEnabled, &user.TwoFactorSecret)
+	user, err := userRepo.FindByID(uint(uid))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误"})
 		return
@@ -192,7 +203,7 @@ func ChangePassword(c *gin.Context) {
 		}
 	} else {
 		// 如果未开启2FA，仍然使用旧密码验证（作为兜底）
-		if !utils.CheckPassword(req.OldPassword, user.PasswordHash) {
+		if !utils.CheckPassword(req.OldPassword, user.Password) {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "当前密码错误"})
 			return
 		}
@@ -206,7 +217,7 @@ func ChangePassword(c *gin.Context) {
 	}
 
 	// 更新密码
-	_, err = database.LegacyDB.Exec("UPDATE users SET password = ? WHERE UID = ?", hashedPassword, uid)
+	err = userRepo.UpdatePassword(uint(uid), hashedPassword)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新密码失败"})
 		return
@@ -227,24 +238,20 @@ func ResetPasswordBy2FA(c *gin.Context) {
 		return
 	}
 
-	var user models.User
-	err := database.LegacyDB.QueryRow(
-		"SELECT UID, two_factor_enabled, two_factor_secret FROM users WHERE username = ?",
-		req.Username,
-	).Scan(&user.UID, &user.TwoFactorEnabled, &user.TwoFactorSecret)
-
+	userRepo := repository.NewUserRepository()
+	dbUser, err := userRepo.FindByUsername(req.Username)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "账户不存在"})
 		return
 	}
 
-	if !user.TwoFactorEnabled {
+	if !dbUser.TwoFactorEnabled {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "该账户未开启 2FA，无法通过此方式找回。请联系管理员。"})
 		return
 	}
 
 	// 验证 2FA 码
-	valid, _ := totp.ValidateCustom(req.Code, user.TwoFactorSecret, time.Now().UTC(), totp.ValidateOpts{
+	valid, _ := totp.ValidateCustom(req.Code, dbUser.TwoFactorSecret, time.Now().UTC(), totp.ValidateOpts{
 		Period: 30,
 		Skew:   2,
 		Digits: 6,
@@ -263,7 +270,7 @@ func ResetPasswordBy2FA(c *gin.Context) {
 	}
 
 	// 更新密码
-	_, err = database.LegacyDB.Exec("UPDATE users SET password = ? WHERE UID = ?", hashedPassword, user.UID)
+	err = userRepo.UpdatePassword(dbUser.UID, hashedPassword)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新密码失败"})
 		return
@@ -282,7 +289,8 @@ func UpdateAvatar(c *gin.Context) {
 		return
 	}
 
-	_, err := database.LegacyDB.Exec("UPDATE users SET avatar = ? WHERE UID = ?", req.Avatar, uid)
+	userRepo := repository.NewUserRepository()
+	err := userRepo.UpdateAvatar(uint(uid), req.Avatar)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新头像失败"})
 		return
@@ -295,8 +303,8 @@ func UpdateAvatar(c *gin.Context) {
 func DeleteAccount(c *gin.Context) {
 	uid := c.GetInt("uid")
 
-	// 删除用户
-	_, err := database.LegacyDB.Exec("DELETE FROM users WHERE UID = ?", uid)
+	userRepo := repository.NewUserRepository()
+	err := userRepo.Delete(uint(uid))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "注销账号失败"})
 		return
@@ -319,55 +327,27 @@ func GetSessions(c *gin.Context) {
 		currentSID = sidVal.(string)
 	}
 
-	rows, err := database.LegacyDB.Query(`
-		SELECT id, user_agent, ip_address, 
-		       COALESCE(last_active, NOW()) as last_active, 
-		       COALESCE(created_at, NOW()) as created_at 
-		FROM user_sessions 
-		WHERE user_uid = ? 
-		ORDER BY last_active DESC`, uid)
+	sessionRepo := repository.NewSessionRepository()
+	sessions, err := sessionRepo.FindByUserID(uint(uid.(int)))
 	if err != nil {
 		fmt.Printf("查询数据库失败: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "无法加载设备列表"})
 		return
 	}
-	defer rows.Close()
 
-	var sessions []gin.H
-	for rows.Next() {
-		var s struct {
-			ID         string
-			UA         sql.NullString
-			IP         sql.NullString
-			LastActive string
-			CreatedAt  string
-		}
-		if err := rows.Scan(&s.ID, &s.UA, &s.IP, &s.LastActive, &s.CreatedAt); err != nil {
-			fmt.Printf("扫描会话行失败: %v\n", err)
-			continue
-		}
-
-		// 处理时间格式
-		lastActive := strings.Replace(s.LastActive, " ", "T", 1)
-		if !strings.HasSuffix(lastActive, "Z") {
-			lastActive += "Z"
-		}
-		createdAt := strings.Replace(s.CreatedAt, " ", "T", 1)
-		if !strings.HasSuffix(createdAt, "Z") {
-			createdAt += "Z"
-		}
-
-		sessions = append(sessions, gin.H{
+	var result []gin.H
+	for _, s := range sessions {
+		result = append(result, gin.H{
 			"id":          s.ID,
-			"user_agent":  s.UA.String,
-			"ip":          s.IP.String,
-			"last_active": lastActive,
-			"created_at":  createdAt,
-			"is_current":  s.ID != "" && s.ID == currentSID,
+			"user_agent":  s.UserAgent,
+			"ip":          s.IPAddress,
+			"last_active": s.LastActive.Format(time.RFC3339),
+			"created_at":  s.CreatedAt.Format(time.RFC3339),
+			"is_current":  s.ID == currentSID,
 		})
 	}
 
-	c.JSON(http.StatusOK, sessions)
+	c.JSON(http.StatusOK, result)
 }
 
 // 撤销会话（登出设备）
@@ -381,7 +361,8 @@ func RevokeSession(c *gin.Context) {
 		return
 	}
 
-	_, err := database.LegacyDB.Exec("DELETE FROM user_sessions WHERE id = ? AND user_uid = ?", req.ID, uid)
+	sessionRepo := repository.NewSessionRepository()
+	err := sessionRepo.DeleteByIDAndUserID(req.ID, uint(uid))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "登出失败"})
 		return
@@ -402,14 +383,17 @@ func FreezeAccount(c *gin.Context) {
 	}
 
 	frozenUntil := time.Now().Add(time.Duration(req.Hours) * time.Hour)
-	_, err := database.LegacyDB.Exec("UPDATE users SET frozen_until = ? WHERE UID = ?", frozenUntil.Format("2006-01-02 15:04:05"), uid)
+
+	userRepo := repository.NewUserRepository()
+	err := userRepo.UpdateFreezeStatus(uint(uid), &frozenUntil)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "冻结失败"})
 		return
 	}
 
 	// 冻结后强制登出所有当前会话
-	_, _ = database.LegacyDB.Exec("DELETE FROM user_sessions WHERE user_uid = ?", uid)
+	sessionRepo := repository.NewSessionRepository()
+	_ = sessionRepo.DeleteByUserID(uint(uid))
 
 	c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("账号已冻结，直到 %s", frozenUntil.Format("2006-01-02 15:04:05"))})
 }
@@ -418,12 +402,8 @@ func FreezeAccount(c *gin.Context) {
 func GetUserInfo(c *gin.Context) {
 	uid := c.GetInt("uid")
 
-	var user models.User
-	err := database.LegacyDB.QueryRow(
-		"SELECT UID, username, avatar, is_admin, role, two_factor_enabled, points, total_games, win_count, created_at FROM users WHERE UID = ?",
-		uid,
-	).Scan(&user.UID, &user.Username, &user.Avatar, &user.IsAdmin, &user.Role, &user.TwoFactorEnabled, &user.Points, &user.TotalGames, &user.WinCount, &user.CreatedAt)
-
+	userRepo := repository.NewUserRepository()
+	user, err := userRepo.FindByID(uint(uid))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
 		return

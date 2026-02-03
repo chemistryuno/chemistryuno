@@ -1,0 +1,69 @@
+package repository
+
+import (
+	"chemistryuno/database"
+
+	"gorm.io/gorm"
+)
+
+type DeckRepository struct {
+	db *gorm.DB
+}
+
+func NewDeckRepository() *DeckRepository {
+	return &DeckRepository{db: database.DB}
+}
+
+// FindGlobalDeck 查找全局牌组
+func (r *DeckRepository) FindGlobalDeck() (*database.DeckConfig, error) {
+	var deck database.DeckConfig
+	err := r.db.Where("is_global = ?", true).First(&deck).Error
+	if err != nil {
+		return nil, err
+	}
+	return &deck, nil
+}
+
+// FindByUserID 查找用户的所有牌组
+func (r *DeckRepository) FindByUserID(uid uint) ([]database.DeckConfig, error) {
+	var decks []database.DeckConfig
+	err := r.db.Where("created_by = ? AND is_global = ?", uid, false).
+		Order("created_at DESC").
+		Find(&decks).Error
+	return decks, err
+}
+
+// FindByID 根据ID查找牌组
+func (r *DeckRepository) FindByID(id uint) (*database.DeckConfig, error) {
+	var deck database.DeckConfig
+	err := r.db.First(&deck, id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &deck, nil
+}
+
+// Create 创建牌组
+func (r *DeckRepository) Create(deck *database.DeckConfig) error {
+	return r.db.Create(deck).Error
+}
+
+// Update 更新牌组
+func (r *DeckRepository) Update(deck *database.DeckConfig) error {
+	return r.db.Save(deck).Error
+}
+
+// Delete 删除牌组
+func (r *DeckRepository) Delete(id uint) error {
+	return r.db.Delete(&database.DeckConfig{}, id).Error
+}
+
+// UpdateGlobalDeck 更新全局牌组
+func (r *DeckRepository) UpdateGlobalDeck(name string, cards string) error {
+	return r.db.Model(&database.DeckConfig{}).
+		Where("is_global = ?", true).
+		Updates(map[string]interface{}{
+			"name":  name,
+			"cards": cards,
+		}).Error
+}

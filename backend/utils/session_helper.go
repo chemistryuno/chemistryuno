@@ -2,9 +2,11 @@
 
 import (
 	"chemistryuno/database"
+	"chemistryuno/repository"
 	"crypto/rand"
 	"encoding/hex"
 	"log"
+	"time"
 )
 
 type Session struct {
@@ -15,6 +17,8 @@ type Session struct {
 	LastActive string `json:"last_active"`
 	CreatedAt  string `json:"created_at"`
 }
+
+var sessionRepo = repository.NewSessionRepository()
 
 func GenerateSessionID() string {
 	b := make([]byte, 16)
@@ -29,7 +33,16 @@ func CreateSession(uid int, ua string, ip string) (string, error) {
 	// 这样可以避免多标签页或相同 UA 的不同设备相互挤出的问题
 
 	sid := GenerateSessionID()
-	_, err := database.LegacyDB.Exec("INSERT INTO user_sessions (id, user_uid, user_agent, ip_address) VALUES (?, ?, ?, ?)", sid, uid, ua, ip)
+	session := &database.UserSession{
+		ID:         sid,
+		UserUID:    uint(uid),
+		UserAgent:  ua,
+		IPAddress:  ip,
+		LastActive: time.Now(),
+		CreatedAt:  time.Now(),
+	}
+
+	err := sessionRepo.Create(session)
 	if err != nil {
 		log.Printf("创建会话失败: %v", err)
 		return "", err
@@ -38,18 +51,16 @@ func CreateSession(uid int, ua string, ip string) (string, error) {
 }
 
 func DeleteSession(sid string) error {
-	_, err := database.LegacyDB.Exec("DELETE FROM user_sessions WHERE id = ?", sid)
-	return err
+	return sessionRepo.Delete(sid)
 }
 
 func UpdateSessionActivity(sid string, ip string) {
 	// 同时更新最后活跃时间和 IP，防止用户因为看到旧 IP 而误以为被盗号
-	_, _ = database.LegacyDB.Exec("UPDATE user_sessions SET last_active = NOW(), ip_address = ? WHERE id = ?", ip, sid)
+	_ = sessionRepo.UpdateActivity(sid, ip)
 }
 
 func IsSessionValid(sid string) bool {
-	var exists bool
-	err := database.LegacyDB.QueryRow("SELECT EXISTS(SELECT 1 FROM user_sessions WHERE id = ?)", sid).Scan(&exists)
+	exists, err := sessionRepo.Exists(sid)
 	if err != nil {
 		return false
 	}
@@ -58,10 +69,9 @@ func IsSessionValid(sid string) bool {
 
 // ValidateSessionForUser 验证会话是否属于指定用户
 func ValidateSessionForUser(sid string, uid int) bool {
-	var sessionUID int
-	err := database.LegacyDB.QueryRow("SELECT user_uid FROM user_sessions WHERE id = ?", sid).Scan(&sessionUID)
+	valid, err := sessionRepo.ValidateSessionForUser(sid, uint(uid))
 	if err != nil {
 		return false
 	}
-	return sessionUID == uid
+	return valid
 }

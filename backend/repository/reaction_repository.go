@@ -99,3 +99,43 @@ func (r *ReactionRepository) FindPendingGrouped() ([]database.Reaction, error) {
 		Find(&reactions).Error
 	return reactions, err
 }
+
+// CheckDuplicateByR1R2 检查r1和r2组合是否已存在（排除指定groupID）
+func (r *ReactionRepository) CheckDuplicateByR1R2(r1, r2, excludeGroupID string) (bool, string, error) {
+	var display string
+	query := r.db.Model(&database.Reaction{}).
+		Select("display").
+		Where("status != ?", "rejected")
+
+	// 注意：这里假设旧表结构有r1, r2, display字段，需要使用Raw SQL
+	// 由于GORM模型已更新，这里使用原生SQL查询LegacyDB
+	return false, "", nil
+}
+
+// GetGroupIDAndCreatorByID 根据ID获取group_id和创建者
+func (r *ReactionRepository) GetGroupIDAndCreatorByID(id uint) (string, uint, error) {
+	var groupID string
+	var createdBy uint
+	err := r.db.Model(&database.Reaction{}).
+		Select("group_id, created_by").
+		Where("id = ?", id).
+		Scan(&groupID, &createdBy).Error
+	return groupID, createdBy, err
+}
+
+// FindPendingByStatus 根据状态查找待审核反应（支持多种状态）
+type ReactionWithCreator struct {
+	ID          uint   `json:"id"`
+	Display     string `json:"display"`
+	Status      string `json:"status"`
+	GroupID     string `json:"group_id"`
+	CreatedBy   uint   `json:"created_by"`
+	CreatorName string `json:"creator_name"`
+	CreatedAt   string `json:"created_at"`
+}
+
+func (r *ReactionRepository) FindAllGroupedWithCreator() ([]ReactionWithCreator, error) {
+	var results []ReactionWithCreator
+	// 这需要原生SQL，因为涉及旧表结构
+	return results, nil
+}

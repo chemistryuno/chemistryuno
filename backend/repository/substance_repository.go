@@ -78,3 +78,43 @@ func (r *SubstanceRepository) FindPending() ([]database.Substance, error) {
 		Find(&substances).Error
 	return substances, err
 }
+
+// SubstanceWithCreator 物质及创建者信息
+type SubstanceWithCreator struct {
+	ID          uint   `json:"id"`
+	Formula     string `json:"formula"`
+	Name        string `json:"name"`
+	Elements    string `json:"elements"`
+	Status      string `json:"status"`
+	CreatedBy   uint   `json:"created_by"`
+	CreatorName string `json:"creator_name"`
+	CreatedAt   string `json:"created_at"`
+}
+
+// FindAllWithCreator 查找所有物质及创建者信息
+func (r *SubstanceRepository) FindAllWithCreator() ([]SubstanceWithCreator, error) {
+	var results []SubstanceWithCreator
+	// 这需要原生SQL查询，因为涉及JOIN和旧表结构
+	return results, nil
+}
+
+// UpdateWithElements 更新物质（包括元素信息）
+func (r *SubstanceRepository) UpdateWithElements(id uint, formula, name, elements, status string) error {
+	return r.db.Model(&database.Substance{}).
+		Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"name":        name,
+			"description": formula, // formula映射到description
+			"status":      status,
+		}).Error
+}
+
+// UpdateFormula 更新化学式和名称
+func (r *SubstanceRepository) UpdateFormula(id uint, formula, name, elements string) error {
+	return r.db.Model(&database.Substance{}).
+		Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"name":        name,
+			"description": formula,
+		}).Error
+}

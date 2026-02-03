@@ -225,3 +225,37 @@ func (r *UserRepository) GetUserCount() (int64, error) {
 	err := r.db.Model(&database.User{}).Count(&count).Error
 	return count, err
 }
+
+// GetAllUsersOrderByCreatedAt 获取所有用户，按创建时间倒序
+func (r *UserRepository) GetAllUsersOrderByCreatedAt() ([]database.User, error) {
+	var users []database.User
+	err := r.db.Select("uid, username, avatar, is_admin, role, created_at").
+		Order("created_at DESC").
+		Find(&users).Error
+	return users, err
+}
+
+// DeleteNonAdmin 删除非管理员用户
+func (r *UserRepository) DeleteNonAdmin(uid uint) error {
+	return r.db.Where("uid = ? AND is_admin = ?", uid, false).Delete(&database.User{}).Error
+}
+
+// UpdateRole 更新用户角色和管理员状态
+func (r *UserRepository) UpdateRole(uid uint, role string, isAdmin bool) error {
+	return r.db.Model(&database.User{}).
+		Where("uid = ?", uid).
+		Updates(map[string]interface{}{
+			"role":     role,
+			"is_admin": isAdmin,
+		}).Error
+}
+
+// FindIsAdminByID 根据UID查找是否是管理员
+func (r *UserRepository) FindIsAdminByID(uid uint) (bool, error) {
+	var isAdmin bool
+	err := r.db.Model(&database.User{}).
+		Select("is_admin").
+		Where("uid = ?", uid).
+		Scan(&isAdmin).Error
+	return isAdmin, err
+}

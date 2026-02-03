@@ -3,6 +3,7 @@
 import (
 	"chemistryuno/database"
 	"chemistryuno/models"
+	"chemistryuno/repository"
 	"chemistryuno/utils"
 	"database/sql"
 	"encoding/json"
@@ -18,6 +19,26 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+var (
+	userRepo            *repository.UserRepository
+	legacyReactionRepo  *repository.LegacyReactionRepository
+	legacySubstanceRepo *repository.LegacySubstanceRepository
+	legacyGameRepo      *repository.LegacyGameRepository
+	deckRepo            *repository.DeckRepository
+)
+
+func init() {
+	// 初始化Repository
+	userRepo = repository.NewUserRepository()
+	deckRepo = repository.NewDeckRepository()
+
+	// 初始化Legacy Repository（需要sql.DB）
+	sqlDB, _ := database.DB.DB()
+	legacyReactionRepo = repository.NewLegacyReactionRepository(sqlDB)
+	legacySubstanceRepo = repository.NewLegacySubstanceRepository(sqlDB)
+	legacyGameRepo = repository.NewLegacyGameRepository(sqlDB)
+}
+
 // 管理员创建用户
 func CreateUser(c *gin.Context) {
 	var req models.RegisterRequest
@@ -27,13 +48,12 @@ func CreateUser(c *gin.Context) {
 	}
 
 	// 检查用户名是否已存在
-	var count int
-	err := database.LegacyDB.QueryRow("SELECT COUNT(*) FROM users WHERE username = ?", req.Username).Scan(&count)
+	exists, err := userRepo.ExistsByUsername(req.Username)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误"})
 		return
 	}
-	if count > 0 {
+	if exists {
 		c.JSON(http.StatusConflict, gin.H{"error": "用户名已存在"})
 		return
 	}
@@ -45,39 +65,32 @@ func CreateUser(c *gin.Context) {
 		return
 	}
 
-	// 插入用户
-	result, err := database.LegacyDB.Exec("INSERT INTO users (username, password, avatar, role) VALUES (?, ?, ?, ?)",
-		req.Username, hashedPassword, "🧪", "user")
+	// 创建用户
+	user := &database.User{
+		Username: req.Username,
+		Password: hashedPassword,
+		Avatar:   "🧪",
+		Role:     "user",
+	}
+
+	err = userRepo.Create(user)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建用户失败"})
 		return
 	}
 
-	userUID, _ := result.LastInsertId()
 	c.JSON(http.StatusCreated, gin.H{
 		"message": "用户创建成功",
-		"uid":     userUID,
+		"uid":     user.UID,
 	})
 }
 
 // 获取所有用户
 func GetAllUsers(c *gin.Context) {
-	rows, err := database.LegacyDB.Query(
-		"SELECT UID, username, avatar, is_admin, role, created_at FROM users ORDER BY created_at DESC",
-	)
+	users, err := userRepo.GetAllUsersOrderByCreatedAt()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误"})
 		return
-	}
-	defer rows.Close()
-
-	var users []models.User
-	for rows.Next() {
-		var user models.User
-		if err := rows.Scan(&user.UID, &user.Username, &user.Avatar, &user.IsAdmin, &user.Role, &user.CreatedAt); err != nil {
-			continue
-		}
-		users = append(users, user)
 	}
 
 	c.JSON(http.StatusOK, users)
@@ -85,19 +98,25 @@ func GetAllUsers(c *gin.Context) {
 
 // 获取全局牌组配置
 func GetGlobalDeckConfig(c *gin.Context) {
-	var config models.DeckConfig
-	var cardsJSON string
-
-	err := database.LegacyDB.QueryRow(
-		"SELECT id, name, is_global, cards, created_by, created_at FROM deck_configs WHERE is_global = 1 LIMIT 1",
-	).Scan(&config.ID, &config.Name, &config.IsGlobal, &cardsJSON, &config.CreatedBy, &config.CreatedAt)
-
+	deck, err := deckRepo.FindGlobalDeck()
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "全局配置不存在"})
 		return
 	}
 
-	json.Unmarshal([]byte(cardsJSON), &config.Cards)
+	// 解析Cards JSON
+	var cards map[string]int
+	json.Unmarshal([]byte(deck.Cards), &cards)
+
+	config := models.DeckConfig{
+		ID:        int(deck.ID),
+		Name:      deck.Name,
+		IsGlobal:  deck.IsGlobal,
+		Cards:     cards,
+		CreatedBy: int(deck.CreatedBy),
+		CreatedAt: deck.CreatedAt.Format(time.RFC3339),
+	}
+
 	c.JSON(http.StatusOK, config)
 }
 
@@ -115,11 +134,7 @@ func UpdateGlobalDeckConfig(c *gin.Context) {
 
 	cardsJSON, _ := json.Marshal(req.Cards)
 
-	_, err := database.LegacyDB.Exec(
-		"UPDATE deck_configs SET name = ?, cards = ? WHERE is_global = 1",
-		req.Name, string(cardsJSON),
-	)
-
+	err := deckRepo.UpdateGlobalDeck(req.Name, string(cardsJSON))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新失败"})
 		return
@@ -131,8 +146,13 @@ func UpdateGlobalDeckConfig(c *gin.Context) {
 // 删除用户（管理员）
 func DeleteUser(c *gin.Context) {
 	userID := c.Param("id")
+	uid, err := strconv.ParseUint(userID, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的用户ID"})
+		return
+	}
 
-	_, err := database.LegacyDB.Exec("DELETE FROM users WHERE UID = ? AND is_admin = 0", userID)
+	err = userRepo.DeleteNonAdmin(uint(uid))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "删除失败"})
 		return
@@ -144,6 +164,11 @@ func DeleteUser(c *gin.Context) {
 // 管理员修改用户密码
 func AdminChangePassword(c *gin.Context) {
 	userID := c.Param("id")
+	uid, err := strconv.ParseUint(userID, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的用户ID"})
+		return
+	}
 
 	var req models.AdminChangePasswordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -152,8 +177,7 @@ func AdminChangePassword(c *gin.Context) {
 	}
 
 	// 检查用户是否存在且不是管理员
-	var isAdmin bool
-	err := database.LegacyDB.QueryRow("SELECT is_admin FROM users WHERE UID = ?", userID).Scan(&isAdmin)
+	isAdmin, err := userRepo.FindIsAdminByID(uint(uid))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
 		return
@@ -171,7 +195,7 @@ func AdminChangePassword(c *gin.Context) {
 		return
 	}
 
-	_, err = database.LegacyDB.Exec("UPDATE users SET password = ? WHERE UID = ?", hashedPassword, userID)
+	err = userRepo.UpdatePassword(uint(uid), hashedPassword)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "密码修改失败"})
 		return
@@ -183,6 +207,11 @@ func AdminChangePassword(c *gin.Context) {
 // 提升用户权限
 func PromoteUser(c *gin.Context) {
 	userID := c.Param("id")
+	uid, err := strconv.ParseUint(userID, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的用户ID"})
+		return
+	}
 
 	var req models.PromoteUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -192,7 +221,7 @@ func PromoteUser(c *gin.Context) {
 
 	// 更新用户角色
 	isAdmin := req.Role == "admin"
-	_, err := database.LegacyDB.Exec("UPDATE users SET role = ?, is_admin = ? WHERE UID = ?", req.Role, isAdmin, userID)
+	err = userRepo.UpdateRole(uint(uid), req.Role, isAdmin)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "权限修改失败"})
 		return
@@ -203,47 +232,30 @@ func PromoteUser(c *gin.Context) {
 
 // 获取游戏历史
 func GetGameHistory(c *gin.Context) {
-	rows, err := database.LegacyDB.Query(`
-		SELECT gh.id, gh.room_id, COALESCE(gh.winner_uid, 0), COALESCE(u.username, '未结算'), gh.players, COALESCE(gh.started_at, ''), COALESCE(gh.finished_at, '')
-		FROM game_history gh
-		LEFT JOIN users u ON gh.winner_uid = u.UID
-		ORDER BY gh.finished_at DESC
-		LIMIT 100
-	`)
+	historyList, err := legacyGameRepo.GetGameHistory(100)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误: " + err.Error()})
 		return
 	}
-	defer rows.Close()
 
 	var history []map[string]interface{}
-	for rows.Next() {
-		var (
-			id, winnerUID                   int
-			roomID, winnerName, playersJSON string
-			startedAt, finishedAt           string
-		)
-		if err := rows.Scan(&id, &roomID, &winnerUID, &winnerName, &playersJSON, &startedAt, &finishedAt); err != nil {
-			log.Printf("扫描游戏历史失败: %v", err)
-			continue
-		}
-
+	for _, h := range historyList {
 		// 解析玩家列表 JSON
 		var players []int
-		if err := json.Unmarshal([]byte(playersJSON), &players); err != nil {
+		if err := json.Unmarshal([]byte(h.PlayersJSON), &players); err != nil {
 			log.Printf("解析玩家列表失败: %v", err)
 			players = []int{}
 		}
 
 		history = append(history, map[string]interface{}{
-			"id":          id,
-			"room_id":     roomID,
-			"winner_uid":  winnerUID,
-			"winner_name": winnerName,
+			"id":          h.ID,
+			"room_id":     h.RoomID,
+			"winner_uid":  h.WinnerUID,
+			"winner_name": h.WinnerName,
 			"players":     players,
-			"started_at":  startedAt,
-			"finished_at": finishedAt,
-			"created_at":  finishedAt, // 兼容前端字段名
+			"started_at":  h.StartedAt,
+			"finished_at": h.FinishedAt,
+			"created_at":  h.FinishedAt, // 兼容前端字段名
 		})
 	}
 
@@ -252,43 +264,22 @@ func GetGameHistory(c *gin.Context) {
 
 // 获取所有化学反应 (Admin/Co-worker)
 func GetReactions(c *gin.Context) {
-	// 同一 group_id 的反应只显示一次
-	rows, err := database.LegacyDB.Query(`
-		SELECT MIN(r.id), r.display, r.status, r.group_id, r.created_by, u.username, MIN(r.created_at)
-		FROM reactions r
-		LEFT JOIN users u ON r.created_by = u.UID
-		GROUP BY r.display, r.status, r.group_id, r.created_by, u.username
-		ORDER BY 
-			CASE 
-				WHEN r.status = 'pending_admin' THEN 1 
-				WHEN r.status = 'pending_coworker' THEN 2 
-				ELSE 3 
-			END, 
-			MIN(r.created_at) DESC
-	`)
+	reactionList, err := legacyReactionRepo.GetAllReactionsGrouped()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误"})
 		return
 	}
-	defer rows.Close()
 
 	var reactions []map[string]interface{}
-	for rows.Next() {
-		var (
-			id, createdBy                                    int
-			display, status, groupID, creatorName, createdAt string
-		)
-		if err := rows.Scan(&id, &display, &status, &groupID, &createdBy, &creatorName, &createdAt); err != nil {
-			continue
-		}
+	for _, r := range reactionList {
 		reactions = append(reactions, map[string]interface{}{
-			"id":           id,
-			"display":      display,
-			"status":       status,
-			"group_id":     groupID,
-			"created_by":   createdBy,
-			"creator_name": creatorName,
-			"created_at":   createdAt,
+			"id":           r.ID,
+			"display":      r.Display,
+			"status":       r.Status,
+			"group_id":     r.GroupID,
+			"created_by":   r.CreatedBy,
+			"creator_name": r.CreatorName,
+			"created_at":   r.CreatedAt,
 		})
 	}
 
@@ -297,34 +288,20 @@ func GetReactions(c *gin.Context) {
 
 // 获取所有已批准的反应 (Wiki)
 func GetAllReactions(c *gin.Context) {
-	rows, err := database.LegacyDB.Query(`
-		SELECT MIN(id), display, r1, r2, MIN(created_at)
-		FROM reactions
-		WHERE status = 'approved'
-		GROUP BY group_id, display
-		ORDER BY MIN(created_at) DESC
-	`)
+	reactionList, err := legacyReactionRepo.GetApprovedReactionsGrouped()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误"})
 		return
 	}
-	defer rows.Close()
 
 	var reactions []map[string]interface{}
-	for rows.Next() {
-		var (
-			id                         int
-			display, r1, r2, createdAt string
-		)
-		if err := rows.Scan(&id, &display, &r1, &r2, &createdAt); err != nil {
-			continue
-		}
+	for _, r := range reactionList {
 		reactions = append(reactions, map[string]interface{}{
-			"id":         id,
-			"display":    display,
-			"r1":         r1,
-			"r2":         r2,
-			"created_at": createdAt,
+			"id":         r.ID,
+			"display":    r.Display,
+			"r1":         r.R1,
+			"r2":         r.R2,
+			"created_at": r.CreatedAt,
 		})
 	}
 	c.JSON(http.StatusOK, reactions)
@@ -333,33 +310,19 @@ func GetAllReactions(c *gin.Context) {
 // 获取我提交的反应
 func GetMyReactions(c *gin.Context) {
 	uid := c.GetInt("uid")
-	rows, err := database.LegacyDB.Query(`
-		SELECT MIN(id), display, status, MIN(created_at)
-		FROM reactions
-		WHERE created_by = ?
-		GROUP BY group_id, display, status
-		ORDER BY MIN(created_at) DESC
-	`, uid)
+	reactionList, err := legacyReactionRepo.GetMyReactions(uid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误"})
 		return
 	}
-	defer rows.Close()
 
 	var reactions []map[string]interface{}
-	for rows.Next() {
-		var (
-			id                         int
-			display, status, createdAt string
-		)
-		if err := rows.Scan(&id, &display, &status, &createdAt); err != nil {
-			continue
-		}
+	for _, r := range reactionList {
 		reactions = append(reactions, map[string]interface{}{
-			"id":         id,
-			"display":    display,
-			"status":     status,
-			"created_at": createdAt,
+			"id":         r.ID,
+			"display":    r.Display,
+			"status":     r.Status,
+			"created_at": r.CreatedAt,
 		})
 	}
 	c.JSON(http.StatusOK, reactions)
@@ -386,8 +349,7 @@ func ApproveReaction(c *gin.Context) {
 	}
 
 	// 检查当前状态是否符合审批流
-	var currentStatus string
-	err := database.LegacyDB.QueryRow("SELECT status FROM reactions WHERE group_id = ? LIMIT 1", groupID).Scan(&currentStatus)
+	currentStatus, err := legacyReactionRepo.GetStatusByGroupID(groupID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "未找到该反应请求"})
 		return
@@ -429,14 +391,13 @@ func ApproveReaction(c *gin.Context) {
 			return
 		}
 
-		tx, err := database.LegacyDB.Begin()
+		tx, err := legacyReactionRepo.BeginTx()
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库事务失败"})
 			return
 		}
 
-		var creatorID int
-		err = tx.QueryRow("SELECT created_by FROM reactions WHERE group_id = ? LIMIT 1", groupID).Scan(&creatorID)
+		creatorID, err := legacyReactionRepo.GetCreatorByGroupID(groupID)
 		if err != nil {
 			tx.Rollback()
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "查找原作者失败"})
@@ -461,7 +422,7 @@ func ApproveReaction(c *gin.Context) {
 	}
 
 	// 如果没有修改内容，直接更新状态
-	_, err = database.LegacyDB.Exec("UPDATE reactions SET status = ? WHERE group_id = ?", newStatus, groupID)
+	err = legacyReactionRepo.UpdateStatusByGroupID(groupID, newStatus)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新状态失败"})
 		return
@@ -560,7 +521,7 @@ func AddReaction(c *gin.Context) {
 	// 生成 group_id
 	groupID := fmt.Sprintf("%d-%d", uid, time.Now().UnixNano())
 
-	tx, err := database.LegacyDB.Begin()
+	tx, err := legacyReactionRepo.BeginTx()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库事务开启失败"})
 		return
@@ -726,25 +687,8 @@ func checkDuplicateReactants(display string, excludeGroupID string) (bool, strin
 	sort.Strings(rList)
 	r1, r2 := rList[0], rList[1]
 
-	var existingDisplay string
-	query := `
-		SELECT display FROM reactions 
-		WHERE status != 'rejected' 
-		AND ((r1 = ? AND r2 = ?) OR (r1 = ? AND r2 = ?))`
-	args := []interface{}{r1, r2, r2, r1}
-
-	if excludeGroupID != "" {
-		query += " AND group_id != ?"
-		args = append(args, excludeGroupID)
-	}
-	query += " LIMIT 1"
-
-	err := database.LegacyDB.QueryRow(query, args...).Scan(&existingDisplay)
-
-	if err == nil {
-		return true, existingDisplay
-	}
-	return false, ""
+	isDup, existingDisplay, _ := legacyReactionRepo.CheckDuplicateReactants(r1, r2, excludeGroupID)
+	return isDup, existingDisplay
 }
 
 // 删除或拒绝化学反应 (Admin/Co-worker可以删除自己的)
@@ -753,9 +697,13 @@ func DeleteReaction(c *gin.Context) {
 	role := c.GetString("role")
 	uid := c.GetInt("uid")
 
-	var groupID string
-	var createdBy int
-	err := database.LegacyDB.QueryRow("SELECT group_id, created_by FROM reactions WHERE id = ?", reactionID).Scan(&groupID, &createdBy)
+	id, err := strconv.Atoi(reactionID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的反应ID"})
+		return
+	}
+
+	groupID, createdBy, err := legacyReactionRepo.GetGroupIDAndCreatorByID(id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "未找到该反应"})
 		return
@@ -767,7 +715,7 @@ func DeleteReaction(c *gin.Context) {
 		return
 	}
 
-	_, err = database.LegacyDB.Exec("DELETE FROM reactions WHERE group_id = ?", groupID)
+	err = legacyReactionRepo.DeleteByGroupID(groupID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "删除失败"})
 		return
@@ -804,9 +752,13 @@ func UpdateReaction(c *gin.Context) {
 		return
 	}
 
-	var groupID string
-	var creatorID int
-	err := database.LegacyDB.QueryRow("SELECT group_id, created_by FROM reactions WHERE id = ?", reactionID).Scan(&groupID, &creatorID)
+	id, err := strconv.Atoi(reactionID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的反应ID"})
+		return
+	}
+
+	groupID, creatorID, err := legacyReactionRepo.GetGroupIDAndCreatorByID(id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "未找到原反应记录"})
 		return
@@ -825,7 +777,7 @@ func UpdateReaction(c *gin.Context) {
 		status = "pending_admin"
 	}
 
-	tx, err := database.LegacyDB.Begin()
+	tx, err := legacyReactionRepo.BeginTx()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库事务启动失败"})
 		return
@@ -871,7 +823,7 @@ func BatchAddReactions(c *gin.Context) {
 		status = "pending_admin"
 	}
 
-	tx, err := database.LegacyDB.Begin()
+	tx, err := legacyReactionRepo.BeginTx()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "事务开启失败"})
 		return

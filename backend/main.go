@@ -39,6 +39,9 @@ func main() {
 	// 启动房间监控（处理消极游戏踢人逻辑）
 	game.StartRoomMonitor()
 
+	// 启动定时任务触发器
+	game.StartCron()
+
 	// 初始化 WebAuthn
 	handlers.InitWebAuthn()
 
@@ -54,6 +57,7 @@ func main() {
 	// 公开路由
 	r.POST("/auth/register", handlers.Register)
 	r.POST("/auth/login", handlers.Login)
+	r.GET("/announcements", handlers.GetActiveAnnouncements)
 	r.POST("/auth/2fa/verify", handlers.Verify2FALogin)
 	r.POST("/auth/2fa/reset-password", handlers.ResetPasswordBy2FA)
 
@@ -61,12 +65,17 @@ func main() {
 	r.GET("/auth/webauthn/login/begin", handlers.BeginLogin)
 	r.POST("/auth/webauthn/login/finish", handlers.FinishLogin)
 
+	// WebAuthn 找回密码 (公开)
+	r.POST("/auth/webauthn/reset-password/begin", handlers.BeginResetPasswordWebAuthn)
+	r.POST("/auth/webauthn/reset-password/finish", handlers.FinishResetPasswordWebAuthn)
+
 	// 需要认证的路由
 	auth := r.Group("/")
 	auth.Use(middleware.AuthMiddleware())
 	{
 		// 用户相关
 		auth.GET("/user/info", handlers.GetUserInfo)
+		auth.GET("/user/game-history", handlers.GetMyGameHistory)
 		auth.PUT("/user/password", handlers.ChangePassword)
 		auth.PUT("/user/avatar", handlers.UpdateAvatar)
 		auth.DELETE("/user/account", handlers.DeleteAccount)
@@ -98,6 +107,10 @@ func main() {
 		auth.POST("/user/webauthn/register/finish", handlers.FinishRegistration)
 		auth.GET("/user/webauthn/credentials", handlers.ListCredentials)
 		auth.DELETE("/user/webauthn/credentials/:id", handlers.RemoveCredential)
+
+		// WebAuthn 验证修改密码
+		auth.POST("/user/webauthn/change-password/begin", handlers.BeginChangePasswordWebAuthn)
+		auth.POST("/user/webauthn/change-password/finish", handlers.FinishChangePasswordWebAuthn)
 
 		// 游戏相关
 		auth.GET("/rooms", handlers.GetRooms)
@@ -155,6 +168,11 @@ func main() {
 		admin.PUT("/feedbacks/:id/status", handlers.UpdateFeedbackStatus)
 		admin.GET("/configs", handlers.GetSystemConfigs)
 		admin.PUT("/configs", handlers.UpdateSystemConfig)
+		// 公告管理
+		admin.GET("/announcements", handlers.GetAllAnnouncements)
+		admin.POST("/announcements", handlers.CreateAnnouncement)
+		admin.PUT("/announcements/:id/status", handlers.UpdateAnnouncementStatus)
+		admin.DELETE("/announcements/:id", handlers.DeleteAnnouncement)
 	}
 
 	// 积分和悬赏

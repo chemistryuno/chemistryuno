@@ -5,7 +5,9 @@ import (
 	"chemistryuno/game"
 	"chemistryuno/models"
 	"chemistryuno/websocket"
+	"encoding/json"
 	"fmt"
+	"log"
 	"math/rand"
 	"net/http"
 	"time"
@@ -98,6 +100,65 @@ func LeaveRoom(c *gin.Context) {
 
 	broadcastUpdate(roomID)
 	c.JSON(http.StatusOK, gin.H{"message": "离开房间成功"})
+}
+
+// 获取当前玩家的游戏历史
+func GetMyGameHistory(c *gin.Context) {
+	uid := c.GetInt("uid")
+	if uid == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未找到用户信息"})
+		return
+	}
+
+	rows, err := database.DB.Query(`
+		SELECT gh.id, gh.room_id, COALESCE(gh.winner_uid, 0), COALESCE(u.username, '未结算'), gh.players, COALESCE(gh.started_at, ''), COALESCE(gh.finished_at, '')
+		FROM game_history gh
+		LEFT JOIN users u ON gh.winner_uid = u.UID
+		WHERE EXISTS (
+			SELECT 1 FROM json_each(gh.players) WHERE value = ?
+		)
+		ORDER BY gh.finished_at DESC
+		LIMIT 20
+	`, uid)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误: " + err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	var history []map[string]interface{}
+	for rows.Next() {
+		var (
+			id, winnerUID                   int
+			roomID, winnerName, playersJSON string
+			startedAt, finishedAt           string
+		)
+		if err := rows.Scan(&id, &roomID, &winnerUID, &winnerName, &playersJSON, &startedAt, &finishedAt); err != nil {
+			log.Printf("扫描个人游戏历史失败: %v", err)
+			continue
+		}
+
+		// 解析玩家列表 JSON
+		var players []int
+		if err := json.Unmarshal([]byte(playersJSON), &players); err != nil {
+			log.Printf("解析玩家列表失败: %v", err)
+			players = []int{}
+		}
+
+		history = append(history, map[string]interface{}{
+			"id":          id,
+			"room_id":     roomID,
+			"winner_uid":  winnerUID,
+			"winner_name": winnerName,
+			"players":     players,
+			"started_at":  startedAt,
+			"finished_at": finishedAt,
+			"created_at":  finishedAt, // 兼容前端字段名
+		})
+	}
+
+	c.JSON(http.StatusOK, history)
 }
 
 // 开始游戏

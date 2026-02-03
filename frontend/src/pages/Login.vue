@@ -2,7 +2,9 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import api, { authAPI } from '../utils/api'
+import { useDialog } from '../utils/dialog'
 import { Beaker, Lock, User, Loader2, Fingerprint, Shield, Cpu } from 'lucide-vue-next'
+import ResetPassword2FAModal from '../components/ResetPassword2FAModal.vue'
 import websocket from '../utils/websocket'
 import { get } from '@github/webauthn-json'
 
@@ -11,10 +13,34 @@ const password = ref('')
 
 const twoFactorCode = ref('')
 const show2FA = ref(false)
+const showResetModal = ref(false)
+const resetLoading = ref(false)
 const tempUID = ref<number | null>(null)
 const error = ref('')
 const loading = ref(false)
 const router = useRouter()
+const dialog = useDialog()
+
+const handleForgotPassword = () => {
+  showResetModal.value = true
+}
+
+const handleResetSubmit = async (username: string, code: string, newPw: string) => {
+  resetLoading.value = true
+  try {
+    await authAPI.resetPasswordBy2FA({
+      username,
+      code,
+      new_password: newPw
+    })
+    showResetModal.value = false
+    dialog.showAlert('实验凭证已成功找回并更新，请尝试重新授权登录。', '协议更新成功')
+  } catch (err: any) {
+    dialog.showAlert(err.response?.data?.error || '凭证验证失败，请核对用户名及动态验证码。', '协议冲突')
+  } finally {
+    resetLoading.value = false
+  }
+}
 
 const handleSubmit = async () => {
   error.value = ''
@@ -36,8 +62,8 @@ const handleSubmit = async () => {
       return
     }
 
-    const { token, user } = response.data
-    handleLoginSuccess(token, user)
+    const { token, user, announcements } = response.data
+    handleLoginSuccess(token, user, announcements)
   } catch (err: any) {
     error.value = err.response?.data?.error || '身份验证失败，请核对凭证'
   } finally {
@@ -52,8 +78,8 @@ const handle2FAVerify = async () => {
 
   try {
     const response = await authAPI.verify2FALogin(tempUID.value, twoFactorCode.value)
-    const { token, user } = response.data
-    handleLoginSuccess(token, user)
+    const { token, user, announcements } = response.data
+    handleLoginSuccess(token, user, announcements)
   } catch (err: any) {
     error.value = err.response?.data?.error || '2FA验证失败'
   } finally {
@@ -61,10 +87,24 @@ const handle2FAVerify = async () => {
   }
 }
 
-const handleLoginSuccess = (token: string, user: any) => {
+const handleLoginSuccess = (token: string, user: any, announcements: any[] = []) => {
   localStorage.setItem('token', token)
   localStorage.setItem('user', JSON.stringify(user))
   websocket.connect()
+
+  // 处理登录时的公告
+  if (announcements && announcements.length > 0) {
+    announcements.forEach((ann: any) => {
+      // 只处理模态框类型的，跑马灯交给 AnnouncementTicker 自动获取
+      if (!ann.is_ticker) {
+        let title = '系统公告'
+        if (ann.type === 'emergency') title = '紧急通知'
+        if (ann.type === 'maintenance') title = '维护通知'
+        dialog.showAlert(ann.content, title)
+      }
+    })
+  }
+
   router.push('/')
 }
 
@@ -85,8 +125,8 @@ const handleWebAuthnLogin = async () => {
     const resFinish = await api.post(`/auth/webauthn/login/finish?username=${identifier.value}`, credential)
     
     // WebAuthn 登录返回的数据结构已统一
-    const { token, user } = resFinish.data
-    handleLoginSuccess(token, user)
+    const { token, user, announcements } = resFinish.data
+    handleLoginSuccess(token, user, announcements)
   } catch (err: any) {
     console.error('WebAuthn login error:', err)
     error.value = err.response?.data?.error || '硬件密钥验证取消或失败'
@@ -141,7 +181,13 @@ const handleWebAuthnLogin = async () => {
               <div class="space-y-1.5">
                 <div class="flex justify-between items-center px-1">
                   <label class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">访问秘钥</label>
-                  <div class="text-[10px] font-black text-gray-500 uppercase tracking-widest cursor-not-allowed">找回凭证?</div>
+                  <button 
+                    type="button"
+                    @click="handleForgotPassword"
+                    class="text-[10px] font-black text-blue-500 hover:text-blue-600 uppercase tracking-widest transition-colors cursor-pointer"
+                  >
+                    找回凭证?
+                  </button>
                 </div>
                 <div class="relative group">
                   <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 dark:text-slate-500 group-focus-within:text-blue-500 transition-colors">
@@ -173,7 +219,7 @@ const handleWebAuthnLogin = async () => {
 
               <div class="relative flex items-center py-2">
                 <div class="flex-grow border-t border-slate-100 dark:border-white/5"></div>
-                <span class="flex-shrink mx-4 text-[10px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-widest">OR</span>
+                <span class="flex-shrink mx-4 text-[10px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-widest">OR</span>
                 <div class="flex-grow border-t border-slate-100 dark:border-white/5"></div>
               </div>
 
@@ -232,5 +278,13 @@ const handleWebAuthnLogin = async () => {
         </div>
       </div>
     </div>
+
+    <!-- 2FA 重置模态框 -->
+    <ResetPassword2FAModal 
+      :show="showResetModal"
+      :loading="resetLoading"
+      @close="showResetModal = false"
+      @submit="handleResetSubmit"
+    />
   </div>
 </template>

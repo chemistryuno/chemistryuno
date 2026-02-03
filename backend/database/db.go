@@ -163,7 +163,19 @@ func createTables() error {
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);`
 
-	tables := []string{userTable, bountyTable, deckConfigTable, gameHistoryTable, credentialTable, reactionsTable, substancesTable, feedbackTable, systemConfigTable}
+	announcementTable := `
+	CREATE TABLE IF NOT EXISTS announcements (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		title TEXT,
+		content TEXT NOT NULL,
+		type TEXT DEFAULT 'info',
+		active BOOLEAN DEFAULT 1,
+		is_ticker BOOLEAN DEFAULT 0,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		expires_at DATETIME
+	);`
+
+	tables := []string{userTable, bountyTable, deckConfigTable, gameHistoryTable, credentialTable, reactionsTable, substancesTable, feedbackTable, systemConfigTable, announcementTable}
 
 	for _, table := range tables {
 		if _, err := DB.Exec(table); err != nil {

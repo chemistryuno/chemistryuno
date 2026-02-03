@@ -32,13 +32,13 @@ const handleFileUpload = (event: Event) => {
 </script>
 
 <template>
-  <div v-if="show" class="fixed inset-0 z-[100] flex items-center justify-center p-4 backdrop-blur-xl bg-black/60">
-    <div class="bg-[#111114] border border-white/10 rounded-[3rem] p-10 max-w-xl w-full shadow-2xl relative animate-in fade-in zoom-in duration-300">
-      <h3 class="text-2xl font-black mb-8 italic uppercase text-center text-white">选择新的身份标识 / Select Avatar</h3>
+  <div v-if="show" class="fixed inset-0 z-[100] flex items-center justify-center p-4 backdrop-blur-xl bg-slate-900/40 dark:bg-black/80">
+    <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 rounded-[3rem] p-10 max-xl-md w-full shadow-2xl relative animate-in fade-in zoom-in duration-300">
+      <h3 class="text-2xl font-black mb-8 italic uppercase text-center text-slate-900 dark:text-white">选择新的身份标识 / Select Avatar</h3>
       
       <div class="flex flex-col items-center gap-8 mb-10">
         <div class="relative group/preview">
-          <div class="w-32 h-32 bg-[#1a1c1e] rounded-[2.5rem] border-2 border-dashed border-white/10 flex items-center justify-center overflow-hidden transition-all group-hover/preview:border-blue-500/50">
+          <div class="w-32 h-32 bg-slate-50 dark:bg-[#1a1c1e] rounded-[2.5rem] border-2 border-dashed border-slate-200 dark:border-white/10 flex items-center justify-center overflow-hidden transition-all group-hover/preview:border-blue-500/50">
              <template v-if="selectedAvatar && selectedAvatar.startsWith('data:')">
                 <img :src="selectedAvatar" class="w-full h-full object-cover" />
              </template>
@@ -72,7 +72,7 @@ const handleFileUpload = (event: Event) => {
                 'w-16 h-16 text-3xl flex items-center justify-center rounded-[1.5rem] transition-all duration-300 border-2',
                 selectedAvatar === emoji 
                   ? 'bg-blue-600 border-blue-400 scale-110 shadow-[0_0_20px_rgba(59,130,246,0.5)]' 
-                  : 'bg-white/5 border-transparent hover:border-white/20 hover:scale-105'
+                  : 'bg-slate-50 dark:bg-white/5 border-slate-100 dark:border-transparent hover:border-blue-300 dark:hover:border-white/20 hover:scale-105'
               )"
             >
               {{ emoji }}
@@ -81,11 +81,11 @@ const handleFileUpload = (event: Event) => {
         </div>
         
         <div class="bg-blue-500/5 border border-blue-500/10 rounded-2xl p-4 w-full flex items-center gap-4">
-          <div class="p-2 bg-blue-500/10 rounded-xl text-blue-400">
+          <div class="p-2 bg-blue-500/10 rounded-xl text-blue-600 dark:text-blue-400">
             <Upload class="w-4 h-4" />
           </div>
           <div class="flex flex-col">
-            <span class="text-xs font-bold text-white">本地图像上传协议 (MAX 2MB)</span>
+            <span class="text-xs font-bold text-slate-900 dark:text-white">本地图像上传协议 (MAX 2MB)</span>
             <span class="text-[10px] text-slate-500">支持 JPG, PNG, WEBP 等格式</span>
           </div>
         </div>
@@ -94,7 +94,7 @@ const handleFileUpload = (event: Event) => {
       <div class="flex gap-4">
         <button 
           @click="$emit('close')"
-          class="flex-1 py-4 bg-white/5 hover:bg-white/10 rounded-2xl font-bold transition-all text-slate-400"
+          class="flex-1 py-4 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 rounded-2xl font-bold transition-all text-slate-500 dark:text-slate-400"
         >
           取消
         </button>

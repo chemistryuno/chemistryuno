@@ -69,6 +69,21 @@ func getDefaultDeckConfig() map[string]int {
 	}
 }
 
+// 获取当前全局牌组配置
+func getGlobalDeckConfigFromDB() (map[string]int, string) {
+	var cardsJSON, name string
+	err := database.DB.QueryRow("SELECT name, cards FROM deck_configs WHERE is_global = 1 LIMIT 1").Scan(&name, &cardsJSON)
+	if err != nil {
+		return getDefaultDeckConfig(), "默认牌组"
+	}
+
+	var cards map[string]int
+	if err := json.Unmarshal([]byte(cardsJSON), &cards); err != nil {
+		return getDefaultDeckConfig(), "默认牌组"
+	}
+	return cards, name
+}
+
 // 创建房间
 func CreateRoom(name string, hostUID int, hostName string, maxPlayers int, deckID int, isPointsMode bool) (*models.Room, error) {
 	banned, until, _ := isBanned(hostUID)
@@ -91,9 +106,12 @@ func CreateRoom(name string, hostUID int, hostName string, maxPlayers int, deckI
 	// 加载牌组配置
 	var deckConfig models.DeckConfig
 	// 积分模式强制使用默认牌组
-	if isPointsMode || deckID == 0 {
-		deckConfig.Cards = getDefaultDeckConfig()
-		deckConfig.Name = "默认牌组"
+	if isPointsMode || deckID <= 1 { // deckID <= 1 意味着使用全局默认牌组 (ID=1)
+		cards, dname := getGlobalDeckConfigFromDB()
+		deckConfig.Cards = cards
+		deckConfig.Name = dname
+		deckConfig.IsGlobal = true
+		deckConfig.ID = 1
 	} else {
 		var cardsJSON string
 		err := database.DB.QueryRow(
@@ -102,7 +120,11 @@ func CreateRoom(name string, hostUID int, hostName string, maxPlayers int, deckI
 		).Scan(&deckConfig.ID, &deckConfig.Name, &cardsJSON)
 
 		if err != nil {
-			deckConfig.Cards = getDefaultDeckConfig()
+			cards, dname := getGlobalDeckConfigFromDB()
+			deckConfig.Cards = cards
+			deckConfig.Name = dname
+			deckConfig.IsGlobal = true
+			deckConfig.ID = 1
 		} else {
 			json.Unmarshal([]byte(cardsJSON), &deckConfig.Cards)
 		}
@@ -137,9 +159,12 @@ func CreateRoom(name string, hostUID int, hostName string, maxPlayers int, deckI
 // StartDuel 创建单挑房间
 func StartDuel(challengerUID int, challengerName string, targetUID int, targetName string) (*models.Room, error) {
 	// 默认配置
+	cards, name := getGlobalDeckConfigFromDB()
 	deckConfig := models.DeckConfig{
-		Cards: getDefaultDeckConfig(),
-		Name:  "默认牌组",
+		Cards:    cards,
+		Name:     name,
+		IsGlobal: true,
+		ID:       1,
 	}
 
 	roomID := fmt.Sprintf("duel_%d_%d", time.Now().Unix(), rand.Intn(1000))

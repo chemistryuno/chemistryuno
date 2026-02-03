@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* 启用基于类的暗色模式切换 (Tailwind 4) */
+@variant dark (&:where(.dark, .dark *));
+
 @theme {
   --breakpoint-xs: 400px;
   --color-primary-600: #3b82f6;
@@ -148,6 +151,12 @@ body {
 }
 .dark .text-glow {
   text-shadow: 0 0 10px rgba(59, 130, 246, 0.5), 0 0 20px rgba(59, 130, 246, 0.3);
+}
+
+/* 优化：在浅色模式下为白色或超净白色字体增加微妙阴影，防止在亮色背景上看不清 */
+:root:not(.dark) .text-white,
+:root:not(.dark) .text-slate-50 {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
 }
 
 .tracking-tighter-extra {

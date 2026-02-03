@@ -183,6 +183,21 @@ func Verify2FALogin(c *gin.Context) {
 		return
 	}
 
+	// 获取当前可用公告
+	var announcements []models.Announcement
+	rows, _ := database.DB.Query(`
+		SELECT id, content, type, is_ticker FROM announcements 
+		WHERE active = 1 AND (expires_at IS NULL OR expires_at > ?)`, time.Now())
+	if rows != nil {
+		for rows.Next() {
+			var a models.Announcement
+			if err := rows.Scan(&a.ID, &a.Content, &a.Type, &a.IsTicker); err == nil {
+				announcements = append(announcements, a)
+			}
+		}
+		rows.Close()
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"token": token,
 		"user": gin.H{
@@ -192,5 +207,6 @@ func Verify2FALogin(c *gin.Context) {
 			"is_admin": user.IsAdmin,
 			"role":     user.Role,
 		},
+		"announcements": announcements,
 	})
 }

@@ -204,14 +204,14 @@ func PromoteUser(c *gin.Context) {
 // 获取游戏历史
 func GetGameHistory(c *gin.Context) {
 	rows, err := database.DB.Query(`
-		SELECT gh.id, gh.room_id, gh.winner_uid, u.username, gh.players, gh.started_at, gh.finished_at
+		SELECT gh.id, gh.room_id, COALESCE(gh.winner_uid, 0), COALESCE(u.username, '未结算'), gh.players, COALESCE(gh.started_at, ''), COALESCE(gh.finished_at, '')
 		FROM game_history gh
 		LEFT JOIN users u ON gh.winner_uid = u.UID
 		ORDER BY gh.finished_at DESC
 		LIMIT 100
 	`)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误: " + err.Error()})
 		return
 	}
 	defer rows.Close()
@@ -224,16 +224,26 @@ func GetGameHistory(c *gin.Context) {
 			startedAt, finishedAt           string
 		)
 		if err := rows.Scan(&id, &roomID, &winnerUID, &winnerName, &playersJSON, &startedAt, &finishedAt); err != nil {
+			log.Printf("扫描游戏历史失败: %v", err)
 			continue
 		}
+
+		// 解析玩家列表 JSON
+		var players []int
+		if err := json.Unmarshal([]byte(playersJSON), &players); err != nil {
+			log.Printf("解析玩家列表失败: %v", err)
+			players = []int{}
+		}
+
 		history = append(history, map[string]interface{}{
 			"id":          id,
 			"room_id":     roomID,
 			"winner_uid":  winnerUID,
 			"winner_name": winnerName,
-			"players":     playersJSON,
+			"players":     players,
 			"started_at":  startedAt,
 			"finished_at": finishedAt,
+			"created_at":  finishedAt, // 兼容前端字段名
 		})
 	}
 

@@ -538,7 +538,7 @@ onMounted(() => {
           </div>
         </div>
         <div class="text-center space-y-2">
-          <h2 class="text-2xl font-black text-white tracking-widest uppercase">Initializing Lab</h2>
+          <h2 class="text-2xl font-black text-slate-800 dark:text-white tracking-widest uppercase">Initializing Lab</h2>
           <div class="flex items-center gap-1 justify-center">
              <span class="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
              <span class="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
@@ -563,7 +563,7 @@ onMounted(() => {
         <div class="flex items-center gap-3 pr-4 border-r border-slate-200 dark:border-white/10 shrink-0">
           <button 
             @click="handleLeaveRoom" 
-            class="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center hover:bg-white/10 rounded-2xl text-slate-500 hover:text-blue-500 transition-all"
+            class="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-white/10 rounded-2xl text-slate-500 hover:text-blue-500 transition-all"
           >
             <ArrowLeft class="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
@@ -586,7 +586,7 @@ onMounted(() => {
                 'flex items-center gap-2 sm:gap-3 px-3 py-1.5 rounded-2xl border transition-all shrink-0',
                 gameState?.current_player === index 
                   ? 'bg-blue-600 shadow-lg shadow-blue-500/20 ring-1 ring-blue-500/20 border-blue-500' 
-                  : (gameState ? 'bg-white/5 border-slate-200 dark:border-white/5 opacity-60' : 'bg-white/5 border-white/10')
+                  : (gameState ? 'bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/5 opacity-60' : 'bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/10')
               )"
             >
               <div class="relative w-7 h-7 sm:w-9 sm:h-9 shrink-0">
@@ -1108,12 +1108,12 @@ onMounted(() => {
                     'group relative p-3 sm:p-6 rounded-2xl sm:rounded-3xl border transition-all flex flex-col items-center justify-center gap-2 sm:gap-3 overflow-hidden',
                     selectedSubstance === substance 
                       ? 'bg-blue-600/10 border-blue-400 dark:border-blue-500 text-blue-600 dark:text-white shadow-xl dark:shadow-[0_15px_35px_rgba(59,130,246,0.15)]' 
-                      : 'bg-slate-50 dark:bg-white/[0.03] border-slate-200 dark:border-white/5 text-slate-500 hover:bg-slate-100 dark:hover:bg-white/[0.05] hover:border-blue-300 dark:hover:border-white/10'
+                      : 'bg-slate-50/80 dark:bg-white/[0.03] border-slate-200 dark:border-white/5 text-slate-500 hover:bg-blue-50/50 dark:hover:bg-white/[0.05] hover:border-blue-300 dark:hover:border-white/10'
                   )"
                 >
                   <div :class="cn(
                     'w-8 h-8 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center border transition-all duration-500',
-                    selectedSubstance === substance ? 'bg-blue-500/20 border-blue-500/30 rotate-12' : 'bg-slate-500/10 dark:bg-black/40 border-slate-200 dark:border-white/5 opacity-40 group-hover:rotate-12'
+                    selectedSubstance === substance ? 'bg-blue-500/20 border-blue-500/30 rotate-12' : 'bg-slate-100 dark:bg-black/40 border-slate-200 dark:border-white/5 opacity-60 group-hover:rotate-12'
                   )">
                     <FlaskConical :class="cn('w-4 h-4 sm:w-6 sm:h-6', selectedSubstance === substance ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-600')" />
                   </div>
@@ -1125,7 +1125,7 @@ onMounted(() => {
              <div class="flex gap-3 sm:gap-4">
                 <button 
                   @click="selectedCard = null; selectedSubstance = null;" 
-                  class="flex-1 h-12 sm:h-16 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-black rounded-xl sm:rounded-2xl transition-all uppercase tracking-widest text-[9px] sm:text-[11px] border border-slate-200 dark:border-white/5"
+                  class="flex-1 h-12 sm:h-16 bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-black rounded-xl sm:rounded-2xl transition-all uppercase tracking-widest text-[9px] sm:text-[11px] border border-slate-200 dark:border-white/5"
                 >
                   终止
                 </button>

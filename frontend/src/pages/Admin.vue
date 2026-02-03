@@ -23,7 +23,11 @@ import {
   Plus,
   Star,
   MessageSquare,
-  Trophy
+  Trophy,
+  Bell,
+  Megaphone,
+  Clock,
+  ExternalLink
 } from 'lucide-vue-next'
 import { cn } from '../utils/cn'
 
@@ -32,6 +36,7 @@ const { showAlert, showConfirm, showPrompt } = useDialog()
 const users = ref<any[]>([])
 const gameHistory = ref<any[]>([])
 const feedbacks = ref<any[]>([])
+const announcements = ref<any[]>([])
 const configs = ref<any>({})
 const deckConfig = ref<any>(null)
 const editingDeck = ref(false)
@@ -41,6 +46,13 @@ const loading = ref(false)
 const searchTerm = ref('')
 const showCreateUserModal = ref(false)
 const newUser = ref({ username: '', password: '' })
+const showCreateAnnouncementModal = ref(false)
+const newAnnouncement = ref({
+  content: '',
+  type: 'info',
+  is_ticker: true,
+  expires_in: '24h'
+})
 
 const specialElements = ['He', 'Ne', 'Ar', 'Kr', 'Au', '+2', '+4']
 
@@ -59,6 +71,9 @@ const loadData = async () => {
     } else if (activeTab.value === 'feedbacks') {
       const response = await adminAPI.getFeedbacks()
       feedbacks.value = response.data || []
+    } else if (activeTab.value === 'announcements') {
+      const response = await adminAPI.getAnnouncements()
+      announcements.value = response.data || []
     } else if (activeTab.value === 'configs') {
       const response = await adminAPI.getConfigs()
       configs.value = response.data || {}
@@ -203,6 +218,47 @@ const handlePromoteUser = async (userId: string, currentRole: string) => {
   }
 }
 
+const handleCreateAnnouncement = async () => {
+  if (!newAnnouncement.value.content) {
+    await showAlert('请输入公告内容')
+    return
+  }
+  try {
+    await adminAPI.createAnnouncement(
+      newAnnouncement.value.content,
+      newAnnouncement.value.type,
+      newAnnouncement.value.is_ticker,
+      newAnnouncement.value.expires_in
+    )
+    await showAlert('公告发布成功', '同步中...')
+    showCreateAnnouncementModal.value = false
+    newAnnouncement.value = { content: '', type: 'info', is_ticker: true, expires_in: '24h' }
+    loadData()
+  } catch (err: any) {
+    await showAlert(err.response?.data?.error || '发布失败')
+  }
+}
+
+const handleToggleAnnouncement = async (id: number, active: boolean) => {
+  try {
+    await adminAPI.updateAnnouncementStatus(id, active)
+    loadData()
+  } catch (err: any) {
+    await showAlert(err.response?.data?.error || '状态切换失败')
+  }
+}
+
+const handleDeleteAnnouncement = async (id: number) => {
+  const ok = await showConfirm('确定要永久删除这条公告吗？')
+  if (!ok) return
+  try {
+    await adminAPI.deleteAnnouncement(id)
+    loadData()
+  } catch (err: any) {
+    await showAlert(err.response?.data?.error || '删除失败')
+  }
+}
+
 const toggleDeckEdit = () => {
   if (!editingDeck.value) {
     // 进入编辑模式：将当前卡组配置转换为可编辑数组
@@ -288,173 +344,189 @@ const filteredSpecialDeck = computed(() => {
 })
 
 const filteredHistory = computed(() => {
-  return [...gameHistory.value]
-    .filter(game => game.id.includes(searchTerm.value))
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+  const list = Array.isArray(gameHistory.value) ? [...gameHistory.value] : []
+  return list
+    .filter(game => 
+      String(game.id).includes(searchTerm.value) || 
+      (game.room_id && game.room_id.toLowerCase().includes(searchTerm.value.toLowerCase())) ||
+      (game.winner_name && game.winner_name.toLowerCase().includes(searchTerm.value.toLowerCase()))
+    )
+    .sort((a, b) => {
+      const dateB = new Date((b.finished_at || b.created_at || '').replace(' ', 'T')).getTime() || 0
+      const dateA = new Date((a.finished_at || a.created_at || '').replace(' ', 'T')).getTime() || 0
+      return dateB - dateA
+    })
 })
 </script>
 
 <template>
-  <div class="min-h-screen bg-slate-50 dark:bg-[#0a0a0c] text-slate-900 dark:text-slate-200 p-4 lg:p-10 font-sans selection:bg-orange-500/30">
+  <div class="min-h-screen bg-slate-50 dark:bg-[#070708] text-slate-900 dark:text-slate-200 p-4 lg:p-10 font-sans selection:bg-cyan-500/30">
     <div class="fixed inset-0 overflow-hidden pointer-events-none">
-      <div class="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-orange-500/5 rounded-full blur-[120px]" />
-      <div class="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-blue-500/5 rounded-full blur-[120px]" />
-      <div class="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 brightness-50 contrast-150" />
+      <div class="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-cyan-500/5 rounded-full blur-[120px] animate-pulse" />
+      <div class="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-orange-500/5 rounded-full blur-[120px]" />
+      <div class="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 brightness-50 contrast-150 mix-blend-overlay" />
     </div>
 
     <div class="max-w-7xl mx-auto relative z-10">
       <header class="flex flex-col lg:flex-row items-center justify-between gap-8 mb-12">
         <div class="flex items-center gap-6">
           <div class="relative group">
-            <div class="absolute inset-x-0 inset-y-0 bg-orange-500 blur-2xl opacity-20 group-hover:opacity-40 transition-opacity" />
-            <div class="w-16 h-16 rounded-2xl bg-[#111114] border border-orange-500/40 flex items-center justify-center relative z-10 shadow-2xl">
-              <Shield class="w-8 h-8 text-orange-400 group-hover:scale-110 transition-transform" />
+            <div class="absolute inset-x-0 inset-y-0 bg-cyan-500 blur-2xl opacity-20 group-hover:opacity-40 transition-opacity" />
+            <div class="w-16 h-16 rounded-2xl bg-white dark:bg-[#111114] border border-cyan-500/40 flex items-center justify-center relative z-10 shadow-[0_0_30px_rgba(6,182,212,0.15)] group-hover:shadow-[0_0_40px_rgba(6,182,212,0.25)] transition-all">
+              <Shield class="w-8 h-8 text-cyan-600 dark:text-cyan-400 group-hover:scale-110 transition-transform" />
             </div>
           </div>
           <div>
-            <h1 class="text-3xl font-black text-white italic tracking-tighter uppercase flex items-center gap-3">
-              System Override <span class="text-xs font-mono bg-orange-500/20 text-orange-400 px-2 py-1 rounded border border-orange-500/30 not-italic">V1.0.0 Mendeleef</span>
+            <h1 class="text-3xl font-black text-slate-900 dark:text-white italic tracking-tighter uppercase flex items-center gap-3">
+              Core Protocol <span class="text-[10px] font-mono bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 px-2 py-1 rounded-sm border border-cyan-500/20 not-italic tracking-normal">LEVEL 4 SECURED</span>
             </h1>
-            <p class="text-slate-500 text-sm font-bold tracking-widest uppercase mt-1">实验室核心控制台 / Core Admin Console</p>
+            <p class="text-slate-400 dark:text-slate-500 text-[10px] font-black tracking-[0.2em] uppercase mt-1">实验室中枢神经系统 / Central Neural Console</p>
           </div>
         </div>
 
         <div class="flex items-center gap-4">
-          <div class="px-6 py-3 bg-[#111114] border border-white/5 rounded-2xl flex items-center gap-4 shadow-xl">
+          <div class="px-6 py-3 bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/5 rounded-2xl flex items-center gap-4 shadow-xl backdrop-blur-md">
             <div class="flex flex-col items-end">
-              <span class="text-[10px] font-black text-slate-500 uppercase">Server Status</span>
-              <span class="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
-                <span class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                STABLE / OP-CON 1
+              <span class="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Interface Status</span>
+              <span class="text-xs font-bold text-cyan-600 dark:text-cyan-400 flex items-center gap-1.5">
+                <span class="w-1.5 h-1.5 bg-cyan-500 rounded-full animate-ping" />
+                ENCRYPTED / NODE-01
               </span>
             </div>
-            <div class="w-px h-8 bg-white/5" />
+            <div class="w-px h-8 bg-slate-200 dark:bg-white/5" />
             <router-link 
               to="/ranking"
-              class="flex items-center gap-2 text-amber-500 hover:text-amber-400 transition-colors group"
+              class="flex items-center gap-2 text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400 transition-all group"
             >
-              <Trophy class="w-4 h-4 group-hover:scale-110 transition-transform" />
-              <span class="text-xs font-black uppercase tracking-widest">Rank</span>
+              <Trophy class="w-4 h-4 group-hover:rotate-12 transition-transform" />
+              <span class="text-[10px] font-black uppercase tracking-widest">Archive</span>
             </router-link>
-            <div class="w-px h-8 bg-white/5" />
+            <div class="w-px h-8 bg-slate-200 dark:bg-white/5" />
             <button 
               @click="router.push('/')"
-              class="flex items-center gap-2 text-slate-400 hover:text-white transition-colors group"
+              class="flex items-center gap-2 text-slate-400 dark:text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition-colors group"
             >
               <ArrowLeft class="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-              <span class="text-xs font-black uppercase tracking-widest">Exit</span>
+              <span class="text-[10px] font-black uppercase tracking-widest">Logout</span>
             </button>
           </div>
         </div>
       </header>
 
       <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-        <div class="bg-[#111114] border border-white/10 p-6 rounded-[2rem] hover:border-white/20 transition-all shadow-xl group">
+        <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 p-6 rounded-[2.5rem] hover:border-cyan-500/40 transition-all shadow-lg dark:shadow-xl group">
           <div class="flex items-center justify-between mb-4">
-            <div class="p-3 rounded-2xl bg-blue-500/10 text-blue-400">
+            <div class="p-3 rounded-2xl bg-cyan-500/10 text-cyan-600 dark:text-cyan-400">
               <Users class="w-6 h-6" />
             </div>
-            <div class="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] group-hover:text-slate-400 transition-colors">实时数据 / Live</div>
+            <div class="text-[9px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-[0.2em] group-hover:text-cyan-600 transition-colors">STAFF_INDEX</div>
           </div>
-          <div class="text-3xl font-black text-white italic">{{ users.length }}</div>
-          <div class="text-xs font-bold text-slate-500 uppercase mt-1 tracking-wider">活跃研究员</div>
+          <div class="text-4xl font-black text-slate-900 dark:text-white italic tracking-tighter">{{ users.length }}</div>
+          <div class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mt-1 tracking-wider">在册研究员总数</div>
         </div>
 
-        <div class="bg-[#111114] border border-white/10 p-6 rounded-[2rem] hover:border-white/20 transition-all shadow-xl group">
+        <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 p-6 rounded-[2.5rem] hover:border-violet-500/40 transition-all shadow-lg dark:shadow-xl group">
           <div class="flex items-center justify-between mb-4">
-            <div class="p-3 rounded-2xl bg-purple-500/10 text-purple-400">
+            <div class="p-3 rounded-2xl bg-violet-500/10 text-violet-600 dark:text-violet-400">
               <Cpu class="w-6 h-6" />
             </div>
-            <div class="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] group-hover:text-slate-400 transition-colors">实时数据 / Live</div>
+            <div class="text-[9px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-[0.2em] group-hover:text-violet-600 transition-colors">CORE_DRIVE</div>
           </div>
-          <div class="text-3xl font-black text-white italic">{{ deckConfig ? Object.keys(deckConfig.cards).length : 0 }}</div>
-          <div class="text-xs font-bold text-slate-500 uppercase mt-1 tracking-wider">核心元素种类</div>
+          <div class="text-4xl font-black text-slate-900 dark:text-white italic tracking-tighter">{{ deckConfig ? Object.keys(deckConfig.cards).length : 0 }}</div>
+          <div class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mt-1 tracking-wider">核定反应元基数</div>
         </div>
 
-        <div class="bg-[#111114] border border-white/10 p-6 rounded-[2rem] hover:border-white/20 transition-all shadow-xl group">
+        <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 p-6 rounded-[2.5rem] hover:border-orange-500/40 transition-all shadow-lg dark:shadow-xl group">
           <div class="flex items-center justify-between mb-4">
-            <div class="p-3 rounded-2xl bg-orange-500/10 text-orange-400">
+            <div class="p-3 rounded-2xl bg-orange-500/10 text-orange-600 dark:text-orange-400">
               <History class="w-6 h-6" />
             </div>
-            <div class="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] group-hover:text-slate-400 transition-colors">实时数据 / Live</div>
+            <div class="text-[9px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-[0.2em] group-hover:text-orange-600 transition-colors">LOG_BUFFER</div>
           </div>
-          <div class="text-3xl font-black text-white italic">{{ gameHistory.length }}</div>
-          <div class="text-xs font-bold text-slate-500 uppercase mt-1 tracking-wider">实验记录总额</div>
+          <div class="text-4xl font-black text-slate-900 dark:text-white italic tracking-tighter">{{ gameHistory.length }}</div>
+          <div class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mt-1 tracking-wider">全域实验活动记录</div>
         </div>
 
-        <div class="bg-[#111114] border border-white/10 p-6 rounded-[2rem] hover:border-white/20 transition-all shadow-xl group">
+        <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 p-6 rounded-[2.5rem] hover:border-emerald-500/40 transition-all shadow-lg dark:shadow-xl group">
           <div class="flex items-center justify-between mb-4">
-            <div class="p-3 rounded-2xl bg-emerald-500/10 text-emerald-400">
+            <div class="p-3 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
               <Database class="w-6 h-6" />
             </div>
-            <div class="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] group-hover:text-slate-400 transition-colors">实时数据 / Live</div>
+            <div class="text-[9px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-[0.2em] group-hover:text-emerald-600 transition-colors">SYSCAL_LOAD</div>
           </div>
-          <div class="text-3xl font-black text-white italic">12%</div>
-          <div class="text-xs font-bold text-slate-500 uppercase mt-1 tracking-wider">系统负载</div>
+          <div class="text-4xl font-black text-slate-900 dark:text-white italic tracking-tighter">0.02%</div>
+          <div class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mt-1 tracking-wider">服务器负载指数</div>
         </div>
       </section>
 
-      <main class="bg-[#111114] border border-white/10 rounded-[2.5rem] shadow-2xl overflow-hidden min-h-[600px] flex flex-col">
-        <nav class="flex border-b border-white/5 bg-black/20 p-2">
+      <main class="bg-white dark:bg-[#0c0c0e] border border-slate-200 dark:border-white/5 rounded-[3rem] shadow-[0_40px_100px_-20px_rgba(0,0,0,0.3)] overflow-hidden min-h-[600px] flex flex-col relative">
+        <div class="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-500/50 to-transparent" />
+        
+        <nav class="flex border-b border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-black/40 p-3 overflow-x-auto custom-scrollbar">
           <button
             v-for="tab in [
-              { id: 'users', label: '研究员名单 / PERSONNEL', icon: Users },
-              { id: 'deck', label: '核心库存配置 / REDUCTION', icon: Layers },
-              { id: 'special', label: '稀有元素配置 / SPECIALS', icon: Star },
-              { id: 'feedbacks', label: '反馈报告 / FEEDBACK', icon: MessageSquare },
-              { id: 'configs', label: '系统参数 / CONFIGS', icon: Terminal },
-              { id: 'history', label: '历史记录 / TRACING', icon: History }
+              { id: 'users', label: '研究员', icon: Users },
+              { id: 'deck', label: '核心库存', icon: Layers },
+              { id: 'special', label: '稀有元素', icon: Star },
+              { id: 'announcements', label: '播音指挥', icon: Bell },
+              { id: 'feedbacks', label: '通讯报告', icon: MessageSquare },
+              { id: 'configs', label: '系统参量', icon: Terminal },
+              { id: 'history', label: '实验日志', icon: History }
             ]"
             :key="tab.id"
             @click="activeTab = tab.id"
             :class="cn(
-              'flex items-center gap-3 px-8 py-5 text-xs font-black uppercase tracking-[0.1em] transition-all rounded-2xl relative',
+              'flex items-center gap-3 px-8 py-4 text-[10px] font-black uppercase tracking-[0.1em] transition-all rounded-2xl relative whitespace-nowrap group/tab',
               activeTab === tab.id 
-                ? 'text-orange-400 bg-white/5' 
-                : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'
+                ? 'text-cyan-600 dark:text-cyan-400 bg-white dark:bg-white/5 shadow-sm' 
+                : 'text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-slate-300'
             )"
           >
-            <component :is="tab.icon" class="w-4 h-4" />
+            <component :is="tab.icon" :class="cn('w-4 h-4 transition-transform group-hover/tab:scale-110', activeTab === tab.id ? 'text-cyan-500 animate-pulse' : '')" />
             {{ tab.label }}
-            <div v-if="activeTab === tab.id" class="absolute inset-x-0 bottom-2 px-8">
-              <div class="h-0.5 bg-orange-500 shadow-[0_0_10px_rgba(249,115,22,0.5)] rounded-full" />
+            <div v-if="activeTab === tab.id" class="absolute inset-x-0 bottom-1 px-8">
+              <div class="h-0.5 bg-cyan-500 shadow-[0_0_15px_rgba(6,182,212,0.8)] rounded-full" />
             </div>
           </button>
         </nav>
 
         <div class="p-10 flex-1">
-          <div v-if="loading" class="h-full flex flex-col items-center justify-center text-slate-500 gap-6 py-20">
+          <div v-if="loading" class="h-full flex flex-col items-center justify-center text-slate-500 gap-6 py-20 relative overflow-hidden">
+            <div class="absolute inset-0 bg-cyan-500/5 blur-[100px] opacity-20 animate-pulse" />
             <div class="relative">
-              <div class="w-20 h-20 border-4 border-orange-500/20 border-t-orange-500 rounded-full animate-spin" />
-              <Terminal class="w-8 h-8 text-orange-400 absolute inset-0 m-auto" />
+              <div class="w-24 h-24 border-2 border-cyan-500/10 border-t-cyan-500 rounded-full animate-spin shadow-[0_0_20px_rgba(6,182,212,0.1)]" />
+              <Terminal class="w-10 h-10 text-cyan-400 absolute inset-0 m-auto" />
             </div>
-            <p class="font-mono text-sm uppercase tracking-widest animate-pulse">Synchronizing Database Layers...</p>
+            <div class="flex flex-col items-center gap-2">
+              <p class="font-mono text-[10px] uppercase tracking-[0.5em] text-cyan-500/60 animate-pulse">Establishing Secure Uplink...</p>
+              <p class="font-mono text-[8px] uppercase tracking-widest text-slate-600">Syncing database layers. Please hold.</p>
+            </div>
           </div>
 
           <div v-else class="animate-in fade-in slide-in-from-bottom-4 duration-500">
             <!-- Users Tab -->
             <div v-if="activeTab === 'users'" class="space-y-8">
               <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-                <h3 class="text-xl font-black italic uppercase text-white flex items-center gap-4">
-                  <Terminal class="w-5 h-5 text-orange-400" />
-                  研究员全局索引录 <span class="text-slate-600 font-mono not-italic text-xs">/ ROOT@ADMIN:~# list --all</span>
+                <h3 class="text-xl font-black italic uppercase text-slate-900 dark:text-white flex items-center gap-4">
+                  <Terminal class="w-5 h-5 text-cyan-500 shrink-0" />
+                  研究员全局索引录 <span class="text-slate-400 dark:text-slate-600 font-mono not-italic text-[10px] tracking-normal">/ STAFF@CORE --DIRECTORY</span>
                 </h3>
                 <div class="flex items-center gap-4">
                   <div class="relative group">
-                    <SearchIcon class="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-600 group-focus-within:text-orange-400 transition-colors" />
+                    <SearchIcon class="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-cyan-500 transition-colors" />
                     <input 
                       v-model="searchTerm"
                       type="text" 
                       placeholder="SEARCH UID / USERNAME..."
-                      class="bg-black/40 border border-white/5 rounded-2xl pl-12 pr-6 py-3 text-xs font-mono focus:outline-none focus:border-orange-500/30 w-full md:w-64 transition-all placeholder:text-slate-700"
+                      class="bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/5 rounded-2xl pl-12 pr-6 py-3 text-[10px] font-black tracking-widest focus:outline-none focus:border-cyan-500/30 w-full md:w-64 transition-all placeholder:text-slate-400 dark:placeholder:text-slate-700 text-slate-900 dark:text-white"
                     />
                   </div>
                   <button 
                     @click="showCreateUserModal = true"
-                    class="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest flex items-center gap-2 transition-all shadow-xl whitespace-nowrap"
+                    class="bg-cyan-600 hover:bg-cyan-500 text-white px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-3 transition-all shadow-lg shadow-cyan-900/10 hover:shadow-cyan-500/20 active:scale-95 whitespace-nowrap"
                   >
-                    <Users class="w-4 h-4" />
-                    添加用户
+                    <Plus class="w-4 h-4" />
+                    NEW_ENTRY
                   </button>
                 </div>
               </div>
@@ -462,18 +534,18 @@ const filteredHistory = computed(() => {
               <div class="overflow-x-auto custom-scrollbar">
                 <table class="w-full text-left">
                   <thead>
-                    <tr class="text-slate-600 text-[10px] font-black uppercase tracking-[0.2em] border-b border-white/5">
+                    <tr class="text-slate-400 dark:text-slate-600 text-[9px] font-black uppercase tracking-[0.3em] border-b border-slate-100 dark:border-white/5">
                       <th class="px-6 py-4">Researcher Profile</th>
                       <th class="px-6 py-4">Recognition UID</th>
                       <th class="px-6 py-4">Auth Level</th>
                       <th class="px-6 py-4">Join Date</th>
-                      <th class="px-6 py-4 text-right">Actions</th>
+                      <th class="px-6 py-4 text-right">Overrides</th>
                     </tr>
                   </thead>
-                  <tbody class="divide-y divide-white/5 font-mono">
-                    <tr v-for="u in filteredUsers" :key="u.uid" class="hover:bg-white/5 transition-colors group">
-                      <td class="px-6 py-4 text-xs font-bold text-white flex items-center gap-3">
-                        <div class="w-8 h-8 bg-white/5 rounded-lg flex items-center justify-center text-lg group-hover:scale-110 transition-transform overflow-hidden">
+                  <tbody class="divide-y divide-slate-100 dark:divide-white/5 font-mono">
+                    <tr v-for="u in filteredUsers" :key="u.uid" class="hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors group">
+                      <td class="px-6 py-4 text-xs font-bold text-slate-900 dark:text-white flex items-center gap-4">
+                        <div class="w-10 h-10 bg-white dark:bg-black/40 rounded-xl flex items-center justify-center text-xl group-hover:scale-105 transition-transform overflow-hidden border border-slate-200 dark:border-white/10 shadow-sm">
                           <template v-if="u.avatar && u.avatar.startsWith('data:')">
                             <img :src="u.avatar" class="w-full h-full object-cover" />
                           </template>
@@ -481,35 +553,38 @@ const filteredHistory = computed(() => {
                             {{ u.avatar || '🧪' }}
                           </template>
                         </div>
-                        {{ u.username }}
+                        <div class="flex flex-col">
+                          <span class="group-hover:text-cyan-600 transition-colors uppercase tracking-tight text-[10px] font-black">{{ u.username }}</span>
+                          <span class="text-[8px] text-slate-400 font-mono tracking-tighter">ONLINE@OP-NODE</span>
+                        </div>
                       </td>
-                      <td class="px-6 py-4 text-[10px] text-slate-500">{{ u.uid }}</td>
+                      <td class="px-6 py-4 text-[10px] text-slate-500 tracking-widest">{{ u.uid }}</td>
                       <td class="px-6 py-4">
-                        <span v-if="u.role === 'admin'" class="text-[9px] px-2 py-0.5 bg-orange-500/10 text-orange-400 rounded-md border border-orange-500/20 font-black tracking-widest">LV.99 CORE</span>
-                        <span v-else-if="u.role === 'co-worker'" class="text-[9px] px-2 py-0.5 bg-blue-500/10 text-blue-400 rounded-md border border-blue-500/20 font-black tracking-widest">LV.50 CO-WORKER</span>
-                        <span v-else class="text-[9px] px-2 py-0.5 bg-white/5 text-slate-400 rounded-md border border-white/10 font-black tracking-widest">LV.01 STAFF</span>
+                        <span v-if="u.role === 'admin'" class="text-[8px] px-2 py-0.5 bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 rounded-md border border-cyan-500/20 font-black tracking-widest uppercase shadow-[0_0_10px_rgba(6,182,212,0.1)] transition-all">LV.99 CORE</span>
+                        <span v-else-if="u.role === 'co-worker'" class="text-[8px] px-2 py-0.5 bg-violet-500/10 text-violet-600 dark:text-violet-400 rounded-md border border-violet-500/20 font-black tracking-widest uppercase">LV.50 ASSIST</span>
+                        <span v-else class="text-[8px] px-2 py-0.5 bg-slate-100 dark:bg-white/5 text-slate-400 dark:text-slate-500 rounded-md border border-slate-200 dark:border-white/10 font-black tracking-widest uppercase">LV.01 STAFF</span>
                       </td>
-                      <td class="px-6 py-4 text-[10px] text-slate-500">{{ new Date(u.created_at).toLocaleDateString() }}</td>
+                      <td class="px-6 py-4 text-[9px] text-slate-500 uppercase font-bold">{{ new Date(u.created_at).toLocaleDateString() }}</td>
                       <td class="px-6 py-4 text-right">
-                        <div v-if="!u.is_admin" class="flex items-center gap-1 justify-end">
+                        <div v-if="!u.is_admin" class="flex items-center gap-2 justify-end opacity-0 group-hover:opacity-100 transition-all scale-95 group-hover:scale-100">
                           <button 
                             @click="handleChangePassword(u.uid)"
-                            class="p-2 hover:bg-blue-500/20 text-slate-600 hover:text-blue-400 rounded-lg transition-all"
-                            title="修改密码"
+                            class="p-2.5 bg-slate-100 dark:bg-white/5 hover:bg-cyan-500/10 text-slate-400 hover:text-cyan-600 rounded-xl transition-all border border-transparent hover:border-cyan-500/20"
+                            title="ACCESS_RESET"
                           >
                             <Key class="w-3.5 h-3.5" />
                           </button>
                           <button 
                             @click="handlePromoteUser(u.uid, u.role)"
-                            class="p-2 hover:bg-green-500/20 text-slate-600 hover:text-green-400 rounded-lg transition-all"
-                            title="修改权限"
+                            class="p-2.5 bg-slate-100 dark:bg-white/5 hover:bg-violet-500/10 text-slate-400 hover:text-violet-600 rounded-xl transition-all border border-transparent hover:border-violet-500/20"
+                            title="ELEVATE_AUTH"
                           >
                             <ArrowUp class="w-3.5 h-3.5" />
                           </button>
                           <button 
                             @click="handleDeleteUser(u.uid)"
-                            class="p-2 hover:bg-red-500/20 text-slate-600 hover:text-red-400 rounded-lg transition-all"
-                            title="删除用户"
+                            class="p-2.5 bg-slate-100 dark:bg-white/5 hover:bg-red-500/10 text-slate-400 hover:text-red-500 rounded-xl transition-all border border-transparent hover:border-red-500/20"
+                            title="PURGE_RECORD"
                           >
                             <Trash2 class="w-3.5 h-3.5" />
                           </button>
@@ -524,24 +599,24 @@ const filteredHistory = computed(() => {
             <!-- Deck Tab -->
             <div v-if="activeTab === 'deck' && deckConfig" class="space-y-6">
               <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                <h3 class="text-lg font-black italic uppercase text-white flex items-center gap-3">
-                  <Cpu class="w-5 h-5 text-blue-400" />
-                  全局卡组配置 <span class="text-slate-600 font-mono not-italic text-[10px]">/ DECK@GLOBAL</span>
+                <h3 class="text-xl font-black italic uppercase text-slate-900 dark:text-white flex items-center gap-4">
+                  <Layers class="w-5 h-5 text-cyan-500" />
+                  全局卡组配置 <span class="text-slate-400 dark:text-slate-600 font-mono not-italic text-[10px] tracking-normal">/ DECK@GLOBAL</span>
                 </h3>
                 <div class="flex items-center gap-3">
                   <div v-if="!editingDeck" class="relative group">
-                    <SearchIcon class="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-600 group-focus-within:text-blue-400 transition-colors" />
+                    <SearchIcon class="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-cyan-500 transition-colors" />
                     <input 
                       v-model="searchTerm"
                       type="text" 
                       placeholder="FILTER..."
-                      class="bg-black/30 border border-white/5 rounded-xl pl-9 pr-4 py-2 text-[10px] font-mono focus:outline-none focus:border-blue-500/30 w-full md:w-48 transition-all"
+                      class="bg-slate-50 dark:bg-black/30 border border-slate-200 dark:border-white/5 rounded-xl pl-9 pr-4 py-2 text-[10px] font-mono focus:outline-none focus:border-cyan-500/30 w-full md:w-48 transition-all text-slate-900 dark:text-white"
                     />
                   </div>
                   <button 
                     v-if="editingDeck"
                     @click="handleAddDeckItem"
-                    class="px-4 py-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 transition-all"
+                    class="px-4 py-2 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-500 border border-cyan-500/20 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 transition-all shadow-sm"
                   >
                     <Plus class="w-3 h-3" />
                     添加元素
@@ -552,66 +627,69 @@ const filteredHistory = computed(() => {
                       'px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 transition-all shadow-lg',
                       editingDeck 
                         ? 'bg-emerald-600 hover:bg-emerald-500 text-white' 
-                        : 'bg-blue-600 hover:bg-blue-500 text-white'
+                        : 'bg-cyan-600 hover:bg-cyan-500 text-white shadow-cyan-500/10'
                     )"
                   >
                     <component :is="editingDeck ? Save : Edit2" class="w-3.5 h-3.5" />
-                    {{ editingDeck ? "保存配置" : "编辑" }}
+                    {{ editingDeck ? "保存配置" : "编辑 / OVERRIDE" }}
                   </button>
                   <button 
                     v-if="editingDeck"
                     @click="editingDeck = false"
-                    class="px-4 py-2 bg-white/5 hover:bg-white/10 text-slate-400 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all"
+                    class="px-4 py-2 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-500 dark:text-slate-400 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all border border-slate-200 dark:border-white/10"
                   >
                     取消
                   </button>
                 </div>
               </div>
 
-              <div class="overflow-x-auto custom-scrollbar border border-white/5 rounded-2xl bg-black/20">
+              <div class="overflow-x-auto custom-scrollbar border border-slate-200 dark:border-white/10 rounded-[2.5rem] bg-slate-50 dark:bg-black/20">
                 <table class="w-full text-left table-fixed">
                   <thead>
-                    <tr class="text-slate-600 text-[9px] font-black uppercase tracking-[0.2em] border-b border-white/5">
-                      <th class="px-6 py-3 w-[45%]">Element / Key</th>
-                      <th class="px-6 py-3 w-[30%]">Quantity</th>
-                      <th v-if="editingDeck" class="px-6 py-3 text-right w-[25%]">Ops</th>
+                    <tr class="text-slate-400 dark:text-slate-600 text-[9px] font-black uppercase tracking-[0.3em] border-b border-slate-200 dark:border-white/10">
+                      <th class="px-8 py-5 w-[45%]">Element / Key</th>
+                      <th class="px-8 py-5 w-[30%]">Quantity</th>
+                      <th v-if="editingDeck" class="px-8 py-5 text-right w-[25%]">Ops</th>
                     </tr>
                   </thead>
-                  <tbody class="divide-y divide-white/5 font-mono">
+                  <tbody class="divide-y divide-slate-100 dark:divide-white/5 font-mono">
                     <template v-if="editingDeck">
-                      <tr v-for="item in deckCardsEdit.filter(i => i.key === '' || !specialElements.includes(i.key))" :key="item.id" class="hover:bg-white/5 transition-colors">
-                        <td class="px-6 py-3">
+                      <tr v-for="item in deckCardsEdit.filter(i => i.key === '' || !specialElements.includes(i.key))" :key="item.id" class="hover:bg-white/40 dark:hover:bg-cyan-500/[0.02] transition-all">
+                        <td class="px-8 py-4">
                           <input 
                             v-model="item.key"
                             type="text"
                             placeholder="元素符号..."
-                            class="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 focus:outline-none focus:border-blue-500/50 text-white text-xs"
+                            class="w-full bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2 focus:outline-none focus:border-cyan-500/50 text-slate-900 dark:text-white text-xs font-black tracking-tight"
                           />
                         </td>
-                        <td class="px-6 py-3">
+                        <td class="px-8 py-4">
                           <input 
                             v-model.number="item.value"
                             type="number"
                             min="0"
-                            class="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 focus:outline-none focus:border-blue-500/50 text-blue-400 text-xs font-bold"
+                            class="w-full bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2 focus:outline-none focus:border-cyan-500/50 text-cyan-600 dark:text-cyan-400 text-xs font-black"
                           />
                         </td>
-                        <td class="px-6 py-3 text-right">
-                          <button @click="handleRemoveDeckItem(item.id)" class="p-2 hover:bg-red-500/20 text-slate-600 hover:text-red-400 rounded-lg transition-all">
-                            <Trash2 class="w-3.5 h-3.5" />
+                        <td class="px-8 py-4 text-right">
+                          <button @click="handleRemoveDeckItem(item.id)" class="p-2.5 bg-slate-100 dark:bg-white/5 hover:bg-red-500/10 text-slate-400 hover:text-red-500 rounded-xl transition-all border border-transparent hover:border-red-500/20">
+                            <Trash2 class="w-4 h-4" />
                           </button>
                         </td>
                       </tr>
                     </template>
                     <template v-else>
-                      <tr v-for="[type, count] in filteredDeck" :key="type" class="hover:bg-white/5 transition-colors group">
-                        <td class="px-6 py-3 text-xs font-bold text-white">{{ type }}</td>
-                        <td class="px-6 py-3 font-black text-sm italic text-blue-400">{{ count }}</td>
+                      <tr v-for="[type, count] in filteredDeck" :key="type" class="hover:bg-white/40 dark:hover:bg-cyan-500/[0.02] transition-all group">
+                        <td class="px-8 py-5 text-[11px] font-black text-slate-900 dark:text-white flex items-center gap-3">
+                           <div class="w-1.5 h-1.5 rounded-full bg-cyan-500/40 group-hover:bg-cyan-500 transition-colors" />
+                           {{ type }}
+                        </td>
+                        <td class="px-8 py-5 font-black text-sm italic text-cyan-600 dark:text-cyan-400">{{ count }}</td>
                       </tr>
                     </template>
                     <tr v-if="(!editingDeck && filteredDeck.length === 0) || (editingDeck && deckCardsEdit.filter(i => !specialElements.includes(i.key)).length === 0)">
-                      <td colspan="3" class="py-12 text-center text-slate-700 text-[10px] font-bold uppercase tracking-widest italic">
-                        No active elements found in matrix
+                      <td colspan="3" class="py-16 text-center text-slate-400 dark:text-slate-700 text-[10px] font-black uppercase tracking-[0.3em] italic">
+                        / NO_ELEMENTS_LOADED_IN_MATRIX
                       </td>
                     </tr>
                   </tbody>
@@ -622,24 +700,24 @@ const filteredHistory = computed(() => {
             <!-- Special Deck Tab -->
             <div v-if="activeTab === 'special' && deckConfig" class="space-y-6">
               <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                <h3 class="text-lg font-black italic uppercase text-white flex items-center gap-3">
-                  <Star class="w-5 h-5 text-yellow-400" />
-                  稀有元素配置 <span class="text-slate-600 font-mono not-italic text-[10px]">/ DECK@SPECIALS</span>
+                <h3 class="text-xl font-black italic uppercase text-slate-900 dark:text-white flex items-center gap-4">
+                  <Star class="w-5 h-5 text-violet-500" />
+                  稀有元素配置 <span class="text-slate-400 dark:text-slate-600 font-mono not-italic text-[10px] tracking-normal">/ DECK@SPECIALS</span>
                 </h3>
                 <div class="flex items-center gap-3">
                   <div v-if="!editingDeck" class="relative group">
-                    <SearchIcon class="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-600 group-focus-within:text-yellow-400 transition-colors" />
+                    <SearchIcon class="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-violet-400 transition-colors" />
                     <input 
                       v-model="searchTerm"
                       type="text" 
                       placeholder="FILTER..."
-                      class="bg-black/30 border border-white/5 rounded-xl pl-9 pr-4 py-2 text-[10px] font-mono focus:outline-none focus:border-yellow-500/30 w-full md:w-48 transition-all"
+                      class="bg-slate-50 dark:bg-black/30 border border-slate-200 dark:border-white/5 rounded-xl pl-9 pr-4 py-2 text-[10px] font-mono focus:outline-none focus:border-violet-500/30 w-full md:w-48 transition-all text-slate-900 dark:text-white"
                     />
                   </div>
                   <button 
                     v-if="editingDeck"
                     @click="handleAddDeckItem"
-                    class="px-4 py-2 bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-400 border border-yellow-500/20 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 transition-all"
+                    class="px-4 py-2 bg-violet-500/10 hover:bg-violet-500/20 text-violet-500 border border-violet-500/20 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 transition-all shadow-sm"
                   >
                     <Plus class="w-3 h-3" />
                     添加元素
@@ -650,66 +728,69 @@ const filteredHistory = computed(() => {
                       'px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 transition-all shadow-lg',
                       editingDeck 
                         ? 'bg-emerald-600 hover:bg-emerald-500 text-white' 
-                        : 'bg-yellow-600 hover:bg-yellow-500 text-white'
+                        : 'bg-violet-600 hover:bg-violet-500 text-white shadow-violet-500/10'
                     )"
                   >
                     <component :is="editingDeck ? Save : Edit2" class="w-3.5 h-3.5" />
-                    {{ editingDeck ? "保存配置" : "编辑" }}
+                    {{ editingDeck ? "保存配置" : "编辑 / OVERRIDE" }}
                   </button>
                   <button 
                     v-if="editingDeck"
                     @click="editingDeck = false"
-                    class="px-4 py-2 bg-white/5 hover:bg-white/10 text-slate-400 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all"
+                    class="px-4 py-2 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-500 dark:text-slate-400 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all border border-slate-200 dark:border-white/10"
                   >
                     取消
                   </button>
                 </div>
               </div>
 
-              <div class="overflow-x-auto custom-scrollbar border border-white/5 rounded-2xl bg-black/20">
+              <div class="overflow-x-auto custom-scrollbar border border-slate-200 dark:border-white/10 rounded-[2.5rem] bg-slate-50 dark:bg-black/20">
                 <table class="w-full text-left table-fixed">
                   <thead>
-                    <tr class="text-slate-600 text-[9px] font-black uppercase tracking-[0.2em] border-b border-white/5">
-                      <th class="px-6 py-3 w-[45%]">Special Element</th>
-                      <th class="px-6 py-3 w-[30%]">Quantity</th>
-                      <th v-if="editingDeck" class="px-6 py-3 text-right w-[25%]">Ops</th>
+                    <tr class="text-slate-400 dark:text-slate-600 text-[9px] font-black uppercase tracking-[0.3em] border-b border-slate-200 dark:border-white/10">
+                      <th class="px-8 py-5 w-[45%]">Special Element</th>
+                      <th class="px-8 py-5 w-[30%]">Quantity</th>
+                      <th v-if="editingDeck" class="px-8 py-5 text-right w-[25%]">Ops</th>
                     </tr>
                   </thead>
-                  <tbody class="divide-y divide-white/5 font-mono">
+                  <tbody class="divide-y divide-slate-100 dark:divide-white/5 font-mono">
                     <template v-if="editingDeck">
-                      <tr v-for="item in deckCardsEdit.filter(i => i.key === '' || specialElements.includes(i.key))" :key="item.id" class="hover:bg-white/5 transition-colors">
-                        <td class="px-6 py-3">
+                      <tr v-for="item in deckCardsEdit.filter(i => i.key === '' || specialElements.includes(i.key))" :key="item.id" class="hover:bg-white/40 dark:hover:bg-violet-500/[0.02] transition-all">
+                        <td class="px-8 py-4">
                           <input 
                             v-model="item.key"
                             type="text"
                             placeholder="元素符号..."
-                            class="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 focus:outline-none focus:border-yellow-500/50 text-white text-xs font-bold"
+                            class="w-full bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2 focus:outline-none focus:border-violet-500/50 text-slate-900 dark:text-white text-xs font-black tracking-tight"
                           />
                         </td>
-                        <td class="px-6 py-3">
+                        <td class="px-8 py-4">
                           <input 
                             v-model.number="item.value"
                             type="number"
                             min="0"
-                            class="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 focus:outline-none focus:border-yellow-500/50 text-yellow-400 text-xs font-black"
+                            class="w-full bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2 focus:outline-none focus:border-violet-500/50 text-violet-600 dark:text-violet-400 text-xs font-black"
                           />
                         </td>
-                        <td class="px-6 py-3 text-right">
-                          <button @click="handleRemoveDeckItem(item.id)" class="p-2 hover:bg-red-500/20 text-slate-600 hover:text-red-400 rounded-lg transition-all">
-                            <Trash2 class="w-3.5 h-3.5" />
+                        <td class="px-8 py-4 text-right">
+                          <button @click="handleRemoveDeckItem(item.id)" class="p-2.5 bg-slate-100 dark:bg-white/5 hover:bg-red-500/10 text-slate-400 hover:text-red-500 rounded-xl transition-all border border-transparent hover:border-red-500/20">
+                            <Trash2 class="w-4 h-4" />
                           </button>
                         </td>
                       </tr>
                     </template>
                     <template v-else>
-                      <tr v-for="[type, count] in filteredSpecialDeck" :key="type" class="hover:bg-white/5 transition-colors group">
-                        <td class="px-6 py-3 text-xs font-bold text-yellow-400">{{ type }}</td>
-                        <td class="px-6 py-3 font-black text-sm italic text-yellow-500">{{ count }}</td>
+                      <tr v-for="[type, count] in filteredSpecialDeck" :key="type" class="hover:bg-white/40 dark:hover:bg-violet-500/[0.02] transition-colors group">
+                        <td class="px-8 py-5 text-[11px] font-black text-violet-600 dark:text-violet-400 flex items-center gap-3">
+                           <div class="w-1.5 h-1.5 rounded-full bg-violet-500/40 group-hover:bg-violet-500 transition-colors" />
+                           {{ type }}
+                        </td>
+                        <td class="px-8 py-5 font-black text-sm italic text-violet-800 dark:text-violet-500">{{ count }}</td>
                       </tr>
                     </template>
                     <tr v-if="(!editingDeck && filteredSpecialDeck.length === 0) || (editingDeck && deckCardsEdit.filter(i => specialElements.includes(i.key)).length === 0)">
-                      <td colspan="3" class="py-12 text-center text-slate-700 text-[10px] font-bold uppercase tracking-widest italic">
-                        No special elements found in matrix
+                      <td colspan="3" class="py-16 text-center text-slate-400 dark:text-slate-700 text-[10px] font-black uppercase tracking-[0.3em] italic">
+                        / NO_SPECIAL_ELEMENTS_FOUND_IN_MATRIX
                       </td>
                     </tr>
                   </tbody>
@@ -720,47 +801,48 @@ const filteredHistory = computed(() => {
             <!-- Configs Tab -->
             <div v-if="activeTab === 'configs'" class="space-y-8">
               <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-                <h3 class="text-xl font-black italic uppercase text-white flex items-center gap-4">
-                  <Terminal class="w-5 h-5 text-orange-400" />
-                  系统核心参数配置 <span class="text-slate-600 font-mono not-italic text-xs">/ ROOT@ADMIN:~# settings --view</span>
+                <h3 class="text-xl font-black italic uppercase text-slate-900 dark:text-white flex items-center gap-4">
+                  <Terminal class="w-5 h-5 text-violet-500" />
+                  系统核心参数配置 <span class="text-slate-400 dark:text-slate-600 font-mono not-italic text-[10px] tracking-normal">/ ROOT@ADMIN:~# settings --view</span>
                 </h3>
               </div>
               
-              <!-- 核心配置组 -->
               <div class="space-y-4">
                 <div class="flex items-center gap-2 mb-2">
-                  <div class="h-px flex-1 bg-white/5"></div>
-                  <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest">基础协议参数</span>
-                  <div class="h-px flex-1 bg-white/5"></div>
+                  <div class="h-px flex-1 bg-slate-200 dark:bg-white/5"></div>
+                  <span class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">基础协议参数 / BASE_PROTOCOL_PARAMS</span>
+                  <div class="h-px flex-1 bg-slate-200 dark:bg-white/5"></div>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   <template v-for="(cfg, key) in configs" :key="key">
-                    <div class="bg-black/20 border border-white/5 p-6 rounded-[2rem] group hover:border-orange-500/20 transition-all flex flex-col">
-                      <div class="flex items-center justify-between mb-4">
-                        <span class="text-[10px] font-mono text-orange-400 uppercase tracking-widest font-black flex items-center gap-2">
-                           <Cpu class="w-3 h-3" /> {{ key }}
+                    <div class="bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 p-6 rounded-[2rem] group hover:border-violet-500/20 transition-all flex flex-col shadow-sm relative overflow-hidden">
+                      <div class="absolute top-0 right-0 w-32 h-32 bg-violet-500/[0.03] blur-[50px] -mr-16 -mt-16" />
+                      <div class="flex items-center justify-between mb-4 relative z-10">
+                        <span class="text-[10px] font-mono text-violet-600 dark:text-violet-400 uppercase tracking-widest font-black flex items-center gap-2">
+                           <Cpu class="w-4 h-4" /> {{ key }}
                         </span>
-                        <button @click="handleUpdateConfig(String(key))" class="p-2 rounded-xl bg-orange-500/10 text-orange-400 opacity-0 group-hover:opacity-100 transition-all hover:bg-orange-500 hover:text-white shadow-lg">
-                          <Edit2 class="w-4 h-4" />
+                        <button @click="handleUpdateConfig(String(key))" class="p-2.5 rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400 opacity-100 lg:opacity-0 group-hover:opacity-100 transition-all hover:bg-violet-600 hover:text-white shadow-lg shadow-violet-500/10 border border-violet-500/20">
+                          <Edit2 class="w-3.5 h-3.5" />
                         </button>
                       </div>
-                      <div class="flex-1">
-                        <div class="text-2xl font-black text-white italic truncate mb-2">{{ cfg.value }}</div>
-                        <div class="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-relaxed">{{ cfg.description }}</div>
+                      <div class="flex-1 relative z-10">
+                        <div class="text-2xl font-black text-slate-900 dark:text-white italic truncate mb-2 leading-none">{{ cfg.value }}</div>
+                        <div class="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-relaxed opacity-70">{{ cfg.description }}</div>
                       </div>
                     </div>
                   </template>
                 </div>
               </div>
 
-              <div class="p-8 rounded-[2rem] bg-orange-500/5 border border-orange-500/10 flex items-start gap-6">
-                <div class="p-4 rounded-2xl bg-orange-500/10 text-orange-400 shrink-0">
-                  <Activity class="w-6 h-6" />
+              <div class="p-8 rounded-[2.5rem] bg-violet-500/[0.03] border border-violet-500/10 flex flex-col sm:flex-row items-center sm:items-start gap-6 relative overflow-hidden group">
+                <div class="absolute inset-0 bg-gradient-to-r from-violet-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div class="p-5 rounded-2xl bg-violet-500/10 text-violet-600 dark:text-violet-400 shrink-0 border border-violet-500/20 shadow-inner relative z-10">
+                  <Activity class="w-7 h-7" />
                 </div>
-                <div class="space-y-2">
-                  <h4 class="text-sm font-black text-white uppercase italic">实验室配置说明</h4>
-                  <p class="text-xs text-slate-500 font-bold leading-relaxed">
-                    此处参数直接影响实验室核心协议逻辑。所有更改实时生效，请确保数值有效。
+                <div class="space-y-2 relative z-10 text-center sm:text-left">
+                  <h4 class="text-sm font-black text-slate-900 dark:text-white uppercase italic tracking-wider">实验室配置说明 / OPERATION_MANUAL</h4>
+                  <p class="text-xs text-slate-500 dark:text-slate-400 font-bold leading-relaxed max-w-2xl italic">
+                    警告：此处参数直接影响实验室核心协议逻辑。所有更改在数据库 commit 后立即生效，请在管理员授权下进行数值调整，确保实验室环境稳定性。
                   </p>
                 </div>
               </div>
@@ -769,51 +851,58 @@ const filteredHistory = computed(() => {
             <!-- History Tab -->
             <div v-if="activeTab === 'history'" class="space-y-8">
               <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-                <h3 class="text-xl font-black italic uppercase text-white flex items-center gap-4">
-                  <History class="w-5 h-5 text-purple-400" />
-                  全球实验追溯记录 <span class="text-slate-600 font-mono not-italic text-xs">/ SCAN@LOGS --ALL</span>
+                <h3 class="text-xl font-black italic uppercase text-slate-900 dark:text-white flex items-center gap-4">
+                  <History class="w-5 h-5 text-cyan-500 shrink-0" />
+                  全球实验追溯记录 <span class="text-slate-400 dark:text-slate-600 font-mono not-italic text-[10px] tracking-normal">/ SCAN@LOGS --ALL</span>
                 </h3>
                 <div class="flex items-center gap-4">
                   <div class="relative group">
-                    <SearchIcon class="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-600 group-focus-within:text-purple-400 transition-colors" />
+                    <SearchIcon class="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-cyan-500 transition-colors" />
                     <input 
                       v-model="searchTerm"
                       type="text" 
                       placeholder="SEARCH EXPERIMENT ID..."
-                      class="bg-black/40 border border-white/5 rounded-2xl pl-12 pr-6 py-3 text-xs font-mono focus:outline-none focus:border-purple-500/30 w-full md:w-64 transition-all placeholder:text-slate-700"
+                      class="bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/5 rounded-2xl pl-12 pr-6 py-3 text-[10px] font-black tracking-widest focus:outline-none focus:border-cyan-500/30 w-full md:w-64 transition-all placeholder:text-slate-400 dark:placeholder:text-slate-700 text-slate-900 dark:text-white"
                     />
                   </div>
                 </div>
               </div>
 
-              <div class="overflow-x-auto custom-scrollbar">
+              <div class="overflow-x-auto custom-scrollbar border border-slate-200 dark:border-white/5 rounded-[2.5rem] bg-slate-50 dark:bg-black/20">
                 <table class="w-full text-left">
                   <thead>
-                    <tr class="text-slate-600 text-[10px] font-black uppercase tracking-[0.2em] border-b border-white/5">
-                      <th class="px-6 py-4">Experiment ID</th>
-                      <th class="px-6 py-4">Timestamp / Logs</th>
-                      <th class="px-6 py-4">Status</th>
-                      <th class="px-6 py-4 text-right">Details</th>
+                    <tr class="text-slate-400 dark:text-slate-600 text-[9px] font-black uppercase tracking-[0.3em] border-b border-slate-200 dark:border-white/10">
+                      <th class="px-8 py-5">Experiment ID</th>
+                      <th class="px-8 py-5">Timestamp / Sync</th>
+                      <th class="px-8 py-5">Subject Status</th>
+                      <th class="px-8 py-5 text-right">Protocol Data</th>
                     </tr>
                   </thead>
-                  <tbody class="divide-y divide-white/5 font-mono">
-                    <tr v-for="game in filteredHistory" :key="game.id" class="hover:bg-white/5 transition-colors group cursor-pointer">
-                      <td class="px-6 py-6 font-bold text-white group-hover:text-purple-400 transition-colors">
-                        REACTOR-{{ game.id.substring(0, 8).toUpperCase() }}
+                  <tbody class="divide-y divide-slate-100 dark:divide-white/5 font-mono">
+                    <tr v-for="game in filteredHistory" :key="game.id" class="hover:bg-white/40 dark:hover:bg-cyan-500/[0.03] transition-all group cursor-pointer">
+                      <td class="px-8 py-6 font-black text-slate-900 dark:text-white group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors text-xs tracking-tighter">
+                        <span class="text-slate-400 dark:text-slate-600 font-normal opacity-50">STATION:</span>{{ String(game.id).padStart(4, '0') }}
                       </td>
-                      <td class="px-6 py-6 text-xs text-slate-500">
-                        {{ new Date(game.created_at).toLocaleString() }}
+                      <td class="px-8 py-6 text-[10px] text-slate-500 dark:text-slate-500 font-bold uppercase">
+                        {{ new Date((game.finished_at || game.created_at || '').replace(' ', 'T')).toLocaleString() }}
                       </td>
-                      <td class="px-6 py-6">
-                        <span class="text-[10px] px-3 py-1 bg-purple-500/10 text-purple-400 rounded-full border border-purple-500/20 font-black tracking-widest uppercase">Terminated</span>
+                      <td class="px-8 py-6">
+                        <div class="flex items-center gap-3">
+                          <span class="text-[9px] px-3.5 py-1.5 bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 rounded-lg border border-cyan-500/20 font-black tracking-widest uppercase shadow-sm">
+                            Winner: {{ game.winner_name || 'UNDEFINED' }}
+                          </span>
+                          <span class="text-[8px] text-slate-400 dark:text-slate-600 uppercase font-black opacity-40">/ COMPLETED</span>
+                        </div>
                       </td>
-                      <td class="px-6 py-6 text-right">
-                        <ChevronRight class="w-5 h-5 text-slate-700 group-hover:text-purple-400 transition-all group-hover:translate-x-1 inline-block" />
+                      <td class="px-8 py-6 text-right">
+                        <div class="inline-flex items-center justify-center w-8 h-8 rounded-full border border-slate-200 dark:border-white/10 group-hover:border-cyan-500/50 transition-all">
+                           <ChevronRight class="w-4 h-4 text-slate-300 dark:text-slate-800 group-hover:text-cyan-500 group-hover:translate-x-1 transition-all" />
+                        </div>
                       </td>
                     </tr>
                     <tr v-if="filteredHistory.length === 0">
-                      <td colspan="4" class="py-20 text-center text-slate-600 italic font-bold">
-                        目前尚未检索到任何匹配的实验数据
+                      <td colspan="4" class="py-24 text-center text-slate-400 dark:text-slate-600 italic font-black uppercase tracking-[0.4em] text-[10px]">
+                        / NO_HISTORY_DATA_FOUND_IN_BUFFER
                       </td>
                     </tr>
                   </tbody>
@@ -821,37 +910,116 @@ const filteredHistory = computed(() => {
               </div>
             </div>
 
-            <!-- Feedback Tab -->
+            <!-- Announcements Tab -->
+            <div v-if="activeTab === 'announcements'" class="space-y-8">
+              <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                <h3 class="text-xl font-black italic uppercase text-slate-900 dark:text-white flex items-center gap-4">
+                  <Bell class="w-5 h-5 text-cyan-500 shrink-0" />
+                  服务器广播矩阵 <span class="text-slate-400 dark:text-slate-600 font-mono not-italic text-[10px] tracking-normal">/ COMMS@BROADCAST --ACTIVE</span>
+                </h3>
+                <button 
+                  @click="showCreateAnnouncementModal = true"
+                  class="bg-cyan-600 hover:bg-cyan-500 text-white px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-3 transition-all shadow-lg"
+                >
+                  <Plus class="w-4 h-4" />
+                  NEW_BROADCAST
+                </button>
+              </div>
+
+              <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div v-for="ann in announcements" :key="ann.id" 
+                  :class="cn(
+                    'p-6 rounded-[2.5rem] border transition-all relative overflow-hidden group',
+                    ann.active ? 'bg-cyan-500/[0.03] border-cyan-500/20 shadow-md' : 'bg-slate-50 dark:bg-black/20 border-slate-200 dark:border-white/5 opacity-60'
+                  )"
+                >
+                  <div class="flex items-center justify-between mb-4 relative z-10">
+                    <div class="flex items-center gap-3">
+                      <div :class="cn(
+                        'w-8 h-8 rounded-lg flex items-center justify-center border',
+                        ann.type === 'emergency' ? 'bg-red-500/10 text-red-500 border-red-500/20' : 
+                        ann.type === 'maintenance' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' :
+                        'bg-cyan-500/10 text-cyan-500 border-cyan-500/20'
+                      )">
+                        <Megaphone class="w-4 h-4" />
+                      </div>
+                      <div>
+                        <span class="text-[10px] font-black uppercase tracking-widest text-slate-500">{{ ann.type }}</span>
+                        <div class="flex items-center gap-2">
+                          <span v-if="ann.is_ticker" class="text-[8px] px-1.5 py-0.5 bg-emerald-500/10 text-emerald-500 rounded border border-emerald-500/10 font-black uppercase tracking-tighter">TICKER</span>
+                          <span v-else class="text-[8px] px-1.5 py-0.5 bg-blue-500/10 text-blue-500 rounded border border-blue-500/10 font-black uppercase tracking-tighter">ALERT</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <button @click="handleToggleAnnouncement(ann.id, !ann.active)" 
+                        :class="cn(
+                          'px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all border',
+                          ann.active ? 'bg-emerald-500 text-white border-emerald-600 shadow-lg shadow-emerald-500/20' : 'bg-slate-200 dark:bg-white/5 text-slate-500 border-slate-300 dark:border-white/10'
+                        )"
+                      >
+                        {{ ann.active ? 'ACTIVE' : 'DISABLED' }}
+                      </button>
+                      <button @click="handleDeleteAnnouncement(ann.id)" class="p-2 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white rounded-lg transition-all border border-red-500/10">
+                        <Trash2 class="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="bg-white/40 dark:bg-black/40 p-5 rounded-2xl relative z-10 border border-slate-100 dark:border-white/5 min-h-[60px] mb-4">
+                    <p class="text-[11px] leading-relaxed text-slate-600 dark:text-slate-300 font-bold">{{ ann.content }}</p>
+                  </div>
+
+                  <div class="flex items-center justify-between text-[8px] font-mono text-slate-400 uppercase tracking-widest relative z-10">
+                    <div class="flex items-center gap-2">
+                      <Clock class="w-3 h-3" />
+                      EXPIRES: {{ ann.expires_at ? new Date(ann.expires_at).toLocaleString() : 'NEVER' }}
+                    </div>
+                    <div class="flex items-center gap-1">
+                       REV: {{ ann.id }}
+                    </div>
+                  </div>
+                </div>
+                <div v-if="announcements.length === 0" class="col-span-full py-20 text-center text-slate-400 italic font-black uppercase tracking-[0.3em] text-[10px]">
+                  / NO_ACTIVE_BROADCASTS_DETECTED
+                </div>
+              </div>
+            </div>
+
+            <!-- Feedbacks Tab -->
             <div v-if="activeTab === 'feedbacks'" class="space-y-8">
               <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-                <h3 class="text-xl font-black italic uppercase text-white flex items-center gap-4">
-                  <MessageSquare class="w-5 h-5 text-blue-400" />
-                  外部反馈报告 <span class="text-slate-600 font-mono not-italic text-xs">/ INCOMING@COMMS --FILTERED</span>
+                <h3 class="text-xl font-black italic uppercase text-slate-900 dark:text-white flex items-center gap-4">
+                  <MessageSquare class="w-5 h-5 text-sky-500" />
+                  外部反馈报告 <span class="text-slate-400 dark:text-slate-600 font-mono not-italic text-[10px] tracking-normal">/ INCOMING@COMMS --FILTERED</span>
                 </h3>
               </div>
 
-              <div class="grid grid-cols-1 gap-6">
-                <div v-for="fb in feedbacks" :key="fb.id" class="p-6 bg-black/20 border border-white/5 rounded-3xl hover:border-blue-500/30 transition-all flex flex-col gap-4">
-                   <div class="flex items-center justify-between">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div v-for="fb in feedbacks" :key="fb.id" class="p-6 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-[2rem] hover:border-sky-500/30 transition-all flex flex-col gap-4 shadow-sm hover:shadow-xl group relative overflow-hidden">
+                   <div class="absolute top-0 right-0 w-32 h-32 bg-sky-500/5 blur-[50px] -mr-16 -mt-16 group-hover:bg-sky-500/10 transition-all" />
+                   <div class="flex items-center justify-between relative z-10">
                       <div class="flex items-center gap-3">
-                         <div class="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400">
+                         <div class="w-10 h-10 rounded-xl bg-sky-500/10 flex items-center justify-center text-sky-600 dark:text-sky-400 font-black border border-sky-500/20">
                             {{ fb.username[0].toUpperCase() }}
                          </div>
                          <div>
-                            <p class="text-sm font-black text-white uppercase">{{ fb.username }}</p>
-                            <p class="text-[10px] text-slate-500 font-mono">{{ new Date(fb.created_at).toLocaleString() }}</p>
+                            <p class="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight">{{ fb.username }}</p>
+                            <p class="text-[8px] text-slate-400 dark:text-slate-500 font-mono font-bold uppercase">{{ new Date(fb.created_at).toLocaleString() }}</p>
                          </div>
                       </div>
-                      <span class="px-3 py-1 bg-white/5 text-slate-500 text-[9px] font-black uppercase tracking-widest rounded-full border border-white/5">{{ fb.page }}</span>
+                      <span class="px-2 py-1 bg-slate-100 dark:bg-white/5 text-slate-400 dark:text-slate-500 text-[8px] font-black uppercase tracking-widest rounded-lg border border-slate-200 dark:border-white/5">{{ fb.page }}</span>
                    </div>
-                   <p class="text-sm leading-relaxed text-slate-300 font-medium bg-white/5 p-4 rounded-2xl italic">“{{ fb.content }}”</p>
-                   <div class="flex items-center justify-end gap-3">
-                      <button @click="handleAcceptFeedback(fb.id)" class="px-3 py-1 bg-emerald-500 text-white rounded-md text-sm">接受</button>
-                      <button @click="handleDismissFeedback(fb.id)" class="px-3 py-1 bg-red-500 text-white rounded-md text-sm">消除</button>
+                   <div class="bg-white/50 dark:bg-black/40 p-5 rounded-2xl relative z-10 border border-slate-100 dark:border-white/5 shadow-inner min-h-[80px]">
+                     <p class="text-[11px] leading-relaxed text-slate-600 dark:text-slate-400 font-bold italic">“{{ fb.content }}”</p>
+                   </div>
+                   <div class="flex items-center justify-end gap-3 relative z-10">
+                      <button @click="handleAcceptFeedback(fb.id)" class="px-5 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg hover:shadow-cyan-500/20 active:scale-95">Accept</button>
+                      <button @click="handleDismissFeedback(fb.id)" class="px-5 py-2.5 bg-slate-100 dark:bg-white/5 text-slate-400 hover:text-red-500 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-slate-200 dark:border-white/10 hover:border-red-500/20 active:scale-95">Dismiss</button>
                    </div>
                 </div>
-                <div v-if="feedbacks.length === 0" class="py-20 text-center text-slate-600 italic font-bold">
-                  目前尚未收到任何外部反馈报告
+                <div v-if="feedbacks.length === 0" class="col-span-full py-20 text-center text-slate-400 dark:text-slate-600 italic font-black uppercase tracking-[0.3em] text-[10px]">
+                  / COMM_BUFF_EMPTY_STATUS_NOMINAL
                 </div>
               </div>
             </div>
@@ -861,47 +1029,122 @@ const filteredHistory = computed(() => {
     </div>
 
     <!-- 创建用户模态框 -->
-    <div v-if="showCreateUserModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div class="bg-[#111114] border border-white/10 rounded-[2rem] p-8 max-w-md w-full shadow-2xl">
-        <h3 class="text-xl font-black text-white mb-6 flex items-center gap-3">
-          <Users class="w-5 h-5 text-emerald-400" />
-          添加新研究员
+    <div v-if="showCreateUserModal" class="fixed inset-0 bg-slate-900/40 dark:bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+      <div class="bg-white dark:bg-[#0c0c0e] border border-slate-200 dark:border-white/10 rounded-[2.5rem] p-10 max-w-md w-full shadow-[0_50px_100px_-20px_rgba(6,182,212,0.2)] animate-in zoom-in relative overflow-hidden">
+        <div class="absolute top-0 right-0 w-40 h-40 bg-cyan-500/5 blur-[60px] -mr-20 -mt-20" />
+        
+        <h3 class="text-xl font-black italic uppercase text-slate-900 dark:text-white mb-8 flex items-center gap-4 relative z-10">
+          <Users class="w-6 h-6 text-cyan-500" />
+          添加新研究员 <span class="text-[10px] text-slate-400 font-mono not-italic tracking-normal">/ NEW_STAFF_REG</span>
         </h3>
         
-        <div class="space-y-6">
+        <div class="space-y-6 relative z-10">
           <div>
-            <label class="text-xs font-black text-slate-500 uppercase tracking-widest block mb-2">用户名</label>
+            <label class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] block mb-3 ml-1">Access Identifier / 用户名</label>
             <input 
               v-model="newUser.username"
               type="text" 
-              placeholder="输入用户名..."
-              class="w-full bg-black/40 border border-white/5 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500/30 transition-all"
+              placeholder="ENTER IDENTIFIER..."
+              class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-2xl px-5 py-4 text-xs font-black text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500/50 transition-all placeholder:text-slate-300 dark:placeholder:text-slate-700 tracking-widest uppercase"
             />
           </div>
           
           <div>
-            <label class="text-xs font-black text-slate-500 uppercase tracking-widest block mb-2">密码</label>
+            <label class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] block mb-3 ml-1">Security Key / 初始密码</label>
             <input 
               v-model="newUser.password"
               type="password" 
-              placeholder="输入密码（至少6位）..."
-              class="w-full bg-black/40 border border-white/5 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500/30 transition-all"
+              placeholder="MINIMUM 6 CHARS..."
+              class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-2xl px-5 py-4 text-xs font-black text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500/50 transition-all placeholder:text-slate-300 dark:placeholder:text-slate-700 tracking-widest"
             />
           </div>
         </div>
         
-        <div class="flex gap-4 mt-8">
+        <div class="flex gap-4 mt-10 relative z-10">
           <button 
             @click="showCreateUserModal = false; newUser = { username: '', password: '' }"
-            class="flex-1 px-6 py-3 bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white rounded-xl font-black text-xs uppercase tracking-widest transition-all"
+            class="flex-1 px-6 py-4 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-500 dark:text-slate-400 rounded-[1.25rem] font-black text-[10px] uppercase tracking-widest transition-all border border-slate-200 dark:border-white/5"
           >
-            取消
+            Abort
           </button>
           <button 
             @click="handleCreateUser"
-            class="flex-1 px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black text-xs uppercase tracking-widest transition-all"
+            class="flex-1 px-6 py-4 bg-cyan-600 hover:bg-cyan-500 text-white rounded-[1.25rem] font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-cyan-500/20 active:scale-95 border border-cyan-500/20"
           >
-            创建用户
+            Confirm Entry
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 发布公告模态框 -->
+    <div v-if="showCreateAnnouncementModal" class="fixed inset-0 bg-slate-900/40 dark:bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+      <div class="bg-white dark:bg-[#0c0c0e] border border-slate-200 dark:border-white/10 rounded-[2.5rem] p-10 max-w-lg w-full shadow-[0_50px_100px_-20px_rgba(6,182,212,0.2)] animate-in zoom-in relative overflow-hidden">
+        <div class="absolute top-0 right-0 w-40 h-40 bg-cyan-500/5 blur-[60px] -mr-20 -mt-20" />
+        
+        <h3 class="text-xl font-black italic uppercase text-slate-900 dark:text-white mb-8 flex items-center gap-4 relative z-10">
+          <Megaphone class="w-6 h-6 text-cyan-500" />
+          发起全域广播 <span class="text-[10px] text-slate-400 font-mono not-italic tracking-normal">/ NEW_SEC_BROADCAST</span>
+        </h3>
+        
+        <div class="space-y-6 relative z-10">
+          <div>
+            <label class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] block mb-3 ml-1">Broadcast Content / 内容</label>
+            <textarea 
+              v-model="newAnnouncement.content"
+              rows="3"
+              placeholder="ENTER MESSAGE TO RESEARCHERS..."
+              class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-2xl px-5 py-4 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500/50 transition-all resize-none"
+            />
+          </div>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] block mb-3 ml-1">Priority / 优先级</label>
+              <select 
+                v-model="newAnnouncement.type"
+                class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500/30"
+              >
+                <option value="info">INFO / 公告</option>
+                <option value="maintenance">MAINTENANCE / 维护</option>
+                <option value="emergency">EMERGENCY / 紧急</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] block mb-3 ml-1">Format / 展现形式</label>
+              <select 
+                v-model="newAnnouncement.is_ticker"
+                class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500/30"
+              >
+                <option :value="true">TICKER / 跑马灯</option>
+                <option :value="false">MODAL / 强制弹窗</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+             <label class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] block mb-3 ml-1">TTL / 有效时长 (e.g. 24h, 7d, 30m)</label>
+             <input 
+              v-model="newAnnouncement.expires_in"
+              type="text" 
+              placeholder="24h"
+              class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-5 py-3 text-xs font-bold font-mono text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500/50 tracking-widest uppercase"
+            />
+          </div>
+        </div>
+        
+        <div class="flex gap-4 mt-10 relative z-10">
+          <button 
+            @click="showCreateAnnouncementModal = false"
+            class="flex-1 px-6 py-4 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-500 rounded-[1.25rem] font-black text-[10px] uppercase tracking-widest transition-all"
+          >
+            Cancel
+          </button>
+          <button 
+            @click="handleCreateAnnouncement"
+            class="flex-1 px-6 py-4 bg-cyan-600 hover:bg-cyan-500 text-white rounded-[1.25rem] font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-cyan-500/20 active:scale-95 border border-cyan-500/20"
+          >
+            Broadcast
           </button>
         </div>
       </div>

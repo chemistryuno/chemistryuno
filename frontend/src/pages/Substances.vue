@@ -11,33 +11,33 @@
         <div class="flex items-center gap-6">
           <div class="relative group">
             <div class="absolute inset-x-0 inset-y-0 bg-emerald-500 blur-2xl opacity-20 group-hover:opacity-40 transition-opacity" />
-            <div class="w-16 h-16 rounded-2xl bg-[#111114] border border-emerald-500/40 flex items-center justify-center relative z-10 shadow-2xl">
-              <FlaskConical class="w-8 h-8 text-emerald-400 group-hover:scale-110 transition-transform" />
+            <div class="w-16 h-16 rounded-2xl bg-white dark:bg-[#111114] border border-slate-200 dark:border-emerald-500/40 flex items-center justify-center relative z-10 shadow-2xl">
+              <FlaskConical class="w-8 h-8 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform" />
             </div>
           </div>
           <div>
-            <h1 class="text-3xl font-black text-white italic tracking-tighter uppercase flex items-center gap-3">
-              Substance Wiki <span class="text-xs font-mono bg-emerald-500/20 text-emerald-400 px-2 py-1 rounded border border-emerald-500/30 not-italic uppercase">{{ user?.role || 'USER' }}</span>
+            <h1 class="text-3xl font-black text-slate-900 dark:text-white italic tracking-tighter uppercase flex items-center gap-3">
+              Substance Wiki <span class="text-xs font-mono bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 px-2 py-1 rounded border border-emerald-500/30 not-italic uppercase">{{ user?.role || 'USER' }}</span>
             </h1>
-            <p class="text-slate-500 text-sm font-bold tracking-widest uppercase mt-1">
+            <p class="text-slate-400 dark:text-slate-500 text-sm font-bold tracking-widest uppercase mt-1">
               物质百科全书管理 / Substance encyclopedia
             </p>
           </div>
         </div>
 
         <div class="flex items-center gap-4">
-          <div class="px-6 py-3 bg-[#111114] border border-white/5 rounded-2xl flex items-center gap-4 shadow-xl">
+          <div class="px-6 py-3 bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/5 rounded-2xl flex items-center gap-4 shadow-xl">
             <div class="flex flex-col items-end">
-              <span class="text-[10px] font-black text-slate-500 uppercase">Registry Status</span>
-              <span class="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+              <span class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase">Registry Status</span>
+              <span class="text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
                 <span class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
                 ONLINE
               </span>
             </div>
-            <div class="w-px h-8 bg-white/5" />
+            <div class="w-px h-8 bg-slate-200 dark:bg-white/5" />
             <router-link 
               to="/data"
-              class="flex items-center gap-2 text-slate-400 hover:text-white transition-colors group"
+              class="flex items-center gap-2 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors group"
             >
               <ArrowLeft class="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
               <span class="text-xs font-black uppercase tracking-widest">Back</span>
@@ -48,32 +48,32 @@
 
       <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
         <!-- 添加/编辑面板 -->
-        <div class="lg:col-span-1 bg-[#111114] border border-white/10 p-8 rounded-[2rem] shadow-xl h-fit sticky top-10">
+        <div class="lg:col-span-1 bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 p-8 rounded-[2rem] shadow-xl h-fit sticky top-10">
           <div class="flex items-center gap-3 mb-8">
             <div class="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
-              <Plus class="w-5 h-5 text-emerald-400" />
+              <Plus class="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
             </div>
-            <h3 class="text-xl font-black text-white italic uppercase tracking-tight">
+            <h3 class="text-xl font-black text-slate-800 dark:text-white italic uppercase tracking-tight">
               {{ editingId ? 'Edit Entry' : 'Discover Substance' }}
             </h3>
           </div>
           
           <form @submit.prevent="saveSub" class="space-y-6">
             <div class="space-y-2">
-              <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest pl-1">Chemical Formula</label>
+              <label class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest pl-1">Chemical Formula</label>
               <input 
                 v-model="form.formula" 
                 type="text" 
-                class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm font-bold text-white focus:outline-none focus:border-emerald-500/50 transition-all placeholder:text-slate-700 italic tracking-tighter" 
+                class="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500/50 transition-all placeholder:text-slate-400 dark:placeholder:text-slate-700 italic tracking-tighter" 
                 placeholder="E.G. H2O"
               />
             </div>
             <div class="space-y-2">
-              <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest pl-1">Chinese Name</label>
+              <label class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest pl-1">Chinese Name</label>
               <input 
                 v-model="form.name" 
                 type="text" 
-                class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm font-bold text-white focus:outline-none focus:border-emerald-500/50 transition-all placeholder:text-slate-700" 
+                class="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500/50 transition-all placeholder:text-slate-400 dark:placeholder:text-slate-700" 
                 placeholder="物质名称"
               />
             </div>
@@ -90,7 +90,7 @@
                 v-if="editingId"
                 type="button"
                 @click="closeModal"
-                class="w-full bg-white/5 hover:bg-white/10 px-6 py-3 rounded-2xl font-black text-slate-400 uppercase tracking-widest transition-all"
+                class="w-full bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 px-6 py-3 rounded-2xl font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest transition-all"
               >
                 Cancel
               </button>
@@ -99,20 +99,20 @@
         </div>
 
         <!-- 列表面板 -->
-        <div class="lg:col-span-3 bg-[#111114] border border-white/10 p-8 rounded-[2rem] shadow-xl">
+        <div class="lg:col-span-3 bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 p-8 rounded-[2rem] shadow-xl">
           <div class="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
-            <h3 class="text-xl font-black text-white flex items-center gap-3 italic">
-              <Database class="w-6 h-6 text-blue-400" />
-              DATABASE_ENTRIES <span class="text-slate-600 text-[10px] font-mono not-italic uppercase tracking-widest">/ Substances_Registry</span>
+            <h3 class="text-xl font-black text-slate-800 dark:text-white flex items-center gap-3 italic">
+              <Database class="w-6 h-6 text-blue-600 dark:text-blue-400" />
+              DATABASE_ENTRIES <span class="text-slate-400 dark:text-slate-600 text-[10px] font-mono not-italic uppercase tracking-widest">/ Substances_Registry</span>
             </h3>
             <div class="flex items-center gap-4">
               <div class="relative group">
-                <SearchIcon class="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-600 group-focus-within:text-emerald-400 transition-colors" />
+                <SearchIcon class="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-500 transition-colors" />
                 <input 
                   v-model="searchTerm"
                   type="text" 
                   placeholder="Search formula/name..."
-                  class="bg-white/5 border border-white/10 rounded-xl pl-12 pr-6 py-2.5 text-xs focus:outline-none focus:border-emerald-500/50 w-full md:w-64 transition-all"
+                  class="bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl pl-12 pr-6 py-2.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500/50 w-full md:w-64 transition-all placeholder:text-slate-400"
                 />
               </div>
             </div>
@@ -121,19 +121,19 @@
           <div class="overflow-x-auto custom-scrollbar">
             <table class="w-full text-left">
               <thead>
-                <tr class="text-slate-600 text-[10px] font-black uppercase tracking-[0.2em] border-b border-white/5">
+                <tr class="text-slate-400 dark:text-slate-600 text-[10px] font-black uppercase tracking-[0.2em] border-b border-slate-100 dark:border-white/5">
                   <th class="px-6 py-4">Formula / Name</th>
                   <th class="px-6 py-4">Status</th>
                   <th class="px-6 py-4">Author</th>
                   <th class="px-6 py-4 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody class="divide-y divide-white/5 font-mono">
-                <tr v-for="sub in filteredSubstances" :key="sub.id" class="hover:bg-white/5 transition-colors group">
+              <tbody class="divide-y divide-slate-100 dark:divide-white/5 font-mono">
+                <tr v-for="sub in filteredSubstances" :key="sub.id" class="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors group">
                   <td class="px-6 py-5">
                     <div class="flex flex-col">
-                      <span class="text-lg font-black italic text-white group-hover:text-emerald-400 transition-colors tracking-tighter">{{ sub.formula }}</span>
-                      <span class="text-xs font-bold text-slate-500 group-hover:text-slate-300 transition-colors">{{ sub.name }}</span>
+                      <span class="text-lg font-black italic text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors tracking-tighter">{{ sub.formula }}</span>
+                      <span class="text-xs font-bold text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors">{{ sub.name }}</span>
                     </div>
                   </td>
                   <td class="px-6 py-5">
@@ -176,8 +176,8 @@
                 </tr>
                 <tr v-if="filteredSubstances.length === 0 && !loading">
                   <td colspan="4" class="py-20 text-center">
-                    <FlaskConical class="w-12 h-12 text-slate-700 mx-auto mb-4" />
-                    <p class="text-slate-500 font-medium italic">未检索到相关物质数据</p>
+                    <FlaskConical class="w-12 h-12 text-slate-200 dark:text-slate-700 mx-auto mb-4" />
+                    <p class="text-slate-400 dark:text-slate-500 font-medium italic">未检索到相关物质数据</p>
                   </td>
                 </tr>
               </tbody>
@@ -185,7 +185,7 @@
             
             <div v-if="loading" class="text-center py-12">
               <div class="w-8 h-8 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin mx-auto mb-4"></div>
-              <p class="text-slate-500 font-medium">加载中...</p>
+              <p class="text-slate-400 dark:text-slate-500 font-medium">加载中...</p>
             </div>
           </div>
         </div>

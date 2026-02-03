@@ -14,7 +14,7 @@ const selectedElements = ref<Record<string, number>>({})
 
 // 可选元素列表
 const ALL_ELEMENTS = [
-  'H', 'He', 'Li', 'Be', 'B', 'C', 'N', 'O', 'F', 'Ne',
+  'H', 'He', 'C', 'N', 'O', 'F', 'Ne',
   'Na', 'Mg', 'Al', 'Si', 'P', 'S', 'Cl', 'Ar', 'K', 'Ca',
   'Fe', 'Cu', 'Zn', 'Ag', 'Au', 'Kr', 'I', 'Br', 'Mn'
 ]
@@ -23,7 +23,14 @@ const loadDecks = async () => {
   isLoading.value = true
   try {
     const res = await gameAPI.getMyDecks()
-    decks.value = res.data
+    const allDecks = res.data || []
+    // 将全局牌组排在首位
+    allDecks.sort((a: any, b: any) => {
+      if (a.is_global && !b.is_global) return -1
+      if (!a.is_global && b.is_global) return 1
+      return 0
+    })
+    decks.value = allDecks
   } catch (e) {
     console.error(e)
   } finally {
@@ -31,10 +38,29 @@ const loadDecks = async () => {
   }
 }
 
+const openEdit = (deck: any) => {
+  if (deck.is_global) return // 全局牌组只读
+  editingDeck.value = deck
+  newDeckName.value = deck.name
+  selectedElements.value = { ...deck.cards }
+}
+
 const openCreate = () => {
   editingDeck.value = { id: 0, name: '' }
-  newDeckName.value = ''
-  selectedElements.value = { 'H': 12, 'O': 12, 'C': 4, '+2': 8, '+4': 4 }
+  newDeckName.value = '新实验方案'
+  // 默认尝试使用系统牌组的内容作为模板
+  const globalDeck = decks.value.find(d => d.is_global)
+  if (globalDeck) {
+    selectedElements.value = { ...globalDeck.cards }
+  } else {
+    selectedElements.value = { 'H': 12, 'O': 12, 'C': 4, '+2': 8, '+4': 4 }
+  }
+}
+
+const copyDeck = (deck: any) => {
+  editingDeck.value = { id: 0, name: '' }
+  newDeckName.value = `${deck.name} (副本)`
+  selectedElements.value = { ...deck.cards }
 }
 
 const toggleElement = (el: string) => {
@@ -46,7 +72,7 @@ const toggleElement = (el: string) => {
 }
 
 const saveDeck = async () => {
-  if (!newDeckName.value.trim()) return
+  if (!newDeckName.value.trim() || (editingDeck.value?.is_global)) return
   
   try {
     if (editingDeck.value.id === 0) {
@@ -78,7 +104,7 @@ onMounted(loadDecks)
 <template>
   <div class="space-y-6">
     <div class="flex items-center justify-between">
-       <h3 class="text-xl font-black italic tracking-tighter uppercase text-slate-900 dark:text-white">Custom Decks</h3>
+       <h3 class="text-xl font-black italic tracking-tighter uppercase text-slate-900 dark:text-white">Deck Library <span class="text-slate-400 dark:text-white/20 text-[10px] lowercase font-mono not-italic ml-2">/ default + custom</span></h3>
        <button 
         @click="openCreate"
         class="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all"
@@ -103,13 +129,22 @@ onMounted(loadDecks)
               <Hexagon class="w-5 h-5 text-blue-500" />
             </div>
             <div>
-              <h4 class="font-black text-sm uppercase tracking-tight">{{ deck.name }}</h4>
+              <div class="flex items-center gap-2">
+                <h4 class="font-black text-sm uppercase tracking-tight">{{ deck.name }}</h4>
+                <span v-if="deck.is_global" class="px-1.5 py-0.5 bg-blue-500/20 text-blue-500 text-[8px] font-black rounded uppercase">System</span>
+              </div>
               <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{{ Object.keys(deck.cards).length }} UNIQUE ELEMENTS</p>
             </div>
           </div>
           
-          <div v-if="!deck.is_global" class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button @click="deleteDeck(deck.id)" class="p-2 text-slate-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all">
+          <div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button v-if="!deck.is_global" @click="openEdit(deck)" class="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-500/10 rounded-lg transition-all" title="编辑序列">
+              <Edit2 class="w-4 h-4" />
+            </button>
+            <button @click="copyDeck(deck)" class="p-2 text-slate-400 hover:text-emerald-500 hover:bg-emerald-500/10 rounded-lg transition-all" title="克隆为模板">
+              <Plus class="w-4 h-4" />
+            </button>
+            <button v-if="!deck.is_global" @click="deleteDeck(deck.id)" class="p-2 text-slate-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all">
               <Trash2 class="w-4 h-4" />
             </button>
           </div>

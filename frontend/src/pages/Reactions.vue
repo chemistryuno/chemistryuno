@@ -11,30 +11,30 @@
         <div class="flex items-center gap-6">
           <div class="relative group">
             <div class="absolute inset-x-0 inset-y-0 bg-blue-500 blur-2xl opacity-20 group-hover:opacity-40 transition-opacity" />
-            <div class="w-16 h-16 rounded-2xl bg-[#111114] border border-blue-500/40 flex items-center justify-center relative z-10 shadow-2xl">
-              <Beaker class="w-8 h-8 text-blue-400 group-hover:scale-110 transition-transform" />
+            <div class="w-16 h-16 rounded-2xl bg-white dark:bg-[#111114] border border-slate-200 dark:border-blue-500/40 flex items-center justify-center relative z-10 shadow-2xl">
+              <Beaker class="w-8 h-8 text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform" />
             </div>
           </div>
           <div>
-            <h1 class="text-3xl font-black text-white italic tracking-tighter uppercase flex items-center gap-3">
-              Experimental Wiki <span class="text-xs font-mono bg-blue-500/20 text-blue-400 px-2 py-1 rounded border border-blue-500/30 not-italic">{{ user?.role?.toUpperCase() || 'USER' }}</span>
+            <h1 class="text-3xl font-black text-slate-900 dark:text-white italic tracking-tighter uppercase flex items-center gap-3">
+              Experimental Wiki <span class="text-xs font-mono bg-blue-500/20 text-blue-600 dark:text-blue-400 px-2 py-1 rounded border border-blue-500/30 not-italic">{{ user?.role?.toUpperCase() || 'USER' }}</span>
             </h1>
-            <p class="text-slate-500 text-sm font-bold tracking-widest uppercase mt-1">
+            <p class="text-slate-400 dark:text-slate-500 text-sm font-bold tracking-widest uppercase mt-1">
               {{ (user.role === 'admin' || user.role === 'co-worker') ? '化学反应库管理 / Reaction Database Manager' : '实验室化学反应百科 / Chemical Reaction Encyclopedia' }}
             </p>
           </div>
         </div>
 
         <div class="flex items-center gap-4">
-          <div class="px-6 py-3 bg-[#111114] border border-white/5 rounded-2xl flex items-center gap-4 shadow-xl">
+          <div class="px-6 py-3 bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/5 rounded-2xl flex items-center gap-4 shadow-xl">
             <div class="flex flex-col items-end">
-              <span class="text-[10px] font-black text-slate-500 uppercase">User Role</span>
-              <span class="text-xs font-bold text-blue-400 flex items-center gap-1.5">
+              <span class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase">User Role</span>
+              <span class="text-xs font-bold text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
                 <span class="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
                 {{ user?.role?.toUpperCase() || 'USER' }}
               </span>
             </div>
-            <div class="w-px h-8 bg-white/5" />
+            <div class="w-px h-8 bg-slate-200 dark:bg-white/5" />
             <router-link 
               to="/ranking"
               class="flex items-center gap-2 text-amber-500 hover:text-amber-400 transition-colors group"
@@ -42,10 +42,10 @@
               <Trophy class="w-4 h-4 group-hover:scale-110 transition-transform" />
               <span class="text-xs font-black uppercase tracking-widest">Rank</span>
             </router-link>
-            <div class="w-px h-8 bg-white/5" />
+            <div class="w-px h-8 bg-slate-200 dark:bg-white/5" />
             <button 
               @click="router.push('/')"
-              class="flex items-center gap-2 text-slate-400 hover:text-white transition-colors group"
+              class="flex items-center gap-2 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors group"
             >
               <ArrowLeft class="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
               <span class="text-xs font-black uppercase tracking-widest">Exit</span>
@@ -56,16 +56,16 @@
 
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <!-- 添加反应面板 -->
-        <div class="bg-[#111114] border border-white/10 p-8 rounded-[2rem] shadow-xl">
+        <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 p-8 rounded-[2rem] shadow-xl">
           <div class="flex items-center justify-between mb-6">
-            <h3 class="text-xl font-black text-white flex items-center gap-3">
-              <Plus class="w-6 h-6 text-blue-400" />
+            <h3 class="text-xl font-black text-slate-800 dark:text-white flex items-center gap-3">
+              <Plus class="w-6 h-6 text-blue-600 dark:text-blue-400" />
               {{ editingId ? '编辑反应' : '发现新反应' }}
             </h3>
             <button 
               v-if="user.role === 'admin'"
               @click="triggerFileInput"
-              class="p-2.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 rounded-xl transition-all group"
+              class="p-2.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-500 dark:text-blue-400 border border-blue-500/20 rounded-xl transition-all group"
               title="批量导入JSON"
             >
               <Upload class="w-5 h-5 group-hover:scale-110 transition-transform" />
@@ -97,23 +97,23 @@
         </div>
 
         <!-- 反应列表 (全宽) -->
-        <div class="lg:col-span-2 bg-[#111114] border border-white/10 p-8 rounded-[2rem] shadow-xl">
+        <div class="lg:col-span-2 bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 p-8 rounded-[2rem] shadow-xl">
           <div class="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
-            <h3 class="text-xl font-black text-white flex items-center gap-3">
-              <Database class="w-6 h-6 text-green-400" />
-              反应库索引 <span class="text-slate-600 text-[10px] font-mono not-italic uppercase tracking-widest">/ Global_Wiki</span>
+            <h3 class="text-xl font-black text-slate-800 dark:text-white flex items-center gap-3">
+              <Database class="w-6 h-6 text-green-600 dark:text-green-400" />
+              反应库索引 <span class="text-slate-400 dark:text-slate-600 text-[10px] font-mono not-italic uppercase tracking-widest">/ Global_Wiki</span>
             </h3>
             <div class="flex items-center gap-4">
               <div class="relative group">
-                <SearchIcon class="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-600 group-focus-within:text-blue-400 transition-colors" />
+                <SearchIcon class="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-600 dark:group-focus-within:text-blue-400 transition-colors" />
                 <input 
                   v-model="searchTerm"
                   type="text" 
                   placeholder="搜索反应物/生成物..."
-                  class="bg-white/5 border border-white/10 rounded-xl pl-12 pr-6 py-2.5 text-xs focus:outline-none focus:border-blue-500/50 w-full md:w-64 transition-all"
+                  class="bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl pl-12 pr-6 py-2.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500/50 w-full md:w-64 transition-all placeholder:text-slate-400"
                 />
               </div>
-              <div class="text-[10px] font-black text-white bg-blue-600/20 px-3 py-2 rounded-xl border border-blue-600/30 whitespace-nowrap">
+              <div class="text-[10px] font-black text-blue-600 dark:text-white bg-blue-600/10 dark:bg-blue-600/20 px-3 py-2 rounded-xl border border-blue-600/20 dark:border-blue-600/30 whitespace-nowrap">
                 MATCHED: {{ filteredReactions.length }}
               </div>
             </div>
@@ -122,16 +122,16 @@
           <div class="overflow-x-auto custom-scrollbar">
             <table class="w-full text-left">
               <thead>
-                <tr class="text-slate-600 text-[10px] font-black uppercase tracking-[0.2em] border-b border-white/5">
+                <tr class="text-slate-400 dark:text-slate-600 text-[10px] font-black uppercase tracking-[0.2em] border-b border-slate-100 dark:border-white/5">
                   <th class="px-6 py-4">Reaction Formula</th>
                   <th class="px-6 py-4">Status</th>
                   <th class="px-6 py-4">Creator</th>
                   <th class="px-6 py-4 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody class="divide-y divide-white/5 font-mono">
-                <tr v-for="reaction in filteredReactions" :key="reaction.id" class="hover:bg-white/5 transition-colors group">
-                  <td class="px-6 py-5 font-bold text-white text-xs">
+              <tbody class="divide-y divide-slate-100 dark:divide-white/5 font-mono">
+                <tr v-for="reaction in filteredReactions" :key="reaction.id" class="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors group">
+                  <td class="px-6 py-5 font-bold text-slate-900 dark:text-white text-xs">
                     <div class="flex items-center gap-4 border-l-2" 
                       :class="{
                         'border-amber-500/50 pl-4': reaction.status === 'pending_coworker',
@@ -143,11 +143,11 @@
                         <div v-if="editingReactionId === reaction.id" class="flex flex-col gap-2 p-4 bg-slate-100 dark:bg-slate-900/50 rounded-2xl border border-blue-500/20 my-2">
                           <EquationEditor v-model="editForm.display" />
                           <div class="flex gap-2 justify-end mt-2">
-                            <button @click="editingReactionId = null" class="px-3 py-1.5 text-xs font-bold text-slate-500 hover:text-slate-700">取消</button>
+                            <button @click="editingReactionId = null" class="px-3 py-1.5 text-xs font-bold text-slate-400 hover:text-slate-600">取消</button>
                             <button @click="saveEdit(reaction.id)" class="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg shadow-lg">保存修改</button>
                           </div>
                         </div>
-                        <span v-else class="text-white text-sm tracking-tight leading-relaxed">{{ reaction.display }}</span>
+                        <span v-else class="text-slate-900 dark:text-white text-sm tracking-tight leading-relaxed">{{ reaction.display }}</span>
                       </div>
                     </div>
                   </td>
@@ -167,10 +167,10 @@
                       </span>
                     </div>
                   </td>
-                  <td class="px-6 py-5 text-[10px] text-slate-600 dark:text-slate-400">
+                  <td class="px-6 py-5 text-[10px] text-slate-900 dark:text-slate-400">
                     <div class="flex flex-col">
-                      <span class="font-bold text-slate-700 dark:text-slate-400 opacity-80 uppercase tracking-tighter">{{ reaction.creator_name || 'SYSTEM' }}</span>
-                      <span class="text-[8px] opacity-60">{{ new Date(reaction.created_at).toLocaleDateString() }}</span>
+                      <span class="font-bold text-slate-800 dark:text-slate-300 opacity-80 uppercase tracking-tighter">{{ reaction.creator_name || 'SYSTEM' }}</span>
+                      <span class="text-[8px] opacity-60 text-slate-500 dark:text-slate-400">{{ new Date(reaction.created_at).toLocaleDateString() }}</span>
                     </div>
                   </td>
                   <td class="px-6 py-5 text-right">
@@ -179,7 +179,7 @@
                       <button 
                         v-if="canApprove(reaction)"
                         @click="handleApproveReaction(reaction, false)"
-                        class="px-3 py-1.5 bg-emerald-600/10 hover:bg-emerald-600 dark:bg-emerald-600/20 text-emerald-600 dark:text-emerald-400 hover:text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shadow-lg shadow-emerald-900/10 whitespace-nowrap"
+                        class="px-3 py-1.5 bg-emerald-600/10 hover:bg-emerald-600 text-emerald-600 hover:text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shadow-lg shadow-emerald-900/10 whitespace-nowrap"
                       >
                         Approve
                       </button>
@@ -195,7 +195,7 @@
                       <button 
                         v-if="user.role === 'admin' || user.role === 'co-worker'"
                         @click="handleEdit(reaction)"
-                        class="p-2 hover:bg-blue-500/10 dark:hover:bg-blue-500/20 text-slate-400 hover:text-blue-500 rounded-xl transition-all"
+                        class="p-2 hover:bg-blue-500/10 dark:hover:bg-blue-500/20 text-slate-400 dark:text-slate-500 hover:text-blue-500 dark:hover:text-blue-400 rounded-xl transition-all"
                         title="直接修改"
                       >
                         <Edit class="w-4 h-4" />
@@ -205,7 +205,7 @@
                       <button 
                         v-else
                         @click="handleReport(reaction)"
-                        class="p-2 hover:bg-amber-500/10 text-slate-400 hover:text-amber-500 rounded-xl transition-all"
+                        class="p-2 hover:bg-amber-500/10 dark:hover:bg-amber-500/20 text-slate-400 dark:text-slate-500 hover:text-amber-500 dark:hover:text-amber-400 rounded-xl transition-all"
                         title="反馈纠错"
                       >
                         <MessageSquare class="w-4 h-4" />
@@ -214,7 +214,7 @@
                       <button 
                         v-if="canDelete(reaction)"
                         @click="handleDeleteReaction(reaction.id)"
-                        class="p-2 hover:bg-red-500/10 dark:hover:bg-red-500/20 text-slate-400 hover:text-red-600 dark:text-slate-600 dark:hover:text-red-400 rounded-xl transition-all"
+                        class="p-2 hover:bg-red-500/10 dark:hover:bg-red-500/20 text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400 rounded-xl transition-all"
                         :title="reaction.status !== 'approved' ? 'Reject' : 'Delete'"
                       >
                         <Trash2 class="w-4 h-4" />
@@ -224,8 +224,8 @@
                 </tr>
                 <tr v-if="filteredReactions.length === 0 && !loading">
                   <td colspan="4" class="py-20 text-center">
-                    <Database class="w-12 h-12 text-slate-700 mx-auto mb-4" />
-                    <p class="text-slate-500 font-medium italic">未检索到相关化学反应数据</p>
+                    <Database class="w-12 h-12 text-slate-200 dark:text-slate-700 mx-auto mb-4" />
+                    <p class="text-slate-400 dark:text-slate-500 font-medium italic">未检索到相关化学反应数据</p>
                   </td>
                 </tr>
               </tbody>

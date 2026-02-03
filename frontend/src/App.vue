@@ -5,6 +5,7 @@ import websocket from './utils/websocket'
 import { gameAPI } from './utils/api'
 import CustomDialog from './components/CustomDialog.vue'
 import FeedbackButton from './components/FeedbackButton.vue'
+import AnnouncementTicker from './components/AnnouncementTicker.vue'
 import { useDialog } from './utils/dialog'
 
 const loading = ref(true)
@@ -19,22 +20,32 @@ watch(() => route.query.report, (val) => {
 })
 
 const updateTheme = () => {
-  if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-    document.documentElement.classList.add('dark')
-    document.documentElement.classList.remove('light')
+  const storedTheme = localStorage.getItem('theme') || 'system'
+  const root = document.documentElement
+  root.classList.remove('light', 'dark')
+
+  if (storedTheme === 'system') {
+    if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      root.classList.add('dark')
+    } else {
+      root.classList.add('light')
+    }
   } else {
-    document.documentElement.classList.add('light')
-    document.documentElement.classList.remove('dark')
+    root.classList.add(storedTheme)
   }
 }
 
+// 立即运行一次以防止 FOUC
+updateTheme()
+
 onMounted(() => {
-  // 监听系统主题变化
-  updateTheme()
+  // 监听主题变化
   const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
   mediaQuery.addEventListener('change', updateTheme)
-
-  // 检查本地存储的token
+  window.addEventListener('storage', (e) => {
+    if (e.key === 'theme') updateTheme()
+  })
+  window.addEventListener('theme-changed', updateTheme)
   const token = localStorage.getItem('token')
   const userData = localStorage.getItem('user')
   
@@ -78,10 +89,22 @@ onMounted(() => {
     showAlert(`研究员 ${msg.data.username} 拒绝了你的挑战邀请。`, '挑战被拒绝')
   }
 
+  const handleSystemAnnouncement = (msg: any) => {
+    const ann = msg.data
+    // 如果不是跑马灯，则视为弹窗公告
+    if (ann && !ann.is_ticker) {
+      let title = '系统公告'
+      if (ann.type === 'emergency') title = '紧急通知'
+      if (ann.type === 'maintenance') title = '维护通知'
+      showAlert(ann.content, title)
+    }
+  }
+
   websocket.on('feedback_update', handleFeedbackUpdate)
   websocket.on('duel_start', handleDuelStart)
   websocket.on('duel_invite', handleDuelInvite)
   websocket.on('duel_declined', handleDuelDeclined)
+  websocket.on('system_announcement', handleSystemAnnouncement)
 
   onUnmounted(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
@@ -90,6 +113,7 @@ onMounted(() => {
     websocket.off('duel_start', handleDuelStart)
     websocket.off('duel_invite', handleDuelInvite)
     websocket.off('duel_declined', handleDuelDeclined)
+    websocket.off('system_announcement', handleSystemAnnouncement)
   })
 
   loading.value = false
@@ -108,6 +132,7 @@ onMounted(() => {
   </div>
   <template v-else>
     <div class="transition-colors duration-300 min-h-screen bg-slate-50 dark:bg-[#0a0a0c] text-slate-900 dark:text-slate-200">
+      <AnnouncementTicker />
       <router-view></router-view>
       <CustomDialog />
       <FeedbackButton ref="feedbackBtnRef" />

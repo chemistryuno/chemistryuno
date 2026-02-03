@@ -11,7 +11,7 @@ import (
 
 func GetMyDecks(c *gin.Context) {
 	uid := c.GetInt("uid")
-	rows, err := database.DB.Query("SELECT id, name, cards, created_at FROM deck_configs WHERE created_by = ? OR is_global = 1", uid)
+	rows, err := database.DB.Query("SELECT id, name, is_global, cards, created_at FROM deck_configs WHERE created_by = ? OR is_global = 1", uid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取卡组失败"})
 		return
@@ -22,7 +22,7 @@ func GetMyDecks(c *gin.Context) {
 	for rows.Next() {
 		var deck models.DeckConfig
 		var cardsJSON string
-		if err := rows.Scan(&deck.ID, &deck.Name, &cardsJSON, &deck.CreatedAt); err != nil {
+		if err := rows.Scan(&deck.ID, &deck.Name, &deck.IsGlobal, &cardsJSON, &deck.CreatedAt); err != nil {
 			continue
 		}
 		json.Unmarshal([]byte(cardsJSON), &deck.Cards)

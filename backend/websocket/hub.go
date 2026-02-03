@@ -179,3 +179,23 @@ func (h *Hub) IsUIDInRoom(roomID string, uid int) bool {
 	}
 	return false
 }
+
+func (h *Hub) BroadcastToAll(message interface{}) {
+	h.mutex.RLock()
+	defer h.mutex.RUnlock()
+
+	data, err := json.Marshal(message)
+	if err != nil {
+		log.Printf("消息序列化失败: %v", err)
+		return
+	}
+
+	for client := range h.clients {
+		select {
+		case client.send <- data:
+		default:
+			close(client.send)
+			delete(h.clients, client)
+		}
+	}
+}

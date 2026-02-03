@@ -13,7 +13,7 @@ const emit = defineEmits<{
   (e: 'close'): void
 }>()
 
-const { showAlert } = useDialog()
+const { showAlert, showConfirm } = useDialog()
 const keys = ref<any[]>([])
 const loading = ref(false)
 const registering = ref(false)
@@ -54,13 +54,22 @@ const addKey = async () => {
 }
 
 const removeKey = async (id: string) => {
-  if (!confirm('确定要移除此硬件密钥吗？此操作不可撤销。')) return
+  const confirmed = await showConfirm(
+    '您确定要注销此物理密钥吗？失去此密钥可能导致您无法通过硬件回溯流程找回账户。此操作涉及到高度实验室安全协议，请谨慎操作。',
+    '⚠️ 物理密钥注销警告',
+    '确认销毁',
+    '保留密钥'
+  )
+  
+  if (!confirmed) return
   
   try {
     await api.delete(`/user/webauthn/credentials/${id}`)
     await fetchKeys()
-  } catch (error) {
+    showAlert('该物理设备的授权已被永久撤回。', '协议同步成功')
+  } catch (error: any) {
     console.error('删除密钥失败', error)
+    showAlert('注销失败: ' + (error.response?.data?.error || '未知错误'), '协议错误')
   }
 }
 

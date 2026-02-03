@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { Key, Lock, Eye, EyeOff, Loader2, Fingerprint } from 'lucide-vue-next'
+import { ref, computed } from 'vue'
+import { Key, Lock, Eye, EyeOff, Loader2, Fingerprint, Cpu } from 'lucide-vue-next'
+import api, { authAPI } from '../../utils/api'
+import { get } from '@github/webauthn-json'
+import { onMounted, watch } from 'vue'
 
-defineProps<{
+const props = defineProps<{
   show: boolean
   loading: boolean
   is2faEnabled: boolean
@@ -11,6 +14,7 @@ defineProps<{
 const emit = defineEmits<{
   (e: 'close'): void
   (e: 'save', oldPw: string, newPw: string, code: string): void
+  (e: 'success'): void
 }>()
 
 const oldPassword = ref('')
@@ -18,6 +22,38 @@ const code = ref('')
 const newPassword = ref('')
 const confirmPassword = ref('')
 const showPasswords = ref(false)
+const localLoading = ref(false)
+const hasWebauthnKeys = ref(false)
+
+// Check if user has hardware keys
+const checkKeys = async () => {
+  try {
+    const res = await api.get('/user/webauthn/credentials')
+    hasWebauthnKeys.value = res.data && res.data.length > 0
+  } catch(e) {}
+}
+
+onMounted(() => {
+  if (props.show) checkKeys()
+})
+
+watch(() => props.show, (val) => {
+  if (val) {
+    checkKeys()
+  } else {
+    // Reset form when modal closes
+    oldPassword.value = ''
+    newPassword.value = ''
+    confirmPassword.value = ''
+    code.value = ''
+  }
+})
+
+const mode = computed(() => {
+  if (hasWebauthnKeys.value) return 'webauthn'
+  if (props.is2faEnabled) return '2fa'
+  return 'classic'
+})
 
 const handleSave = () => {
   if (newPassword.value !== confirmPassword.value) {
@@ -26,85 +62,144 @@ const handleSave = () => {
   }
   emit('save', oldPassword.value, newPassword.value, code.value)
 }
+
+const handleWebauthnReset = async () => {
+  if (newPassword.value !== confirmPassword.value) {
+    alert('两次输入的密码不一致')
+    return
+  }
+  if (!newPassword.value || newPassword.value.length < 6) {
+    alert('新密码长度至少为 6 位')
+    return
+  }
+
+  localLoading.value = true
+  try {
+    const res = await authAPI.beginChangePasswordWebAuthn()
+    const credential = await get(res.data)
+    await authAPI.finishChangePasswordWebAuthn(newPassword.value, credential)
+    emit('success')
+    emit('close')
+  } catch (err: any) {
+    console.error(err)
+    alert(err.response?.data?.error || '硬件验证失败')
+  } finally {
+    localLoading.value = false
+  }
+}
 </script>
 
 <template>
   <div v-if="show" class="fixed inset-0 z-[100] flex items-center justify-center p-4 backdrop-blur-xl bg-black/60">
-    <div class="bg-[#111114] border border-white/10 rounded-[3rem] p-10 max-w-md w-full shadow-2xl relative animate-in fade-in zoom-in duration-300">
-      <h3 class="text-2xl font-black mb-8 italic uppercase text-center text-white">重置实验凭证 / Reset Key</h3>
+    <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 rounded-[3rem] p-10 max-w-md w-full shadow-2xl relative animate-in fade-in zoom-in duration-300">
+      <div class="flex flex-col items-center mb-6">
+          <div class="w-16 h-16 bg-blue-600/10 rounded-2xl flex items-center justify-center mb-4">
+            <Cpu v-if="mode === 'webauthn'" class="w-8 h-8 text-blue-600 dark:text-blue-500" />
+            <Fingerprint v-else-if="mode === '2fa'" class="w-8 h-8 text-blue-600 dark:text-blue-500" />
+            <Key v-else class="w-8 h-8 text-blue-600 dark:text-blue-500" />
+          </div>
+          <h3 class="text-2xl font-black italic uppercase text-slate-900 dark:text-white tracking-tight">重置实验凭证</h3>
+          <p class="text-slate-500 text-[10px] font-black mt-2 uppercase tracking-[0.2em] font-mono">
+            {{ mode === 'webauthn' ? 'BY HARDWARE TOKEN' : mode === '2fa' ? 'BY AUTHENTICATOR APP' : 'BY CLASSIC SECRET' }}
+          </p>
+      </div>
+
       <form @submit.prevent="handleSave" class="space-y-5">
         <div class="space-y-4">
           <!-- 2FA Enabled view -->
-          <div v-if="is2faEnabled" class="relative group">
-            <Fingerprint class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 group-focus-within:text-blue-500 transition-colors" />
+          <div v-if="mode === '2fa'" class="relative group">
+            <Fingerprint class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 dark:text-slate-500 group-focus-within:text-blue-600 dark:group-focus-within:text-blue-500 transition-colors" />
             <input
               v-model="code"
               type="text"
               maxlength="6"
               placeholder="请输入 6 位 2FA 验证码"
-              class="w-full bg-white/5 border border-white/10 focus:border-blue-500/50 rounded-2xl py-4 pl-12 pr-4 outline-none transition-all text-white placeholder:text-slate-600 font-mono tracking-[0.3em] text-center"
+              class="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 focus:border-blue-500/50 rounded-2xl py-4 pl-12 pr-4 outline-none transition-all text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 font-mono tracking-[0.3em] text-center"
               required
             />
           </div>
           
-          <!-- Classic view if NO 2FA -->
+          <!-- Webauthn Info -->
+          <div v-else-if="mode === 'webauthn'" class="bg-blue-600/5 dark:bg-blue-500/5 border border-blue-600/10 dark:border-blue-500/20 rounded-2xl p-4 mb-2 text-center">
+            <p class="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest leading-relaxed">
+              检测到已绑定的硬件密钥<br/>将通过生物识别或物理令牌验证身份
+            </p>
+          </div>
+
+          <!-- Classic view if NO 2FA and NO Webauthn -->
           <div v-else class="relative group">
-            <Key class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 group-focus-within:text-blue-500 transition-colors" />
+            <Key class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 dark:text-slate-500 group-focus-within:text-blue-600 dark:group-focus-within:text-blue-500 transition-colors" />
             <input
               v-model="oldPassword"
               :type="showPasswords ? 'text' : 'password'"
               placeholder="当前密码 / Current Secret"
-              class="w-full bg-white/5 border border-white/10 focus:border-blue-500/50 rounded-2xl py-4 pl-12 pr-4 outline-none transition-all text-white placeholder:text-slate-600 font-mono"
+              class="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 focus:border-blue-500/50 rounded-2xl py-4 pl-12 pr-4 outline-none transition-all text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 font-mono"
               required
             />
           </div>
+
           <div class="relative group">
-            <Lock class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 group-focus-within:text-blue-500 transition-colors" />
+            <Lock class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 dark:text-slate-500 group-focus-within:text-blue-600 dark:group-focus-within:text-blue-500 transition-colors" />
             <input
               v-model="newPassword"
               :type="showPasswords ? 'text' : 'password'"
               placeholder="核准新密码 / New Authorized Key"
-              class="w-full bg-white/5 border border-white/10 focus:border-blue-500/50 rounded-2xl py-4 pl-12 pr-12 outline-none transition-all text-white placeholder:text-slate-600 font-mono"
+              class="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 focus:border-blue-500/50 rounded-2xl py-4 pl-12 pr-12 outline-none transition-all text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 font-mono"
               required
             />
             <button 
               type="button"
               @click="showPasswords = !showPasswords"
-              class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white"
+              class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-900 dark:text-slate-500 dark:hover:text-white transition-colors"
             >
               <EyeOff v-if="showPasswords" class="w-5 h-5" />
               <Eye v-else class="w-5 h-5" />
             </button>
           </div>
           <div class="relative group">
-            <Lock class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 group-focus-within:text-blue-500 transition-colors" />
+            <Lock class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 dark:text-slate-500 group-focus-within:text-blue-600 dark:group-focus-within:text-blue-500 transition-colors" />
             <input
               v-model="confirmPassword"
               :type="showPasswords ? 'text' : 'password'"
               placeholder="再次输入新密码"
-              class="w-full bg-white/5 border border-white/10 focus:border-blue-500/50 rounded-2xl py-4 pl-12 pr-4 outline-none transition-all text-white placeholder:text-slate-600 font-mono"
+              class="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 focus:border-blue-500/50 rounded-2xl py-4 pl-12 pr-4 outline-none transition-all text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 font-mono"
               required
             />
           </div>
         </div>
+
         <div class="flex gap-4 pt-4">
           <button 
             type="button"
             @click="$emit('close')" 
-            class="flex-1 py-4 bg-white/5 hover:bg-white/10 rounded-2xl font-bold transition-all text-slate-400"
+            class="flex-1 py-4 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 rounded-2xl font-bold transition-all text-slate-500 dark:text-slate-400"
           >
             取消
           </button>
+          
           <button 
+            v-if="mode === 'webauthn'"
+            type="button"
+            @click="handleWebauthnReset"
+            :disabled="localLoading"
+            class="flex-1 py-4 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 rounded-2xl font-black text-white shadow-xl shadow-emerald-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            <Loader2 v-if="localLoading" class="w-5 h-5 animate-spin" />
+            调起硬件验证
+          </button>
+
+          <button 
+            v-else
             type="submit"
             :disabled="loading"
             class="flex-1 py-4 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 rounded-2xl font-black text-white shadow-xl shadow-blue-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
           >
             <Loader2 v-if="loading" class="w-5 h-5 animate-spin" />
-            执行重置
+            确认修改
           </button>
         </div>
       </form>
     </div>
   </div>
 </template>
+

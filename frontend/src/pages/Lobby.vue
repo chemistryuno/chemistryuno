@@ -28,9 +28,18 @@ const currentTime = ref(new Date())
 const loadDecks = async () => {
   try {
     const res = await gameAPI.getMyDecks()
-    decks.value = res.data
+    const allDecks = res.data || []
+    // 排序：全局优先
+    allDecks.sort((a: any, b: any) => {
+      if (a.is_global && !b.is_global) return -1
+      if (!a.is_global && b.is_global) return 1
+      return 0
+    })
+    decks.value = allDecks
     if (decks.value.length > 0) {
-      deckID.value = decks.value[0].id
+      // 默认选择全局牌组，如果没有则选择第一个
+      const globalDeck = decks.value.find((d: any) => d.is_global)
+      deckID.value = globalDeck ? globalDeck.id : decks.value[0].id
     }
   } catch (e) {
     console.error(e)
@@ -393,22 +402,22 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
 
     <!-- Modern Create Modal -->
     <div v-if="showCreateModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      <div class="absolute inset-0 bg-[#000]/80 backdrop-blur-md animate-in fade-in" @click="showCreateModal = false" />
-      <div class="relative w-full max-w-lg bg-[#121216] border border-white/10 rounded-[40px] shadow-2xl overflow-hidden animate-in fade-in zoom-in slide-in-from-bottom-10 duration-500">
+      <div class="absolute inset-0 bg-slate-900/40 dark:bg-black/80 backdrop-blur-md animate-in fade-in" @click="showCreateModal = false" />
+      <div class="relative w-full max-w-lg bg-white dark:bg-[#121216] border border-slate-200 dark:border-white/10 rounded-[40px] shadow-2xl overflow-hidden animate-in fade-in zoom-in slide-in-from-bottom-10 duration-500">
          <!-- Modal Header -->
-         <div class="px-8 py-8 border-b border-white/5 flex items-center justify-between">
+         <div class="px-8 py-8 border-b border-slate-100 dark:border-white/5 flex items-center justify-between">
             <div class="flex items-center gap-4">
-              <div class="w-12 h-12 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center justify-center text-blue-400">
+              <div class="w-12 h-12 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center justify-center text-blue-500 dark:text-blue-400">
                 <Plus class="w-6 h-6" />
               </div>
               <div>
-                <h2 class="text-2xl font-black text-white tracking-tight">开启新实验</h2>
-                <p class="text-[10px] text-slate-500 font-mono uppercase tracking-widest">Setup_Experiment_Parameters</p>
+                <h2 class="text-2xl font-black text-slate-800 dark:text-white tracking-tight">开启新实验</h2>
+                <p class="text-[10px] text-slate-400 dark:text-slate-500 font-mono uppercase tracking-widest">Setup_Experiment_Parameters</p>
               </div>
             </div>
             <button 
               @click="showCreateModal = false"
-              class="p-3 hover:bg-white/5 rounded-2xl transition-colors text-slate-500 hover:text-white"
+              class="p-3 hover:bg-slate-100 dark:hover:bg-white/5 rounded-2xl transition-colors text-slate-400 hover:text-slate-900 dark:hover:text-white"
             >
               <X class="w-6 h-6" />
             </button>
@@ -417,7 +426,7 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
         <form @submit.prevent="handleCreateRoom" class="p-10 space-y-8">
           <div class="space-y-3">
             <div class="flex justify-between items-center px-1">
-               <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest">实验空间命名 (可选)</label>
+               <label class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">实验空间命名 (可选)</label>
                <span class="text-[9px] text-blue-500/40">IDENTIFIER_MENDELEEF</span>
             </div>
             <input
@@ -425,13 +434,13 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
               type="text"
               autofocus
               placeholder="默认随机分配名称..."
-              class="w-full bg-black/40 border border-white/5 text-white px-6 py-5 rounded-3xl focus:ring-1 focus:ring-blue-500/50 focus:border-blue-500/50 outline-none transition-all placeholder:text-slate-800 font-mono text-sm"
+              class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/5 text-slate-900 dark:text-white px-6 py-5 rounded-3xl focus:ring-1 focus:ring-blue-500/50 focus:border-blue-500/50 outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-800 font-mono text-sm"
             />
           </div>
 
           <div class="space-y-4">
             <div class="flex justify-between items-center px-1">
-               <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest">参与研究员人数</label>
+               <label class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">参与研究员人数</label>
                <span class="text-[9px] text-blue-500/40">CAPACITY_CONFIG</span>
             </div>
             <div class="grid grid-cols-4 gap-4">
@@ -443,8 +452,8 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
                 :class="cn(
                   'h-16 rounded-2xl text-sm font-black border transition-all flex items-center justify-center relative group/opt overflow-hidden',
                   maxPlayers === num 
-                    ? 'bg-blue-500/10 border-blue-500/50 text-blue-400 ring-1 ring-blue-500/20 shadow-[0_0_20px_rgba(59,130,246,0.1)]' 
-                    : 'bg-white/5 border-white/5 text-slate-600 hover:bg-white/10 hover:border-white/10'
+                    ? 'bg-blue-500/10 border-blue-500/50 text-blue-600 dark:text-blue-400 ring-1 ring-blue-500/20 shadow-[0_0_20px_rgba(59,130,246,0.1)]' 
+                    : 'bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/5 text-slate-400 dark:text-slate-600 hover:bg-slate-100 dark:hover:bg-white/10'
                 )"
               >
                 <span class="relative z-10">{{ num }}P</span>
@@ -455,13 +464,13 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
 
           <div class="space-y-4">
             <div class="flex justify-between items-center px-1">
-               <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest">高级配置</label>
+               <label class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">高级配置</label>
                <span class="text-[9px] text-blue-500/40">ADVANCED_PROTOCOL</span>
             </div>
-            <div class="flex items-center gap-4 p-5 bg-white/5 border border-white/5 rounded-3xl group/toggle cursor-pointer transition-all hover:bg-white/10" @click="isPointsMode = !isPointsMode">
+            <div class="flex items-center gap-4 p-5 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-3xl group/toggle cursor-pointer transition-all hover:bg-slate-100 dark:hover:bg-white/10" @click="isPointsMode = !isPointsMode">
               <div :class="cn(
                 'w-10 h-6 rounded-full relative transition-colors duration-300',
-                isPointsMode ? 'bg-blue-600' : 'bg-slate-700'
+                isPointsMode ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-700'
               )">
                 <div :class="cn(
                   'absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform duration-300',
@@ -469,10 +478,10 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
                 )"></div>
               </div>
               <div class="flex flex-col">
-                <span :class="cn('text-[10px] font-black uppercase tracking-wider', isPointsMode ? 'text-blue-400' : 'text-slate-400')">
+                <span :class="cn('text-[10px] font-black uppercase tracking-wider', isPointsMode ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-400')">
                   积分竞技模式
                 </span>
-                <span class="text-[9px] text-slate-500 mt-0.5">
+                <span class="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5">
                   开启后强制使用默认牌组，胜负将影响全球排名
                 </span>
               </div>
@@ -481,7 +490,7 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
 
           <div v-if="!isPointsMode" class="space-y-4">
             <div class="flex justify-between items-center px-1">
-               <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest">选择实验牌组</label>
+               <label class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">选择实验牌组</label>
                <span class="text-[9px] text-blue-500/40">DECK_PROTOCOL</span>
             </div>
             <div class="space-y-3">
@@ -493,21 +502,21 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
                 :class="cn(
                   'w-full flex items-center gap-4 p-4 rounded-3xl border transition-all text-left group/deck',
                   deckID === deck.id 
-                    ? 'bg-blue-600/10 border-blue-500/50 shadow-[0_10px_30px_rgba(59,130,246,0.1)]' 
-                    : 'bg-white/5 border-white/5 hover:border-white/10 hover:bg-white/10'
+                    ? 'bg-blue-600/5 dark:bg-blue-600/10 border-blue-500/50 shadow-[0_10px_30px_rgba(59,130,246,0.1)]' 
+                    : 'bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/5 hover:border-slate-300 dark:hover:border-white/10 hover:bg-slate-100 dark:hover:bg-white/10'
                 )"
               >
                 <div :class="cn(
                   'w-12 h-12 rounded-2xl flex items-center justify-center transition-colors',
-                  deckID === deck.id ? 'bg-blue-500 text-white' : 'bg-white/5 text-slate-500'
+                  deckID === deck.id ? 'bg-blue-500 text-white' : 'bg-slate-200 dark:bg-white/5 text-slate-400 dark:text-slate-500'
                 )">
                    <Beaker class="w-5 h-5" />
                 </div>
                 <div class="flex-1">
-                  <p :class="cn('text-xs font-black uppercase tracking-wider', deckID === deck.id ? 'text-blue-400' : 'text-white')">
+                  <p :class="cn('text-xs font-black uppercase tracking-wider', deckID === deck.id ? 'text-blue-600 dark:text-blue-400' : 'text-slate-700 dark:text-white')">
                     {{ deck.name }}
                   </p>
-                  <p class="text-[10px] text-slate-500 mt-1 font-medium">
+                  <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-1 font-medium">
                     {{ deck.is_global ? 'Global Protocol' : 'Custom Sequence' }} • {{ Object.keys(deck.cards || {}).length }} elements
                   </p>
                 </div>
@@ -520,7 +529,7 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
             <button 
               type="button" 
               @click="showCreateModal = false" 
-              class="flex-1 h-14 bg-white/5 hover:bg-white/10 text-slate-400 font-bold rounded-2xl transition-all uppercase tracking-widest text-xs border border-white/5"
+              class="flex-1 h-14 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-500 dark:text-slate-400 font-bold rounded-2xl transition-all uppercase tracking-widest text-xs border border-slate-200 dark:border-white/5"
             >
               放弃设置
             </button>

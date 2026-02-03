@@ -70,15 +70,15 @@ defineExpose({ reset })
             v-model="item.coefficient"
             type="text" 
             placeholder="1"
-            class="w-10 px-1 py-1 bg-black/20 border border-blue-400/10 rounded-lg text-center text-blue-500 font-black text-xs placeholder:text-slate-600 outline-none focus:border-blue-500/40 transition-all"
+            class="w-10 px-1 py-1 bg-slate-100 dark:bg-black/20 border border-blue-400/10 rounded-lg text-center text-blue-600 dark:text-blue-500 font-black text-xs placeholder:text-slate-400 dark:placeholder:text-slate-600 outline-none focus:border-blue-500/40 transition-all"
           />
           <input 
             v-model="item.formula"
             type="text" 
             placeholder="H2"
-            class="flex-1 px-2 py-1 bg-black/20 border border-blue-400/10 rounded-lg text-white font-mono text-xs placeholder:text-slate-600 outline-none focus:border-blue-500/40 transition-all"
+            class="flex-1 px-2 py-1 bg-slate-100 dark:bg-black/20 border border-blue-400/10 rounded-lg text-slate-900 dark:text-white font-mono text-xs placeholder:text-slate-400 dark:placeholder:text-slate-600 outline-none focus:border-blue-500/40 transition-all"
           />
-          <button @click.prevent="removeSubstance('reactants', index)" class="p-1.5 text-slate-500 hover:text-red-400 opacity-0 group-hover/item:opacity-100 transition-all">
+          <button @click.prevent="removeSubstance('reactants', index)" class="p-1.5 text-slate-400 hover:text-red-400 dark:text-slate-500 opacity-0 group-hover/item:opacity-100 transition-all">
             <Trash2 class="w-3.5 h-3.5" />
           </button>
         </div>
@@ -95,11 +95,11 @@ defineExpose({ reset })
         <div class="h-px flex-1 bg-gradient-to-r from-transparent to-blue-500/10" />
         <div class="relative group">
           <select v-model="editor.arrow" 
-            class="appearance-none bg-slate-900/80 border border-blue-400/30 rounded-lg pl-8 pr-8 py-1.5 text-blue-400 font-black text-xs outline-none transition-all cursor-pointer hover:bg-blue-500/10 focus:ring-1 focus:ring-blue-500/50 min-w-[80px] text-center"
+            class="appearance-none bg-white dark:bg-slate-900/80 border border-blue-400/30 rounded-lg pl-8 pr-8 py-1.5 text-blue-600 dark:text-blue-400 font-black text-xs outline-none transition-all cursor-pointer hover:bg-blue-500/10 focus:ring-1 focus:ring-blue-500/50 min-w-[80px] text-center"
           >
-            <option value="=" class="bg-slate-900">=</option>
-            <option value="→" class="bg-slate-900">→</option>
-            <option value="⇌" class="bg-slate-900">⇌</option>
+            <option value="=" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">=</option>
+            <option value="→" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">→</option>
+            <option value="⇌" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">⇌</option>
           </select>
           <FlaskConical class="w-3 h-3 text-blue-500/40 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-blue-500/60 transition-colors" />
           <ChevronDown class="w-3 h-3 text-blue-500/40 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-blue-500/60 transition-colors" />
@@ -114,15 +114,15 @@ defineExpose({ reset })
             v-model="item.coefficient"
             type="text" 
             placeholder="1"
-            class="w-10 px-1 py-1 bg-black/20 border border-green-400/10 rounded-lg text-center text-green-500 font-black text-xs placeholder:text-slate-600 outline-none focus:border-green-500/40 transition-all"
+            class="w-10 px-1 py-1 bg-slate-100 dark:bg-black/20 border border-green-400/10 rounded-lg text-center text-green-600 dark:text-green-500 font-black text-xs placeholder:text-slate-400 dark:placeholder:text-slate-600 outline-none focus:border-green-500/40 transition-all"
           />
           <input 
             v-model="item.formula"
             type="text" 
             placeholder="H2O"
-            class="flex-1 px-2 py-1 bg-black/20 border border-green-400/10 rounded-lg text-white font-mono text-xs placeholder:text-slate-600 outline-none focus:border-green-500/40 transition-all"
+            class="flex-1 px-2 py-1 bg-slate-100 dark:bg-black/20 border border-green-400/10 rounded-lg text-slate-900 dark:text-white font-mono text-xs placeholder:text-slate-400 dark:placeholder:text-slate-600 outline-none focus:border-green-500/40 transition-all"
           />
-          <button @click.prevent="removeSubstance('products', index)" class="p-1.5 text-slate-500 hover:text-red-400 opacity-0 group-hover/item:opacity-100 transition-all">
+          <button @click.prevent="removeSubstance('products', index)" class="p-1.5 text-slate-400 hover:text-red-400 dark:text-slate-500 opacity-0 group-hover/item:opacity-100 transition-all">
             <Trash2 class="w-3.5 h-3.5" />
           </button>
         </div>
@@ -134,8 +134,8 @@ defineExpose({ reset })
 
     <!-- 预览 -->
     <div v-if="generatedDisplay" class="p-3 bg-blue-500/5 border border-blue-500/10 rounded-xl mt-2">
-      <span class="block text-[8px] font-bold text-blue-400 uppercase tracking-widest mb-1 opacity-60">Formula Preview</span>
-      <span class="text-xs font-mono font-bold text-white break-all leading-tight">{{ generatedDisplay }}</span>
+      <span class="block text-[8px] font-bold text-blue-500 dark:text-blue-400 uppercase tracking-widest mb-1 opacity-60">Formula Preview</span>
+      <span class="text-xs font-mono font-bold text-slate-900 dark:text-white break-all leading-tight">{{ generatedDisplay }}</span>
     </div>
   </div>
 </template>

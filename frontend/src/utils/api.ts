@@ -47,10 +47,18 @@ export const authAPI = {
     api.post('/auth/login', data),
   resetPasswordBy2FA: (data: any) =>
     api.post('/auth/2fa/reset-password', data),
+  beginResetPasswordWebAuthn: (username: string) =>
+    api.post('/auth/webauthn/reset-password/begin', { username }),
+  finishResetPasswordWebAuthn: (username: string, newPassword: string, credential: any) =>
+    api.post(`/auth/webauthn/reset-password/finish?username=${username}&new_password=${newPassword}`, credential),
   getUserInfo: () => 
     api.get('/user/info'),
   changePassword: (oldPassword: string, newPassword: string, code: string = '') => 
     api.put('/user/password', { old_password: oldPassword, new_password: newPassword, code }),
+  beginChangePasswordWebAuthn: () =>
+    api.post('/user/webauthn/change-password/begin'),
+  finishChangePasswordWebAuthn: (newPassword: string, credential: any) =>
+    api.post(`/user/webauthn/change-password/finish?newPassword=${newPassword}`, credential),
   updateAvatar: (avatar: string) => 
     api.put('/user/avatar', { avatar }),
   deleteAccount: () => 
@@ -89,6 +97,8 @@ export const gameAPI = {
     api.post('/game/duel', { target_uid }),
   respondToDuel: (target_uid: number, accept: boolean) =>
     api.post('/game/duel/respond', { target_uid, accept }),
+  getMyGameHistory: () =>
+    api.get('/user/game-history'),
   playCard: (roomId: string, card: any, substance: string) => 
     api.post(`/rooms/${roomId}/play`, { card, substance }),
   playDouble: (roomId: string, sub1: string, sub2: string) =>
@@ -141,6 +151,21 @@ export const adminAPI = {
     api.get('/admin/configs'),
   updateConfig: (key: string, value: string) =>
     api.put('/admin/configs', { key, value }),
+  
+  // 公告管理
+  getAnnouncements: () =>
+    api.get('/admin/announcements'),
+  createAnnouncement: (content: string, type: string, is_ticker: boolean, expires_in?: string) =>
+    api.post('/admin/announcements', { content, type, is_ticker, expires_in }),
+  updateAnnouncementStatus: (id: number, active: boolean) =>
+    api.put(`/admin/announcements/${id}/status`, { active }),
+  deleteAnnouncement: (id: number) =>
+    api.delete(`/admin/announcements/${id}`),
+}
+
+export const commonAPI = {
+  getAnnouncements: () =>
+    api.get('/announcements'),
 }
 
 // 反应管理API

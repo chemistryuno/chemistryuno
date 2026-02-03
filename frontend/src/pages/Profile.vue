@@ -15,7 +15,9 @@ import {
 import ProfileHeader from '../components/profile/ProfileHeader.vue'
 import StatsGrid from '../components/profile/StatsGrid.vue'
 import SecurityPanel from '../components/profile/SecurityPanel.vue'
+import SettingsPanel from '../components/profile/SettingsPanel.vue'
 import CustomDecks from '../components/profile/CustomDecks.vue'
+import MatchHistory from '../components/profile/MatchHistory.vue'
 import ChangeAvatarModal from '../components/profile/ChangeAvatarModal.vue'
 import ChangePasswordModal from '../components/profile/ChangePasswordModal.vue'
 import TwoFactorSetupModal from '../components/profile/TwoFactorSetupModal.vue'
@@ -194,6 +196,9 @@ const handleDeleteAccount = async () => {
             @delete-account="handleDeleteAccount"
           />
 
+          <!-- Visual Settings Section -->
+          <SettingsPanel />
+
           <!-- Feedback Section -->
           <router-link 
             to="/feedbacks/my"
@@ -216,6 +221,11 @@ const handleDeleteAccount = async () => {
           <!-- Custom Decks Section -->
           <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 rounded-[2.5rem] p-10 shadow-sm dark:shadow-none transition-all hover:shadow-lg">
             <CustomDecks />
+          </div>
+
+          <!-- Match History Section -->
+          <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 rounded-[2.5rem] p-10 shadow-sm dark:shadow-none transition-all hover:shadow-lg">
+            <MatchHistory />
           </div>
 
           <!-- Achievements Section -->
@@ -248,6 +258,7 @@ const handleDeleteAccount = async () => {
       :is2fa-enabled="user.two_factor_enabled"
       @close="showChangePassword = false"
       @save="handleChangePassword"
+      @success="showAlert('凭证已通过硬件加密协议更新，请重新登录。', '同步完成'); handleLogout()"
     />
 
     <TwoFactorSetupModal 

@@ -75,8 +75,8 @@ func initDefaultData() error {
 
 // createDefaultAdmin 创建默认管理员账户
 func createDefaultAdmin() error {
-	// 这里需要导入password工具
-	hashedPassword := "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy" // password: password
+	// bcrypt hash of "admin123"
+	hashedPassword := "$2a$10$BTDLnKl4G7Z26XzUU0VLouw1yxATdub5i2HHj0iVcW0cofNNXkMQe"
 
 	admin := User{
 		Username: "admin",
@@ -90,7 +90,7 @@ func createDefaultAdmin() error {
 		return err
 	}
 
-	log.Println("管理员账户创建成功")
+	log.Println("✅ 管理员账户创建成功 (用户名: admin, 密码: admin123)")
 	return nil
 }
 
@@ -117,7 +117,7 @@ func createDefaultDeckConfig() error {
 		return err
 	}
 
-	log.Println("默认牌组配置创建成功")
+	log.Println("✅ 默认牌组配置创建成功")
 	return nil
 }
 

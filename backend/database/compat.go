@@ -3,6 +3,8 @@
 import (
 	"database/sql"
 	"fmt"
+	"os"
+	"strings"
 
 	"gorm.io/gorm"
 )
@@ -101,7 +103,7 @@ func GetAllConfigs() (map[string]interface{}, error) {
 	return result, nil
 }
 
-// columnExists 检查列是否存在（GORM不需要，保留兼容）
+// columnExists 检查列是否存在（兼容SQLite和MySQL）
 func columnExists(tableName, columnName string) bool {
 	// GORM会自动处理列的存在性，这个函数主要用于兼容旧代码
 	sqlDB, err := DB.DB()
@@ -109,13 +111,27 @@ func columnExists(tableName, columnName string) bool {
 		return false
 	}
 
+	// 获取数据库类型
+	dbType := strings.ToLower(os.Getenv("DB_TYPE"))
+	if dbType == "" {
+		dbType = "sqlite"
+	}
+
 	var count int
-	query := fmt.Sprintf(`
-		SELECT COUNT(*) FROM information_schema.COLUMNS 
-		WHERE TABLE_SCHEMA = DATABASE() 
-		AND TABLE_NAME = '%s' 
-		AND COLUMN_NAME = '%s'
-	`, tableName, columnName)
+	var query string
+
+	if dbType == "sqlite" {
+		// SQLite使用PRAGMA table_info
+		query = fmt.Sprintf("SELECT COUNT(*) FROM pragma_table_info('%s') WHERE name='%s'", tableName, columnName)
+	} else {
+		// MySQL使用information_schema
+		query = fmt.Sprintf(`
+			SELECT COUNT(*) FROM information_schema.COLUMNS 
+			WHERE TABLE_SCHEMA = DATABASE() 
+			AND TABLE_NAME = '%s' 
+			AND COLUMN_NAME = '%s'
+		`, tableName, columnName)
+	}
 
 	row := sqlDB.QueryRow(query)
 	row.Scan(&count)

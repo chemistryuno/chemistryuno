@@ -218,3 +218,19 @@ func (h *Hub) BroadcastOnlineCount() {
 		Data: count,
 	})
 }
+
+// Stop 优雅停止Hub
+func (h *Hub) Stop() {
+	h.mutex.Lock()
+	defer h.mutex.Unlock()
+
+	// 关闭所有客户端连接
+	for client := range h.clients {
+		close(client.send)
+		client.conn.Close()
+	}
+
+	// 清空数据
+	h.clients = make(map[*Client]bool)
+	h.rooms = make(map[string]map[*Client]bool)
+}

@@ -5,12 +5,15 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/redis/go-redis/v9"
 	"gorm.io/driver/mysql"
+	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
+	_ "modernc.org/sqlite" // 纯Go的SQLite实现
 )
 
 var (
@@ -22,15 +25,44 @@ var (
 
 // InitDB 初始化GORM数据库连接和Redis
 func InitDB(dbPath string) error {
-	// 从环境变量获取MySQL DSN
-	dsn := os.Getenv("MYSQL_DSN")
-	if dsn == "" {
-		dsn = "root:password@tcp(localhost:3306)/chemistryuno?charset=utf8mb4&parseTime=True&loc=Local"
+	// 从环境变量获取数据库类型（默认为sqlite）
+	dbType := strings.ToLower(os.Getenv("DB_TYPE"))
+	if dbType == "" {
+		dbType = "sqlite"
 	}
 
 	// 配置GORM
 	var err error
-	DB, err = gorm.Open(mysql.Open(dsn), &gorm.Config{
+	var dialector gorm.Dialector
+
+	switch dbType {
+	case "mysql":
+		// MySQL配置
+		dsn := os.Getenv("MYSQL_DSN")
+		if dsn == "" {
+			dsn = "root:password@tcp(localhost:3306)/chemistryuno?charset=utf8mb4&parseTime=True&loc=Local"
+		}
+		dialector = mysql.Open(dsn)
+		log.Println("📊 使用 MySQL 数据库")
+
+	case "sqlite":
+		// SQLite配置 - 使用纯Go实现（modernc.org/sqlite）
+		sqlitePath := os.Getenv("SQLITE_PATH")
+		if sqlitePath == "" {
+			sqlitePath = "./chemistryuno.db"
+		}
+		// 指定使用 modernc.org/sqlite 纯Go驱动
+		dialector = sqlite.Dialector{
+			DriverName: "sqlite",
+			DSN:        sqlitePath,
+		}
+		log.Printf("📊 使用 SQLite 数据库 (纯Go): %s\n", sqlitePath)
+
+	default:
+		return fmt.Errorf("不支持的数据库类型: %s（支持: mysql, sqlite）", dbType)
+	}
+
+	DB, err = gorm.Open(dialector, &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent), // 生产环境使用Silent
 		NowFunc: func() time.Time {
 			return time.Now().UTC()
@@ -43,16 +75,18 @@ func InitDB(dbPath string) error {
 		return fmt.Errorf("连接数据库失败: %v", err)
 	}
 
-	// 配置连接池以提高并发性能
-	sqlDB, err := DB.DB()
-	if err != nil {
-		return fmt.Errorf("获取database实例失败: %v", err)
-	}
+	// 配置连接池以提高并发性能（仅对MySQL/PostgreSQL等网络数据库有效）
+	if dbType == "mysql" {
+		sqlDB, err := DB.DB()
+		if err != nil {
+			return fmt.Errorf("获取database实例失败: %v", err)
+		}
 
-	// 连接池配置
-	sqlDB.SetMaxIdleConns(50)           // 最大空闲连接数
-	sqlDB.SetMaxOpenConns(200)          // 最大打开连接数
-	sqlDB.SetConnMaxLifetime(time.Hour) // 连接最大生命周期
+		// 连接池配置
+		sqlDB.SetMaxIdleConns(50)           // 最大空闲连接数
+		sqlDB.SetMaxOpenConns(200)          // 最大打开连接数
+		sqlDB.SetConnMaxLifetime(time.Hour) // 连接最大生命周期
+	}
 
 	// 初始化旧代码兼容层
 	LegacyDB = GetLegacyDB()
@@ -78,7 +112,10 @@ func InitDB(dbPath string) error {
 func initRedis() {
 	redisAddr := os.Getenv("REDIS_ADDR")
 	if redisAddr == "" {
-		redisAddr = "localhost:6379"
+		// 如果没有配置Redis地址，跳过Redis初始化
+		log.Println("⚠️ 未配置Redis，缓存功能已禁用")
+		RedisClient = nil
+		return
 	}
 
 	redisPassword := os.Getenv("REDIS_PASSWORD")
@@ -90,19 +127,23 @@ func initRedis() {
 		DB:           redisDB,
 		PoolSize:     100,             // 连接池大小
 		MinIdleConns: 10,              // 最小空闲连接
-		MaxRetries:   3,               // 最大重试次数
-		DialTimeout:  5 * time.Second, // 连接超时
-		ReadTimeout:  3 * time.Second, // 读取超时
-		WriteTimeout: 3 * time.Second, // 写入超时
-		PoolTimeout:  4 * time.Second, // 连接池超时
+		MaxRetries:   1,               // 最大重试次数（减少重试）
+		DialTimeout:  1 * time.Second, // 连接超时（减少超时时间）
+		ReadTimeout:  1 * time.Second, // 读取超时
+		WriteTimeout: 1 * time.Second, // 写入超时
+		PoolTimeout:  2 * time.Second, // 连接池超时
 	})
 
-	// 测试连接
-	if err := RedisClient.Ping(ctx).Err(); err != nil {
-		log.Printf("警告: Redis连接失败: %v (将继续运行，但缓存功能不可用)", err)
+	// 测试连接（使用带超时的context）
+	pingCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
+	if err := RedisClient.Ping(pingCtx).Err(); err != nil {
+		log.Printf("⚠️ Redis连接失败: %v (将继续运行，但缓存功能不可用)", err)
+		RedisClient.Close()
 		RedisClient = nil
 	} else {
-		log.Println("Redis连接成功")
+		log.Println("✅ Redis连接成功")
 	}
 }
 

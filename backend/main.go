@@ -7,8 +7,12 @@ import (
 	"chemistryuno/middleware"
 	"chemistryuno/utils"
 	"chemistryuno/websocket"
+	"context"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -38,6 +42,9 @@ func main() {
 	}
 	defer database.Close()
 
+	// 记录启动时间
+	startTime := time.Now()
+
 	// 初始化WebSocket Hub
 	hub = websocket.NewHub()
 	hub.OnRegister = game.PushOnJoinAnnouncements
@@ -53,13 +60,53 @@ func main() {
 	handlers.InitWebAuthn()
 
 	// 创建Gin路由
-	r := gin.Default()
+	// 创建Gin引擎（不使用默认中间件）
+	r := gin.New()
+
+	// 添加自定义中间件
+	r.Use(gin.Logger())                // 日志中间件
+	r.Use(gin.Recovery())              // Panic恢复中间件
+	r.Use(middleware.CORSMiddleware()) // CORS中间件
 
 	// 信任本地代理，确保 c.ClientIP() 能获取到真实 IP
 	r.SetTrustedProxies([]string{"127.0.0.1"})
 
-	// 中间件
-	r.Use(middleware.CORSMiddleware())
+	// 健康检查接口
+	r.GET("/ping", func(c *gin.Context) {
+		c.JSON(200, gin.H{"message": "pong"})
+	})
+
+	r.GET("/health", func(c *gin.Context) {
+		// 检查数据库连接
+		dbStatus := "ok"
+		if database.DB != nil {
+			if sqlDB, err := database.DB.DB(); err != nil {
+				dbStatus = "error"
+			} else if err := sqlDB.Ping(); err != nil {
+				dbStatus = "error"
+			}
+		} else {
+			dbStatus = "error"
+		}
+
+		// 检查Redis连接
+		redisStatus := "disabled"
+		if database.RedisClient != nil {
+			if err := database.RedisClient.Ping(context.Background()).Err(); err == nil {
+				redisStatus = "ok"
+			} else {
+				redisStatus = "error"
+			}
+		}
+
+		c.JSON(200, gin.H{
+			"status":    "healthy",
+			"database":  dbStatus,
+			"redis":     redisStatus,
+			"uptime":    time.Since(startTime).String(),
+			"timestamp": time.Now().Unix(),
+		})
+	})
 
 	// 公开路由
 	r.POST("/auth/register", handlers.Register)
@@ -215,7 +262,45 @@ func main() {
 		}
 	}()
 
-	r.Run(":8080")
+	// 创建HTTP服务器
+	srv := &http.Server{
+		Addr:           ":8080",
+		Handler:        r,
+		ReadTimeout:    10 * time.Second,
+		WriteTimeout:   10 * time.Second,
+		MaxHeaderBytes: 1 << 20, // 1MB
+	}
+
+	// 在goroutine中启动服务器
+	go func() {
+		log.Println("✅ 服务器启动在 :8080")
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("服务器启动失败: %v", err)
+		}
+	}()
+
+	// 优雅关闭
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	log.Println("🛑 正在关闭服务器...")
+
+	// 设置5秒超时
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// 关闭HTTP服务器
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Printf("服务器强制关闭: %v", err)
+	}
+
+	// 关闭WebSocket hub
+	if hub != nil {
+		hub.Stop()
+	}
+
+	log.Println("✅ 服务器已安全关闭")
 }
 
 func handleWebSocket(c *gin.Context) {

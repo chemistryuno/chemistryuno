@@ -291,15 +291,22 @@ func FinishLogin(c *gin.Context) {
 	// 更新签次数（可选，但推荐）
 	updateCredentialSignCount(credential.ID, credential.Authenticator.SignCount)
 
-	// 创建会话
-	sessionIDStored, err := CreateAndStoreSession(int(user.UID), c.ClientIP(), c.GetHeader("User-Agent"))
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建会话失败"})
-		return
+	// 检查冻结状态
+	var frozenUntil sql.NullString
+	_ = database.DB.QueryRow("SELECT frozen_until FROM users WHERE UID = ?", user.UID).Scan(&frozenUntil)
+	if frozenUntil.Valid {
+		ft, _ := time.Parse("2006-01-02 15:04:05", frozenUntil.String)
+		if ft.After(time.Now()) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "账号当前处于冷冻状态，无法登录"})
+			return
+		}
 	}
 
+	// 生成会话
+	sid, _ := utils.CreateSession(user.UID, c.GetHeader("User-Agent"), c.ClientIP())
+
 	// 登录成功，生成 JWT
-	token, err := utils.GenerateToken(user.UID, user.Username, user.IsAdmin, user.Role, sessionIDStored)
+	token, err := utils.GenerateToken(user.UID, user.Username, user.IsAdmin, user.Role, sid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成 token 失败"})
 		return
@@ -557,9 +564,6 @@ func FinishResetPasswordWebAuthn(c *gin.Context) {
 		return
 	}
 
-	// 密码重置成功，强制所有设备退出
-	RevokeOtherSessions(user.UID, "")
-
 	c.JSON(http.StatusOK, gin.H{"message": "凭借硬件密钥，验证成功，密码已重置"})
 }
 
@@ -662,8 +666,6 @@ func FinishChangePasswordWebAuthn(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新数据库失败"})
 		return
 	}
-	// 密码修改成功，撤销该用户的其他所有会话
-	currentSID := c.GetString("sid")
-	RevokeOtherSessions(uid, currentSID)
+
 	c.JSON(http.StatusOK, gin.H{"message": "修改成功"})
 }

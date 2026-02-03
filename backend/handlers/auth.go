@@ -10,80 +10,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/pquerna/otp/totp"
 )
-
-// 创建并存储新会话
-func CreateAndStoreSession(uid int, ip, ua string) (string, error) {
-	sessionID := uuid.New().String()
-	expiresAt := time.Now().Add(24 * time.Hour)
-
-	_, err := database.DB.Exec(
-		"INSERT INTO sessions (id, uid, ip, user_agent, expires_at) VALUES (?, ?, ?, ?, ?)",
-		sessionID, uid, ip, ua, expiresAt,
-	)
-	if err != nil {
-		return "", err
-	}
-	return sessionID, nil
-}
-
-// 获取用户活跃会话
-func GetMySessions(c *gin.Context) {
-	uid := c.GetInt("uid")
-
-	rows, err := database.DB.Query(`
-		SELECT id, ip, user_agent, last_active, expires_at, created_at 
-		FROM sessions 
-		WHERE uid = ? AND is_revoked = 0 AND expires_at > CURRENT_TIMESTAMP
-		ORDER BY last_active DESC`, uid)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取会话失败"})
-		return
-	}
-	defer rows.Close()
-
-	var sessions []models.Session
-	for rows.Next() {
-		var s models.Session
-		if err := rows.Scan(&s.ID, &s.IP, &s.UserAgent, &s.LastActive, &s.ExpiresAt, &s.CreatedAt); err == nil {
-			sessions = append(sessions, s)
-		}
-	}
-
-	c.JSON(http.StatusOK, sessions)
-}
-
-// 撤销会话
-func RevokeSession(c *gin.Context) {
-	uid := c.GetInt("uid")
-	sessionID := c.Param("id")
-
-	// 只能撤销自己的会话
-	result, err := database.DB.Exec("UPDATE sessions SET is_revoked = 1 WHERE id = ? AND uid = ?", sessionID, uid)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "撤销会话失败"})
-		return
-	}
-
-	rowsAffected, _ := result.RowsAffected()
-	if rowsAffected == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"error": "会话不存在或已过期"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "会话已成功终止"})
-}
-
-// 撤销用户的所有其他会话
-func RevokeOtherSessions(uid int, exceptID string) {
-	if exceptID == "" {
-		_, _ = database.DB.Exec("UPDATE sessions SET is_revoked = 1 WHERE uid = ?", uid)
-	} else {
-		_, _ = database.DB.Exec("UPDATE sessions SET is_revoked = 1 WHERE uid = ? AND id != ?", uid, exceptID)
-	}
-}
 
 // 用户注册
 func Register(c *gin.Context) {
@@ -140,9 +68,9 @@ func Login(c *gin.Context) {
 	// 查询用户
 	var user models.User
 	err := database.DB.QueryRow(
-		"SELECT UID, username, password, avatar, is_admin, role, two_factor_enabled, two_factor_secret, banned_until FROM users WHERE username = ?",
+		"SELECT UID, username, password, avatar, is_admin, role, two_factor_enabled, two_factor_secret, banned_until, frozen_until FROM users WHERE username = ?",
 		req.Username,
-	).Scan(&user.UID, &user.Username, &user.PasswordHash, &user.Avatar, &user.IsAdmin, &user.Role, &user.TwoFactorEnabled, &user.TwoFactorSecret, &user.BannedUntil)
+	).Scan(&user.UID, &user.Username, &user.PasswordHash, &user.Avatar, &user.IsAdmin, &user.Role, &user.TwoFactorEnabled, &user.TwoFactorSecret, &user.BannedUntil, &user.FrozenUntil)
 
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "用户不存在"})
@@ -150,9 +78,18 @@ func Login(c *gin.Context) {
 	}
 
 	// 检查封禁状态
-	if user.BannedUntil != nil && time.Now().Before(*user.BannedUntil) {
+	now := time.Now()
+	if user.BannedUntil != nil && now.Before(*user.BannedUntil) {
 		c.JSON(http.StatusForbidden, gin.H{
 			"error": fmt.Sprintf("您的账号已被封禁，直到 %s", user.BannedUntil.Format("2006-01-02 15:04:05")),
+		})
+		return
+	}
+
+	// 检查冻结状态
+	if user.FrozenUntil != nil && now.Before(*user.FrozenUntil) {
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": fmt.Sprintf("您的账号当前处于冷冻状态，直到 %s", user.FrozenUntil.Format("2006-01-02 15:04:05")),
 		})
 		return
 	}
@@ -172,15 +109,11 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	// 创建会话
-	sessionID, err := CreateAndStoreSession(int(user.UID), c.ClientIP(), c.GetHeader("User-Agent"))
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建会话失败"})
-		return
-	}
+	// 生成会话
+	sid, _ := utils.CreateSession(user.UID, c.GetHeader("User-Agent"), c.ClientIP())
 
 	// 生成token
-	token, err := utils.GenerateToken(int(user.UID), user.Username, user.IsAdmin, user.Role, sessionID)
+	token, err := utils.GenerateToken(int(user.UID), user.Username, user.IsAdmin, user.Role, sid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成token失败"})
 		return
@@ -278,10 +211,6 @@ func ChangePassword(c *gin.Context) {
 		return
 	}
 
-	// 密码修改成功，撤销该用户的其他所有会话，保障安全
-	currentSID := c.GetString("sid")
-	RevokeOtherSessions(uid, currentSID)
-
 	c.JSON(http.StatusOK, gin.H{"message": "密码修改成功"})
 }
 
@@ -338,8 +267,7 @@ func ResetPasswordBy2FA(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新密码失败"})
 		return
 	}
-	// 密码重置成功，撤销该用户的当前所有活跃会话（强制所有设备登出）
-	RevokeOtherSessions(user.UID, "")
+
 	c.JSON(http.StatusOK, gin.H{"message": "密码重置成功，请使用新密码登录"})
 }
 
@@ -374,6 +302,86 @@ func DeleteAccount(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "账号已注销"})
+}
+
+// 获取会话列表
+func GetSessions(c *gin.Context) {
+	uid := c.GetInt("uid")
+	currentSID := c.GetString("sid")
+
+	rows, err := database.DB.Query("SELECT id, user_agent, ip_address, last_active, created_at FROM user_sessions WHERE user_uid = ? ORDER BY created_at DESC", uid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "无法加载设备列表"})
+		return
+	}
+	defer rows.Close()
+
+	var sessions []gin.H
+	for rows.Next() {
+		var s struct {
+			ID         string
+			UA         sql.NullString
+			IP         sql.NullString
+			LastActive string
+			CreatedAt  string
+		}
+		if err := rows.Scan(&s.ID, &s.UA, &s.IP, &s.LastActive, &s.CreatedAt); err == nil {
+			sessions = append(sessions, gin.H{
+				"id":          s.ID,
+				"user_agent":  s.UA.String,
+				"ip":          s.IP.String,
+				"last_active": s.LastActive,
+				"created_at":  s.CreatedAt,
+				"is_current":  s.ID == currentSID,
+			})
+		}
+	}
+
+	c.JSON(http.StatusOK, sessions)
+}
+
+// 撤销会话（登出设备）
+func RevokeSession(c *gin.Context) {
+	uid := c.GetInt("uid")
+	var req struct {
+		ID string `json:"id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+
+	_, err := database.DB.Exec("DELETE FROM user_sessions WHERE id = ? AND user_uid = ?", req.ID, uid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "登出失败"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "已成功在该设备上登出"})
+}
+
+// 冻结账号
+func FreezeAccount(c *gin.Context) {
+	uid := c.GetInt("uid")
+	var req struct {
+		Hours int `json:"hours" binding:"required,min=1,max=24"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "冻结时长必须在1-24小时之间"})
+		return
+	}
+
+	frozenUntil := time.Now().Add(time.Duration(req.Hours) * time.Hour)
+	_, err := database.DB.Exec("UPDATE users SET frozen_until = ? WHERE UID = ?", frozenUntil.Format("2006-01-02 15:04:05"), uid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "冻结失败"})
+		return
+	}
+
+	// 冻结后强制登出所有当前会话
+	_, _ = database.DB.Exec("DELETE FROM user_sessions WHERE user_uid = ?", uid)
+
+	c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("账号已冻结，直到 %s", frozenUntil.Format("2006-01-02 15:04:05"))})
 }
 
 // 获取用户信息

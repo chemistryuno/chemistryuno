@@ -79,8 +79,11 @@ func main() {
 		auth.PUT("/user/password", handlers.ChangePassword)
 		auth.PUT("/user/avatar", handlers.UpdateAvatar)
 		auth.DELETE("/user/account", handlers.DeleteAccount)
-		auth.GET("/user/sessions", handlers.GetMySessions)
-		auth.DELETE("/user/sessions/:id", handlers.RevokeSession)
+
+		// 会话与设备管理
+		auth.GET("/user/sessions", handlers.GetSessions)
+		auth.POST("/user/sessions/logout", handlers.RevokeSession)
+		auth.POST("/user/account/freeze", handlers.FreezeAccount)
 
 		// 反馈
 		auth.POST("/feedback", handlers.CreateFeedback)

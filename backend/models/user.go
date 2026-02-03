@@ -19,6 +19,7 @@ type User struct {
 	MonthlyPoints      int                   `json:"monthly_points" db:"monthly_points"`
 	NegativePlayCount  int                   `json:"negative_play_count" db:"negative_play_count"`
 	BannedUntil        *time.Time            `json:"banned_until" db:"banned_until"`
+	FrozenUntil        *time.Time            `json:"frozen_until" db:"frozen_until"`
 	LastWeeklyDecayAt  time.Time             `json:"last_weekly_decay_at" db:"last_weekly_decay_at"`
 	LastMonthlyResetAt time.Time             `json:"last_monthly_reset_at" db:"last_monthly_reset_at"`
 	WebAuthnIDRaw      string                `json:"-" db:"webauthn_id"`
@@ -82,17 +83,6 @@ type AdminChangePasswordRequest struct {
 
 type PromoteUserRequest struct {
 	Role string `json:"role" binding:"required,oneof=user co-worker admin"`
-}
-
-type Session struct {
-	ID         string    `json:"id" db:"id"`
-	UID        int       `json:"uid" db:"uid"`
-	IP         string    `json:"ip" db:"ip"`
-	UserAgent  string    `json:"user_agent" db:"user_agent"`
-	LastActive time.Time `json:"last_active" db:"last_active"`
-	ExpiresAt  time.Time `json:"expires_at" db:"expires_at"`
-	IsRevoked  bool      `json:"is_revoked" db:"is_revoked"`
-	CreatedAt  time.Time `json:"created_at" db:"created_at"`
 }
 
 type Bounty struct {

@@ -175,21 +175,7 @@ func createTables() error {
 		expires_at DATETIME
 	);`
 
-	// 会话管理表
-	sessionsTable := `
-	CREATE TABLE IF NOT EXISTS sessions (
-		id TEXT PRIMARY KEY,
-		uid INTEGER NOT NULL,
-		ip TEXT,
-		user_agent TEXT,
-		last_active DATETIME DEFAULT CURRENT_TIMESTAMP,
-		expires_at DATETIME NOT NULL,
-		is_revoked BOOLEAN DEFAULT 0,
-		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		FOREIGN KEY (uid) REFERENCES users(UID)
-	);`
-
-	tables := []string{userTable, bountyTable, deckConfigTable, gameHistoryTable, credentialTable, reactionsTable, substancesTable, feedbackTable, systemConfigTable, announcementTable, sessionsTable}
+	tables := []string{userTable, bountyTable, deckConfigTable, gameHistoryTable, credentialTable, reactionsTable, substancesTable, feedbackTable, systemConfigTable, announcementTable}
 
 	for _, table := range tables {
 		if _, err := DB.Exec(table); err != nil {
@@ -252,6 +238,24 @@ func createTables() error {
 	}
 	if !columnExists("users", "last_monthly_reset_at") {
 		_, _ = DB.Exec("ALTER TABLE users ADD COLUMN last_monthly_reset_at DATETIME DEFAULT CURRENT_TIMESTAMP")
+	}
+	if !columnExists("users", "frozen_until") {
+		_, _ = DB.Exec("ALTER TABLE users ADD COLUMN frozen_until DATETIME DEFAULT NULL")
+	}
+
+	// Session table
+	userSessionTable := `
+	CREATE TABLE IF NOT EXISTS user_sessions (
+		id TEXT PRIMARY KEY,
+		user_uid INTEGER NOT NULL,
+		user_agent TEXT,
+		ip_address TEXT,
+		last_active DATETIME DEFAULT CURRENT_TIMESTAMP,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (user_uid) REFERENCES users(UID)
+	);`
+	if _, err := DB.Exec(userSessionTable); err != nil {
+		return err
 	}
 
 	// reactions

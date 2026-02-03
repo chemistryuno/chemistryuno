@@ -5,6 +5,7 @@ import (
 	"chemistryuno/utils"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -43,25 +44,47 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		// 验证会话是否被撤销
-		if claims.SessionID != "" {
-			var isRevoked bool
-			err := database.DB.QueryRow("SELECT is_revoked FROM sessions WHERE id = ?", claims.SessionID).Scan(&isRevoked)
-			if err == nil && isRevoked {
-				c.JSON(http.StatusUnauthorized, gin.H{"error": "会话已终止，请重新登录"})
-				c.Abort()
-				return
-			}
-			// 更新最后活跃时间
-			_, _ = database.DB.Exec("UPDATE sessions SET last_active = CURRENT_TIMESTAMP WHERE id = ?", claims.SessionID)
-		}
-
 		// 将用户信息存入上下文
 		c.Set("uid", claims.UID)
-		c.Set("sid", claims.SessionID)
 		c.Set("username", claims.Username)
 		c.Set("is_admin", claims.IsAdmin)
 		c.Set("role", claims.Role)
+		c.Set("sid", claims.SID)
+
+		// 验证会话是否依然有效
+		if claims.SID != "" {
+			if !utils.IsSessionValid(claims.SID) {
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "会话已过期或在其他设备登出"})
+				c.Abort()
+				return
+			}
+			// 更新活动时间
+			utils.UpdateSessionActivity(claims.SID)
+		}
+
+		// 检查账号冻结/封禁状态
+		var bannedUntil, frozenUntil *string
+		err = database.DB.QueryRow("SELECT banned_until, frozen_until FROM users WHERE UID = ?", claims.UID).Scan(&bannedUntil, &frozenUntil)
+		if err == nil {
+			now := time.Now()
+			if bannedUntil != nil {
+				bt, _ := time.Parse("2006-01-02 15:04:05", *bannedUntil)
+				if bt.After(now) {
+					c.JSON(http.StatusForbidden, gin.H{"error": "账号已被封禁至 " + bt.Format("2006-01-02 15:04:05")})
+					c.Abort()
+					return
+				}
+			}
+			if frozenUntil != nil {
+				ft, _ := time.Parse("2006-01-02 15:04:05", *frozenUntil)
+				if ft.After(now) {
+					c.JSON(http.StatusForbidden, gin.H{"error": "账号已被冻结至 " + ft.Format("2006-01-02 15:04:05")})
+					c.Abort()
+					return
+				}
+			}
+		}
+
 		c.Next()
 	}
 }

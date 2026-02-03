@@ -177,15 +177,11 @@ func Verify2FALogin(c *gin.Context) {
 		return
 	}
 
-	// 创建会话
-	sessionID, err := CreateAndStoreSession(int(user.UID), c.ClientIP(), c.GetHeader("User-Agent"))
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建会话失败"})
-		return
-	}
+	// 生成会话
+	sid, _ := utils.CreateSession(user.UID, c.GetHeader("User-Agent"), c.ClientIP())
 
 	// 生成token
-	token, err := utils.GenerateToken(int(user.UID), user.Username, user.IsAdmin, user.Role, sessionID)
+	token, err := utils.GenerateToken(int(user.UID), user.Username, user.IsAdmin, user.Role, sid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成token失败"})
 		return

@@ -71,16 +71,17 @@ export const authAPI = {
     api.post(`/feedbacks/${id}/urge`),
   withdrawFeedback: (id: number) =>
     api.post('/feedback/withdraw', { id }),
-  getSessions: () =>
-    api.get('/user/sessions'),
-  revokeSession: (id: string) =>
-    api.delete(`/user/sessions/${id}`),
   
   // 2FA相关
   setup2FA: () => api.post('/user/2fa/setup'),
   enable2FA: (code: string, password: string) => api.post('/user/2fa/enable', { code, password }),
   disable2FA: (code: string) => api.post('/user/2fa/disable', { code }),
   verify2FALogin: (uid: number, code: string) => api.post('/auth/2fa/verify', { uid, code }),
+
+  // 会话管理
+  getSessions: () => api.get('/user/sessions'),
+  logoutSession: (id: string) => api.post('/user/sessions/logout', { id }),
+  freezeAccount: (hours: number) => api.post('/user/account/freeze', { hours }),
 }
 
 // 游戏API

@@ -10,22 +10,22 @@ import (
 var jwtSecret = []byte("your-secret-key-change-this-in-production")
 
 type Claims struct {
-	UID       int    `json:"uid"`
-	Username  string `json:"username"`
-	IsAdmin   bool   `json:"is_admin"`
-	Role      string `json:"role"`
-	SessionID string `json:"sid"`
+	UID      int    `json:"uid"`
+	Username string `json:"username"`
+	IsAdmin  bool   `json:"is_admin"`
+	Role     string `json:"role"`
+	SID      string `json:"sid,omitempty"`
 	jwt.RegisteredClaims
 }
 
 // 生成JWT Token
-func GenerateToken(uid int, username string, isAdmin bool, role string, sessionID string) (string, error) {
+func GenerateToken(uid int, username string, isAdmin bool, role string, sid string) (string, error) {
 	claims := Claims{
-		UID:       uid,
-		Username:  username,
-		IsAdmin:   isAdmin,
-		Role:      role,
-		SessionID: sessionID,
+		UID:      uid,
+		Username: username,
+		IsAdmin:  isAdmin,
+		Role:     role,
+		SID:      sid,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),

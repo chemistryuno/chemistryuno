@@ -17,7 +17,6 @@ func StartCron() {
 
 		for range ticker.C {
 			countExpired()
-			cleanupSessions()
 		}
 	}()
 
@@ -28,6 +27,15 @@ func StartCron() {
 
 		for range ticker.C {
 			BroadcastActiveTicker()
+		}
+	}()
+
+	// 3. 每小时清理过期会话
+	go func() {
+		ticker := time.NewTicker(1 * time.Hour)
+		defer ticker.Stop()
+		for range ticker.C {
+			cleanupSessions()
 		}
 	}()
 }
@@ -43,12 +51,11 @@ func countExpired() {
 }
 
 func cleanupSessions() {
-	// 物理删除已过期或已撤销超过 3 天的会话记录，保持数据库整洁
-	res, err := database.DB.Exec("DELETE FROM sessions WHERE expires_at < ? OR (is_revoked = 1 AND last_active < ?)",
-		time.Now(), time.Now().Add(-72*time.Hour))
+	// 清理超过 24 小时未活动的会话
+	res, err := database.DB.Exec("DELETE FROM user_sessions WHERE last_active < DATETIME('now', '-24 hours')")
 	if err == nil {
 		if count, _ := res.RowsAffected(); count > 0 {
-			log.Printf("🔒 Cron: 已物理清理 %d 条过期会话痕迹", count)
+			log.Printf("⚖️ Cron: 已清理 %d 个过期会话", count)
 		}
 	}
 }

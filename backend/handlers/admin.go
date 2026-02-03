@@ -177,6 +177,11 @@ func AdminChangePassword(c *gin.Context) {
 		return
 	}
 
+	// 管理员强制修改用户密码后，强制登出该用户的所有设备
+	var uidInt int
+	fmt.Sscanf(userID, "%d", &uidInt)
+	RevokeOtherSessions(uidInt, "")
+
 	c.JSON(http.StatusOK, gin.H{"message": "密码修改成功"})
 }
 

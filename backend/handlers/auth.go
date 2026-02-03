@@ -76,6 +76,15 @@ func RevokeSession(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "会话已成功终止"})
 }
 
+// 撤销用户的所有其他会话
+func RevokeOtherSessions(uid int, exceptID string) {
+	if exceptID == "" {
+		_, _ = database.DB.Exec("UPDATE sessions SET is_revoked = 1 WHERE uid = ?", uid)
+	} else {
+		_, _ = database.DB.Exec("UPDATE sessions SET is_revoked = 1 WHERE uid = ? AND id != ?", uid, exceptID)
+	}
+}
+
 // 用户注册
 func Register(c *gin.Context) {
 	var req models.RegisterRequest
@@ -269,6 +278,10 @@ func ChangePassword(c *gin.Context) {
 		return
 	}
 
+	// 密码修改成功，撤销该用户的其他所有会话，保障安全
+	currentSID := c.GetString("sid")
+	RevokeOtherSessions(uid, currentSID)
+
 	c.JSON(http.StatusOK, gin.H{"message": "密码修改成功"})
 }
 
@@ -325,7 +338,8 @@ func ResetPasswordBy2FA(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新密码失败"})
 		return
 	}
-
+	// 密码重置成功，撤销该用户的当前所有活跃会话（强制所有设备登出）
+	RevokeOtherSessions(user.UID, "")
 	c.JSON(http.StatusOK, gin.H{"message": "密码重置成功，请使用新密码登录"})
 }
 

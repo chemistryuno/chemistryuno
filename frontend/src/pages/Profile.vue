@@ -22,6 +22,7 @@ import ChangeAvatarModal from '../components/profile/ChangeAvatarModal.vue'
 import ChangePasswordModal from '../components/profile/ChangePasswordModal.vue'
 import TwoFactorSetupModal from '../components/profile/TwoFactorSetupModal.vue'
 import HardwareKeyModal from '../components/profile/HardwareKeyModal.vue'
+import LoginDevicesModal from '../components/profile/LoginDevicesModal.vue'
 
 const router = useRouter()
 const { showAlert, showConfirm, showPrompt } = useDialog()
@@ -34,6 +35,7 @@ const twoFactorLoading = ref(false)
 const show2FASetup = ref(false)
 const qrCode = ref('')
 const showHardwareKeys = ref(false)
+const showLoginDevices = ref(false)
 
 const fetchLatestUserInfo = async () => {
   try {
@@ -193,13 +195,7 @@ const handleDeleteAccount = async () => {
             @setup2fa="handleSetup2FA"
             @disable2fa="handleDisable2FA"
             @manage-hardware-keys="showHardwareKeys = true"
-            @delete-account="handleDeleteAccount"
-          />
-
-          <!-- Visual Settings Section -->
-          <SettingsPanel />
-
-          <!-- Feedback Section -->
+          @manage-devices="showLoginDevices = true"
           <router-link 
             to="/feedbacks/my"
             class="group flex items-center justify-between p-8 bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 rounded-[2.5rem] shadow-sm dark:shadow-none transition-all hover:shadow-lg"
@@ -273,5 +269,8 @@ const handleDeleteAccount = async () => {
       :show="showHardwareKeys"
       @close="showHardwareKeys = false"
     />
-  </div>
-</template>
+
+    <LoginDevicesModal
+      :show="showLoginDevices"
+      @close="showLoginDevices = false"
+    />

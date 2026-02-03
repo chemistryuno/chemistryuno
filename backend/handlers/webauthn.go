@@ -557,6 +557,9 @@ func FinishResetPasswordWebAuthn(c *gin.Context) {
 		return
 	}
 
+	// 密码重置成功，强制所有设备退出
+	RevokeOtherSessions(user.UID, "")
+
 	c.JSON(http.StatusOK, gin.H{"message": "凭借硬件密钥，验证成功，密码已重置"})
 }
 
@@ -659,6 +662,8 @@ func FinishChangePasswordWebAuthn(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新数据库失败"})
 		return
 	}
-
+	// 密码修改成功，撤销该用户的其他所有会话
+	currentSID := c.GetString("sid")
+	RevokeOtherSessions(uid, currentSID)
 	c.JSON(http.StatusOK, gin.H{"message": "修改成功"})
 }

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Lock, Shield, UserX, Loader2, Cpu } from 'lucide-vue-next'
+import { Lock, Shield, UserX, Loader2, Cpu, Smartphone } from 'lucide-vue-next'
 
 defineProps<{
   twoFactorEnabled: boolean
@@ -11,6 +11,7 @@ defineEmits<{
   (e: 'setup2fa'): void
   (e: 'disable2fa'): void
   (e: 'manageHardwareKeys'): void
+  (e: 'manageDevices'): void
   (e: 'deleteAccount'): void
 }>()
 </script>
@@ -76,6 +77,17 @@ defineEmits<{
         </div>
         <span class="text-lg font-bold text-slate-900 dark:text-white">硬件安全密钥</span>
         <span class="text-slate-500 text-xs mt-1">配置 FIDO2 / WebAuthn 硬件设备或生物识别</span>
+      </button>
+
+      <button 
+        @click="$emit('manageDevices')"
+        class="group relative flex flex-col items-start p-6 bg-slate-50 dark:bg-white/5 hover:bg-amber-50 dark:hover:bg-amber-500/10 border border-slate-200 dark:border-white/5 hover:border-amber-300 dark:hover:border-amber-500/30 rounded-3xl transition-all text-left"
+      >
+        <div class="bg-amber-500/10 dark:bg-amber-500/20 p-3 rounded-2xl mb-4 group-hover:scale-110 transition-transform">
+          <Smartphone class="w-6 h-6 text-amber-600 dark:text-amber-400" />
+        </div>
+        <span class="text-lg font-bold text-slate-900 dark:text-white">登录设备管理</span>
+        <span class="text-slate-500 text-xs mt-1">查看并管理当前已授权访问实验室的所有活跃终端</span>
       </button>
 
       <button 

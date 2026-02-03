@@ -182,7 +182,7 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
               <Beaker class="w-8 h-8 text-blue-500 group-hover:rotate-12 transition-transform" />
               <div>
                  <h1 class="text-lg font-black tracking-tighter text-slate-900 dark:text-white leading-none">CHEMISTRY <span class="text-blue-500">UNO</span></h1>
-                 <p class="text-[10px] text-blue-500/50 font-mono tracking-widest leading-none mt-1 uppercase">V1.0.0 Mendeleef</p>
+                 <p class="text-[10px] text-blue-500/50 font-mono tracking-widest leading-none mt-1 uppercase">V1.0.2 Mendeleef</p>
               </div>
             </div>
 

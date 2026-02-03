@@ -9,6 +9,7 @@ interface DialogState {
   cancelText: string
   inputValue: string
   inputPlaceholder: string
+  closeDelay: number
   resolve: ((value: any) => void) | null
 }
 
@@ -21,17 +22,19 @@ const state = reactive<DialogState>({
   cancelText: '取消',
   inputValue: '',
   inputPlaceholder: '',
+  closeDelay: 0,
   resolve: null
 })
 
 export const useDialog = () => {
-  const showAlert = (message: string, title = '提示', confirmText = '确定') => {
+  const showAlert = (message: string, title = '提示', confirmText = '确定', closeDelay = 0) => {
     return new Promise<void>((resolve) => {
       state.show = true
       state.type = 'alert'
       state.title = title
       state.message = message
       state.confirmText = confirmText
+      state.closeDelay = closeDelay
       state.resolve = resolve
     })
   }

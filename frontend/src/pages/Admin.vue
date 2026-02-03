@@ -52,6 +52,7 @@ const newAnnouncement = ref({
   content: '',
   type: 'info',
   is_ticker: true,
+  is_persistent: false,
   expires_in: '24h',
   on_join: false,
   cron_interval: 0,
@@ -236,11 +237,12 @@ const handleCreateAnnouncement = async () => {
       newAnnouncement.value.expires_in,
       newAnnouncement.value.on_join,
       newAnnouncement.value.cron_interval,
-      newAnnouncement.value.close_delay
+      newAnnouncement.value.close_delay,
+      newAnnouncement.value.is_persistent
     )
     await showAlert('公告发布成功', '同步中...')
     showCreateAnnouncementModal.value = false
-    newAnnouncement.value = { title: '', content: '', type: 'info', is_ticker: true, expires_in: '24h', on_join: false, cron_interval: 0, close_delay: 0 }
+    newAnnouncement.value = { title: '', content: '', type: 'info', is_ticker: true, is_persistent: false, expires_in: '24h', on_join: false, cron_interval: 0, close_delay: 0 }
     loadData()
   } catch (err: any) {
     await showAlert(err.response?.data?.error || '发布失败')
@@ -957,8 +959,10 @@ const filteredHistory = computed(() => {
                           <span class="text-xs font-black text-slate-900 dark:text-white" v-if="ann.title">{{ ann.title }}</span>
                           <span v-if="ann.is_ticker" class="text-[8px] px-1.5 py-0.5 bg-emerald-500/10 text-emerald-500 rounded border border-emerald-500/10 font-black uppercase tracking-tighter">TICKER</span>
                           <span v-else class="text-[8px] px-1.5 py-0.5 bg-blue-500/10 text-blue-500 rounded border border-blue-500/10 font-black uppercase tracking-tighter">ALERT</span>
+                          <span v-if="ann.is_persistent" class="text-[8px] px-1.5 py-0.5 bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded border border-emerald-500/20 font-black uppercase tracking-tighter">PERSISTENT</span>
                           <span v-if="ann.on_join" class="text-[8px] px-1.5 py-0.5 bg-purple-500/10 text-purple-500 rounded border border-purple-500/10 font-black uppercase tracking-tighter">ON_JOIN</span>
                           <span v-if="ann.cron_interval > 0" class="text-[8px] px-1.5 py-0.5 bg-amber-500/10 text-amber-500 rounded border border-amber-500/10 font-black uppercase tracking-tighter">CRON: {{ ann.cron_interval }}M</span>
+                          <span v-if="!ann.is_ticker && ann.close_delay > 0" class="text-[8px] px-1.5 py-0.5 bg-red-500/10 text-red-500 rounded border border-red-500/10 font-black uppercase tracking-tighter">DELAY: {{ ann.close_delay }}S</span>
                         </div>
                       </div>
                     </div>
@@ -1162,15 +1166,24 @@ const filteredHistory = computed(() => {
               />
               <label class="text-[10px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-widest">玩家加入时触发</label>
             </div>
-            <div>
-              <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">自动循环间隔 (分钟)</label>
+            <div class="flex items-center gap-3 p-4 bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl">
+              <input 
+                type="checkbox" 
+                v-model="newAnnouncement.is_persistent"
+                class="w-4 h-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
+              />
+              <label class="text-[10px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-widest">常驻显示</label>
+            </div>
+          </div>
+
+          <div>
+              <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">自动循环间隔 (分钟) / 0 = 禁止</label>
               <input 
                 v-model.number="newAnnouncement.cron_interval"
                 type="number" 
-                placeholder="0 = 禁止"
+                placeholder="0"
                 class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2 text-[10px] font-black text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500/30"
               />
-            </div>
           </div>
 
           <div v-if="!newAnnouncement.is_ticker">

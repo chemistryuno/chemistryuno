@@ -173,6 +173,7 @@ func createTables() error {
 		type TEXT DEFAULT 'info',
 		active BOOLEAN DEFAULT 1,
 		is_ticker BOOLEAN DEFAULT 0,
+		is_persistent BOOLEAN DEFAULT 0,
 		on_join BOOLEAN DEFAULT 0,
 		cron_interval INTEGER DEFAULT 0,
 		close_delay INTEGER DEFAULT 0,
@@ -325,6 +326,12 @@ func createTables() error {
 	// announcements
 	if !columnExists("announcements", "title") {
 		_, _ = DB.Exec("ALTER TABLE announcements ADD COLUMN title TEXT")
+	}
+	if !columnExists("announcements", "is_ticker") {
+		_, _ = DB.Exec("ALTER TABLE announcements ADD COLUMN is_ticker BOOLEAN DEFAULT 0")
+	}
+	if !columnExists("announcements", "is_persistent") {
+		_, _ = DB.Exec("ALTER TABLE announcements ADD COLUMN is_persistent BOOLEAN DEFAULT 0")
 	}
 	if !columnExists("announcements", "on_join") {
 		_, _ = DB.Exec("ALTER TABLE announcements ADD COLUMN on_join BOOLEAN DEFAULT 0")

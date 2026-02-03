@@ -68,7 +68,7 @@ func ProcessScheduledAnnouncements() {
 
 	// 查找所有设置了定时任务且当前处于活跃状态的公告
 	rows, err := database.DB.Query(`
-		SELECT id, title, content, type, cron_interval, last_broadcast_at, is_ticker, close_delay 
+		SELECT id, title, content, type, cron_interval, last_broadcast_at, is_ticker, is_persistent, close_delay 
 		FROM announcements 
 		WHERE active = 1 AND cron_interval > 0 AND (expires_at IS NULL OR expires_at > ?)`, time.Now())
 	if err != nil {
@@ -82,8 +82,8 @@ func ProcessScheduledAnnouncements() {
 		var title sql.NullString
 		var content, aType string
 		var lastBroadcast sql.NullTime
-		var isTicker bool
-		if err := rows.Scan(&id, &title, &content, &aType, &interval, &lastBroadcast, &isTicker, &closeDelay); err == nil {
+		var isTicker, isPersistent bool
+		if err := rows.Scan(&id, &title, &content, &aType, &interval, &lastBroadcast, &isTicker, &isPersistent, &closeDelay); err == nil {
 			shouldBroadcast := false
 			if !lastBroadcast.Valid {
 				shouldBroadcast = true
@@ -95,11 +95,12 @@ func ProcessScheduledAnnouncements() {
 				msg := websocket.Message{
 					Type: "system_announcement",
 					Data: map[string]interface{}{
-						"id":          id,
-						"content":     content,
-						"type":        aType,
-						"is_ticker":   isTicker,
-						"close_delay": closeDelay,
+						"id":            id,
+						"content":       content,
+						"type":          aType,
+						"is_ticker":     isTicker,
+						"is_persistent": isPersistent,
+						"close_delay":   closeDelay,
 					},
 				}
 				if title.Valid {
@@ -117,7 +118,7 @@ func ProcessScheduledAnnouncements() {
 // PushOnJoinAnnouncements 向新连接的玩家推送 "加入时触发" 的公告
 func PushOnJoinAnnouncements(client *websocket.Client) {
 	rows, err := database.DB.Query(`
-		SELECT id, title, content, type, is_ticker, close_delay 
+		SELECT id, title, content, type, is_ticker, is_persistent, close_delay 
 		FROM announcements 
 		WHERE active = 1 AND on_join = 1 AND (expires_at IS NULL OR expires_at > ?)`, time.Now())
 	if err != nil {
@@ -129,18 +130,19 @@ func PushOnJoinAnnouncements(client *websocket.Client) {
 		var id int
 		var title sql.NullString
 		var content, aType string
-		var isTicker bool
+		var isTicker, isPersistent bool
 		var closeDelay int
-		if err := rows.Scan(&id, &title, &content, &aType, &isTicker, &closeDelay); err == nil {
+		if err := rows.Scan(&id, &title, &content, &aType, &isTicker, &isPersistent, &closeDelay); err == nil {
 			msg := websocket.Message{
 				Type: "system_announcement",
 				Data: map[string]interface{}{
-					"id":          id,
-					"content":     content,
-					"type":        aType,
-					"is_ticker":   isTicker,
-					"close_delay": closeDelay,
-					"on_join":     true,
+					"id":            id,
+					"content":       content,
+					"type":          aType,
+					"is_ticker":     isTicker,
+					"is_persistent": isPersistent,
+					"close_delay":   closeDelay,
+					"on_join":       true,
 				},
 			}
 			if title.Valid {

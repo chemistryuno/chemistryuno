@@ -96,7 +96,7 @@ onMounted(() => {
       let title = ann.title || '系统公告'
       if (ann.type === 'emergency' && !ann.title) title = '紧急通知'
       if (ann.type === 'maintenance' && !ann.title) title = '维护通知'
-      showAlert(ann.content, title)
+      showAlert(ann.content, title, '确定', ann.close_delay || 0)
     }
   }
 

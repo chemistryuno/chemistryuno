@@ -1,8 +1,30 @@
 <script setup lang="ts">
+import { ref, watch } from 'vue'
 import { useDialog } from '../utils/dialog'
 import { AlertCircle, HelpCircle, MessageSquare } from 'lucide-vue-next'
 
 const { state, handleConfirm, handleCancel } = useDialog()
+
+const countdown = ref(0)
+const timer = ref<any>(null)
+
+watch(() => state.show, (newVal) => {
+  if (newVal && state.closeDelay > 0) {
+    countdown.value = state.closeDelay
+    if (timer.value) clearInterval(timer.value)
+    timer.value = setInterval(() => {
+      countdown.value--
+      if (countdown.value <= 0) {
+        clearInterval(timer.value)
+        timer.value = null
+      }
+    }, 1000)
+  } else {
+    clearInterval(timer.value)
+    timer.value = null
+    countdown.value = 0
+  }
+})
 </script>
 
 <template>
@@ -36,7 +58,7 @@ const { state, handleConfirm, handleCancel } = useDialog()
               type="text" 
               :placeholder="state.inputPlaceholder"
               class="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl px-5 py-4 text-slate-900 dark:text-white focus:outline-none focus:border-purple-500/50 focus:ring-4 focus:ring-purple-500/5 transition-all placeholder:text-slate-400 dark:placeholder:text-slate-600 font-medium"
-              @keydown.enter="handleConfirm"
+              @keydown.enter="countdown <= 0 && handleConfirm"
               autofocus
             />
           </div>
@@ -52,14 +74,15 @@ const { state, handleConfirm, handleCancel } = useDialog()
           </button>
           <button 
             @click="handleConfirm"
+            :disabled="countdown > 0"
             :class="[
-              'flex-1 px-6 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all text-white shadow-xl active:scale-95',
+              'flex-1 px-6 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all text-white shadow-xl active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:grayscale',
               state.type === 'alert' ? 'bg-blue-600 hover:bg-blue-500 shadow-blue-500/20 dark:shadow-blue-900/20' :
               state.type === 'confirm' ? 'bg-orange-600 hover:bg-orange-500 shadow-orange-500/20 dark:shadow-orange-900/20' :
               'bg-purple-600 hover:bg-purple-500 shadow-purple-500/20 dark:shadow-purple-900/20'
             ]"
           >
-            {{ state.confirmText }}
+            {{ countdown > 0 ? `${state.confirmText} (${countdown}s)` : state.confirmText }}
           </button>
         </div>
       </div>

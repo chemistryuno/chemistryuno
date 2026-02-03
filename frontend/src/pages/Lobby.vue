@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { gameAPI, authAPI } from '../utils/api'
+import { gameAPI, authAPI, commonAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
 import websocket from '../utils/websocket'
-import { Beaker, Plus, Users, Shield, LogOut, Settings, Play, Info, X, Loader2, Database, MessageSquare, Trash2, Trophy } from 'lucide-vue-next'
+import { Beaker, Plus, Users, Shield, LogOut, Settings, Play, Info, X, Loader2, Database, MessageSquare, Trash2, Trophy, Bell, Megaphone, Clock } from 'lucide-vue-next'
 import { cn } from '../utils/cn'
 
 const props = defineProps<{
@@ -17,6 +17,7 @@ const user = ref(JSON.parse(localStorage.getItem('user') || '{}'))
 const rooms = ref<any[]>([])
 const decks = ref<any[]>([])
 const pendingFeedbacks = ref<any[]>([])
+const persistentAnnouncements = ref<any[]>([])
 const showCreateModal = ref(false)
 const roomName = ref('')
 const maxPlayers = ref(4)
@@ -54,12 +55,27 @@ const handleOnlineCountUpdate = (msg: any) => {
   onlineCount.value = msg.data || 0
 }
 
+const handleSystemAnnouncement = (msg: any) => {
+  const ann = msg.data
+  if (ann && ann.is_persistent) {
+    const exists = persistentAnnouncements.value.some(a => a.id === ann.id)
+    if (!exists) {
+      persistentAnnouncements.value.unshift(ann)
+    } else {
+      const idx = persistentAnnouncements.value.findIndex(a => a.id === ann.id)
+      persistentAnnouncements.value[idx] = ann
+    }
+  }
+}
+
 onMounted(() => {
   loadRooms()
   loadDecks()
   loadPendingFeedbacks()
+  loadPersistentAnnouncements()
   websocket.connect()
   websocket.on('online_count', handleOnlineCountUpdate)
+  websocket.on('system_announcement', handleSystemAnnouncement)
 
   roomInterval = setInterval(loadRooms, 3000)
   timeInterval = setInterval(() => {
@@ -71,6 +87,7 @@ onUnmounted(() => {
   if (roomInterval) clearInterval(roomInterval)
   if (timeInterval) clearInterval(timeInterval)
   websocket.off('online_count', handleOnlineCountUpdate)
+  websocket.off('system_announcement', handleSystemAnnouncement)
 })
 
 const loadRooms = async () => {
@@ -86,6 +103,15 @@ const loadPendingFeedbacks = async () => {
   try {
     const res = await authAPI.getMyFeedbacks()
     pendingFeedbacks.value = (res.data || []).filter((f: any) => f.status === 'unread')
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+const loadPersistentAnnouncements = async () => {
+  try {
+    const res = await commonAPI.getAnnouncements()
+    persistentAnnouncements.value = (res.data || []).filter((a: any) => a.is_persistent)
   } catch (e) {
     console.error(e)
   }
@@ -280,6 +306,52 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
               <div class="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-shimmer"></div>
             </button>
           </div>
+        </div>
+
+        <!-- Persistent Announcements -->
+        <div v-if="persistentAnnouncements.length > 0" class="mb-8 space-y-4 animate-in fade-in duration-700">
+           <div v-for="ann in persistentAnnouncements" :key="ann.id" 
+                :class="cn(
+                  'relative overflow-hidden p-6 rounded-[28px] border transition-all hover:shadow-lg',
+                  ann.type === 'emergency' ? 'bg-red-500/5 border-red-500/20 shadow-red-500/5' : 
+                  ann.type === 'maintenance' ? 'bg-amber-500/5 border-amber-500/20 shadow-amber-500/5' : 
+                  'bg-blue-500/5 border-blue-500/20 shadow-blue-500/5'
+                )">
+              <div class="absolute top-0 right-0 p-4 opacity-10">
+                 <Bell class="w-24 h-24 -mr-8 -mt-8" />
+              </div>
+              <div class="relative z-10 flex flex-col md:flex-row md:items-center gap-6">
+                <div :class="cn(
+                   'w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 border',
+                   ann.type === 'emergency' ? 'bg-red-500/10 text-red-500 border-red-500/20' : 
+                   ann.type === 'maintenance' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 
+                   'bg-blue-500/10 text-blue-500 border-blue-500/20'
+                )">
+                  <Megaphone class="w-6 h-6" />
+                </div>
+                <div class="flex-1">
+                   <div class="flex items-center gap-3 mb-1">
+                      <span :class="cn(
+                        'text-[10px] font-black uppercase tracking-[0.2em]',
+                        ann.type === 'emergency' ? 'text-red-500' : 
+                        ann.type === 'maintenance' ? 'text-amber-500' : 
+                        'text-blue-500'
+                      )">
+                        {{ ann.type }} // SYSTEM_MESSAGE
+                      </span>
+                      <span class="text-[9px] text-slate-400 font-mono">ID: {{ String(ann.id).padStart(4, '0') }}</span>
+                   </div>
+                   <h3 class="text-lg font-black text-slate-900 dark:text-white mb-2" v-if="ann.title">{{ ann.title }}</h3>
+                   <p class="text-sm font-medium text-slate-600 dark:text-slate-400 leading-relaxed">{{ ann.content }}</p>
+                </div>
+                <div class="flex items-center gap-4 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                   <div class="flex items-center gap-2">
+                      <Clock class="w-3 h-3" />
+                      {{ ann.expires_at ? '至 ' + new Date(ann.expires_at).toLocaleDateString() : '永久存续' }}
+                   </div>
+                </div>
+              </div>
+           </div>
         </div>
 
         <!-- Experimental Nodes (Room List Table) -->

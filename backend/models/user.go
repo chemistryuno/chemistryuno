@@ -20,6 +20,8 @@ type User struct {
 	NegativePlayCount  int                   `json:"negative_play_count" db:"negative_play_count"`
 	BannedUntil        *time.Time            `json:"banned_until" db:"banned_until"`
 	FrozenUntil        *time.Time            `json:"frozen_until" db:"frozen_until"`
+	TotalGames         int                   `json:"total_games" db:"total_games"`
+	WinCount           int                   `json:"win_count" db:"win_count"`
 	LastWeeklyDecayAt  time.Time             `json:"last_weekly_decay_at" db:"last_weekly_decay_at"`
 	LastMonthlyResetAt time.Time             `json:"last_monthly_reset_at" db:"last_monthly_reset_at"`
 	WebAuthnIDRaw      string                `json:"-" db:"webauthn_id"`

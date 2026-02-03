@@ -390,9 +390,9 @@ func GetUserInfo(c *gin.Context) {
 
 	var user models.User
 	err := database.DB.QueryRow(
-		"SELECT UID, username, avatar, is_admin, role, two_factor_enabled, created_at FROM users WHERE UID = ?",
+		"SELECT UID, username, avatar, is_admin, role, two_factor_enabled, points, total_games, win_count, created_at FROM users WHERE UID = ?",
 		uid,
-	).Scan(&user.UID, &user.Username, &user.Avatar, &user.IsAdmin, &user.Role, &user.TwoFactorEnabled, &user.CreatedAt)
+	).Scan(&user.UID, &user.Username, &user.Avatar, &user.IsAdmin, &user.Role, &user.TwoFactorEnabled, &user.Points, &user.TotalGames, &user.WinCount, &user.CreatedAt)
 
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})

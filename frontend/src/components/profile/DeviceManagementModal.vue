@@ -124,81 +124,81 @@ const formatUA = (ua: string) => {
     
     <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 w-full max-w-2xl rounded-[2.5rem] shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-200">
       <!-- Header -->
-      <div class="p-8 border-b border-slate-100 dark:border-white/5 flex items-center justify-between">
+      <div class="p-6 border-b border-slate-100 dark:border-white/5 flex items-center justify-between">
         <div class="flex items-center gap-4">
-          <div class="p-3 bg-amber-500/10 rounded-2xl">
-            <Smartphone class="w-6 h-6 text-amber-500" />
+          <div class="p-2.5 bg-amber-500/10 rounded-xl">
+            <Smartphone class="w-5 h-5 text-amber-500" />
           </div>
           <div>
-            <h3 class="text-xl font-black uppercase italic tracking-tighter">终端设备管理</h3>
-            <p class="text-[10px] text-slate-500 font-mono">ACTIVE_SESSIONS_CONTROL_PROTOCOL</p>
+            <h3 class="text-lg font-black uppercase italic tracking-tighter">终端设备管理</h3>
+            <p class="text-[9px] text-slate-500 font-mono">ACTIVE_SESSIONS_CONTROL_PROTOCOL</p>
           </div>
         </div>
-        <button @click="emit('close')" class="p-4 hover:bg-slate-100 dark:hover:bg-white/5 rounded-2xl transition-colors">
-          <X class="w-5 h-5" />
+        <button @click="emit('close')" class="p-3 hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl transition-colors">
+          <X class="w-4 h-4" />
         </button>
       </div>
 
-      <div class="p-8 max-h-[70vh] overflow-y-auto space-y-6 custom-scrollbar">
+      <div class="p-6 max-h-[70vh] overflow-y-auto space-y-6 custom-scrollbar">
         <!-- Freeze Account Section -->
-        <div class="bg-blue-500/5 border border-blue-500/20 rounded-3xl p-6">
+        <div class="bg-blue-500/5 border border-blue-500/20 rounded-2xl p-5">
           <div class="flex items-start gap-4 mb-4">
             <div class="p-2 bg-blue-500/20 rounded-lg">
-              <Snowflake class="w-5 h-5 text-blue-500" />
+              <Snowflake class="w-4 h-4 text-blue-500" />
             </div>
             <div class="flex-1">
-              <h4 class="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">紧急冷冻协议 / Account Freeze</h4>
-              <p class="text-xs text-slate-500 mt-1">如果您怀疑账户有异常活动，可暂时冻结账号（限24小时内）。冻结期间无法登录，且所有活跃会话将立即撤销。</p>
+              <h4 class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">紧急冷冻协议 / Account Freeze</h4>
+              <p class="text-[10px] text-slate-500 mt-1">怀疑账户异常活动？可暂时冻结账号（限24小时内）。冻结期间无法登录，且所有活跃会话将立即撤销。</p>
             </div>
           </div>
           <button 
             @click="handleFreezeAccount"
             :disabled="freezeLoading"
-            class="w-full flex items-center justify-center gap-2 py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-xl font-bold text-sm transition-all"
+            class="w-full flex items-center justify-center gap-2 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg font-bold text-xs transition-all"
           >
-            <Loader2 v-if="freezeLoading" class="w-4 h-4 animate-spin" />
-            <Snowflake v-else class="w-4 h-4" />
+            <Loader2 v-if="freezeLoading" class="w-3 h-3 animate-spin" />
+            <Snowflake v-else class="w-3 h-3" />
             激活冷冻序列 (1-24h)
           </button>
         </div>
 
         <!-- Session List -->
-        <div class="space-y-4">
-          <h4 class="text-xs font-black text-slate-400 uppercase tracking-[0.2em] px-2 mb-2">活跃终端列表</h4>
+        <div class="space-y-3">
+          <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] px-2 mb-1">活跃终端列表</h4>
           
-          <div v-if="loading" class="py-12 flex flex-col items-center justify-center gap-4">
-             <Loader2 class="w-8 h-8 text-blue-500 animate-spin" />
-             <span class="text-xs font-mono text-slate-500">正在检索活跃节点...</span>
+          <div v-if="loading" class="py-10 flex flex-col items-center justify-center gap-4">
+             <Loader2 class="w-6 h-6 text-blue-500 animate-spin" />
+             <span class="text-[10px] font-mono text-slate-500">正在检索活跃节点...</span>
           </div>
 
-          <div v-else-if="sessions.length === 0" class="py-12 text-center bg-slate-50 dark:bg-white/5 rounded-3xl">
-             <Globe class="w-12 h-12 text-slate-300 dark:text-slate-700 mx-auto mb-3 opacity-20" />
-             <p class="text-sm text-slate-500">未发现活跃会话</p>
+          <div v-else-if="sessions.length === 0" class="py-10 text-center bg-slate-50 dark:bg-white/5 rounded-2xl border border-dashed border-slate-200 dark:border-white/5">
+             <Globe class="w-10 h-10 text-slate-300 dark:text-slate-700 mx-auto mb-3 opacity-20" />
+             <p class="text-xs text-slate-500">未发现活跃会话</p>
           </div>
 
           <div 
             v-for="session in sessions" 
             :key="session.id"
-            class="group p-5 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-[2rem] hover:border-blue-500/30 transition-all flex items-center justify-between"
+            class="group p-4 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-2xl hover:border-blue-500/30 transition-all flex items-center justify-between"
           >
-            <div class="flex items-center gap-5">
+            <div class="flex items-center gap-4">
               <div :class="[
-                'p-4 rounded-2xl transition-colors',
+                'p-3 rounded-xl transition-colors',
                 session.is_current ? 'bg-blue-500/10 text-blue-500' : 'bg-slate-100 dark:bg-white/5 text-slate-400'
               ]">
-                <component :is="getIcon(session.user_agent)" class="w-6 h-6" />
+                <component :is="getIcon(session.user_agent)" class="w-5 h-5" />
               </div>
               <div>
                 <div class="flex items-center gap-2">
-                  <span class="font-bold text-slate-900 dark:text-white">{{ formatUA(session.user_agent) }}</span>
-                  <span v-if="session.is_current" class="text-[9px] font-black uppercase px-2 py-0.5 bg-blue-500/20 text-blue-500 rounded-full tracking-widest">当前设备</span>
+                  <span class="text-sm font-bold text-slate-900 dark:text-white">{{ formatUA(session.user_agent) }}</span>
+                  <span v-if="session.is_current" class="text-[8px] font-black uppercase px-1.5 py-0.5 bg-blue-500/20 text-blue-500 rounded-md tracking-widest">CURRENT</span>
                 </div>
-                <div class="flex items-center gap-4 mt-1">
-                  <span class="flex items-center gap-1 text-[10px] text-slate-500 font-mono">
-                    <Globe class="w-3 h-3" /> {{ session.ip }}
+                <div class="flex items-center gap-3 mt-0.5">
+                  <span class="flex items-center gap-1 text-[9px] text-slate-500 font-mono">
+                    <Globe class="w-2.5 h-2.5" /> {{ session.ip }}
                   </span>
-                  <span class="flex items-center gap-1 text-[10px] text-slate-500 font-mono">
-                    <Clock class="w-3 h-3" /> {{ new Date(session.last_active).toLocaleString() }}
+                  <span class="flex items-center gap-1 text-[9px] text-slate-500 font-mono">
+                    <Clock class="w-2.5 h-2.5" /> {{ new Date(session.last_active).toLocaleTimeString() }}
                   </span>
                 </div>
               </div>
@@ -207,12 +207,12 @@ const formatUA = (ua: string) => {
             <button 
               @click="handleLogoutSession(session)"
               :class="[
-                'p-3 rounded-xl transition-all',
+                'p-2.5 rounded-lg transition-all',
                 session.is_current ? 'text-red-500 hover:bg-red-500/10' : 'text-slate-400 hover:text-red-500 hover:bg-red-500/10'
               ]"
               title="撤回访问权限"
             >
-              <LogOut class="w-5 h-5" />
+              <LogOut class="w-4 h-4" />
             </button>
           </div>
         </div>

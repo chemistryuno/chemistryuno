@@ -53,6 +53,8 @@ func createTables() error {
 		last_weekly_decay_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		last_monthly_reset_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		webauthn_id TEXT DEFAULT '',
+		total_games INTEGER DEFAULT 0,
+		win_count INTEGER DEFAULT 0,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);`
 
@@ -241,6 +243,12 @@ func createTables() error {
 	}
 	if !columnExists("users", "frozen_until") {
 		_, _ = DB.Exec("ALTER TABLE users ADD COLUMN frozen_until DATETIME DEFAULT NULL")
+	}
+	if !columnExists("users", "total_games") {
+		_, _ = DB.Exec("ALTER TABLE users ADD COLUMN total_games INTEGER DEFAULT 0")
+	}
+	if !columnExists("users", "win_count") {
+		_, _ = DB.Exec("ALTER TABLE users ADD COLUMN win_count INTEGER DEFAULT 0")
 	}
 
 	// Session table

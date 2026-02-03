@@ -1377,7 +1377,18 @@ func saveGameHistory(roomID string, winnerUID int, players []int) {
 		"INSERT INTO game_history (room_id, winner_uid, players, started_at, finished_at) VALUES (?, ?, ?, datetime('now', '-1 hour'), datetime('now'))",
 		roomID, winnerUID, string(playersJSON),
 	)
-	fmt.Println("游戏历史已保存")
+
+	// 更新玩家的总场次
+	for _, uid := range players {
+		database.DB.Exec("UPDATE users SET total_games = total_games + 1 WHERE UID = ?", uid)
+	}
+
+	// 更新胜利者的胜利场数
+	if winnerUID > 0 {
+		database.DB.Exec("UPDATE users SET win_count = win_count + 1 WHERE UID = ?", winnerUID)
+	}
+
+	fmt.Println("游戏历史已保存，玩家统计已更新")
 }
 
 func init() {

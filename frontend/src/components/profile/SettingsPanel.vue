@@ -29,19 +29,19 @@ watch(currentTheme, (newTheme) => {
 </script>
 
 <template>
-  <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 rounded-[2.5rem] p-10 shadow-sm dark:shadow-none transition-all hover:shadow-lg">
-    <h3 class="text-xl font-bold uppercase tracking-widest mb-8 flex items-center gap-3 text-slate-800 dark:text-white">
-      <Palette class="w-6 h-6 text-blue-500" />
-      视觉风格设置 / Theme Settings
+  <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 rounded-[2.5rem] p-8 shadow-sm dark:shadow-none transition-all hover:shadow-lg">
+    <h3 class="text-xl font-bold uppercase tracking-widest mb-6 flex items-center gap-3 text-slate-800 dark:text-white">
+      <Palette class="w-5 h-5 text-blue-500" />
+      外观设置 / Theme
     </h3>
 
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
       <button
         v-for="theme in themes"
         :key="theme.id"
         @click="currentTheme = theme.id"
         :class="[
-          'flex flex-col items-center justify-center p-6 rounded-[2rem] border-2 transition-all group',
+          'flex items-center gap-3 p-4 rounded-2xl border-2 transition-all group',
           currentTheme === theme.id 
             ? 'border-blue-500 bg-blue-500/5 text-blue-600 dark:text-blue-400' 
             : 'border-slate-100 dark:border-white/5 bg-slate-50 dark:bg-white/[0.02] text-slate-400 hover:border-slate-200 dark:hover:border-white/10'
@@ -50,17 +50,17 @@ watch(currentTheme, (newTheme) => {
         <component 
           :is="theme.icon" 
           :class="[
-            'w-8 h-8 mb-3 transition-transform duration-500',
-            currentTheme === theme.id ? 'scale-110' : 'group-hover:scale-110'
+            'w-5 h-5 transition-transform duration-500',
+            currentTheme === theme.id ? 'scale-110' : 'group-hover:rotate-12'
           ]" 
         />
-        <span class="text-[10px] font-black uppercase tracking-widest">{{ theme.name }}</span>
+        <span class="text-[11px] font-black uppercase tracking-widest text-left leading-tight">{{ theme.name }}</span>
       </button>
     </div>
 
-    <div class="mt-8 p-4 bg-slate-50 dark:bg-white/[0.02] rounded-2xl border border-slate-100 dark:border-white/5">
+    <div class="mt-6 p-4 bg-slate-50 dark:bg-white/[0.02] rounded-2xl border border-slate-100 dark:border-white/5">
       <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-center leading-relaxed">
-        调整显示模式以适应您的实验环境。系统同步将根据您的操作系统设置自动切换明亮与实验室深色风格。
+        系统同步将根据您的操作系统设置自动切换明亮与深色风格。
       </p>
     </div>
   </div>

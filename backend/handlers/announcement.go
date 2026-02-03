@@ -100,7 +100,7 @@ func CreateAnnouncement(c *gin.Context) {
 	res, err := database.DB.Exec("INSERT INTO announcements (title, content, type, is_ticker, expires_at) VALUES (?, ?, ?, ?, ?)",
 		req.Title, req.Content, req.Type, req.IsTicker, expiresAt)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建公告失败"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建公告失败: " + err.Error()})
 		return
 	}
 

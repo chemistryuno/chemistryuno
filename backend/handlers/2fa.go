@@ -4,6 +4,7 @@ import (
 	"chemistryuno/database"
 	"chemistryuno/models"
 	"chemistryuno/utils"
+	"database/sql"
 	"encoding/base64"
 	"net/http"
 	"time"
@@ -176,8 +177,15 @@ func Verify2FALogin(c *gin.Context) {
 		return
 	}
 
+	// 创建会话
+	sessionID, err := CreateAndStoreSession(int(user.UID), c.ClientIP(), c.GetHeader("User-Agent"))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建会话失败"})
+		return
+	}
+
 	// 生成token
-	token, err := utils.GenerateToken(int(user.UID), user.Username, user.IsAdmin, user.Role)
+	token, err := utils.GenerateToken(int(user.UID), user.Username, user.IsAdmin, user.Role, sessionID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成token失败"})
 		return
@@ -186,12 +194,16 @@ func Verify2FALogin(c *gin.Context) {
 	// 获取当前可用公告
 	var announcements []models.Announcement
 	rows, _ := database.DB.Query(`
-		SELECT id, content, type, is_ticker FROM announcements 
+		SELECT id, title, content, type, is_ticker FROM announcements 
 		WHERE active = 1 AND (expires_at IS NULL OR expires_at > ?)`, time.Now())
 	if rows != nil {
 		for rows.Next() {
 			var a models.Announcement
-			if err := rows.Scan(&a.ID, &a.Content, &a.Type, &a.IsTicker); err == nil {
+			var title sql.NullString
+			if err := rows.Scan(&a.ID, &title, &a.Content, &a.Type, &a.IsTicker); err == nil {
+				if title.Valid {
+					a.Title = title.String
+				}
 				announcements = append(announcements, a)
 			}
 		}

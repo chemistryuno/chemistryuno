@@ -71,6 +71,10 @@ export const authAPI = {
     api.post(`/feedbacks/${id}/urge`),
   withdrawFeedback: (id: number) =>
     api.post('/feedback/withdraw', { id }),
+  getSessions: () =>
+    api.get('/user/sessions'),
+  revokeSession: (id: string) =>
+    api.delete(`/user/sessions/${id}`),
   
   // 2FA相关
   setup2FA: () => api.post('/user/2fa/setup'),
@@ -155,8 +159,8 @@ export const adminAPI = {
   // 公告管理
   getAnnouncements: () =>
     api.get('/admin/announcements'),
-  createAnnouncement: (content: string, type: string, is_ticker: boolean, expires_in?: string) =>
-    api.post('/admin/announcements', { content, type, is_ticker, expires_in }),
+  createAnnouncement: (title: string, content: string, type: string, is_ticker: boolean, expires_in?: string) =>
+    api.post('/admin/announcements', { title, content, type, is_ticker, expires_in }),
   updateAnnouncementStatus: (id: number, active: boolean) =>
     api.put(`/admin/announcements/${id}/status`, { active }),
   deleteAnnouncement: (id: number) =>

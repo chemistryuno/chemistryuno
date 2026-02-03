@@ -36,6 +36,7 @@ func (h *Hub) Run() {
 			h.clients[client] = true
 			h.mutex.Unlock()
 			log.Printf("客户端 %d 已连接", client.uid)
+			h.BroadcastOnlineCount()
 
 		case client := <-h.unregister:
 			h.mutex.Lock()
@@ -53,6 +54,7 @@ func (h *Hub) Run() {
 			}
 			h.mutex.Unlock()
 			log.Printf("客户端 %d 已断开", client.uid)
+			h.BroadcastOnlineCount()
 
 		case message := <-h.broadcast:
 			h.mutex.RLock()
@@ -198,4 +200,16 @@ func (h *Hub) BroadcastToAll(message interface{}) {
 			delete(h.clients, client)
 		}
 	}
+}
+
+// BroadcastOnlineCount 广播当前在线人数
+func (h *Hub) BroadcastOnlineCount() {
+	h.mutex.RLock()
+	count := len(h.clients)
+	h.mutex.RUnlock()
+
+	h.BroadcastToAll(Message{
+		Type: "online_count",
+		Data: count,
+	})
 }

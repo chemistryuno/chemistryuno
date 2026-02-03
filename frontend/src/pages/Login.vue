@@ -97,9 +97,9 @@ const handleLoginSuccess = (token: string, user: any, announcements: any[] = [])
     announcements.forEach((ann: any) => {
       // 只处理模态框类型的，跑马灯交给 AnnouncementTicker 自动获取
       if (!ann.is_ticker) {
-        let title = '系统公告'
-        if (ann.type === 'emergency') title = '紧急通知'
-        if (ann.type === 'maintenance') title = '维护通知'
+        let title = ann.title || '系统公告'
+        if (ann.type === 'emergency' && !ann.title) title = '紧急通知'
+        if (ann.type === 'maintenance' && !ann.title) title = '维护通知'
         dialog.showAlert(ann.content, title)
       }
     })

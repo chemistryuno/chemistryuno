@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"chemistryuno/database"
 	"chemistryuno/utils"
 	"net/http"
 	"strings"
@@ -40,6 +41,19 @@ func AuthMiddleware() gin.HandlerFunc {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "无效的token"})
 			c.Abort()
 			return
+		}
+
+		// 验证会话是否被撤销
+		if claims.SessionID != "" {
+			var isRevoked bool
+			err := database.DB.QueryRow("SELECT is_revoked FROM sessions WHERE id = ?", claims.SessionID).Scan(&isRevoked)
+			if err == nil && isRevoked {
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "会话已终止，请重新登录"})
+				c.Abort()
+				return
+			}
+			// 更新最后活跃时间
+			_, _ = database.DB.Exec("UPDATE sessions SET last_active = CURRENT_TIMESTAMP WHERE id = ?", claims.SessionID)
 		}
 
 		// 将用户信息存入上下文

@@ -84,6 +84,17 @@ type PromoteUserRequest struct {
 	Role string `json:"role" binding:"required,oneof=user co-worker admin"`
 }
 
+type Session struct {
+	ID         string    `json:"id" db:"id"`
+	UID        int       `json:"uid" db:"uid"`
+	IP         string    `json:"ip" db:"ip"`
+	UserAgent  string    `json:"user_agent" db:"user_agent"`
+	LastActive time.Time `json:"last_active" db:"last_active"`
+	ExpiresAt  time.Time `json:"expires_at" db:"expires_at"`
+	IsRevoked  bool      `json:"is_revoked" db:"is_revoked"`
+	CreatedAt  time.Time `json:"created_at" db:"created_at"`
+}
+
 type Bounty struct {
 	ID        int       `json:"id" db:"id"`
 	TargetUID int       `json:"target_uid" db:"target_uid"`

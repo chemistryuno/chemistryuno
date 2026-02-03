@@ -4,13 +4,77 @@ import (
 	"chemistryuno/database"
 	"chemistryuno/models"
 	"chemistryuno/utils"
+	"database/sql"
 	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/pquerna/otp/totp"
 )
+
+// 创建并存储新会话
+func CreateAndStoreSession(uid int, ip, ua string) (string, error) {
+	sessionID := uuid.New().String()
+	expiresAt := time.Now().Add(24 * time.Hour)
+
+	_, err := database.DB.Exec(
+		"INSERT INTO sessions (id, uid, ip, user_agent, expires_at) VALUES (?, ?, ?, ?, ?)",
+		sessionID, uid, ip, ua, expiresAt,
+	)
+	if err != nil {
+		return "", err
+	}
+	return sessionID, nil
+}
+
+// 获取用户活跃会话
+func GetMySessions(c *gin.Context) {
+	uid := c.GetInt("uid")
+
+	rows, err := database.DB.Query(`
+		SELECT id, ip, user_agent, last_active, expires_at, created_at 
+		FROM sessions 
+		WHERE uid = ? AND is_revoked = 0 AND expires_at > CURRENT_TIMESTAMP
+		ORDER BY last_active DESC`, uid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取会话失败"})
+		return
+	}
+	defer rows.Close()
+
+	var sessions []models.Session
+	for rows.Next() {
+		var s models.Session
+		if err := rows.Scan(&s.ID, &s.IP, &s.UserAgent, &s.LastActive, &s.ExpiresAt, &s.CreatedAt); err == nil {
+			sessions = append(sessions, s)
+		}
+	}
+
+	c.JSON(http.StatusOK, sessions)
+}
+
+// 撤销会话
+func RevokeSession(c *gin.Context) {
+	uid := c.GetInt("uid")
+	sessionID := c.Param("id")
+
+	// 只能撤销自己的会话
+	result, err := database.DB.Exec("UPDATE sessions SET is_revoked = 1 WHERE id = ? AND uid = ?", sessionID, uid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "撤销会话失败"})
+		return
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "会话不存在或已过期"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "会话已成功终止"})
+}
 
 // 用户注册
 func Register(c *gin.Context) {
@@ -99,8 +163,15 @@ func Login(c *gin.Context) {
 		return
 	}
 
+	// 创建会话
+	sessionID, err := CreateAndStoreSession(int(user.UID), c.ClientIP(), c.GetHeader("User-Agent"))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建会话失败"})
+		return
+	}
+
 	// 生成token
-	token, err := utils.GenerateToken(int(user.UID), user.Username, user.IsAdmin, user.Role)
+	token, err := utils.GenerateToken(int(user.UID), user.Username, user.IsAdmin, user.Role, sessionID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成token失败"})
 		return
@@ -109,12 +180,16 @@ func Login(c *gin.Context) {
 	// 4. 获取当前可用公告 (登陆触发器)
 	var announcements []models.Announcement
 	rows, _ := database.DB.Query(`
-		SELECT id, content, type, is_ticker FROM announcements 
+		SELECT id, title, content, type, is_ticker FROM announcements 
 		WHERE active = 1 AND (expires_at IS NULL OR expires_at > ?)`, time.Now())
 	if rows != nil {
 		for rows.Next() {
 			var a models.Announcement
-			if err := rows.Scan(&a.ID, &a.Content, &a.Type, &a.IsTicker); err == nil {
+			var title sql.NullString
+			if err := rows.Scan(&a.ID, &title, &a.Content, &a.Type, &a.IsTicker); err == nil {
+				if title.Valid {
+					a.Title = title.String
+				}
 				announcements = append(announcements, a)
 			}
 		}

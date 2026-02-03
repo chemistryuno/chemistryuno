@@ -3,6 +3,7 @@ package game
 import (
 	"chemistryuno/database"
 	"chemistryuno/websocket"
+	"database/sql"
 	"log"
 	"time"
 )
@@ -46,7 +47,7 @@ func BroadcastActiveTicker() {
 		return
 	}
 
-	rows, err := database.DB.Query("SELECT id, content, type, is_ticker FROM announcements WHERE active = 1 AND is_ticker = 1")
+	rows, err := database.DB.Query("SELECT id, title, content, type, is_ticker FROM announcements WHERE active = 1 AND is_ticker = 1")
 	if err != nil {
 		return
 	}
@@ -54,10 +55,11 @@ func BroadcastActiveTicker() {
 
 	for rows.Next() {
 		var id int
+		var title sql.NullString
 		var content, aType string
 		var isTicker bool
-		if err := rows.Scan(&id, &content, &aType, &isTicker); err == nil {
-			websocket.GlobalHub.BroadcastToAll(websocket.Message{
+		if err := rows.Scan(&id, &title, &content, &aType, &isTicker); err == nil {
+			msg := websocket.Message{
 				Type: "system_announcement",
 				Data: map[string]interface{}{
 					"id":        id,
@@ -65,7 +67,11 @@ func BroadcastActiveTicker() {
 					"type":      aType,
 					"is_ticker": isTicker,
 				},
-			})
+			}
+			if title.Valid {
+				msg.Data.(map[string]interface{})["title"] = title.String
+			}
+			websocket.GlobalHub.BroadcastToAll(msg)
 		}
 	}
 }

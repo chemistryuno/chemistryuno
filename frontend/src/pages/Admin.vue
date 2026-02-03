@@ -48,6 +48,7 @@ const showCreateUserModal = ref(false)
 const newUser = ref({ username: '', password: '' })
 const showCreateAnnouncementModal = ref(false)
 const newAnnouncement = ref({
+  title: '',
   content: '',
   type: 'info',
   is_ticker: true,
@@ -225,6 +226,7 @@ const handleCreateAnnouncement = async () => {
   }
   try {
     await adminAPI.createAnnouncement(
+      newAnnouncement.value.title,
       newAnnouncement.value.content,
       newAnnouncement.value.type,
       newAnnouncement.value.is_ticker,
@@ -232,7 +234,7 @@ const handleCreateAnnouncement = async () => {
     )
     await showAlert('公告发布成功', '同步中...')
     showCreateAnnouncementModal.value = false
-    newAnnouncement.value = { content: '', type: 'info', is_ticker: true, expires_in: '24h' }
+    newAnnouncement.value = { title: '', content: '', type: 'info', is_ticker: true, expires_in: '24h' }
     loadData()
   } catch (err: any) {
     await showAlert(err.response?.data?.error || '发布失败')
@@ -946,6 +948,7 @@ const filteredHistory = computed(() => {
                       <div>
                         <span class="text-[10px] font-black uppercase tracking-widest text-slate-500">{{ ann.type }}</span>
                         <div class="flex items-center gap-2">
+                          <span class="text-xs font-black text-slate-900 dark:text-white" v-if="ann.title">{{ ann.title }}</span>
                           <span v-if="ann.is_ticker" class="text-[8px] px-1.5 py-0.5 bg-emerald-500/10 text-emerald-500 rounded border border-emerald-500/10 font-black uppercase tracking-tighter">TICKER</span>
                           <span v-else class="text-[8px] px-1.5 py-0.5 bg-blue-500/10 text-blue-500 rounded border border-blue-500/10 font-black uppercase tracking-tighter">ALERT</span>
                         </div>
@@ -1088,6 +1091,16 @@ const filteredHistory = computed(() => {
         </h3>
         
         <div class="space-y-6 relative z-10">
+          <div>
+            <label class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] block mb-3 ml-1">Title / 标题 (可选)</label>
+            <input 
+              v-model="newAnnouncement.title"
+              type="text" 
+              placeholder="ENTER BROADCAST TITLE..."
+              class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-2xl px-5 py-4 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500/50 transition-all"
+            />
+          </div>
+
           <div>
             <label class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] block mb-3 ml-1">Broadcast Content / 内容</label>
             <textarea 

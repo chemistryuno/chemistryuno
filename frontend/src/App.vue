@@ -93,9 +93,9 @@ onMounted(() => {
     const ann = msg.data
     // 如果不是跑马灯，则视为弹窗公告
     if (ann && !ann.is_ticker) {
-      let title = '系统公告'
-      if (ann.type === 'emergency') title = '紧急通知'
-      if (ann.type === 'maintenance') title = '维护通知'
+      let title = ann.title || '系统公告'
+      if (ann.type === 'emergency' && !ann.title) title = '紧急通知'
+      if (ann.type === 'maintenance' && !ann.title) title = '维护通知'
       showAlert(ann.content, title)
     }
   }

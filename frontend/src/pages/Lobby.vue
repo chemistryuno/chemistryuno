@@ -24,6 +24,7 @@ const deckID = ref(0)
 const isPointsMode = ref(false)
 const loading = ref(false)
 const currentTime = ref(new Date())
+const onlineCount = ref(0)
 
 const loadDecks = async () => {
   try {
@@ -49,11 +50,16 @@ const loadDecks = async () => {
 let roomInterval: any
 let timeInterval: any
 
+const handleOnlineCountUpdate = (msg: any) => {
+  onlineCount.value = msg.data || 0
+}
+
 onMounted(() => {
   loadRooms()
   loadDecks()
   loadPendingFeedbacks()
   websocket.connect()
+  websocket.on('online_count', handleOnlineCountUpdate)
 
   roomInterval = setInterval(loadRooms, 3000)
   timeInterval = setInterval(() => {
@@ -64,6 +70,7 @@ onMounted(() => {
 onUnmounted(() => {
   if (roomInterval) clearInterval(roomInterval)
   if (timeInterval) clearInterval(timeInterval)
+  websocket.off('online_count', handleOnlineCountUpdate)
 })
 
 const loadRooms = async () => {
@@ -220,32 +227,32 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
         </div>
       </header>
 
-      <main class="flex-1 max-w-[1400px] mx-auto w-full px-6 py-8">
+      <main class="flex-1 max-w-[1400px] mx-auto w-full px-6 py-6">
         <!-- Welcome & Global Actions -->
-        <div class="flex flex-col lg:flex-row lg:items-end justify-between mb-12 gap-8">
-          <div class="space-y-4">
+        <div class="flex flex-col lg:flex-row lg:items-end justify-between mb-8 gap-8">
+          <div class="space-y-3">
             <div class="inline-flex items-center gap-2 px-3 py-1 bg-blue-500/10 border border-blue-500/20 rounded-full">
               <span class="w-1.5 h-1.5 bg-blue-500 rounded-full animate-ping"></span>
               <span class="text-[10px] font-bold text-blue-400 uppercase tracking-widest">Live Research Hall</span>
             </div>
-            <h2 class="text-5xl font-black text-white tracking-tighter leading-none">
+            <h2 class="text-4xl font-black text-white tracking-tighter leading-none">
               实验大厅
             </h2>
-            <p class="text-slate-500 dark:text-slate-400 max-w-lg font-medium leading-relaxed">
+            <p class="text-slate-500 dark:text-slate-400 max-w-lg text-sm font-medium leading-relaxed">
               欢迎回到元素实验室。目前有 <span class="text-slate-900 dark:text-white font-bold">{{ rooms.length }}</span> 个活跃实验，请加入现有队列或开启全新化学反应序列。
             </p>
           </div>
 
           <div class="flex items-center gap-6">
-             <div class="hidden xl:flex items-center gap-8 px-8 py-5 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-[32px]">
+             <div class="hidden xl:flex items-center gap-6 px-6 py-4 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-[28px]">
                <div class="text-center">
-                 <p class="text-[10px] text-slate-500 uppercase font-bold tracking-widest mb-1">Total_Players</p>
-                 <p class="text-2xl font-black text-slate-900 dark:text-white font-mono">1,248</p>
+                 <p class="text-[9px] text-slate-500 uppercase font-black tracking-widest mb-0.5">Online_Staff</p>
+                 <p class="text-xl font-black text-slate-900 dark:text-white font-mono">{{ onlineCount }}</p>
                </div>
-               <div class="w-px h-8 bg-slate-200 dark:bg-white/5 font-mono"></div>
-               <div class="text-center font-mono">
-                 <p class="text-[10px] text-slate-500 uppercase font-bold tracking-widest mb-1">Active_Nodes</p>
-                 <p class="text-2xl font-black text-blue-600 dark:text-blue-400">{{ activeNodesCount }}</p>
+               <div class="w-px h-6 bg-slate-200 dark:bg-white/5"></div>
+               <div class="text-center">
+                 <p class="text-[9px] text-slate-500 uppercase font-black tracking-widest mb-0.5">Active_Nodes</p>
+                 <p class="text-xl font-black text-blue-600 dark:text-blue-400 font-mono">{{ activeNodesCount }}</p>
                </div>
              </div>
 
@@ -266,37 +273,37 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
 
             <button 
               @click="showCreateModal = true" 
-              class="group relative flex items-center gap-3 bg-blue-600 hover:bg-blue-500 px-8 py-5 rounded-[24px] font-black text-white shadow-[0_20px_40px_rgba(37,99,235,0.2)] dark:shadow-[0_20px_40px_rgba(37,99,235,0.4)] transition-all hover:scale-[1.02] hover:-translate-y-1 active:scale-95 overflow-hidden"
+              class="group relative flex items-center gap-2.5 bg-blue-600 hover:bg-blue-500 px-6 py-4 rounded-[20px] font-black text-white shadow-[0_15px_30px_rgba(37,99,235,0.2)] dark:shadow-[0_15px_30px_rgba(37,99,235,0.4)] transition-all hover:scale-[1.02] hover:-translate-y-0.5 active:scale-95 overflow-hidden"
             >
-              <Plus class="w-5 h-5 group-hover:rotate-90 transition-transform duration-500" />
-              <span class="uppercase tracking-widest text-sm">启动新实验</span>
+              <Plus class="w-4.5 h-4.5 group-hover:rotate-90 transition-transform duration-500" />
+              <span class="uppercase tracking-widest text-xs">启动新实验</span>
               <div class="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-shimmer"></div>
             </button>
           </div>
         </div>
 
         <!-- Experimental Nodes (Room List Table) -->
-        <div class="bg-white/80 dark:bg-[#121216]/60 backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-[32px] overflow-hidden">
+        <div class="bg-white/80 dark:bg-[#121216]/60 backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-[28px] overflow-hidden">
           <div class="overflow-x-auto">
             <table class="w-full text-left border-collapse">
               <thead>
                 <tr class="border-b border-slate-200 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.02]">
-                  <th class="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Experiment_Status</th>
-                  <th class="px-6 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Node_Identifier</th>
-                  <th class="px-6 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Protocol_Type</th>
-                  <th class="px-6 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Participants</th>
-                  <th class="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Access_Control</th>
+                  <th class="px-6 py-4 text-[9px] font-black text-slate-500 uppercase tracking-widest">Experiment_Status</th>
+                  <th class="px-6 py-4 text-[9px] font-black text-slate-500 uppercase tracking-widest">Node_Identifier</th>
+                  <th class="px-6 py-4 text-[9px] font-black text-slate-500 uppercase tracking-widest">Protocol_Type</th>
+                  <th class="px-6 py-4 text-[9px] font-black text-slate-500 uppercase tracking-widest">Participants</th>
+                  <th class="px-6 py-4 text-[9px] font-black text-slate-500 uppercase tracking-widest text-right">Access_Control</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-if="rooms.length === 0">
-                  <td colspan="5" class="py-32 text-center text-slate-400 dark:text-slate-600">
+                  <td colspan="5" class="py-24 text-center text-slate-400 dark:text-slate-600">
                     <div class="flex flex-col items-center justify-center">
-                      <div class="w-20 h-20 bg-slate-100 dark:bg-white/5 rounded-full flex items-center justify-center mb-4">
-                        <Info class="w-8 h-8 opacity-20" />
+                      <div class="w-16 h-16 bg-slate-100 dark:bg-white/5 rounded-full flex items-center justify-center mb-4">
+                        <Info class="w-6 h-6 opacity-20" />
                       </div>
-                      <p class="text-xl font-black tracking-tight uppercase">No_Active_Nodes</p>
-                      <p class="text-[10px] font-mono mt-1 opacity-50 uppercase">等待核心激活...</p>
+                      <p class="text-lg font-black tracking-tight uppercase">No_Active_Nodes</p>
+                      <p class="text-[9px] font-mono mt-1 opacity-50 uppercase">等待核心激活...</p>
                     </div>
                   </td>
                 </tr>
@@ -305,7 +312,7 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
                   :key="room.id"
                   class="group border-b border-slate-200 dark:border-white/5 hover:bg-blue-500/[0.02] transition-colors"
                 >
-                  <td class="px-8 py-6">
+                  <td class="px-6 py-4">
                     <div class="flex items-center gap-3">
                       <div :class="cn(
                         'w-2 h-2 rounded-full',

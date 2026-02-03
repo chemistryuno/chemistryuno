@@ -175,7 +175,21 @@ func createTables() error {
 		expires_at DATETIME
 	);`
 
-	tables := []string{userTable, bountyTable, deckConfigTable, gameHistoryTable, credentialTable, reactionsTable, substancesTable, feedbackTable, systemConfigTable, announcementTable}
+	// 会话管理表
+	sessionsTable := `
+	CREATE TABLE IF NOT EXISTS sessions (
+		id TEXT PRIMARY KEY,
+		uid INTEGER NOT NULL,
+		ip TEXT,
+		user_agent TEXT,
+		last_active DATETIME DEFAULT CURRENT_TIMESTAMP,
+		expires_at DATETIME NOT NULL,
+		is_revoked BOOLEAN DEFAULT 0,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (uid) REFERENCES users(UID)
+	);`
+
+	tables := []string{userTable, bountyTable, deckConfigTable, gameHistoryTable, credentialTable, reactionsTable, substancesTable, feedbackTable, systemConfigTable, announcementTable, sessionsTable}
 
 	for _, table := range tables {
 		if _, err := DB.Exec(table); err != nil {
@@ -290,6 +304,11 @@ func createTables() error {
 	}
 	if !columnExists("feedbacks", "remove_at") {
 		_, _ = DB.Exec("ALTER TABLE feedbacks ADD COLUMN remove_at DATETIME DEFAULT NULL")
+	}
+
+	// announcements
+	if !columnExists("announcements", "title") {
+		_, _ = DB.Exec("ALTER TABLE announcements ADD COLUMN title TEXT")
 	}
 
 	// 检查并创建默认管理员账号

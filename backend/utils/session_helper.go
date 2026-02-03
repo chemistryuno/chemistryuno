@@ -29,7 +29,7 @@ func CreateSession(uid int, ua string, ip string) (string, error) {
 	// 这样可以避免多标签页或相同 UA 的不同设备相互挤出的问题
 
 	sid := GenerateSessionID()
-	_, err := database.DB.Exec("INSERT INTO user_sessions (id, user_uid, user_agent, ip_address) VALUES (?, ?, ?, ?)", sid, uid, ua, ip)
+	_, err := database.Exec("INSERT INTO user_sessions (id, user_uid, user_agent, ip_address) VALUES (?, ?, ?, ?)", sid, uid, ua, ip)
 	if err != nil {
 		log.Printf("创建会话失败: %v", err)
 		return "", err
@@ -38,18 +38,18 @@ func CreateSession(uid int, ua string, ip string) (string, error) {
 }
 
 func DeleteSession(sid string) error {
-	_, err := database.DB.Exec("DELETE FROM user_sessions WHERE id = ?", sid)
+	_, err := database.Exec("DELETE FROM user_sessions WHERE id = ?", sid)
 	return err
 }
 
 func UpdateSessionActivity(sid string, ip string) {
 	// 同时更新最后活跃时间和 IP，防止用户因为看到旧 IP 而误以为被盗号
-	_, _ = database.DB.Exec("UPDATE user_sessions SET last_active = NOW(), ip_address = ? WHERE id = ?", ip, sid)
+	_, _ = database.Exec("UPDATE user_sessions SET last_active = NOW(), ip_address = ? WHERE id = ?", ip, sid)
 }
 
 func IsSessionValid(sid string) bool {
 	var exists bool
-	err := database.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM user_sessions WHERE id = ?)", sid).Scan(&exists)
+	err := database.QueryRow("SELECT EXISTS(SELECT 1 FROM user_sessions WHERE id = ?)", sid).Scan(&exists)
 	if err != nil {
 		return false
 	}
@@ -59,7 +59,7 @@ func IsSessionValid(sid string) bool {
 // ValidateSessionForUser 验证会话是否属于指定用户
 func ValidateSessionForUser(sid string, uid int) bool {
 	var sessionUID int
-	err := database.DB.QueryRow("SELECT user_uid FROM user_sessions WHERE id = ?", sid).Scan(&sessionUID)
+	err := database.QueryRow("SELECT user_uid FROM user_sessions WHERE id = ?", sid).Scan(&sessionUID)
 	if err != nil {
 		return false
 	}

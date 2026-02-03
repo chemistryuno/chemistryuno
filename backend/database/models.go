@@ -1,0 +1,199 @@
+package database
+
+import (
+	"time"
+
+	"gorm.io/gorm"
+)
+
+// User GORM模型 - 用户表
+type User struct {
+	UID                uint           `gorm:"primaryKey;autoIncrement" json:"uid"`
+	Username           string         `gorm:"unique;not null;size:50" json:"username"`
+	Password           string         `gorm:"not null" json:"-"`
+	Avatar             string         `gorm:"default:🧪;size:10" json:"avatar"`
+	IsAdmin            bool           `gorm:"default:false" json:"is_admin"`
+	Role               string         `gorm:"default:user;size:20" json:"role"`
+	TwoFactorEnabled   bool           `gorm:"default:false" json:"two_factor_enabled"`
+	TwoFactorSecret    string         `json:"-"`
+	Points             int            `gorm:"default:0" json:"points"`
+	MonthlyPoints      int            `gorm:"default:0" json:"monthly_points"`
+	NegativePlayCount  int            `gorm:"default:0" json:"negative_play_count"`
+	BannedUntil        *time.Time     `json:"banned_until"`
+	FrozenUntil        *time.Time     `json:"frozen_until"`
+	TotalGames         int            `gorm:"default:0" json:"total_games"`
+	WinCount           int            `gorm:"default:0" json:"win_count"`
+	LastWeeklyDecayAt  time.Time      `json:"last_weekly_decay_at"`
+	LastMonthlyResetAt time.Time      `json:"last_monthly_reset_at"`
+	WebAuthnID         string         `gorm:"size:100" json:"-"`
+	CreatedAt          time.Time      `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt          time.Time      `gorm:"autoUpdateTime" json:"updated_at"`
+	DeletedAt          gorm.DeletedAt `gorm:"index" json:"-"`
+}
+
+// TableName 指定表名
+func (User) TableName() string {
+	return "users"
+}
+
+// UserSession GORM模型 - 用户会话表
+type UserSession struct {
+	ID         string    `gorm:"primaryKey;size:64" json:"id"`
+	UserUID    uint      `gorm:"not null;index" json:"user_uid"`
+	UserAgent  string    `gorm:"type:text" json:"user_agent"`
+	IPAddress  string    `gorm:"size:45" json:"ip_address"`
+	LastActive time.Time `gorm:"autoCreateTime" json:"last_active"`
+	CreatedAt  time.Time `gorm:"autoCreateTime" json:"created_at"`
+}
+
+func (UserSession) TableName() string {
+	return "user_sessions"
+}
+
+// WebAuthnCredential GORM模型 - WebAuthn凭证表
+type WebAuthnCredential struct {
+	ID              string    `gorm:"primaryKey;size:255" json:"id"`
+	UserUID         uint      `gorm:"not null;index" json:"user_uid"`
+	PublicKey       []byte    `gorm:"type:blob" json:"-"`
+	AttestationType string    `gorm:"size:50" json:"attestation_type"`
+	AAGUID          []byte    `gorm:"size:64" json:"-"`
+	SignCount       uint32    `json:"sign_count"`
+	CloneWarning    bool      `gorm:"default:false" json:"clone_warning"`
+	CreatedAt       time.Time `gorm:"autoCreateTime" json:"created_at"`
+}
+
+func (WebAuthnCredential) TableName() string {
+	return "webauthn_credentials"
+}
+
+// Reaction GORM模型 - 化学反应表
+type Reaction struct {
+	ID          uint       `gorm:"primaryKey;autoIncrement" json:"id"`
+	Reactants   string     `gorm:"not null;size:500" json:"reactants"`
+	Products    string     `gorm:"not null;size:500" json:"products"`
+	CreatedBy   uint       `gorm:"not null" json:"created_by"`
+	Status      string     `gorm:"default:pending;size:20" json:"status"`
+	Bidirection bool       `gorm:"default:false" json:"bidirection"`
+	GroupID     *uint      `gorm:"index" json:"group_id"`
+	SubmittedAt time.Time  `gorm:"autoCreateTime" json:"submitted_at"`
+	ApprovedAt  *time.Time `json:"approved_at"`
+	CreatedAt   time.Time  `gorm:"autoCreateTime" json:"created_at"`
+}
+
+func (Reaction) TableName() string {
+	return "reactions"
+}
+
+// Substance GORM模型 - 化学物质表
+type Substance struct {
+	ID          uint       `gorm:"primaryKey;autoIncrement" json:"id"`
+	Name        string     `gorm:"not null;unique;size:255" json:"name"`
+	Description string     `gorm:"type:text" json:"description"`
+	CreatedBy   uint       `gorm:"not null" json:"created_by"`
+	Status      string     `gorm:"default:pending;size:20" json:"status"`
+	SubmittedAt time.Time  `gorm:"autoCreateTime" json:"submitted_at"`
+	ApprovedAt  *time.Time `json:"approved_at"`
+	CreatedAt   time.Time  `gorm:"autoCreateTime" json:"created_at"`
+}
+
+func (Substance) TableName() string {
+	return "substances"
+}
+
+// Feedback GORM模型 - 用户反馈表
+type Feedback struct {
+	ID             uint       `gorm:"primaryKey;autoIncrement" json:"id"`
+	UserUID        uint       `gorm:"not null;index" json:"user_uid"`
+	Type           string     `gorm:"not null;size:20" json:"type"`
+	Content        string     `gorm:"not null;type:text" json:"content"`
+	Status         string     `gorm:"default:pending;size:20" json:"status"`
+	ProcessedBy    *uint      `json:"processed_by"`
+	ProcessedAt    *time.Time `json:"processed_at"`
+	LastUrgedAt    *time.Time `json:"last_urged_at"`
+	UrgeCount      int        `gorm:"default:0" json:"urge_count"`
+	ResolutionNote string     `gorm:"type:text" json:"resolution_note"`
+	RemoveAt       *time.Time `json:"remove_at"`
+	CreatedAt      time.Time  `gorm:"autoCreateTime" json:"created_at"`
+}
+
+func (Feedback) TableName() string {
+	return "feedbacks"
+}
+
+// DeckConfig GORM模型 - 牌组配置表
+type DeckConfig struct {
+	ID        uint      `gorm:"primaryKey;autoIncrement" json:"id"`
+	Name      string    `gorm:"not null;size:100" json:"name"`
+	Cards     string    `gorm:"not null;type:text" json:"cards"`
+	CreatedBy uint      `gorm:"not null;index" json:"created_by"`
+	IsGlobal  bool      `gorm:"default:false" json:"is_global"`
+	CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+}
+
+func (DeckConfig) TableName() string {
+	return "deck_configs"
+}
+
+// GameHistory GORM模型 - 游戏历史表
+type GameHistory struct {
+	ID         uint      `gorm:"primaryKey;autoIncrement" json:"id"`
+	RoomID     string    `gorm:"not null;size:50;index" json:"room_id"`
+	WinnerUID  *uint     `json:"winner_uid"`
+	Players    string    `gorm:"not null;type:json" json:"players"`
+	StartedAt  time.Time `json:"started_at"`
+	FinishedAt time.Time `json:"finished_at"`
+	CreatedAt  time.Time `gorm:"autoCreateTime" json:"created_at"`
+}
+
+func (GameHistory) TableName() string {
+	return "game_history"
+}
+
+// Bounty GORM模型 - 悬赏表
+type Bounty struct {
+	ID        uint       `gorm:"primaryKey;autoIncrement" json:"id"`
+	IssuerUID uint       `gorm:"not null;index" json:"issuer_uid"`
+	TargetUID uint       `gorm:"not null;index" json:"target_uid"`
+	Amount    int        `gorm:"not null" json:"amount"`
+	Status    string     `gorm:"default:active;size:20" json:"status"`
+	CreatedAt time.Time  `gorm:"autoCreateTime" json:"created_at"`
+	ClaimedAt *time.Time `json:"claimed_at"`
+}
+
+func (Bounty) TableName() string {
+	return "bounties"
+}
+
+// Announcement GORM模型 - 公告表
+type Announcement struct {
+	ID              uint       `gorm:"primaryKey;autoIncrement" json:"id"`
+	Title           string     `gorm:"size:255" json:"title"`
+	Content         string     `gorm:"not null;type:text" json:"content"`
+	Type            string     `gorm:"default:info;size:20" json:"type"`
+	Active          bool       `gorm:"default:true" json:"active"`
+	IsTicker        bool       `gorm:"default:false" json:"is_ticker"`
+	IsPersistent    bool       `gorm:"default:false" json:"is_persistent"`
+	OnJoin          bool       `gorm:"default:false" json:"on_join"`
+	CronInterval    int        `gorm:"default:0" json:"cron_interval"`
+	CloseDelay      int        `gorm:"default:0" json:"close_delay"`
+	LastBroadcastAt *time.Time `json:"last_broadcast_at"`
+	ExpiresAt       *time.Time `json:"expires_at"`
+	CreatedAt       time.Time  `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt       time.Time  `gorm:"autoUpdateTime" json:"updated_at"`
+}
+
+func (Announcement) TableName() string {
+	return "announcements"
+}
+
+// SystemConfig GORM模型 - 系统配置表
+type SystemConfig struct {
+	Key       string    `gorm:"primaryKey;size:100" json:"key"`
+	Value     string    `gorm:"not null;type:text" json:"value"`
+	UpdatedAt time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+}
+
+func (SystemConfig) TableName() string {
+	return "system_configs"
+}

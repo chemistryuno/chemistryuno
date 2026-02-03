@@ -58,6 +58,12 @@ func AuthMiddleware() gin.HandlerFunc {
 				c.Abort()
 				return
 			}
+			// 验证会话是否属于该用户（防止会话劫持）
+			if !utils.ValidateSessionForUser(claims.SID, claims.UID) {
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "会话验证失败"})
+				c.Abort()
+				return
+			}
 			// 更新活动时间及当前访问 IP
 			utils.UpdateSessionActivity(claims.SID, c.ClientIP())
 		}

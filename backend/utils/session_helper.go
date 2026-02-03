@@ -55,3 +55,13 @@ func IsSessionValid(sid string) bool {
 	}
 	return exists
 }
+
+// ValidateSessionForUser 验证会话是否属于指定用户
+func ValidateSessionForUser(sid string, uid int) bool {
+	var sessionUID int
+	err := database.DB.QueryRow("SELECT user_uid FROM user_sessions WHERE id = ?", sid).Scan(&sessionUID)
+	if err != nil {
+		return false
+	}
+	return sessionUID == uid
+}

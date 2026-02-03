@@ -2,12 +2,26 @@ package utils
 
 import (
 	"errors"
+	"log"
+	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 )
 
-var jwtSecret = []byte("your-secret-key-change-this-in-production")
+var jwtSecret []byte
+
+// 初始化JWT密钥
+func init() {
+	secretKey := os.Getenv("JWT_SECRET")
+	if secretKey == "" {
+		log.Println("警告: JWT_SECRET 环境变量未设置，使用默认密钥（不安全，仅用于开发环境）")
+		secretKey = "your-secret-key-change-this-in-production"
+	} else if len(secretKey) < 32 {
+		log.Println("警告: JWT_SECRET 长度过短，建议至少32个字符")
+	}
+	jwtSecret = []byte(secretKey)
+}
 
 type Claims struct {
 	UID      int    `json:"uid"`

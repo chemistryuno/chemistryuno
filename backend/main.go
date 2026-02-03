@@ -5,6 +5,7 @@ import (
 	"chemistryuno/game"
 	"chemistryuno/handlers"
 	"chemistryuno/middleware"
+	"chemistryuno/utils"
 	"chemistryuno/websocket"
 	"log"
 	"net/http"
@@ -23,6 +24,11 @@ var upgrader = ws.Upgrader{
 var hub *websocket.Hub
 
 func main() {
+	// 确保JWT密钥存在（首次启动自动生成）
+	if err := utils.EnsureJWTSecret(); err != nil {
+		log.Printf("警告: JWT密钥初始化失败: %v", err)
+	}
+
 	// 设置生产模式
 	gin.SetMode(gin.ReleaseMode)
 

@@ -6,6 +6,7 @@ import (
 	"chemistryuno/utils"
 	"database/sql"
 	"encoding/base64"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -147,8 +148,9 @@ func Disable2FA(c *gin.Context) {
 // Verify2FALogin 登录时的2FA验证
 func Verify2FALogin(c *gin.Context) {
 	var req struct {
-		UID  int    `json:"uid" binding:"required"`
-		Code string `json:"code" binding:"required"`
+		UID      int    `json:"uid" binding:"required"`
+		Code     string `json:"code" binding:"required"`
+		Password string `json:"password" binding:"required"` // 添加密码验证
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
@@ -157,15 +159,45 @@ func Verify2FALogin(c *gin.Context) {
 
 	var user models.User
 	err := database.DB.QueryRow(
-		"SELECT UID, username, avatar, is_admin, role, two_factor_secret FROM users WHERE UID = ?",
+		"SELECT UID, username, password, avatar, is_admin, role, two_factor_enabled, two_factor_secret, banned_until, frozen_until FROM users WHERE UID = ?",
 		req.UID,
-	).Scan(&user.UID, &user.Username, &user.Avatar, &user.IsAdmin, &user.Role, &user.TwoFactorSecret)
+	).Scan(&user.UID, &user.Username, &user.PasswordHash, &user.Avatar, &user.IsAdmin, &user.Role, &user.TwoFactorEnabled, &user.TwoFactorSecret, &user.BannedUntil, &user.FrozenUntil)
 
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "用户不存在"})
 		return
 	}
 
+	// 安全检查1: 验证用户确实启用了2FA
+	if !user.TwoFactorEnabled {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "该账户未启用2FA，请使用常规登录"})
+		return
+	}
+
+	// 安全检查2: 验证密码
+	if !utils.CheckPassword(req.Password, user.PasswordHash) {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "密码错误"})
+		return
+	}
+
+	// 安全检查3: 检查封禁状态
+	now := time.Now()
+	if user.BannedUntil != nil && now.Before(*user.BannedUntil) {
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": fmt.Sprintf("您的账号已被封禁，直到 %s", user.BannedUntil.Format("2006-01-02 15:04:05")),
+		})
+		return
+	}
+
+	// 安全检查4: 检查冻结状态
+	if user.FrozenUntil != nil && now.Before(*user.FrozenUntil) {
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": fmt.Sprintf("您的账号当前处于冷冻状态，直到 %s", user.FrozenUntil.Format("2006-01-02 15:04:05")),
+		})
+		return
+	}
+
+	// 验证2FA验证码
 	valid, _ := totp.ValidateCustom(req.Code, user.TwoFactorSecret, time.Now().UTC(), totp.ValidateOpts{
 		Period: 30,
 		Skew:   2,

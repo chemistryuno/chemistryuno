@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { authAPI } from '../../utils/api'
 import { useDialog } from '../../utils/dialog'
 import { 
@@ -42,6 +42,10 @@ const fetchSessions = async () => {
 
 onMounted(() => {
   if (props.show) fetchSessions()
+})
+
+watch(() => props.show, (newVal) => {
+  if (newVal) fetchSessions()
 })
 
 const handleLogoutSession = async (session: any) => {
@@ -109,11 +113,19 @@ const getIcon = (ua: string) => {
 }
 
 const formatUA = (ua: string) => {
-  if (!ua) return '未知设备'
-  if (ua.includes('Windows')) return 'Windows PC'
-  if (ua.includes('Macintosh')) return 'MacBook / iMac'
-  if (ua.includes('iPhone')) return 'Apple iPhone'
-  if (ua.includes('Android')) return 'Android 设备'
+  if (!ua) return '未知终端'
+  const lowerUA = ua.toLowerCase()
+  if (lowerUA.includes('windows')) return 'Windows PC'
+  if (lowerUA.includes('macintosh') || lowerUA.includes('mac os')) return 'MacBook / iMac'
+  if (lowerUA.includes('iphone')) return 'Apple iPhone'
+  if (lowerUA.includes('android')) return 'Android 设备'
+  if (lowerUA.includes('linux')) return 'Linux 终端'
+  
+  // 提取简单的浏览器信息
+  if (lowerUA.includes('chrome')) return 'Google Chrome'
+  if (lowerUA.includes('firefox')) return 'Firefox'
+  if (lowerUA.includes('safari') && !lowerUA.includes('chrome')) return 'Safari'
+  
   return ua.split(')')[0].split('(')[1] || 'Web 浏览器'
 }
 </script>
@@ -134,9 +146,14 @@ const formatUA = (ua: string) => {
             <p class="text-[9px] text-slate-500 font-mono">ACTIVE_SESSIONS_CONTROL_PROTOCOL</p>
           </div>
         </div>
-        <button @click="emit('close')" class="p-3 hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl transition-colors">
-          <X class="w-4 h-4" />
-        </button>
+        <div class="flex items-center gap-2">
+          <button @click="fetchSessions" :disabled="loading" class="p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl transition-colors text-slate-400">
+             <Loader2 :class="['w-4 h-4', { 'animate-spin': loading }]" />
+          </button>
+          <button @click="emit('close')" class="p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl transition-colors text-slate-400">
+            <X class="w-5 h-5" />
+          </button>
+        </div>
       </div>
 
       <div class="p-6 max-h-[70vh] overflow-y-auto space-y-6 custom-scrollbar">
@@ -174,6 +191,7 @@ const formatUA = (ua: string) => {
           <div v-else-if="sessions.length === 0" class="py-10 text-center bg-slate-50 dark:bg-white/5 rounded-2xl border border-dashed border-slate-200 dark:border-white/5">
              <Globe class="w-10 h-10 text-slate-300 dark:text-slate-700 mx-auto mb-3 opacity-20" />
              <p class="text-xs text-slate-500">未发现活跃会话</p>
+             <p class="text-[9px] text-slate-400 mt-2 px-6">提示：如果您刚更新系统，可能需要重新登录以同步当前设备的会话状态。</p>
           </div>
 
           <div 
@@ -198,7 +216,7 @@ const formatUA = (ua: string) => {
                     <Globe class="w-2.5 h-2.5" /> {{ session.ip }}
                   </span>
                   <span class="flex items-center gap-1 text-[9px] text-slate-500 font-mono">
-                    <Clock class="w-2.5 h-2.5" /> {{ new Date(session.last_active).toLocaleTimeString() }}
+                    <Clock class="w-2.5 h-2.5" /> {{ new Date(session.last_active).toLocaleString() }}
                   </span>
                 </div>
               </div>
@@ -214,6 +232,16 @@ const formatUA = (ua: string) => {
             >
               <LogOut class="w-4 h-4" />
             </button>
+          </div>
+
+          <!-- Current Session Not Found Notice -->
+          <div v-if="sessions.length > 0 && !sessions.some(s => s.is_current)" class="p-4 bg-blue-500/5 border border-blue-500/10 rounded-2xl mt-4">
+             <div class="flex gap-3">
+                <ShieldAlert class="w-4 h-4 text-blue-500 shrink-0" />
+                <p class="text-[9px] text-blue-600/80 leading-relaxed font-black uppercase tracking-widest">
+                  SESSION_NOT_BOUND // 当前终端未绑定会话 ID。为了获得最佳安全性与控制体验，建议您重新登录此设备。
+                </p>
+             </div>
           </div>
         </div>
 

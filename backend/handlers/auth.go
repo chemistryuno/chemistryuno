@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -306,11 +307,29 @@ func DeleteAccount(c *gin.Context) {
 
 // 获取会话列表
 func GetSessions(c *gin.Context) {
-	uid := c.GetInt("uid")
-	currentSID := c.GetString("sid")
+	uid, exists := c.Get("uid")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未授权的访问"})
+		return
+	}
 
-	rows, err := database.DB.Query("SELECT id, user_agent, ip_address, last_active, created_at FROM user_sessions WHERE user_uid = ? ORDER BY created_at DESC", uid)
+	sidVal, _ := c.Get("sid")
+	currentSID := ""
+	if sidVal != nil {
+		currentSID = sidVal.(string)
+	}
+
+	fmt.Printf("查询会话: UID=%v, 当前SID=%s\n", uid, currentSID)
+
+	rows, err := database.DB.Query(`
+		SELECT id, user_agent, ip_address, 
+		       COALESCE(datetime(last_active), datetime('now')) as last_active, 
+		       COALESCE(datetime(created_at), datetime('now')) as created_at 
+		FROM user_sessions 
+		WHERE user_uid = ? 
+		ORDER BY last_active DESC`, uid)
 	if err != nil {
+		fmt.Printf("查询数据库失败: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "无法加载设备列表"})
 		return
 	}
@@ -325,16 +344,31 @@ func GetSessions(c *gin.Context) {
 			LastActive string
 			CreatedAt  string
 		}
-		if err := rows.Scan(&s.ID, &s.UA, &s.IP, &s.LastActive, &s.CreatedAt); err == nil {
-			sessions = append(sessions, gin.H{
-				"id":          s.ID,
-				"user_agent":  s.UA.String,
-				"ip":          s.IP.String,
-				"last_active": s.LastActive,
-				"created_at":  s.CreatedAt,
-				"is_current":  s.ID == currentSID,
-			})
+		if err := rows.Scan(&s.ID, &s.UA, &s.IP, &s.LastActive, &s.CreatedAt); err != nil {
+			fmt.Printf("扫描会话行失败: %v\n", err)
+			continue
 		}
+
+		// 处理时间格式
+		lastActive := strings.Replace(s.LastActive, " ", "T", 1)
+		if !strings.HasSuffix(lastActive, "Z") {
+			lastActive += "Z"
+		}
+		createdAt := strings.Replace(s.CreatedAt, " ", "T", 1)
+		if !strings.HasSuffix(createdAt, "Z") {
+			createdAt += "Z"
+		}
+
+		fmt.Printf("发现会话: ID=%s, IsCurrent=%v\n", s.ID, s.ID == currentSID)
+
+		sessions = append(sessions, gin.H{
+			"id":          s.ID,
+			"user_agent":  s.UA.String,
+			"ip":          s.IP.String,
+			"last_active": lastActive,
+			"created_at":  createdAt,
+			"is_current":  s.ID == currentSID,
+		})
 	}
 
 	c.JSON(http.StatusOK, sessions)

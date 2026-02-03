@@ -417,7 +417,7 @@ const filteredHistory = computed(() => {
               class="flex items-center gap-2 text-slate-400 dark:text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition-colors group"
             >
               <ArrowLeft class="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-              <span class="text-[10px] font-black uppercase tracking-widest">Logout</span>
+              <span class="text-[10px] font-black uppercase tracking-widest">BACK</span>
             </button>
           </div>
         </div>

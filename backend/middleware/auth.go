@@ -58,8 +58,8 @@ func AuthMiddleware() gin.HandlerFunc {
 				c.Abort()
 				return
 			}
-			// 更新活动时间
-			utils.UpdateSessionActivity(claims.SID)
+			// 更新活动时间及当前访问 IP
+			utils.UpdateSessionActivity(claims.SID, c.ClientIP())
 		}
 
 		// 检查账号冻结/封禁状态

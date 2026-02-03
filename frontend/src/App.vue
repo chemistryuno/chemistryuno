@@ -139,7 +139,3 @@ onMounted(() => {
     </div>
   </template>
 </template>
-
-<style>
-/* Any global styles can go here if not in index.css */
-</style>

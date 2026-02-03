@@ -168,7 +168,4 @@ onMounted(() => {
   </Transition>
 </template>
 
-<style scoped>
-.modal-enter-active, .modal-leave-active { transition: all 0.3s ease; }
-.modal-enter-from, .modal-leave-to { opacity: 0; transform: scale(0.95); }
-</style>
+<style src="./HardwareKeyModal.css" scoped></style>

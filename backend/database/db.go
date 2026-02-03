@@ -5,17 +5,27 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 
+	_ "github.com/go-sql-driver/mysql"
 	"golang.org/x/crypto/bcrypt"
-	_ "modernc.org/sqlite"
 )
 
 var DB *sql.DB
 
-func InitDB(filepath string) error {
+func InitDB(dsn string) error {
 	var err error
-	DB, err = sql.Open("sqlite", filepath)
+
+	// 如果没有提供DSN，使用环境变量或默认值
+	if dsn == "" {
+		dsn = os.Getenv("MYSQL_DSN")
+		if dsn == "" {
+			dsn = "root:password@tcp(localhost:3306)/chemistryuno?charset=utf8mb4&parseTime=True&loc=Local"
+		}
+	}
+
+	DB, err = sql.Open("mysql", dsn)
 	if err != nil {
 		return err
 	}
@@ -38,149 +48,150 @@ func createTables() error {
 	// 用户表
 	userTable := `
 	CREATE TABLE IF NOT EXISTS users (
-		UID INTEGER PRIMARY KEY AUTOINCREMENT,
-		username TEXT UNIQUE NOT NULL,
-		password TEXT NOT NULL,
+		UID INT AUTO_INCREMENT PRIMARY KEY,
+		username VARCHAR(255) UNIQUE NOT NULL,
+		password VARCHAR(255) NOT NULL,
 		avatar TEXT DEFAULT '',
-		is_admin BOOLEAN DEFAULT 0,
-		role TEXT DEFAULT 'user',
-		two_factor_enabled BOOLEAN DEFAULT 0,
-		two_factor_secret TEXT DEFAULT '',
-		points INTEGER DEFAULT 1000,
-		monthly_points INTEGER DEFAULT 0,
-		negative_play_count INTEGER DEFAULT 0,
+		is_admin BOOLEAN DEFAULT FALSE,
+		role VARCHAR(50) DEFAULT 'user',
+		two_factor_enabled BOOLEAN DEFAULT FALSE,
+		two_factor_secret VARCHAR(255) DEFAULT '',
+		points INT DEFAULT 1000,
+		monthly_points INT DEFAULT 0,
+		negative_play_count INT DEFAULT 0,
 		banned_until DATETIME DEFAULT NULL,
+		frozen_until DATETIME DEFAULT NULL,
 		last_weekly_decay_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		last_monthly_reset_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		webauthn_id TEXT DEFAULT '',
-		total_games INTEGER DEFAULT 0,
-		win_count INTEGER DEFAULT 0,
+		webauthn_id VARCHAR(255) DEFAULT '',
+		total_games INT DEFAULT 0,
+		win_count INT DEFAULT 0,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-	);`
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`
 
 	// 悬赏表
 	bountyTable := `
 	CREATE TABLE IF NOT EXISTS bounties (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		target_uid INTEGER NOT NULL,
-		amount INTEGER NOT NULL,
-		created_by INTEGER NOT NULL,
-		status TEXT DEFAULT 'active',
+		id INT AUTO_INCREMENT PRIMARY KEY,
+		target_uid INT NOT NULL,
+		amount INT NOT NULL,
+		created_by INT NOT NULL,
+		status VARCHAR(50) DEFAULT 'active',
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		FOREIGN KEY (target_uid) REFERENCES users(UID),
 		FOREIGN KEY (created_by) REFERENCES users(UID)
-	);`
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`
 
 	// 牌组配置表
 	deckConfigTable := `
 	CREATE TABLE IF NOT EXISTS deck_configs (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		name TEXT NOT NULL,
-		is_global BOOLEAN DEFAULT 0,
+		id INT AUTO_INCREMENT PRIMARY KEY,
+		name VARCHAR(255) NOT NULL,
+		is_global BOOLEAN DEFAULT FALSE,
 		cards TEXT NOT NULL,
-		created_by INTEGER,
+		created_by INT,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		FOREIGN KEY (created_by) REFERENCES users(UID)
-	);`
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`
 
 	// 游戏记录表
 	gameHistoryTable := `
 	CREATE TABLE IF NOT EXISTS game_history (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		room_id TEXT NOT NULL,
-		winner_uid INTEGER,
+		id INT AUTO_INCREMENT PRIMARY KEY,
+		room_id VARCHAR(255) NOT NULL,
+		winner_uid INT,
 		players TEXT NOT NULL,
 		started_at DATETIME,
 		finished_at DATETIME,
 		FOREIGN KEY (winner_uid) REFERENCES users(UID)
-	);`
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`
 
 	// 硬件密钥凭证表 (WebAuthn)
 	credentialTable := `
 	CREATE TABLE IF NOT EXISTS user_credentials (
-		id BLOB PRIMARY KEY,
-		user_uid INTEGER NOT NULL,
+		id VARBINARY(255) PRIMARY KEY,
+		user_uid INT NOT NULL,
 		public_key BLOB NOT NULL,
-		attestation_type TEXT NOT NULL,
+		attestation_type VARCHAR(255) NOT NULL,
 		transport TEXT,
-		sign_count INTEGER DEFAULT 0,
-		user_present BOOLEAN DEFAULT 0,
-		user_verified BOOLEAN DEFAULT 0,
-		backup_eligible BOOLEAN DEFAULT 0,
-		backup_state BOOLEAN DEFAULT 0,
-		clone_warning BOOLEAN DEFAULT 0,
+		sign_count INT DEFAULT 0,
+		user_present BOOLEAN DEFAULT FALSE,
+		user_verified BOOLEAN DEFAULT FALSE,
+		backup_eligible BOOLEAN DEFAULT FALSE,
+		backup_state BOOLEAN DEFAULT FALSE,
+		clone_warning BOOLEAN DEFAULT FALSE,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		FOREIGN KEY (user_uid) REFERENCES users(UID)
-	);`
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`
 
 	// 化学反应表
 	reactionsTable := `
 	CREATE TABLE IF NOT EXISTS reactions (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		r1 TEXT NOT NULL,
-		r2 TEXT NOT NULL,
+		id INT AUTO_INCREMENT PRIMARY KEY,
+		r1 VARCHAR(255) NOT NULL,
+		r2 VARCHAR(255) NOT NULL,
 		display TEXT NOT NULL,
-		status TEXT DEFAULT 'pending_coworker',
-		group_id TEXT,
-		created_by INTEGER,
+		status VARCHAR(50) DEFAULT 'pending_coworker',
+		group_id VARCHAR(255),
+		created_by INT,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		FOREIGN KEY (created_by) REFERENCES users(UID)
-	);`
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`
 
 	// 物质表
 	substancesTable := `
 	CREATE TABLE IF NOT EXISTS substances (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		formula TEXT UNIQUE NOT NULL,
-		name TEXT,
+		id INT AUTO_INCREMENT PRIMARY KEY,
+		formula VARCHAR(255) UNIQUE NOT NULL,
+		name VARCHAR(255),
 		elements TEXT NOT NULL,
-		status TEXT DEFAULT 'pending_coworker',
-		created_by INTEGER,
+		status VARCHAR(50) DEFAULT 'pending_coworker',
+		created_by INT,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		FOREIGN KEY (created_by) REFERENCES users(UID)
-	);`
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`
 
 	// 反馈表
 	feedbackTable := `
 	CREATE TABLE IF NOT EXISTS feedbacks (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		user_id INTEGER,
+		id INT AUTO_INCREMENT PRIMARY KEY,
+		user_id INT,
 		content TEXT NOT NULL,
-		type TEXT DEFAULT 'general',
-		status TEXT DEFAULT 'unread',
-		processed_by INTEGER DEFAULT NULL,
+		type VARCHAR(50) DEFAULT 'general',
+		status VARCHAR(50) DEFAULT 'unread',
+		processed_by INT DEFAULT NULL,
 		processed_at DATETIME DEFAULT NULL,
 		last_urged_at DATETIME DEFAULT NULL,
-		urge_count INTEGER DEFAULT 0,
+		urge_count INT DEFAULT 0,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		FOREIGN KEY (user_id) REFERENCES users(UID)
-	);`
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`
 
 	// 系统配置表
 	systemConfigTable := `
 	CREATE TABLE IF NOT EXISTS system_configs (
-		key TEXT PRIMARY KEY,
+		` + "`key`" + ` VARCHAR(255) PRIMARY KEY,
 		value TEXT NOT NULL,
 		description TEXT,
-		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-	);`
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`
 
 	announcementTable := `
 	CREATE TABLE IF NOT EXISTS announcements (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		title TEXT,
+		id INT AUTO_INCREMENT PRIMARY KEY,
+		title VARCHAR(255),
 		content TEXT NOT NULL,
-		type TEXT DEFAULT 'info',
-		active BOOLEAN DEFAULT 1,
-		is_ticker BOOLEAN DEFAULT 0,
-		is_persistent BOOLEAN DEFAULT 0,
-		on_join BOOLEAN DEFAULT 0,
-		cron_interval INTEGER DEFAULT 0,
-		close_delay INTEGER DEFAULT 0,
+		type VARCHAR(50) DEFAULT 'info',
+		active BOOLEAN DEFAULT TRUE,
+		is_ticker BOOLEAN DEFAULT FALSE,
+		is_persistent BOOLEAN DEFAULT FALSE,
+		on_join BOOLEAN DEFAULT FALSE,
+		cron_interval INT DEFAULT 0,
+		close_delay INT DEFAULT 0,
 		last_broadcast_at DATETIME,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		expires_at DATETIME
-	);`
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`
 
 	tables := []string{userTable, bountyTable, deckConfigTable, gameHistoryTable, credentialTable, reactionsTable, substancesTable, feedbackTable, systemConfigTable, announcementTable}
 
@@ -193,52 +204,41 @@ func createTables() error {
 	// 初始化默认系统配置
 	initSystemConfigs()
 
-	// 增量更新表结构（针对已存在的数据库）——按需添加列以避免错误
+	// 增量更新表结构（针对MySQL）- 检查列是否存在
 	columnExists := func(table, column string) bool {
-		rows, err := DB.Query("PRAGMA table_info(" + table + ")")
+		var count int
+		err := DB.QueryRow("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?", table, column).Scan(&count)
 		if err != nil {
 			return false
 		}
-		defer rows.Close()
-
-		for rows.Next() {
-			var cid int
-			var colname, ctype string
-			var notnull, dflt_value, pk sql.NullString
-			if err := rows.Scan(&cid, &colname, &ctype, &notnull, &dflt_value, &pk); err == nil {
-				if colname == column {
-					return true
-				}
-			}
-		}
-		return false
+		return count > 0
 	}
 
-	// users
+	// users - 更新MySQL兼容的ALTER语句
 	if !columnExists("users", "two_factor_enabled") {
-		_, _ = DB.Exec("ALTER TABLE users ADD COLUMN two_factor_enabled BOOLEAN DEFAULT 0")
+		_, _ = DB.Exec("ALTER TABLE users ADD COLUMN two_factor_enabled BOOLEAN DEFAULT FALSE")
 	}
 	if !columnExists("users", "two_factor_secret") {
-		_, _ = DB.Exec("ALTER TABLE users ADD COLUMN two_factor_secret TEXT DEFAULT ''")
+		_, _ = DB.Exec("ALTER TABLE users ADD COLUMN two_factor_secret VARCHAR(255) DEFAULT ''")
 	}
 	if !columnExists("users", "points") {
-		_, _ = DB.Exec("ALTER TABLE users ADD COLUMN points INTEGER DEFAULT 1000")
+		_, _ = DB.Exec("ALTER TABLE users ADD COLUMN points INT DEFAULT 1000")
 	}
 	if !columnExists("users", "monthly_points") {
-		_, _ = DB.Exec("ALTER TABLE users ADD COLUMN monthly_points INTEGER DEFAULT 0")
+		_, _ = DB.Exec("ALTER TABLE users ADD COLUMN monthly_points INT DEFAULT 0")
 	}
 	if !columnExists("users", "negative_play_count") {
-		_, _ = DB.Exec("ALTER TABLE users ADD COLUMN negative_play_count INTEGER DEFAULT 0")
+		_, _ = DB.Exec("ALTER TABLE users ADD COLUMN negative_play_count INT DEFAULT 0")
 	}
 	if !columnExists("users", "banned_until") {
 		_, _ = DB.Exec("ALTER TABLE users ADD COLUMN banned_until DATETIME DEFAULT NULL")
 	}
 	if !columnExists("users", "webauthn_id") {
-		_, _ = DB.Exec("ALTER TABLE users ADD COLUMN webauthn_id TEXT DEFAULT ''")
+		_, _ = DB.Exec("ALTER TABLE users ADD COLUMN webauthn_id VARCHAR(255) DEFAULT ''")
 	}
 	if !columnExists("users", "last_weekly_decay_at") {
 		if columnExists("users", "last_decay_at") {
-			_, _ = DB.Exec("ALTER TABLE users RENAME COLUMN last_decay_at TO last_weekly_decay_at")
+			_, _ = DB.Exec("ALTER TABLE users CHANGE last_decay_at last_weekly_decay_at DATETIME DEFAULT CURRENT_TIMESTAMP")
 		} else {
 			_, _ = DB.Exec("ALTER TABLE users ADD COLUMN last_weekly_decay_at DATETIME DEFAULT CURRENT_TIMESTAMP")
 		}
@@ -250,62 +250,70 @@ func createTables() error {
 		_, _ = DB.Exec("ALTER TABLE users ADD COLUMN frozen_until DATETIME DEFAULT NULL")
 	}
 	if !columnExists("users", "total_games") {
-		_, _ = DB.Exec("ALTER TABLE users ADD COLUMN total_games INTEGER DEFAULT 0")
+		_, _ = DB.Exec("ALTER TABLE users ADD COLUMN total_games INT DEFAULT 0")
 	}
 	if !columnExists("users", "win_count") {
-		_, _ = DB.Exec("ALTER TABLE users ADD COLUMN win_count INTEGER DEFAULT 0")
+		_, _ = DB.Exec("ALTER TABLE users ADD COLUMN win_count INT DEFAULT 0")
 	}
 
 	// Session table
 	userSessionTable := `
 	CREATE TABLE IF NOT EXISTS user_sessions (
-		id TEXT PRIMARY KEY,
-		user_uid INTEGER NOT NULL,
+		id VARCHAR(255) PRIMARY KEY,
+		user_uid INT NOT NULL,
 		user_agent TEXT,
-		ip_address TEXT,
-		last_active DATETIME DEFAULT CURRENT_TIMESTAMP,
+		ip_address VARCHAR(45),
+		last_active DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		FOREIGN KEY (user_uid) REFERENCES users(UID)
-	);`
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`
 	if _, err := DB.Exec(userSessionTable); err != nil {
 		return err
 	}
 
-	// reactions
+	// reactions - MySQL兼容语法
 	if !columnExists("reactions", "r1") {
-		_, _ = DB.Exec("ALTER TABLE reactions ADD COLUMN r1 TEXT DEFAULT ''")
+		_, _ = DB.Exec("ALTER TABLE reactions ADD COLUMN r1 VARCHAR(255) DEFAULT ''")
 	}
 	if !columnExists("reactions", "r2") {
-		_, _ = DB.Exec("ALTER TABLE reactions ADD COLUMN r2 TEXT DEFAULT ''")
+		_, _ = DB.Exec("ALTER TABLE reactions ADD COLUMN r2 VARCHAR(255) DEFAULT ''")
 	}
 	if !columnExists("reactions", "display") {
 		_, _ = DB.Exec("ALTER TABLE reactions ADD COLUMN display TEXT DEFAULT ''")
 	}
 	if !columnExists("reactions", "status") {
-		_, _ = DB.Exec("ALTER TABLE reactions ADD COLUMN status TEXT DEFAULT 'approved'")
+		_, _ = DB.Exec("ALTER TABLE reactions ADD COLUMN status VARCHAR(50) DEFAULT 'approved'")
 	}
 	if !columnExists("reactions", "group_id") {
-		_, _ = DB.Exec("ALTER TABLE reactions ADD COLUMN group_id TEXT DEFAULT ''")
+		_, _ = DB.Exec("ALTER TABLE reactions ADD COLUMN group_id VARCHAR(255) DEFAULT ''")
 	}
 
-	// substances
+	// substances - MySQL兼容语法
 	if !columnExists("substances", "status") {
-		_, _ = DB.Exec("ALTER TABLE substances ADD COLUMN status TEXT DEFAULT 'approved'")
+		_, _ = DB.Exec("ALTER TABLE substances ADD COLUMN status VARCHAR(50) DEFAULT 'approved'")
 	}
 	if !columnExists("substances", "created_by") {
-		_, _ = DB.Exec("ALTER TABLE substances ADD COLUMN created_by INTEGER")
+		_, _ = DB.Exec("ALTER TABLE substances ADD COLUMN created_by INT")
 	}
 
 	// 确保所有物质都有创建者和状态（针对旧数据）
 	_, _ = DB.Exec("UPDATE substances SET status = 'approved' WHERE status IS NULL")
-	_, _ = DB.Exec("UPDATE substances SET created_by = 100000000 WHERE created_by IS NULL")
+
+	// 获取admin用户的UID（用于外键引用）
+	var adminUID int = 1 // 默认值
+	err := DB.QueryRow("SELECT UID FROM users WHERE username = 'admin'").Scan(&adminUID)
+	if err != nil {
+		adminUID = 1 // 如果查询失败，使用默认值
+	}
+
+	_, _ = DB.Exec("UPDATE substances SET created_by = ? WHERE created_by IS NULL", adminUID)
 
 	// 初始化默认物质数据
-	initDefaultSubstances()
+	initDefaultSubstances(adminUID)
 
-	// feedbacks
+	// feedbacks - MySQL兼容语法
 	if !columnExists("feedbacks", "processed_by") {
-		_, _ = DB.Exec("ALTER TABLE feedbacks ADD COLUMN processed_by INTEGER DEFAULT NULL")
+		_, _ = DB.Exec("ALTER TABLE feedbacks ADD COLUMN processed_by INT DEFAULT NULL")
 	}
 	if !columnExists("feedbacks", "processed_at") {
 		_, _ = DB.Exec("ALTER TABLE feedbacks ADD COLUMN processed_at DATETIME DEFAULT NULL")
@@ -314,7 +322,7 @@ func createTables() error {
 		_, _ = DB.Exec("ALTER TABLE feedbacks ADD COLUMN last_urged_at DATETIME DEFAULT NULL")
 	}
 	if !columnExists("feedbacks", "urge_count") {
-		_, _ = DB.Exec("ALTER TABLE feedbacks ADD COLUMN urge_count INTEGER DEFAULT 0")
+		_, _ = DB.Exec("ALTER TABLE feedbacks ADD COLUMN urge_count INT DEFAULT 0")
 	}
 	if !columnExists("feedbacks", "resolution_note") {
 		_, _ = DB.Exec("ALTER TABLE feedbacks ADD COLUMN resolution_note TEXT DEFAULT NULL")
@@ -323,24 +331,24 @@ func createTables() error {
 		_, _ = DB.Exec("ALTER TABLE feedbacks ADD COLUMN remove_at DATETIME DEFAULT NULL")
 	}
 
-	// announcements
+	// announcements - MySQL兼容语法
 	if !columnExists("announcements", "title") {
-		_, _ = DB.Exec("ALTER TABLE announcements ADD COLUMN title TEXT")
+		_, _ = DB.Exec("ALTER TABLE announcements ADD COLUMN title VARCHAR(255)")
 	}
 	if !columnExists("announcements", "is_ticker") {
-		_, _ = DB.Exec("ALTER TABLE announcements ADD COLUMN is_ticker BOOLEAN DEFAULT 0")
+		_, _ = DB.Exec("ALTER TABLE announcements ADD COLUMN is_ticker BOOLEAN DEFAULT FALSE")
 	}
 	if !columnExists("announcements", "is_persistent") {
-		_, _ = DB.Exec("ALTER TABLE announcements ADD COLUMN is_persistent BOOLEAN DEFAULT 0")
+		_, _ = DB.Exec("ALTER TABLE announcements ADD COLUMN is_persistent BOOLEAN DEFAULT FALSE")
 	}
 	if !columnExists("announcements", "on_join") {
-		_, _ = DB.Exec("ALTER TABLE announcements ADD COLUMN on_join BOOLEAN DEFAULT 0")
+		_, _ = DB.Exec("ALTER TABLE announcements ADD COLUMN on_join BOOLEAN DEFAULT FALSE")
 	}
 	if !columnExists("announcements", "cron_interval") {
-		_, _ = DB.Exec("ALTER TABLE announcements ADD COLUMN cron_interval INTEGER DEFAULT 0")
+		_, _ = DB.Exec("ALTER TABLE announcements ADD COLUMN cron_interval INT DEFAULT 0")
 	}
 	if !columnExists("announcements", "close_delay") {
-		_, _ = DB.Exec("ALTER TABLE announcements ADD COLUMN close_delay INTEGER DEFAULT 0")
+		_, _ = DB.Exec("ALTER TABLE announcements ADD COLUMN close_delay INT DEFAULT 0")
 	}
 	if !columnExists("announcements", "last_broadcast_at") {
 		_, _ = DB.Exec("ALTER TABLE announcements ADD COLUMN last_broadcast_at DATETIME")
@@ -352,6 +360,9 @@ func createTables() error {
 	}
 
 	// 插入默认化学反应数据
+	// 使用上面已获取的adminUID
+	err = nil // 重置err变量
+
 	equations := map[string]string{
 		"H2+O2": "2H₂ + O₂ = 2H₂O", "C+O2": "C + O₂ = CO₂", "S+O2": "S + O₂ = SO₂", "P+O2": "4P + 5O₂ = 2P₂O₅",
 		"Fe+O2": "3Fe + 2O₂ = Fe₃O₄", "Mg+O2": "2Mg + O₂ = 2MgO", "CO+O2": "2CO + O₂ = 2CO₂",
@@ -502,19 +513,19 @@ func createTables() error {
 		if len(rList) == 2 {
 			r1, r2 := rList[0], rList[1]
 			groupID := fmt.Sprintf("system-%d", i)
-			_, _ = DB.Exec(`INSERT OR IGNORE INTO reactions (r1, r2, display, status, group_id, created_by) 
-				VALUES (?, ?, ?, 'approved', ?, 100000000)`, r1, r2, display, groupID)
-			_, _ = DB.Exec(`INSERT OR IGNORE INTO reactions (r1, r2, display, status, group_id, created_by) 
-				VALUES (?, ?, ?, 'approved', ?, 100000000)`, r2, r1, display, groupID)
+			_, _ = DB.Exec(`INSERT IGNORE INTO reactions (r1, r2, display, status, group_id, created_by) 
+				VALUES (?, ?, ?, 'approved', ?, ?)`, r1, r2, display, groupID, adminUID)
+			_, _ = DB.Exec(`INSERT IGNORE INTO reactions (r1, r2, display, status, group_id, created_by) 
+				VALUES (?, ?, ?, 'approved', ?, ?)`, r2, r1, display, groupID, adminUID)
 		}
 	}
 
 	// 创建默认全局牌组配置
 	createDefaultDeck := `
-	INSERT OR IGNORE INTO deck_configs (id, name, is_global, cards, created_by) 
-	VALUES (1, '默认牌组', 1, '{"H":12,"O":12,"C":4,"N":4,"F":4,"Na":4,"Mg":4,"Al":4,"Si":4,"P":4,"S":4,"Cl":4,"K":4,"Ca":4,"Mn":4,"Fe":4,"Cu":4,"Zn":4,"Br":4,"I":4,"Ag":4,"+2":8,"+4":4,"He":1,"Ne":1,"Ar":1,"Kr":1,"Au":4}', 100000000);`
+	INSERT IGNORE INTO deck_configs (id, name, is_global, cards, created_by) 
+	VALUES (1, '默认牌组', TRUE, '{"H":12,"O":12,"C":4,"N":4,"F":4,"Na":4,"Mg":4,"Al":4,"Si":4,"P":4,"S":4,"Cl":4,"K":4,"Ca":4,"Mn":4,"Fe":4,"Cu":4,"Zn":4,"Br":4,"I":4,"Ag":4,"+2":8,"+4":4,"He":1,"Ne":1,"Ar":1,"Kr":1,"Au":4}', ?);`
 
-	_, _ = DB.Exec(createDefaultDeck)
+	_, _ = DB.Exec(createDefaultDeck, adminUID)
 
 	return nil
 }
@@ -542,8 +553,8 @@ func createDefaultAdmin() error {
 
 	// 创建新的admin用户
 	createAdmin := `
-	INSERT INTO users (UID, username, password, is_admin, role, avatar) 
-	VALUES (100000000, 'admin', ?, 1, 'admin', '👑');`
+	INSERT INTO users (username, password, is_admin, role, avatar) 
+	VALUES ('admin', ?, TRUE, 'admin', '👑');`
 
 	_, err = DB.Exec(createAdmin, string(hashedPassword))
 	if err != nil {
@@ -563,13 +574,13 @@ func initSystemConfigs() {
 	}
 
 	for _, cfg := range configs {
-		_, _ = DB.Exec("INSERT OR IGNORE INTO system_configs (key, value, description) VALUES (?, ?, ?)", cfg.key, cfg.value, cfg.description)
+		_, _ = DB.Exec("INSERT IGNORE INTO system_configs (`key`, value, description) VALUES (?, ?, ?)", cfg.key, cfg.value, cfg.description)
 	}
 }
 
 func GetConfig(key string, defaultValue string) string {
 	var value string
-	err := DB.QueryRow("SELECT value FROM system_configs WHERE key = ?", key).Scan(&value)
+	err := DB.QueryRow("SELECT value FROM system_configs WHERE `key` = ?", key).Scan(&value)
 	if err != nil {
 		return defaultValue
 	}
@@ -577,12 +588,12 @@ func GetConfig(key string, defaultValue string) string {
 }
 
 func SetConfig(key string, value string) error {
-	_, err := DB.Exec("UPDATE system_configs SET value = ?, updated_at = CURRENT_TIMESTAMP WHERE key = ?", value, key)
+	_, err := DB.Exec("UPDATE system_configs SET value = ?, updated_at = CURRENT_TIMESTAMP WHERE `key` = ?", value, key)
 	return err
 }
 
 func GetAllConfigs() (map[string]interface{}, error) {
-	rows, err := DB.Query("SELECT key, value, description FROM system_configs")
+	rows, err := DB.Query("SELECT `key`, value, description FROM system_configs")
 	if err != nil {
 		return nil, err
 	}
@@ -620,7 +631,7 @@ func GetAllBounties() ([]models.Bounty, error) {
 	return bounties, nil
 }
 
-func initDefaultSubstances() {
+func initDefaultSubstances(adminUID int) {
 	substances := []struct {
 		formula  string
 		name     string
@@ -749,12 +760,13 @@ func initDefaultSubstances() {
 	}
 
 	for _, sub := range substances {
-		_, _ = DB.Exec("INSERT OR IGNORE INTO substances (formula, name, elements, status, created_by) VALUES (?, ?, ?, 'approved', 100000000)", sub.formula, sub.name, sub.elements)
+		_, _ = DB.Exec("INSERT IGNORE INTO substances (formula, name, elements, status, created_by) VALUES (?, ?, ?, 'approved', ?)", sub.formula, sub.name, sub.elements, adminUID)
 	}
 }
 
-func Close() {
+func Close() error {
 	if DB != nil {
-		DB.Close()
+		return DB.Close()
 	}
+	return nil
 }

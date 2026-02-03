@@ -25,6 +25,9 @@ func GenerateSessionID() string {
 }
 
 func CreateSession(uid int, ua string, ip string) (string, error) {
+	// 允许用户在同一 UA 下拥有多个会话，不再自动清理
+	// 这样可以避免多标签页或相同 UA 的不同设备相互挤出的问题
+
 	sid := GenerateSessionID()
 	_, err := database.DB.Exec("INSERT INTO user_sessions (id, user_uid, user_agent, ip_address) VALUES (?, ?, ?, ?)", sid, uid, ua, ip)
 	if err != nil {
@@ -39,8 +42,9 @@ func DeleteSession(sid string) error {
 	return err
 }
 
-func UpdateSessionActivity(sid string) {
-	_, _ = database.DB.Exec("UPDATE user_sessions SET last_active = CURRENT_TIMESTAMP WHERE id = ?", sid)
+func UpdateSessionActivity(sid string, ip string) {
+	// 同时更新最后活跃时间和 IP，防止用户因为看到旧 IP 而误以为被盗号
+	_, _ = database.DB.Exec("UPDATE user_sessions SET last_active = NOW(), ip_address = ? WHERE id = ?", ip, sid)
 }
 
 func IsSessionValid(sid string) bool {

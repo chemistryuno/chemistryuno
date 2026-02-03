@@ -27,7 +27,7 @@ func main() {
 	gin.SetMode(gin.ReleaseMode)
 
 	// 初始化数据库
-	if err := database.InitDB("./data.db"); err != nil {
+	if err := database.InitDB(""); err != nil {
 		log.Fatal("数据库初始化失败:", err)
 	}
 	defer database.Close()

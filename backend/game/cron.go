@@ -52,7 +52,7 @@ func countExpired() {
 
 func cleanupSessions() {
 	// 清理超过 24 小时未活动的会话
-	res, err := database.DB.Exec("DELETE FROM user_sessions WHERE last_active < DATETIME('now', '-24 hours')")
+	res, err := database.DB.Exec("DELETE FROM user_sessions WHERE last_active < DATE_SUB(NOW(), INTERVAL 24 HOUR)")
 	if err == nil {
 		if count, _ := res.RowsAffected(); count > 0 {
 			log.Printf("⚖️ Cron: 已清理 %d 个过期会话", count)

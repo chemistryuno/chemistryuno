@@ -372,7 +372,7 @@ func performPeriodicMaintenance() {
 				points = CAST(points * 0.98 AS INTEGER),
 				last_weekly_decay_at = ? 
 			WHERE points >= ? 
-			AND last_weekly_decay_at < datetime(?, '-7 days')`,
+			AND last_weekly_decay_at < DATE_SUB(?, INTERVAL 7 DAY)`,
 			now.Format("2006-01-02 15:04:05"), threshold, now.Format("2006-01-02 15:04:05"))
 	}
 }
@@ -928,6 +928,25 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 		return errors.New("游戏未开始")
 	}
 
+	// 验证玩家身份：必须是房间内的玩家，不能是观众
+	isPlayer := false
+	for _, pid := range gameRoom.Room.Players {
+		if pid == uid {
+			isPlayer = true
+			break
+		}
+	}
+	if !isPlayer {
+		return errors.New("你不在游戏中")
+	}
+
+	// 检查是否已完成游戏（观众状态）
+	for _, fuid := range gameRoom.GameState.FinishedPlayers {
+		if fuid == uid {
+			return errors.New("你已完成游戏，无法继续操作")
+		}
+	}
+
 	// 检查是否轮到该玩家
 	currentPlayer := gameRoom.GameState.Players[gameRoom.GameState.CurrentPlayer]
 	// 预计算下家与下下家索引，便于处理 Au 跳过逻辑
@@ -1273,6 +1292,29 @@ func DrawCard(roomID string, uid int, count int) error {
 	gameRoom.mutex.Lock()
 	defer gameRoom.mutex.Unlock()
 
+	if gameRoom.GameState == nil || gameRoom.GameState.Status != "playing" {
+		return errors.New("游戏未开始")
+	}
+
+	// 验证玩家身份：必须是房间内的玩家
+	isPlayer := false
+	for _, pid := range gameRoom.Room.Players {
+		if pid == uid {
+			isPlayer = true
+			break
+		}
+	}
+	if !isPlayer {
+		return errors.New("你不在游戏中")
+	}
+
+	// 检查是否已完成游戏
+	for _, fuid := range gameRoom.GameState.FinishedPlayers {
+		if fuid == uid {
+			return errors.New("你已完成游戏，无法继续操作")
+		}
+	}
+
 	currentPlayer := gameRoom.GameState.Players[gameRoom.GameState.CurrentPlayer]
 	if currentPlayer.UID != uid {
 		return errors.New("还没轮到你")
@@ -1325,6 +1367,29 @@ func GetAvailableSubstances(roomID string, uid int) ([]string, error) {
 	gameRoom.mutex.RLock()
 	defer gameRoom.mutex.RUnlock()
 
+	if gameRoom.GameState == nil || gameRoom.GameState.Status != "playing" {
+		return nil, errors.New("游戏未开始")
+	}
+
+	// 验证玩家身份
+	isPlayer := false
+	for _, pid := range gameRoom.Room.Players {
+		if pid == uid {
+			isPlayer = true
+			break
+		}
+	}
+	if !isPlayer {
+		return nil, errors.New("你不在游戏中")
+	}
+
+	// 检查是否已完成游戏
+	for _, fuid := range gameRoom.GameState.FinishedPlayers {
+		if fuid == uid {
+			return nil, errors.New("你已完成游戏，无法继续操作")
+		}
+	}
+
 	currentPlayer := gameRoom.GameState.Players[gameRoom.GameState.CurrentPlayer]
 	if currentPlayer.UID != uid {
 		return nil, errors.New("还没轮到你")
@@ -1374,7 +1439,7 @@ func GetAvailableSubstances(roomID string, uid int) ([]string, error) {
 func saveGameHistory(roomID string, winnerUID int, players []int) {
 	playersJSON, _ := json.Marshal(players)
 	database.DB.Exec(
-		"INSERT INTO game_history (room_id, winner_uid, players, started_at, finished_at) VALUES (?, ?, ?, datetime('now', '-1 hour'), datetime('now'))",
+		"INSERT INTO game_history (room_id, winner_uid, players, started_at, finished_at) VALUES (?, ?, ?, DATE_SUB(NOW(), INTERVAL 1 HOUR), NOW())",
 		roomID, winnerUID, string(playersJSON),
 	)
 
@@ -1430,6 +1495,25 @@ func DoublePlay(roomID string, uid int, sub1 string, sub2 string) error {
 
 	if gameRoom.GameState == nil || gameRoom.GameState.Status != "playing" {
 		return errors.New("游戏未开始")
+	}
+
+	// 验证玩家身份：必须是房间内的玩家
+	isPlayer := false
+	for _, pid := range gameRoom.Room.Players {
+		if pid == uid {
+			isPlayer = true
+			break
+		}
+	}
+	if !isPlayer {
+		return errors.New("你不在游戏中")
+	}
+
+	// 检查是否已完成游戏
+	for _, fuid := range gameRoom.GameState.FinishedPlayers {
+		if fuid == uid {
+			return errors.New("你已完成游戏，无法继续操作")
+		}
 	}
 
 	// 检查是否轮到该玩家

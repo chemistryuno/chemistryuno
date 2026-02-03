@@ -319,12 +319,10 @@ func GetSessions(c *gin.Context) {
 		currentSID = sidVal.(string)
 	}
 
-	fmt.Printf("查询会话: UID=%v, 当前SID=%s\n", uid, currentSID)
-
 	rows, err := database.DB.Query(`
 		SELECT id, user_agent, ip_address, 
-		       COALESCE(datetime(last_active), datetime('now')) as last_active, 
-		       COALESCE(datetime(created_at), datetime('now')) as created_at 
+		       COALESCE(last_active, NOW()) as last_active, 
+		       COALESCE(created_at, NOW()) as created_at 
 		FROM user_sessions 
 		WHERE user_uid = ? 
 		ORDER BY last_active DESC`, uid)
@@ -359,15 +357,13 @@ func GetSessions(c *gin.Context) {
 			createdAt += "Z"
 		}
 
-		fmt.Printf("发现会话: ID=%s, IsCurrent=%v\n", s.ID, s.ID == currentSID)
-
 		sessions = append(sessions, gin.H{
 			"id":          s.ID,
 			"user_agent":  s.UA.String,
 			"ip":          s.IP.String,
 			"last_active": lastActive,
 			"created_at":  createdAt,
-			"is_current":  s.ID == currentSID,
+			"is_current":  s.ID != "" && s.ID == currentSID,
 		})
 	}
 

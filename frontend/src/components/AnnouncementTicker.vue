@@ -93,19 +93,4 @@ const closeTicker = () => {
   </div>
 </template>
 
-<style scoped>
-.ticker-enter-active,
-.ticker-leave-active {
-  transition: all 0.5s ease;
-}
-
-.ticker-enter-from {
-  transform: translateY(100%);
-  opacity: 0;
-}
-
-.ticker-leave-to {
-  transform: translateY(-100%);
-  opacity: 0;
-}
-</style>
+<style src="./AnnouncementTicker.css" scoped></style>

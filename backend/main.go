@@ -1,4 +1,4 @@
-package main
+﻿package main
 
 import (
 	"chemistryuno/database"
@@ -204,7 +204,7 @@ func main() {
 		for {
 			<-ticker.C
 			nowStr := time.Now().UTC().Format("2006-01-02 15:04:05")
-			res, err := database.DB.Exec("DELETE FROM feedbacks WHERE remove_at IS NOT NULL AND remove_at <= ?", nowStr)
+			res, err := database.LegacyDB.Exec("DELETE FROM feedbacks WHERE remove_at IS NOT NULL AND remove_at <= ?", nowStr)
 			if err != nil {
 				log.Printf("清理过期反馈失败: %v", err)
 				continue

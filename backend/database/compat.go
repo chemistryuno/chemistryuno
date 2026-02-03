@@ -1,4 +1,4 @@
-package database
+﻿package database
 
 import (
 	"database/sql"
@@ -20,7 +20,7 @@ func (w *LegacyDBWrapper) Query(query string, args ...interface{}) (*sql.Rows, e
 	return w.DB.Query(query, args...)
 }
 
-// QueryRow 执行查询并返回单行结果  
+// QueryRow 执行查询并返回单行结果
 func (w *LegacyDBWrapper) QueryRow(query string, args ...interface{}) *sql.Row {
 	return w.DB.QueryRow(query, args...)
 }
@@ -34,6 +34,7 @@ func (w *LegacyDBWrapper) Exec(query string, args ...interface{}) (sql.Result, e
 func GetLegacyDB() *LegacyDBWrapper {
 	sqlDB, _ := DB.DB()
 	return &LegacyDBWrapper{DB: sqlDB}
+}
 
 // GetDB 返回GORM数据库实例
 func GetDB() *gorm.DB {

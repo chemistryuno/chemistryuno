@@ -1,4 +1,4 @@
-package handlers
+﻿package handlers
 
 import (
 	"chemistryuno/database"
@@ -11,7 +11,7 @@ import (
 
 func GetMyDecks(c *gin.Context) {
 	uid := c.GetInt("uid")
-	rows, err := database.DB.Query("SELECT id, name, is_global, cards, created_at FROM deck_configs WHERE created_by = ? OR is_global = 1", uid)
+	rows, err := database.LegacyDB.Query("SELECT id, name, is_global, cards, created_at FROM deck_configs WHERE created_by = ? OR is_global = 1", uid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取卡组失败"})
 		return
@@ -45,7 +45,7 @@ func CreateMyDeck(c *gin.Context) {
 	uid := c.GetInt("uid")
 	cardsJSON, _ := json.Marshal(req.Cards)
 
-	_, err := database.DB.Exec("INSERT INTO deck_configs (name, cards, created_by, is_global) VALUES (?, ?, ?, 0)",
+	_, err := database.LegacyDB.Exec("INSERT INTO deck_configs (name, cards, created_by, is_global) VALUES (?, ?, ?, 0)",
 		req.Name, string(cardsJSON), uid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建卡组失败"})
@@ -70,7 +70,7 @@ func UpdateMyDeck(c *gin.Context) {
 
 	cardsJSON, _ := json.Marshal(req.Cards)
 
-	result, err := database.DB.Exec("UPDATE deck_configs SET name = ?, cards = ? WHERE id = ? AND created_by = ?",
+	result, err := database.LegacyDB.Exec("UPDATE deck_configs SET name = ?, cards = ? WHERE id = ? AND created_by = ?",
 		req.Name, string(cardsJSON), id, uid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新卡组失败"})
@@ -90,7 +90,7 @@ func DeleteMyDeck(c *gin.Context) {
 	id := c.Param("id")
 	uid := c.GetInt("uid")
 
-	result, err := database.DB.Exec("DELETE FROM deck_configs WHERE id = ? AND created_by = ? AND is_global = 0", id, uid)
+	result, err := database.LegacyDB.Exec("DELETE FROM deck_configs WHERE id = ? AND created_by = ? AND is_global = 0", id, uid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "删除卡组失败"})
 		return

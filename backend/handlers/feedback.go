@@ -1,4 +1,4 @@
-package handlers
+﻿package handlers
 
 import (
 	"chemistryuno/database"
@@ -21,7 +21,7 @@ func CreateFeedback(c *gin.Context) {
 	}
 
 	uid := c.GetInt("uid")
-	tx, err := database.DB.Begin()
+	tx, err := database.LegacyDB.Begin()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库开启事务失败"})
 		return
@@ -92,7 +92,7 @@ func CreateFeedback(c *gin.Context) {
 }
 
 func GetAllFeedbacks(c *gin.Context) {
-	rows, err := database.DB.Query(`
+	rows, err := database.LegacyDB.Query(`
 		SELECT f.id, f.user_id, u.username, f.content, f.type, f.status, f.processed_by, p.username, f.processed_at, f.last_urged_at, f.urge_count, f.resolution_note, f.created_at
 		FROM feedbacks f
 		JOIN users u ON f.user_id = u.UID
@@ -161,7 +161,7 @@ func UpdateFeedbackStatus(c *gin.Context) {
 
 	// 删除时间：72 小时后从服务器移除
 	removeAt := time.Now().UTC().Add(72 * time.Hour).Format("2006-01-02 15:04:05")
-	res, err := database.DB.Exec("UPDATE feedbacks SET status = ?, processed_by = ?, processed_at = ?, resolution_note = ?, remove_at = ? WHERE id = ?", req.Status, uid, now, note, removeAt, id)
+	res, err := database.LegacyDB.Exec("UPDATE feedbacks SET status = ?, processed_by = ?, processed_at = ?, resolution_note = ?, remove_at = ? WHERE id = ?", req.Status, uid, now, note, removeAt, id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新反馈状态失败"})
 		return
@@ -169,7 +169,7 @@ func UpdateFeedbackStatus(c *gin.Context) {
 
 	// notify the feedback owner via websocket
 	var owner int
-	if err := database.DB.QueryRow("SELECT user_id FROM feedbacks WHERE id = ?", id).Scan(&owner); err == nil {
+	if err := database.LegacyDB.QueryRow("SELECT user_id FROM feedbacks WHERE id = ?", id).Scan(&owner); err == nil {
 		websocket.GlobalHub.SendToUID(owner, gin.H{"type": "feedback_update", "feedback_id": id, "status": req.Status, "resolution_note": note})
 	}
 
@@ -185,7 +185,7 @@ func UpdateFeedbackStatus(c *gin.Context) {
 func GetMyFeedbacks(c *gin.Context) {
 	uid := c.GetInt("uid")
 	nowStr := time.Now().UTC().Format("2006-01-02 15:04:05")
-	rows, err := database.DB.Query(`
+	rows, err := database.LegacyDB.Query(`
 		SELECT id, user_id, (SELECT username FROM users WHERE UID = user_id), content, type, status, processed_by, processed_at, last_urged_at, urge_count, resolution_note, created_at
 		FROM feedbacks
 		WHERE user_id = ? AND (remove_at IS NULL OR remove_at > ?)
@@ -233,7 +233,7 @@ func UrgeFeedback(c *gin.Context) {
 
 	var owner int
 	var lastUrged sql.NullString
-	if err := database.DB.QueryRow("SELECT user_id, last_urged_at FROM feedbacks WHERE id = ?", id).Scan(&owner, &lastUrged); err != nil {
+	if err := database.LegacyDB.QueryRow("SELECT user_id, last_urged_at FROM feedbacks WHERE id = ?", id).Scan(&owner, &lastUrged); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "反馈不存在"})
 		return
 	}
@@ -254,7 +254,7 @@ func UrgeFeedback(c *gin.Context) {
 	}
 
 	nowStr := now.Format("2006-01-02 15:04:05")
-	_, err := database.DB.Exec("UPDATE feedbacks SET last_urged_at = ?, urge_count = urge_count + 1 WHERE id = ?", nowStr, id)
+	_, err := database.LegacyDB.Exec("UPDATE feedbacks SET last_urged_at = ?, urge_count = urge_count + 1 WHERE id = ?", nowStr, id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "催促失败"})
 		return
@@ -274,7 +274,7 @@ func WithdrawFeedback(c *gin.Context) {
 		return
 	}
 
-	_, err := database.DB.Exec("DELETE FROM feedbacks WHERE id = ? AND user_id = ?", req.ID, uid)
+	_, err := database.LegacyDB.Exec("DELETE FROM feedbacks WHERE id = ? AND user_id = ?", req.ID, uid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误"})
 		return

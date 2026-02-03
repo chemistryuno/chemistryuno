@@ -1,4 +1,4 @@
-package handlers
+﻿package handlers
 
 import (
 	"chemistryuno/database"
@@ -17,7 +17,7 @@ func GetLeaderboard(c *gin.Context) {
 		orderBy = "monthly_points"
 	}
 
-	rows, err := database.DB.Query(fmt.Sprintf(`
+	rows, err := database.LegacyDB.Query(fmt.Sprintf(`
 		SELECT UID, username, avatar, points, monthly_points 
 		FROM users 
 		ORDER BY %s DESC 
@@ -38,7 +38,7 @@ func GetLeaderboard(c *gin.Context) {
 
 		// 获取该玩家当前的悬赏金额
 		var totalBounty int
-		database.DB.QueryRow("SELECT COALESCE(SUM(amount), 0) FROM bounties WHERE target_uid = ? AND status = 'active'", uid).Scan(&totalBounty)
+		database.LegacyDB.QueryRow("SELECT COALESCE(SUM(amount), 0) FROM bounties WHERE target_uid = ? AND status = 'active'", uid).Scan(&totalBounty)
 
 		// 检查是否在线
 		isOnline := false
@@ -80,14 +80,14 @@ func CreateBounty(c *gin.Context) {
 
 	// 检查积分是否足够
 	var currentPoints int
-	err := database.DB.QueryRow("SELECT points FROM users WHERE UID = ?", uid).Scan(&currentPoints)
+	err := database.LegacyDB.QueryRow("SELECT points FROM users WHERE UID = ?", uid).Scan(&currentPoints)
 	if err != nil || currentPoints < req.Amount {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "积分不足"})
 		return
 	}
 
 	// 扣除积分并创建悬赏
-	tx, _ := database.DB.Begin()
+	tx, _ := database.LegacyDB.Begin()
 	_, err1 := tx.Exec("UPDATE users SET points = points - ? WHERE UID = ?", req.Amount, uid)
 	_, err2 := tx.Exec("INSERT INTO bounties (target_uid, amount, created_by, status) VALUES (?, ?, ?, 'active')",
 		req.TargetUID, req.Amount, uid)

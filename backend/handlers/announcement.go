@@ -1,4 +1,4 @@
-package handlers
+﻿package handlers
 
 import (
 	"chemistryuno/database"
@@ -13,7 +13,7 @@ import (
 
 // GetActiveAnnouncements 获取当前有效的公告
 func GetActiveAnnouncements(c *gin.Context) {
-	rows, err := database.DB.Query(`
+	rows, err := database.LegacyDB.Query(`
 		SELECT id, title, content, type, active, is_ticker, is_persistent, on_join, cron_interval, close_delay, last_broadcast_at, created_at, expires_at 
 		FROM announcements 
 		WHERE active = 1 AND (expires_at IS NULL OR expires_at > ?)
@@ -49,7 +49,7 @@ func GetActiveAnnouncements(c *gin.Context) {
 
 // GetAllAnnouncements 管理员获取所有公告
 func GetAllAnnouncements(c *gin.Context) {
-	rows, err := database.DB.Query("SELECT id, title, content, type, active, is_ticker, is_persistent, on_join, cron_interval, close_delay, last_broadcast_at, created_at, expires_at FROM announcements ORDER BY created_at DESC")
+	rows, err := database.LegacyDB.Query("SELECT id, title, content, type, active, is_ticker, is_persistent, on_join, cron_interval, close_delay, last_broadcast_at, created_at, expires_at FROM announcements ORDER BY created_at DESC")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取公告失败"})
 		return
@@ -107,7 +107,7 @@ func CreateAnnouncement(c *gin.Context) {
 		}
 	}
 
-	res, err := database.DB.Exec("INSERT INTO announcements (title, content, type, is_ticker, is_persistent, on_join, cron_interval, close_delay, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+	res, err := database.LegacyDB.Exec("INSERT INTO announcements (title, content, type, is_ticker, is_persistent, on_join, cron_interval, close_delay, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
 		req.Title, req.Content, req.Type, req.IsTicker, req.IsPersistent, req.OnJoin, req.CronInterval, req.CloseDelay, expiresAt)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建公告失败: " + err.Error()})
@@ -148,7 +148,7 @@ func UpdateAnnouncementStatus(c *gin.Context) {
 		return
 	}
 
-	_, err := database.DB.Exec("UPDATE announcements SET active = ? WHERE id = ?", req.Active, id)
+	_, err := database.LegacyDB.Exec("UPDATE announcements SET active = ? WHERE id = ?", req.Active, id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新失败"})
 		return
@@ -160,7 +160,7 @@ func UpdateAnnouncementStatus(c *gin.Context) {
 // DeleteAnnouncement 删除公告
 func DeleteAnnouncement(c *gin.Context) {
 	id := c.Param("id")
-	_, err := database.DB.Exec("DELETE FROM announcements WHERE id = ?", id)
+	_, err := database.LegacyDB.Exec("DELETE FROM announcements WHERE id = ?", id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "删除失败"})
 		return

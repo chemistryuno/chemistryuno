@@ -1,4 +1,4 @@
-package websocket
+﻿package websocket
 
 import (
 	"encoding/json"

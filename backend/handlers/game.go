@@ -1,4 +1,4 @@
-package handlers
+﻿package handlers
 
 import (
 	"chemistryuno/database"
@@ -110,7 +110,7 @@ func GetMyGameHistory(c *gin.Context) {
 		return
 	}
 
-	rows, err := database.DB.Query(`
+	rows, err := database.LegacyDB.Query(`
 		SELECT gh.id, gh.room_id, COALESCE(gh.winner_uid, 0), COALESCE(u.username, '未结算'), gh.players, COALESCE(gh.started_at, ''), COALESCE(gh.finished_at, '')
 		FROM game_history gh
 		LEFT JOIN users u ON gh.winner_uid = u.UID
@@ -342,7 +342,7 @@ func InitiateDuel(c *gin.Context) {
 
 	// 获取目标用户名
 	var targetName string
-	err := database.DB.QueryRow("SELECT username FROM users WHERE UID = ?", req.TargetUID).Scan(&targetName)
+	err := database.LegacyDB.QueryRow("SELECT username FROM users WHERE UID = ?", req.TargetUID).Scan(&targetName)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "目标用户不存在"})
 		return
@@ -413,7 +413,7 @@ func RespondToDuel(c *gin.Context) {
 
 	// 获取挑战者名称
 	var challengerName string
-	database.DB.QueryRow("SELECT username FROM users WHERE UID = ?", challengerUID).Scan(&challengerName)
+	database.LegacyDB.QueryRow("SELECT username FROM users WHERE UID = ?", challengerUID).Scan(&challengerName)
 
 	// 创建单挑房间
 	room, err := game.StartDuel(challengerUID, challengerName, responderUID, responderName)

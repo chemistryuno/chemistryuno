@@ -1,4 +1,4 @@
-package game
+﻿package game
 
 import (
 	"chemistryuno/database"
@@ -20,7 +20,7 @@ func GetSubstancesFromElements(cards []models.Card) []string {
 
 	// 从数据库中获取所有可能的物质并进行手牌校验
 	if database.DB != nil {
-		rows, err := database.DB.Query("SELECT formula FROM substances WHERE status = 'approved'")
+		rows, err := database.LegacyDB.Query("SELECT formula FROM substances WHERE status = 'approved'")
 		if err == nil {
 			defer rows.Close()
 			for rows.Next() {
@@ -138,7 +138,7 @@ func CanReact(substance1, substance2 string) bool {
 	if database.DB != nil {
 		var count int
 		// 查询已批准的反应，检查该组合是否存在
-		err := database.DB.QueryRow("SELECT COUNT(*) FROM reactions WHERE ((r1 = ? AND r2 = ?) OR (r1 = ? AND r2 = ?)) AND status = 'approved'", substance1, substance2, substance2, substance1).Scan(&count)
+		err := database.LegacyDB.QueryRow("SELECT COUNT(*) FROM reactions WHERE ((r1 = ? AND r2 = ?) OR (r1 = ? AND r2 = ?)) AND status = 'approved'", substance1, substance2, substance2, substance1).Scan(&count)
 		if err == nil && count > 0 {
 			return true
 		}
@@ -154,7 +154,7 @@ func GetReactableSubstances(substance string) []string {
 
 	// 严格从数据库获取所有允许接续的反应物
 	if database.DB != nil {
-		rows, err := database.DB.Query("SELECT r1, r2 FROM reactions WHERE (r1 = ? OR r2 = ?) AND status = 'approved'", substance, substance)
+		rows, err := database.LegacyDB.Query("SELECT r1, r2 FROM reactions WHERE (r1 = ? OR r2 = ?) AND status = 'approved'", substance, substance)
 		if err == nil {
 			defer rows.Close()
 			for rows.Next() {

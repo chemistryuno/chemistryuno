@@ -1,4 +1,4 @@
-package handlers
+﻿package handlers
 
 import (
 	"chemistryuno/database"
@@ -101,7 +101,7 @@ func BeginRegistration(c *gin.Context) {
 	if user.WebAuthnIDRaw == "" {
 		newID := uuid.New().String()
 		user.WebAuthnIDRaw = newID
-		_, dbErr := database.DB.Exec("UPDATE users SET webauthn_id = ? WHERE UID = ?", newID, user.UID)
+		_, dbErr := database.LegacyDB.Exec("UPDATE users SET webauthn_id = ? WHERE UID = ?", newID, user.UID)
 		if dbErr != nil {
 			fmt.Printf("更新用户 WebAuthnID 失败: %v\n", dbErr)
 		}
@@ -293,7 +293,7 @@ func FinishLogin(c *gin.Context) {
 
 	// 检查冻结状态
 	var frozenUntil sql.NullString
-	_ = database.DB.QueryRow("SELECT frozen_until FROM users WHERE UID = ?", user.UID).Scan(&frozenUntil)
+	_ = database.LegacyDB.QueryRow("SELECT frozen_until FROM users WHERE UID = ?", user.UID).Scan(&frozenUntil)
 	if frozenUntil.Valid {
 		ft, _ := time.Parse("2006-01-02 15:04:05", frozenUntil.String)
 		if ft.After(time.Now()) {
@@ -314,7 +314,7 @@ func FinishLogin(c *gin.Context) {
 
 	// 获取当前可用公告
 	var announcements []models.Announcement
-	rows, _ := database.DB.Query(`
+	rows, _ := database.LegacyDB.Query(`
 		SELECT id, title, content, type, is_ticker FROM announcements 
 		WHERE active = 1 AND (expires_at IS NULL OR expires_at > ?)`, time.Now())
 	if rows != nil {
@@ -348,7 +348,7 @@ func FinishLogin(c *gin.Context) {
 
 func getUserByUsername(username string) (*models.User, error) {
 	var user models.User
-	err := database.DB.QueryRow(`
+	err := database.LegacyDB.QueryRow(`
 		SELECT UID, username, avatar, is_admin, role, points, monthly_points, negative_play_count, banned_until, webauthn_id, created_at
 		FROM users WHERE username = ?`, username).Scan(
 		&user.UID, &user.Username, &user.Avatar, &user.IsAdmin, &user.Role, &user.Points, &user.MonthlyPoints,
@@ -357,7 +357,7 @@ func getUserByUsername(username string) (*models.User, error) {
 }
 
 func getUserCredentials(uid int) []webauthn.Credential {
-	rows, err := database.DB.Query(`
+	rows, err := database.LegacyDB.Query(`
 		SELECT id, public_key, attestation_type, transport, sign_count, user_present, user_verified, backup_eligible, backup_state, clone_warning
 		FROM user_credentials WHERE user_uid = ?`, uid)
 	if err != nil {
@@ -386,7 +386,7 @@ func getUserCredentials(uid int) []webauthn.Credential {
 
 func saveCredential(uid int, cred *webauthn.Credential) error {
 	transportJSON, _ := json.Marshal(cred.Transport)
-	_, err := database.DB.Exec(`
+	_, err := database.LegacyDB.Exec(`
 		INSERT INTO user_credentials (
 			id, user_uid, public_key, attestation_type, transport, sign_count, 
 			user_present, user_verified, backup_eligible, backup_state, clone_warning
@@ -399,7 +399,7 @@ func saveCredential(uid int, cred *webauthn.Credential) error {
 }
 
 func updateCredentialSignCount(id []byte, signCount uint32) {
-	database.DB.Exec("UPDATE user_credentials SET sign_count = ? WHERE id = ?", signCount, id)
+	database.LegacyDB.Exec("UPDATE user_credentials SET sign_count = ? WHERE id = ?", signCount, id)
 }
 
 // ListCredentials 获取用户的硬件密钥列表
@@ -411,7 +411,7 @@ func ListCredentials(c *gin.Context) {
 		return
 	}
 
-	rows, err := database.DB.Query(`
+	rows, err := database.LegacyDB.Query(`
 		SELECT id, attestation_type, created_at 
 		FROM user_credentials WHERE user_uid = ?`, user.UID)
 	if err != nil {
@@ -446,7 +446,7 @@ func RemoveCredential(c *gin.Context) {
 	}
 
 	credIDHex := c.Param("id")
-	_, err = database.DB.Exec("DELETE FROM user_credentials WHERE user_uid = ? AND hex(id) = upper(?)", user.UID, credIDHex)
+	_, err = database.LegacyDB.Exec("DELETE FROM user_credentials WHERE user_uid = ? AND hex(id) = upper(?)", user.UID, credIDHex)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -558,7 +558,7 @@ func FinishResetPasswordWebAuthn(c *gin.Context) {
 		return
 	}
 
-	_, err = database.DB.Exec("UPDATE users SET password = ? WHERE UID = ?", hashedPassword, user.UID)
+	_, err = database.LegacyDB.Exec("UPDATE users SET password = ? WHERE UID = ?", hashedPassword, user.UID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库更新失败"})
 		return
@@ -661,7 +661,7 @@ func FinishChangePasswordWebAuthn(c *gin.Context) {
 		return
 	}
 
-	_, err = database.DB.Exec("UPDATE users SET password = ? WHERE UID = ?", hashedPassword, uid)
+	_, err = database.LegacyDB.Exec("UPDATE users SET password = ? WHERE UID = ?", hashedPassword, uid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新数据库失败"})
 		return

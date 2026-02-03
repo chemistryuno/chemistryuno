@@ -1,4 +1,4 @@
-package handlers
+﻿package handlers
 
 import (
 	"chemistryuno/database"
@@ -43,7 +43,7 @@ func Setup2FA(c *gin.Context) {
 	qrCodeBase64 := "data:image/png;base64," + base64.StdEncoding.EncodeToString(png)
 
 	// 临时保存密钥到数据库，但不启用
-	_, err = database.DB.Exec("UPDATE users SET two_factor_secret = ? WHERE UID = ?", key.Secret(), uid)
+	_, err = database.LegacyDB.Exec("UPDATE users SET two_factor_secret = ? WHERE UID = ?", key.Secret(), uid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "保存2FA密钥失败"})
 		return
@@ -69,7 +69,7 @@ func Enable2FA(c *gin.Context) {
 	}
 
 	var userPassword, secret string
-	err := database.DB.QueryRow("SELECT password, two_factor_secret FROM users WHERE UID = ?", uid).Scan(&userPassword, &secret)
+	err := database.LegacyDB.QueryRow("SELECT password, two_factor_secret FROM users WHERE UID = ?", uid).Scan(&userPassword, &secret)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取用户信息失败"})
 		return
@@ -98,7 +98,7 @@ func Enable2FA(c *gin.Context) {
 		return
 	}
 
-	_, err = database.DB.Exec("UPDATE users SET two_factor_enabled = 1 WHERE UID = ?", uid)
+	_, err = database.LegacyDB.Exec("UPDATE users SET two_factor_enabled = 1 WHERE UID = ?", uid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新2FA状态失败"})
 		return
@@ -119,7 +119,7 @@ func Disable2FA(c *gin.Context) {
 	}
 
 	var secret string
-	err := database.DB.QueryRow("SELECT two_factor_secret FROM users WHERE UID = ?", uid).Scan(&secret)
+	err := database.LegacyDB.QueryRow("SELECT two_factor_secret FROM users WHERE UID = ?", uid).Scan(&secret)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取2FA密钥失败"})
 		return
@@ -136,7 +136,7 @@ func Disable2FA(c *gin.Context) {
 		return
 	}
 
-	_, err = database.DB.Exec("UPDATE users SET two_factor_enabled = 0, two_factor_secret = '' WHERE UID = ?", uid)
+	_, err = database.LegacyDB.Exec("UPDATE users SET two_factor_enabled = 0, two_factor_secret = '' WHERE UID = ?", uid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误"})
 		return
@@ -158,7 +158,7 @@ func Verify2FALogin(c *gin.Context) {
 	}
 
 	var user models.User
-	err := database.DB.QueryRow(
+	err := database.LegacyDB.QueryRow(
 		"SELECT UID, username, password, avatar, is_admin, role, two_factor_enabled, two_factor_secret, banned_until, frozen_until FROM users WHERE UID = ?",
 		req.UID,
 	).Scan(&user.UID, &user.Username, &user.PasswordHash, &user.Avatar, &user.IsAdmin, &user.Role, &user.TwoFactorEnabled, &user.TwoFactorSecret, &user.BannedUntil, &user.FrozenUntil)
@@ -221,7 +221,7 @@ func Verify2FALogin(c *gin.Context) {
 
 	// 获取当前可用公告
 	var announcements []models.Announcement
-	rows, _ := database.DB.Query(`
+	rows, _ := database.LegacyDB.Query(`
 		SELECT id, title, content, type, is_ticker FROM announcements 
 		WHERE active = 1 AND (expires_at IS NULL OR expires_at > ?)`, time.Now())
 	if rows != nil {

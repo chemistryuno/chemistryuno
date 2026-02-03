@@ -1,4 +1,4 @@
-package middleware
+﻿package middleware
 
 import (
 	"chemistryuno/database"
@@ -70,7 +70,7 @@ func AuthMiddleware() gin.HandlerFunc {
 
 		// 检查账号冻结/封禁状态
 		var bannedUntil, frozenUntil *string
-		err = database.DB.QueryRow("SELECT banned_until, frozen_until FROM users WHERE UID = ?", claims.UID).Scan(&bannedUntil, &frozenUntil)
+		err = database.LegacyDB.QueryRow("SELECT banned_until, frozen_until FROM users WHERE UID = ?", claims.UID).Scan(&bannedUntil, &frozenUntil)
 		if err == nil {
 			now := time.Now()
 			if bannedUntil != nil {

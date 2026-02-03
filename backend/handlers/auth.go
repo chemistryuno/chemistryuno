@@ -1,4 +1,4 @@
-package handlers
+﻿package handlers
 
 import (
 	"chemistryuno/database"
@@ -25,7 +25,7 @@ func Register(c *gin.Context) {
 
 	// 1. 检查用户名是否已存在
 	var count int
-	err := database.DB.QueryRow("SELECT COUNT(*) FROM users WHERE username = ?", req.Username).Scan(&count)
+	err := database.LegacyDB.QueryRow("SELECT COUNT(*) FROM users WHERE username = ?", req.Username).Scan(&count)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误"})
 		return
@@ -43,7 +43,7 @@ func Register(c *gin.Context) {
 	}
 
 	// 3. 插入用户
-	result, err := database.DB.Exec("INSERT INTO users (username, password, avatar, role) VALUES (?, ?, ?, ?)",
+	result, err := database.LegacyDB.Exec("INSERT INTO users (username, password, avatar, role) VALUES (?, ?, ?, ?)",
 		req.Username, hashedPassword, "🧪", "user")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建用户失败"})
@@ -68,7 +68,7 @@ func Login(c *gin.Context) {
 
 	// 查询用户
 	var user models.User
-	err := database.DB.QueryRow(
+	err := database.LegacyDB.QueryRow(
 		"SELECT UID, username, password, avatar, is_admin, role, two_factor_enabled, two_factor_secret, banned_until, frozen_until FROM users WHERE username = ?",
 		req.Username,
 	).Scan(&user.UID, &user.Username, &user.PasswordHash, &user.Avatar, &user.IsAdmin, &user.Role, &user.TwoFactorEnabled, &user.TwoFactorSecret, &user.BannedUntil, &user.FrozenUntil)
@@ -122,7 +122,7 @@ func Login(c *gin.Context) {
 
 	// 4. 获取当前可用公告 (登陆触发器)
 	var announcements []models.Announcement
-	rows, _ := database.DB.Query(`
+	rows, _ := database.LegacyDB.Query(`
 		SELECT id, title, content, type, is_ticker, close_delay FROM announcements 
 		WHERE active = 1 AND (expires_at IS NULL OR expires_at > ?)`, time.Now())
 	if rows != nil {
@@ -168,7 +168,7 @@ func ChangePassword(c *gin.Context) {
 
 	// 获取用户信息
 	var user models.User
-	err := database.DB.QueryRow("SELECT password, two_factor_enabled, two_factor_secret FROM users WHERE UID = ?", uid).Scan(&user.PasswordHash, &user.TwoFactorEnabled, &user.TwoFactorSecret)
+	err := database.LegacyDB.QueryRow("SELECT password, two_factor_enabled, two_factor_secret FROM users WHERE UID = ?", uid).Scan(&user.PasswordHash, &user.TwoFactorEnabled, &user.TwoFactorSecret)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误"})
 		return
@@ -206,7 +206,7 @@ func ChangePassword(c *gin.Context) {
 	}
 
 	// 更新密码
-	_, err = database.DB.Exec("UPDATE users SET password = ? WHERE UID = ?", hashedPassword, uid)
+	_, err = database.LegacyDB.Exec("UPDATE users SET password = ? WHERE UID = ?", hashedPassword, uid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新密码失败"})
 		return
@@ -228,7 +228,7 @@ func ResetPasswordBy2FA(c *gin.Context) {
 	}
 
 	var user models.User
-	err := database.DB.QueryRow(
+	err := database.LegacyDB.QueryRow(
 		"SELECT UID, two_factor_enabled, two_factor_secret FROM users WHERE username = ?",
 		req.Username,
 	).Scan(&user.UID, &user.TwoFactorEnabled, &user.TwoFactorSecret)
@@ -263,7 +263,7 @@ func ResetPasswordBy2FA(c *gin.Context) {
 	}
 
 	// 更新密码
-	_, err = database.DB.Exec("UPDATE users SET password = ? WHERE UID = ?", hashedPassword, user.UID)
+	_, err = database.LegacyDB.Exec("UPDATE users SET password = ? WHERE UID = ?", hashedPassword, user.UID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新密码失败"})
 		return
@@ -282,7 +282,7 @@ func UpdateAvatar(c *gin.Context) {
 		return
 	}
 
-	_, err := database.DB.Exec("UPDATE users SET avatar = ? WHERE UID = ?", req.Avatar, uid)
+	_, err := database.LegacyDB.Exec("UPDATE users SET avatar = ? WHERE UID = ?", req.Avatar, uid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新头像失败"})
 		return
@@ -296,7 +296,7 @@ func DeleteAccount(c *gin.Context) {
 	uid := c.GetInt("uid")
 
 	// 删除用户
-	_, err := database.DB.Exec("DELETE FROM users WHERE UID = ?", uid)
+	_, err := database.LegacyDB.Exec("DELETE FROM users WHERE UID = ?", uid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "注销账号失败"})
 		return
@@ -319,7 +319,7 @@ func GetSessions(c *gin.Context) {
 		currentSID = sidVal.(string)
 	}
 
-	rows, err := database.DB.Query(`
+	rows, err := database.LegacyDB.Query(`
 		SELECT id, user_agent, ip_address, 
 		       COALESCE(last_active, NOW()) as last_active, 
 		       COALESCE(created_at, NOW()) as created_at 
@@ -381,7 +381,7 @@ func RevokeSession(c *gin.Context) {
 		return
 	}
 
-	_, err := database.DB.Exec("DELETE FROM user_sessions WHERE id = ? AND user_uid = ?", req.ID, uid)
+	_, err := database.LegacyDB.Exec("DELETE FROM user_sessions WHERE id = ? AND user_uid = ?", req.ID, uid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "登出失败"})
 		return
@@ -402,14 +402,14 @@ func FreezeAccount(c *gin.Context) {
 	}
 
 	frozenUntil := time.Now().Add(time.Duration(req.Hours) * time.Hour)
-	_, err := database.DB.Exec("UPDATE users SET frozen_until = ? WHERE UID = ?", frozenUntil.Format("2006-01-02 15:04:05"), uid)
+	_, err := database.LegacyDB.Exec("UPDATE users SET frozen_until = ? WHERE UID = ?", frozenUntil.Format("2006-01-02 15:04:05"), uid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "冻结失败"})
 		return
 	}
 
 	// 冻结后强制登出所有当前会话
-	_, _ = database.DB.Exec("DELETE FROM user_sessions WHERE user_uid = ?", uid)
+	_, _ = database.LegacyDB.Exec("DELETE FROM user_sessions WHERE user_uid = ?", uid)
 
 	c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("账号已冻结，直到 %s", frozenUntil.Format("2006-01-02 15:04:05"))})
 }
@@ -419,7 +419,7 @@ func GetUserInfo(c *gin.Context) {
 	uid := c.GetInt("uid")
 
 	var user models.User
-	err := database.DB.QueryRow(
+	err := database.LegacyDB.QueryRow(
 		"SELECT UID, username, avatar, is_admin, role, two_factor_enabled, points, total_games, win_count, created_at FROM users WHERE UID = ?",
 		uid,
 	).Scan(&user.UID, &user.Username, &user.Avatar, &user.IsAdmin, &user.Role, &user.TwoFactorEnabled, &user.Points, &user.TotalGames, &user.WinCount, &user.CreatedAt)

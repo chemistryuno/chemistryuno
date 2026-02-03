@@ -1,4 +1,4 @@
-package game
+﻿package game
 
 import (
 	"chemistryuno/database"
@@ -42,7 +42,7 @@ func StartCron() {
 
 func countExpired() {
 	// 查找并禁用过期的公告
-	res, err := database.DB.Exec("UPDATE announcements SET active = 0 WHERE active = 1 AND expires_at IS NOT NULL AND expires_at < ?", time.Now())
+	res, err := database.LegacyDB.Exec("UPDATE announcements SET active = 0 WHERE active = 1 AND expires_at IS NOT NULL AND expires_at < ?", time.Now())
 	if err == nil {
 		if count, _ := res.RowsAffected(); count > 0 {
 			log.Printf("⚖️ Cron: 已自动清理 %d 条过期公告", count)
@@ -52,7 +52,7 @@ func countExpired() {
 
 func cleanupSessions() {
 	// 清理超过 24 小时未活动的会话
-	res, err := database.DB.Exec("DELETE FROM user_sessions WHERE last_active < DATE_SUB(NOW(), INTERVAL 24 HOUR)")
+	res, err := database.LegacyDB.Exec("DELETE FROM user_sessions WHERE last_active < DATE_SUB(NOW(), INTERVAL 24 HOUR)")
 	if err == nil {
 		if count, _ := res.RowsAffected(); count > 0 {
 			log.Printf("⚖️ Cron: 已清理 %d 个过期会话", count)
@@ -67,7 +67,7 @@ func ProcessScheduledAnnouncements() {
 	}
 
 	// 查找所有设置了定时任务且当前处于活跃状态的公告
-	rows, err := database.DB.Query(`
+	rows, err := database.LegacyDB.Query(`
 		SELECT id, title, content, type, cron_interval, last_broadcast_at, is_ticker, is_persistent, close_delay 
 		FROM announcements 
 		WHERE active = 1 AND cron_interval > 0 AND (expires_at IS NULL OR expires_at > ?)`, time.Now())
@@ -109,7 +109,7 @@ func ProcessScheduledAnnouncements() {
 				websocket.GlobalHub.BroadcastToAll(msg)
 
 				// 更新最后广播时间
-				database.DB.Exec("UPDATE announcements SET last_broadcast_at = ? WHERE id = ?", now, id)
+				database.LegacyDB.Exec("UPDATE announcements SET last_broadcast_at = ? WHERE id = ?", now, id)
 			}
 		}
 	}
@@ -117,7 +117,7 @@ func ProcessScheduledAnnouncements() {
 
 // PushOnJoinAnnouncements 向新连接的玩家推送 "加入时触发" 的公告
 func PushOnJoinAnnouncements(client *websocket.Client) {
-	rows, err := database.DB.Query(`
+	rows, err := database.LegacyDB.Query(`
 		SELECT id, title, content, type, is_ticker, is_persistent, close_delay 
 		FROM announcements 
 		WHERE active = 1 AND on_join = 1 AND (expires_at IS NULL OR expires_at > ?)`, time.Now())

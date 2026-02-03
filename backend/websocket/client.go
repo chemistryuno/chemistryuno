@@ -75,6 +75,16 @@ func (c *Client) ReadPump() {
 	}
 }
 
+// Send 发送接口消息到客户端队列
+func (c *Client) Send(msg interface{}) {
+	payload, err := json.Marshal(msg)
+	if err != nil {
+		log.Printf("Send error: %v", err)
+		return
+	}
+	c.send <- payload
+}
+
 func (c *Client) WritePump() {
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {

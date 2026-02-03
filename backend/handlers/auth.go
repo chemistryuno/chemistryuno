@@ -122,13 +122,13 @@ func Login(c *gin.Context) {
 	// 4. 获取当前可用公告 (登陆触发器)
 	var announcements []models.Announcement
 	rows, _ := database.DB.Query(`
-		SELECT id, title, content, type, is_ticker FROM announcements 
+		SELECT id, title, content, type, is_ticker, close_delay FROM announcements 
 		WHERE active = 1 AND (expires_at IS NULL OR expires_at > ?)`, time.Now())
 	if rows != nil {
 		for rows.Next() {
 			var a models.Announcement
 			var title sql.NullString
-			if err := rows.Scan(&a.ID, &title, &a.Content, &a.Type, &a.IsTicker); err == nil {
+			if err := rows.Scan(&a.ID, &title, &a.Content, &a.Type, &a.IsTicker, &a.CloseDelay); err == nil {
 				if title.Valid {
 					a.Title = title.String
 				}

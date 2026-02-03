@@ -20,13 +20,13 @@ func StartCron() {
 		}
 	}()
 
-	// 2. 每 10 分钟自动广播一次活跃的滚动公告
+	// 2. 检查并处理定时公告触发器
 	go func() {
-		ticker := time.NewTicker(10 * time.Minute)
+		ticker := time.NewTicker(1 * time.Minute)
 		defer ticker.Stop()
 
 		for range ticker.C {
-			BroadcastActiveTicker()
+			ProcessScheduledAnnouncements()
 		}
 	}()
 
@@ -60,13 +60,66 @@ func cleanupSessions() {
 	}
 }
 
-// BroadcastActiveTicker 广播所有标记为 ticker 的活跃公告
-func BroadcastActiveTicker() {
+// ProcessScheduledAnnouncements 检查所有活跃公告的定时触发情况
+func ProcessScheduledAnnouncements() {
 	if websocket.GlobalHub == nil {
 		return
 	}
 
-	rows, err := database.DB.Query("SELECT id, title, content, type, is_ticker FROM announcements WHERE active = 1 AND is_ticker = 1")
+	// 查找所有设置了定时任务且当前处于活跃状态的公告
+	rows, err := database.DB.Query(`
+		SELECT id, title, content, type, cron_interval, last_broadcast_at, is_ticker, close_delay 
+		FROM announcements 
+		WHERE active = 1 AND cron_interval > 0 AND (expires_at IS NULL OR expires_at > ?)`, time.Now())
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+
+	now := time.Now()
+	for rows.Next() {
+		var id, interval, closeDelay int
+		var title sql.NullString
+		var content, aType string
+		var lastBroadcast sql.NullTime
+		var isTicker bool
+		if err := rows.Scan(&id, &title, &content, &aType, &interval, &lastBroadcast, &isTicker, &closeDelay); err == nil {
+			shouldBroadcast := false
+			if !lastBroadcast.Valid {
+				shouldBroadcast = true
+			} else if now.Sub(lastBroadcast.Time).Minutes() >= float64(interval) {
+				shouldBroadcast = true
+			}
+
+			if shouldBroadcast {
+				msg := websocket.Message{
+					Type: "system_announcement",
+					Data: map[string]interface{}{
+						"id":          id,
+						"content":     content,
+						"type":        aType,
+						"is_ticker":   isTicker,
+						"close_delay": closeDelay,
+					},
+				}
+				if title.Valid {
+					msg.Data.(map[string]interface{})["title"] = title.String
+				}
+				websocket.GlobalHub.BroadcastToAll(msg)
+
+				// 更新最后广播时间
+				database.DB.Exec("UPDATE announcements SET last_broadcast_at = ? WHERE id = ?", now, id)
+			}
+		}
+	}
+}
+
+// PushOnJoinAnnouncements 向新连接的玩家推送 "加入时触发" 的公告
+func PushOnJoinAnnouncements(client *websocket.Client) {
+	rows, err := database.DB.Query(`
+		SELECT id, title, content, type, is_ticker, close_delay 
+		FROM announcements 
+		WHERE active = 1 AND on_join = 1 AND (expires_at IS NULL OR expires_at > ?)`, time.Now())
 	if err != nil {
 		return
 	}
@@ -77,20 +130,24 @@ func BroadcastActiveTicker() {
 		var title sql.NullString
 		var content, aType string
 		var isTicker bool
-		if err := rows.Scan(&id, &title, &content, &aType, &isTicker); err == nil {
+		var closeDelay int
+		if err := rows.Scan(&id, &title, &content, &aType, &isTicker, &closeDelay); err == nil {
 			msg := websocket.Message{
 				Type: "system_announcement",
 				Data: map[string]interface{}{
-					"id":        id,
-					"content":   content,
-					"type":      aType,
-					"is_ticker": isTicker,
+					"id":          id,
+					"content":     content,
+					"type":        aType,
+					"is_ticker":   isTicker,
+					"close_delay": closeDelay,
+					"on_join":     true,
 				},
 			}
 			if title.Valid {
 				msg.Data.(map[string]interface{})["title"] = title.String
 			}
-			websocket.GlobalHub.BroadcastToAll(msg)
+
+			client.Send(msg)
 		}
 	}
 }

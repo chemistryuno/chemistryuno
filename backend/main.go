@@ -34,6 +34,7 @@ func main() {
 
 	// 初始化WebSocket Hub
 	hub = websocket.NewHub()
+	hub.OnRegister = game.PushOnJoinAnnouncements
 	go hub.Run()
 
 	// 启动房间监控（处理消极游戏踢人逻辑）

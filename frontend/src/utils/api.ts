@@ -160,8 +160,8 @@ export const adminAPI = {
   // 公告管理
   getAnnouncements: () =>
     api.get('/admin/announcements'),
-  createAnnouncement: (title: string, content: string, type: string, is_ticker: boolean, expires_in?: string) =>
-    api.post('/admin/announcements', { title, content, type, is_ticker, expires_in }),
+  createAnnouncement: (title: string, content: string, type: string, is_ticker: boolean, expires_in?: string, on_join: boolean = false, cron_interval: number = 0, close_delay: number = 0) =>
+    api.post('/admin/announcements', { title, content, type, is_ticker, expires_in, on_join, cron_interval, close_delay }),
   updateAnnouncementStatus: (id: number, active: boolean) =>
     api.put(`/admin/announcements/${id}/status`, { active }),
   deleteAnnouncement: (id: number) =>

@@ -173,6 +173,10 @@ func createTables() error {
 		type TEXT DEFAULT 'info',
 		active BOOLEAN DEFAULT 1,
 		is_ticker BOOLEAN DEFAULT 0,
+		on_join BOOLEAN DEFAULT 0,
+		cron_interval INTEGER DEFAULT 0,
+		close_delay INTEGER DEFAULT 0,
+		last_broadcast_at DATETIME,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		expires_at DATETIME
 	);`
@@ -321,6 +325,18 @@ func createTables() error {
 	// announcements
 	if !columnExists("announcements", "title") {
 		_, _ = DB.Exec("ALTER TABLE announcements ADD COLUMN title TEXT")
+	}
+	if !columnExists("announcements", "on_join") {
+		_, _ = DB.Exec("ALTER TABLE announcements ADD COLUMN on_join BOOLEAN DEFAULT 0")
+	}
+	if !columnExists("announcements", "cron_interval") {
+		_, _ = DB.Exec("ALTER TABLE announcements ADD COLUMN cron_interval INTEGER DEFAULT 0")
+	}
+	if !columnExists("announcements", "close_delay") {
+		_, _ = DB.Exec("ALTER TABLE announcements ADD COLUMN close_delay INTEGER DEFAULT 0")
+	}
+	if !columnExists("announcements", "last_broadcast_at") {
+		_, _ = DB.Exec("ALTER TABLE announcements ADD COLUMN last_broadcast_at DATETIME")
 	}
 
 	// 检查并创建默认管理员账号

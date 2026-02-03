@@ -13,6 +13,7 @@ type Hub struct {
 	register   chan *Client
 	unregister chan *Client
 	mutex      sync.RWMutex
+	OnRegister func(*Client)
 }
 
 var GlobalHub *Hub
@@ -37,6 +38,10 @@ func (h *Hub) Run() {
 			h.mutex.Unlock()
 			log.Printf("客户端 %d 已连接", client.uid)
 			h.BroadcastOnlineCount()
+
+			if h.OnRegister != nil {
+				h.OnRegister(client)
+			}
 
 		case client := <-h.unregister:
 			h.mutex.Lock()

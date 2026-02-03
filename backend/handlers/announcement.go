@@ -14,7 +14,7 @@ import (
 // GetActiveAnnouncements 获取当前有效的公告
 func GetActiveAnnouncements(c *gin.Context) {
 	rows, err := database.DB.Query(`
-		SELECT id, title, content, type, active, is_ticker, created_at, expires_at 
+		SELECT id, title, content, type, active, is_ticker, on_join, cron_interval, close_delay, last_broadcast_at, created_at, expires_at 
 		FROM announcements 
 		WHERE active = 1 AND (expires_at IS NULL OR expires_at > ?)
 		ORDER BY created_at DESC`, time.Now())
@@ -27,9 +27,9 @@ func GetActiveAnnouncements(c *gin.Context) {
 	var announcements []models.Announcement
 	for rows.Next() {
 		var a models.Announcement
-		var expiresAt sql.NullTime
+		var expiresAt, lastBroadcastAt sql.NullTime
 		var title sql.NullString
-		if err := rows.Scan(&a.ID, &title, &a.Content, &a.Type, &a.Active, &a.IsTicker, &a.CreatedAt, &expiresAt); err != nil {
+		if err := rows.Scan(&a.ID, &title, &a.Content, &a.Type, &a.Active, &a.IsTicker, &a.OnJoin, &a.CronInterval, &a.CloseDelay, &lastBroadcastAt, &a.CreatedAt, &expiresAt); err != nil {
 			continue
 		}
 		if title.Valid {
@@ -37,6 +37,9 @@ func GetActiveAnnouncements(c *gin.Context) {
 		}
 		if expiresAt.Valid {
 			a.ExpiresAt = &expiresAt.Time
+		}
+		if lastBroadcastAt.Valid {
+			a.LastBroadcastAt = &lastBroadcastAt.Time
 		}
 		announcements = append(announcements, a)
 	}
@@ -46,7 +49,7 @@ func GetActiveAnnouncements(c *gin.Context) {
 
 // GetAllAnnouncements 管理员获取所有公告
 func GetAllAnnouncements(c *gin.Context) {
-	rows, err := database.DB.Query("SELECT id, title, content, type, active, is_ticker, created_at, expires_at FROM announcements ORDER BY created_at DESC")
+	rows, err := database.DB.Query("SELECT id, title, content, type, active, is_ticker, on_join, cron_interval, close_delay, last_broadcast_at, created_at, expires_at FROM announcements ORDER BY created_at DESC")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取公告失败"})
 		return
@@ -56,9 +59,9 @@ func GetAllAnnouncements(c *gin.Context) {
 	var announcements []models.Announcement
 	for rows.Next() {
 		var a models.Announcement
-		var expiresAt sql.NullTime
+		var expiresAt, lastBroadcastAt sql.NullTime
 		var title sql.NullString
-		if err := rows.Scan(&a.ID, &title, &a.Content, &a.Type, &a.Active, &a.IsTicker, &a.CreatedAt, &expiresAt); err != nil {
+		if err := rows.Scan(&a.ID, &title, &a.Content, &a.Type, &a.Active, &a.IsTicker, &a.OnJoin, &a.CronInterval, &a.CloseDelay, &lastBroadcastAt, &a.CreatedAt, &expiresAt); err != nil {
 			continue
 		}
 		if title.Valid {
@@ -66,6 +69,9 @@ func GetAllAnnouncements(c *gin.Context) {
 		}
 		if expiresAt.Valid {
 			a.ExpiresAt = &expiresAt.Time
+		}
+		if lastBroadcastAt.Valid {
+			a.LastBroadcastAt = &lastBroadcastAt.Time
 		}
 		announcements = append(announcements, a)
 	}
@@ -76,11 +82,14 @@ func GetAllAnnouncements(c *gin.Context) {
 // CreateAnnouncement 创建新公告
 func CreateAnnouncement(c *gin.Context) {
 	var req struct {
-		Title     string `json:"title"`
-		Content   string `json:"content" binding:"required"`
-		Type      string `json:"type"`
-		IsTicker  bool   `json:"is_ticker"`
-		ExpiresIn string `json:"expires_in"` // 持续时间，例如 "24h"
+		Title        string `json:"title"`
+		Content      string `json:"content" binding:"required"`
+		Type         string `json:"type"`
+		IsTicker     bool   `json:"is_ticker"`
+		OnJoin       bool   `json:"on_join"`
+		CronInterval int    `json:"cron_interval"`
+		CloseDelay   int    `json:"close_delay"`
+		ExpiresIn    string `json:"expires_in"` // 持续时间，例如 "24h"
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -97,8 +106,8 @@ func CreateAnnouncement(c *gin.Context) {
 		}
 	}
 
-	res, err := database.DB.Exec("INSERT INTO announcements (title, content, type, is_ticker, expires_at) VALUES (?, ?, ?, ?, ?)",
-		req.Title, req.Content, req.Type, req.IsTicker, expiresAt)
+	res, err := database.DB.Exec("INSERT INTO announcements (title, content, type, is_ticker, on_join, cron_interval, close_delay, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+		req.Title, req.Content, req.Type, req.IsTicker, req.OnJoin, req.CronInterval, req.CloseDelay, expiresAt)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建公告失败: " + err.Error()})
 		return
@@ -111,13 +120,14 @@ func CreateAnnouncement(c *gin.Context) {
 		websocket.GlobalHub.BroadcastToAll(websocket.Message{
 			Type: "system_announcement",
 			Data: map[string]interface{}{
-				"id":         id,
-				"title":      req.Title,
-				"content":    req.Content,
-				"type":       req.Type,
-				"is_ticker":  req.IsTicker,
-				"active":     true,
-				"created_at": time.Now(),
+				"id":          id,
+				"title":       req.Title,
+				"content":     req.Content,
+				"type":        req.Type,
+				"is_ticker":   req.IsTicker,
+				"close_delay": req.CloseDelay,
+				"active":      true,
+				"created_at":  time.Now(),
 			},
 		})
 	}

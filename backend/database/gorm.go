@@ -18,7 +18,6 @@ import (
 
 var (
 	DB          *gorm.DB
-	LegacyDB    *LegacyDBWrapper // 旧代码兼容层
 	RedisClient *redis.Client
 	ctx         = context.Background()
 )
@@ -87,9 +86,6 @@ func InitDB(dbPath string) error {
 		sqlDB.SetMaxOpenConns(200)          // 最大打开连接数
 		sqlDB.SetConnMaxLifetime(time.Hour) // 连接最大生命周期
 	}
-
-	// 初始化旧代码兼容层
-	LegacyDB = GetLegacyDB()
 
 	// 初始化Redis
 	initRedis()

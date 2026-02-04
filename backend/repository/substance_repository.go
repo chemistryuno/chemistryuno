@@ -94,7 +94,7 @@ type SubstanceWithCreator struct {
 // FindAllWithCreator 查找所有物质及创建者信息
 func (r *SubstanceRepository) FindAllWithCreator() ([]SubstanceWithCreator, error) {
 	var results []SubstanceWithCreator
-	// 这需要原生SQL查询，因为涉及JOIN和旧表结构
+	// 已弃用：该功能依赖旧表结构
 	return results, nil
 }
 

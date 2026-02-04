@@ -1,57 +1,40 @@
 ﻿package handlers
 
 import (
-	"chemistryuno/database"
+	"chemistryuno/repository"
 	"chemistryuno/websocket"
-	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 )
 
-// 获取排行榜
 func GetLeaderboard(c *gin.Context) {
-	mode := c.Query("mode") // "total" or "monthly"
+	mode := c.Query("mode")
 	orderBy := "points"
 	if mode == "monthly" {
 		orderBy = "monthly_points"
 	}
 
-	rows, err := database.LegacyDB.Query(fmt.Sprintf(`
-		SELECT UID, username, avatar, points, monthly_points 
-		FROM users 
-		ORDER BY %s DESC 
-		LIMIT 100
-	`, orderBy))
+	users, err := repository.UserRepo.GetLeaderboard(orderBy, 100)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取排行榜失败"})
 		return
 	}
-	defer rows.Close()
 
 	var leaderboard []map[string]interface{}
-	for rows.Next() {
-		var uid int
-		var username, avatar string
-		var points, monthlyPoints int
-		rows.Scan(&uid, &username, &avatar, &points, &monthlyPoints)
-
-		// 获取该玩家当前的悬赏金额
-		var totalBounty int
-		database.LegacyDB.QueryRow("SELECT COALESCE(SUM(amount), 0) FROM bounties WHERE target_uid = ? AND status = 'active'", uid).Scan(&totalBounty)
-
-		// 检查是否在线
+	for _, user := range users {
+		totalBounty, _ := repository.BountyRepo.GetTotalBounty(user.UID)
 		isOnline := false
 		if websocket.GlobalHub != nil {
-			isOnline = websocket.GlobalHub.IsUIDOnline(uid)
+			isOnline = websocket.GlobalHub.IsUIDOnline(int(user.UID))
 		}
 
 		leaderboard = append(leaderboard, map[string]interface{}{
-			"uid":            uid,
-			"username":       username,
-			"avatar":         avatar,
-			"points":         points,
-			"monthly_points": monthlyPoints,
+			"uid":            user.UID,
+			"username":       user.Username,
+			"avatar":         user.Avatar,
+			"points":         user.Points,
+			"monthly_points": user.MonthlyPoints,
 			"bounty":         totalBounty,
 			"is_online":      isOnline,
 		})
@@ -60,7 +43,6 @@ func GetLeaderboard(c *gin.Context) {
 	c.JSON(http.StatusOK, leaderboard)
 }
 
-// 发起悬赏
 func CreateBounty(c *gin.Context) {
 	var req struct {
 		TargetUID int `json:"target_uid" binding:"required"`
@@ -78,26 +60,38 @@ func CreateBounty(c *gin.Context) {
 		return
 	}
 
-	// 检查积分是否足够
-	var currentPoints int
-	err := database.LegacyDB.QueryRow("SELECT points FROM users WHERE UID = ?", uid).Scan(&currentPoints)
-	if err != nil || currentPoints < req.Amount {
+	user, err := repository.UserRepo.FindByID(uint(uid))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
+		return
+	}
+
+	if user.Points < req.Amount {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "积分不足"})
 		return
 	}
 
-	// 扣除积分并创建悬赏
-	tx, _ := database.LegacyDB.Begin()
-	_, err1 := tx.Exec("UPDATE users SET points = points - ? WHERE UID = ?", req.Amount, uid)
-	_, err2 := tx.Exec("INSERT INTO bounties (target_uid, amount, created_by, status) VALUES (?, ?, ?, 'active')",
-		req.TargetUID, req.Amount, uid)
-
-	if err1 != nil || err2 != nil {
-		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建悬赏失败"})
+	// 扣除积分
+	err = repository.UserRepo.DeductPoints(uint(uid), req.Amount)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "扣除积分失败"})
 		return
 	}
 
-	tx.Commit()
-	c.JSON(http.StatusOK, gin.H{"message": "悬赏成功"})
+	// 创建悬赏
+	bounty := &repository.Bounty{
+		TargetUID: uint(req.TargetUID),
+		Amount:    req.Amount,
+		CreatedBy: uint(uid),
+		Status:    "active",
+	}
+	err = repository.BountyRepo.Create(bounty)
+	if err != nil {
+		// 如果创建失败，回退积分
+		_ = repository.UserRepo.AddPoints(uint(uid), req.Amount)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "设置悬赏失败"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"message": "悬赏已设置"})
 }

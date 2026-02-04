@@ -3,6 +3,7 @@
 import (
 	"chemistryuno/database"
 	"chemistryuno/models"
+	"chemistryuno/repository"
 )
 
 // 根据手牌元素获取可以组成的物质
@@ -20,15 +21,11 @@ func GetSubstancesFromElements(cards []models.Card) []string {
 
 	// 从数据库中获取所有可能的物质并进行手牌校验
 	if database.DB != nil {
-		rows, err := database.LegacyDB.Query("SELECT formula FROM substances WHERE status = 'approved'")
+		substances, err := repository.SubstanceRepo.FindApproved()
 		if err == nil {
-			defer rows.Close()
-			for rows.Next() {
-				var formula string
-				if err := rows.Scan(&formula); err == nil {
-					if canFormSubstance(formula, elementMap) {
-						substanceSet[formula] = true
-					}
+			for _, sub := range substances {
+				if canFormSubstance(sub.Name, elementMap) {
+					substanceSet[sub.Name] = true
 				}
 			}
 		}
@@ -136,10 +133,8 @@ func CanReact(substance1, substance2 string) bool {
 
 	// 优先查询数据库判定
 	if database.DB != nil {
-		var count int
-		// 查询已批准的反应，检查该组合是否存在
-		err := database.LegacyDB.QueryRow("SELECT COUNT(*) FROM reactions WHERE ((r1 = ? AND r2 = ?) OR (r1 = ? AND r2 = ?)) AND status = 'approved'", substance1, substance2, substance2, substance1).Scan(&count)
-		if err == nil && count > 0 {
+		exists, err := repository.ReactionRepo.CheckReactionExists(substance1, substance2)
+		if err == nil && exists {
 			return true
 		}
 	}
@@ -154,26 +149,18 @@ func GetReactableSubstances(substance string) []string {
 
 	// 严格从数据库获取所有允许接续的反应物
 	if database.DB != nil {
-		rows, err := database.LegacyDB.Query("SELECT r1, r2 FROM reactions WHERE (r1 = ? OR r2 = ?) AND status = 'approved'", substance, substance)
+		reactions, err := repository.ReactionRepo.FindReactionsBySubstance(substance)
 		if err == nil {
-			defer rows.Close()
-			for rows.Next() {
-				var r1, r2 string
-				if err := rows.Scan(&r1, &r2); err == nil {
-					target := r2
-					if r2 == substance {
-						target = r1
+			for _, reaction := range reactions {
+				// 解析reactants和products，找到另一个物质
+				if reaction.Reactants == substance {
+					target := reaction.Products
+					if !contains(results, target) {
+						results = append(results, target)
 					}
-
-					// 避免重复
-					found := false
-					for _, r_exist := range results {
-						if r_exist == target {
-							found = true
-							break
-						}
-					}
-					if !found {
+				} else if reaction.Products == substance {
+					target := reaction.Reactants
+					if !contains(results, target) {
 						results = append(results, target)
 					}
 				}
@@ -181,4 +168,14 @@ func GetReactableSubstances(substance string) []string {
 		}
 	}
 	return results
+}
+
+// 辅助函数：检查字符串数组是否包含指定元素
+func contains(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
 }

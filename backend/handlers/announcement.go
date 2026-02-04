@@ -1,11 +1,10 @@
 ﻿package handlers
 
 import (
-	"chemistryuno/database"
-	"chemistryuno/models"
+	"chemistryuno/repository"
 	"chemistryuno/websocket"
-	"database/sql"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -13,73 +12,25 @@ import (
 
 // GetActiveAnnouncements 获取当前有效的公告
 func GetActiveAnnouncements(c *gin.Context) {
-	rows, err := database.LegacyDB.Query(`
-		SELECT id, title, content, type, active, is_ticker, is_persistent, on_join, cron_interval, close_delay, last_broadcast_at, created_at, expires_at 
-		FROM announcements 
-		WHERE active = 1 AND (expires_at IS NULL OR expires_at > ?)
-		ORDER BY created_at DESC`, time.Now())
+	announcements, err := repository.AnnouncementRepo.FindActive()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取公告失败"})
 		return
 	}
-	defer rows.Close()
-
-	var announcements []models.Announcement
-	for rows.Next() {
-		var a models.Announcement
-		var expiresAt, lastBroadcastAt sql.NullTime
-		var title sql.NullString
-		if err := rows.Scan(&a.ID, &title, &a.Content, &a.Type, &a.Active, &a.IsTicker, &a.IsPersistent, &a.OnJoin, &a.CronInterval, &a.CloseDelay, &lastBroadcastAt, &a.CreatedAt, &expiresAt); err != nil {
-			continue
-		}
-		if title.Valid {
-			a.Title = title.String
-		}
-		if expiresAt.Valid {
-			a.ExpiresAt = &expiresAt.Time
-		}
-		if lastBroadcastAt.Valid {
-			a.LastBroadcastAt = &lastBroadcastAt.Time
-		}
-		announcements = append(announcements, a)
-	}
-
 	c.JSON(http.StatusOK, announcements)
 }
 
 // GetAllAnnouncements 管理员获取所有公告
 func GetAllAnnouncements(c *gin.Context) {
-	rows, err := database.LegacyDB.Query("SELECT id, title, content, type, active, is_ticker, is_persistent, on_join, cron_interval, close_delay, last_broadcast_at, created_at, expires_at FROM announcements ORDER BY created_at DESC")
+	announcements, err := repository.AnnouncementRepo.FindAll()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取公告失败"})
 		return
 	}
-	defer rows.Close()
-
-	var announcements []models.Announcement
-	for rows.Next() {
-		var a models.Announcement
-		var expiresAt, lastBroadcastAt sql.NullTime
-		var title sql.NullString
-		if err := rows.Scan(&a.ID, &title, &a.Content, &a.Type, &a.Active, &a.IsTicker, &a.IsPersistent, &a.OnJoin, &a.CronInterval, &a.CloseDelay, &lastBroadcastAt, &a.CreatedAt, &expiresAt); err != nil {
-			continue
-		}
-		if title.Valid {
-			a.Title = title.String
-		}
-		if expiresAt.Valid {
-			a.ExpiresAt = &expiresAt.Time
-		}
-		if lastBroadcastAt.Valid {
-			a.LastBroadcastAt = &lastBroadcastAt.Time
-		}
-		announcements = append(announcements, a)
-	}
-
 	c.JSON(http.StatusOK, announcements)
 }
 
-// CreateAnnouncement 创建新公告
+// CreateAnnouncement 创建公告
 func CreateAnnouncement(c *gin.Context) {
 	var req struct {
 		Title        string `json:"title"`
@@ -90,9 +41,8 @@ func CreateAnnouncement(c *gin.Context) {
 		OnJoin       bool   `json:"on_join"`
 		CronInterval int    `json:"cron_interval"`
 		CloseDelay   int    `json:"close_delay"`
-		ExpiresIn    string `json:"expires_in"` // 持续时间，例如 "24h"
+		ExpiresIn    string `json:"expires_in"`
 	}
-
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
 		return
@@ -107,21 +57,31 @@ func CreateAnnouncement(c *gin.Context) {
 		}
 	}
 
-	res, err := database.LegacyDB.Exec("INSERT INTO announcements (title, content, type, is_ticker, is_persistent, on_join, cron_interval, close_delay, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-		req.Title, req.Content, req.Type, req.IsTicker, req.IsPersistent, req.OnJoin, req.CronInterval, req.CloseDelay, expiresAt)
+	announcement := &repository.Announcement{
+		Title:        req.Title,
+		Content:      req.Content,
+		Type:         req.Type,
+		Active:       true,
+		IsTicker:     req.IsTicker,
+		IsPersistent: req.IsPersistent,
+		OnJoin:       req.OnJoin,
+		CronInterval: req.CronInterval,
+		CloseDelay:   req.CloseDelay,
+		ExpiresAt:    expiresAt,
+	}
+
+	err := repository.AnnouncementRepo.Create(announcement)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建公告失败: " + err.Error()})
 		return
 	}
-
-	id, _ := res.LastInsertId()
 
 	// 实时广播
 	if websocket.GlobalHub != nil {
 		websocket.GlobalHub.BroadcastToAll(websocket.Message{
 			Type: "system_announcement",
 			Data: map[string]interface{}{
-				"id":            id,
+				"id":            announcement.ID,
 				"title":         req.Title,
 				"content":       req.Content,
 				"type":          req.Type,
@@ -134,7 +94,7 @@ func CreateAnnouncement(c *gin.Context) {
 		})
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"message": "公告发布成功", "id": id})
+	c.JSON(http.StatusCreated, gin.H{"message": "公告发布成功", "id": announcement.ID})
 }
 
 // UpdateAnnouncementStatus 更新公告状态
@@ -148,7 +108,8 @@ func UpdateAnnouncementStatus(c *gin.Context) {
 		return
 	}
 
-	_, err := database.LegacyDB.Exec("UPDATE announcements SET active = ? WHERE id = ?", req.Active, id)
+	idUint, _ := strconv.ParseUint(id, 10, 32)
+	err := repository.AnnouncementRepo.UpdateActive(uint(idUint), req.Active)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新失败"})
 		return
@@ -160,7 +121,8 @@ func UpdateAnnouncementStatus(c *gin.Context) {
 // DeleteAnnouncement 删除公告
 func DeleteAnnouncement(c *gin.Context) {
 	id := c.Param("id")
-	_, err := database.LegacyDB.Exec("DELETE FROM announcements WHERE id = ?", id)
+	idUint, _ := strconv.ParseUint(id, 10, 32)
+	err := repository.AnnouncementRepo.Delete(uint(idUint))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "删除失败"})
 		return

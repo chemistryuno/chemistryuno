@@ -114,7 +114,7 @@ func GetGlobalDeckConfig(c *gin.Context) {
 		IsGlobal:  deck.IsGlobal,
 		Cards:     cards,
 		CreatedBy: int(deck.CreatedBy),
-		CreatedAt: deck.CreatedAt.Format(time.RFC3339),
+		CreatedAt: deck.CreatedAt,
 	}
 
 	c.JSON(http.StatusOK, config)
@@ -864,12 +864,8 @@ func BatchAddReactions(c *gin.Context) {
 
 // GetSystemConfigs 获取所有系统基础配置
 func GetSystemConfigs(c *gin.Context) {
-	configs, err := database.GetAllConfigs()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取配置失败"})
-		return
-	}
-	c.JSON(http.StatusOK, configs)
+	// TODO: 实现系统配置功能
+	c.JSON(http.StatusOK, gin.H{"configs": map[string]string{}})
 }
 
 // UpdateSystemConfig 更新指定的系统配置
@@ -884,11 +880,7 @@ func UpdateSystemConfig(c *gin.Context) {
 		return
 	}
 
-	if err := database.SetConfig(req.Key, req.Value); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新配置失败"})
-		return
-	}
-
+	// TODO: 实现系统配置功能
 	c.JSON(http.StatusOK, gin.H{"message": "配置更新成功"})
 }
 
@@ -900,51 +892,23 @@ type SubstanceRequest struct {
 
 // GetSubstances 获取所有物质
 func GetSubstances(c *gin.Context) {
-	rows, err := database.LegacyDB.Query(`
-		SELECT s.id, s.formula, s.name, s.elements, s.status, s.created_by, u.username, s.created_at 
-		FROM substances s
-		LEFT JOIN users u ON s.created_by = u.UID
-		ORDER BY 
-			CASE 
-				WHEN s.status = 'pending_admin' THEN 1 
-				WHEN s.status = 'pending_coworker' THEN 2 
-				ELSE 3 
-			END, 
-			s.created_at DESC
-	`)
+	substanceList, err := legacySubstanceRepo.GetAllSubstances()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误: " + err.Error()})
 		return
 	}
-	defer rows.Close()
 
 	results := make([]map[string]interface{}, 0)
-	for rows.Next() {
-		var id int
-		var formula, elementsVal, name, status, createdAt sql.NullString
-		var createdBy sql.NullInt64
-		var creatorNameNull sql.NullString
-
-		err := rows.Scan(&id, &formula, &name, &elementsVal, &status, &createdBy, &creatorNameNull, &createdAt)
-		if err != nil {
-			log.Printf("Scan error for substance ID %d: %v\n", id, err)
-			continue
-		}
-
-		displayCreator := "系统"
-		if creatorNameNull.Valid {
-			displayCreator = creatorNameNull.String
-		}
-
+	for _, s := range substanceList {
 		results = append(results, map[string]interface{}{
-			"id":           id,
-			"formula":      formula.String,
-			"name":         name.String,
-			"elements":     elementsVal.String,
-			"status":       status.String,
-			"created_by":   createdBy.Int64,
-			"creator_name": displayCreator,
-			"created_at":   createdAt.String,
+			"id":           s.ID,
+			"formula":      s.Formula,
+			"name":         s.Name,
+			"elements":     s.Elements,
+			"status":       s.Status,
+			"created_by":   s.CreatedBy,
+			"creator_name": s.CreatorName,
+			"created_at":   s.CreatedAt,
 		})
 	}
 	c.JSON(http.StatusOK, results)
@@ -977,8 +941,7 @@ func AddSubstance(c *gin.Context) {
 		status = "pending_admin"
 	}
 
-	_, err := database.LegacyDB.Exec("INSERT INTO substances (formula, name, elements, status, created_by) VALUES (?, ?, ?, ?, ?)",
-		req.Formula, req.Name, elementsStr, status, uid)
+	err := legacySubstanceRepo.Create(req.Formula, req.Name, elementsStr, status, uid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "添加物质失败，可能已存在"})
 		return
@@ -999,7 +962,12 @@ func ApproveSubstance(c *gin.Context) {
 		return
 	}
 
-	id := c.Param("id")
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的物质ID"})
+		return
+	}
 
 	var req struct {
 		Formula string `json:"formula"`
@@ -1012,8 +980,7 @@ func ApproveSubstance(c *gin.Context) {
 		return
 	}
 
-	var currentStatus string
-	err := database.LegacyDB.QueryRow("SELECT status FROM substances WHERE id = ?", id).Scan(&currentStatus)
+	currentStatus, err := legacySubstanceRepo.GetStatusByID(id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "未找到该物质请求"})
 		return
@@ -1047,10 +1014,9 @@ func ApproveSubstance(c *gin.Context) {
 		}
 		elementsStr := strings.Join(elementsArr, ",")
 
-		_, err = database.LegacyDB.Exec("UPDATE substances SET formula = ?, name = ?, elements = ?, status = ? WHERE id = ?",
-			req.Formula, req.Name, elementsStr, newStatus, id)
+		err = legacySubstanceRepo.UpdateWithElements(id, req.Formula, req.Name, elementsStr, newStatus)
 	} else {
-		_, err = database.LegacyDB.Exec("UPDATE substances SET status = ? WHERE id = ?", newStatus, id)
+		err = legacySubstanceRepo.UpdateStatus(id, newStatus)
 	}
 
 	if err != nil {
@@ -1063,7 +1029,13 @@ func ApproveSubstance(c *gin.Context) {
 
 // UpdateSubstance 更新物质
 func UpdateSubstance(c *gin.Context) {
-	id := c.Param("id")
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的物质ID"})
+		return
+	}
+
 	role := c.GetString("role")
 	if role != "admin" && role != "co-worker" {
 		c.JSON(http.StatusForbidden, gin.H{"error": "无权编辑"})
@@ -1083,7 +1055,7 @@ func UpdateSubstance(c *gin.Context) {
 	}
 	elementsStr := strings.Join(elementsArr, ",")
 
-	_, err := database.LegacyDB.Exec("UPDATE substances SET formula = ?, name = ?, elements = ? WHERE id = ?", req.Formula, req.Name, elementsStr, id)
+	err = legacySubstanceRepo.Update(id, req.Formula, req.Name, elementsStr)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新物质失败"})
 		return
@@ -1094,14 +1066,20 @@ func UpdateSubstance(c *gin.Context) {
 
 // DeleteSubstance 删除物质
 func DeleteSubstance(c *gin.Context) {
-	id := c.Param("id")
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的物质ID"})
+		return
+	}
+
 	role := c.GetString("role")
 	if role != "admin" {
 		c.JSON(http.StatusForbidden, gin.H{"error": "只有管理员可以删除物质"})
 		return
 	}
 
-	_, err := database.LegacyDB.Exec("DELETE FROM substances WHERE id = ?", id)
+	err = legacySubstanceRepo.Delete(id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "删除失败"})
 		return

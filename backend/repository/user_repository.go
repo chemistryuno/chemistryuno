@@ -89,6 +89,13 @@ func (r *UserRepository) UpdateBanStatus(uid uint, bannedUntil *time.Time) error
 	return r.db.Model(&database.User{}).Where("uid = ?", uid).Update("banned_until", bannedUntil).Error
 }
 
+// AddPoints 增加用户积分
+func (r *UserRepository) AddPoints(uid uint, points int) error {
+	return r.db.Model(&database.User{}).
+		Where("uid = ?", uid).
+		Update("points", gorm.Expr("points + ?", points)).Error
+}
+
 // UpdateFreezeStatus 更新冻结状态
 func (r *UserRepository) UpdateFreezeStatus(uid uint, frozenUntil *time.Time) error {
 	return r.db.Model(&database.User{}).Where("uid = ?", uid).Update("frozen_until", frozenUntil).Error
@@ -100,6 +107,53 @@ func (r *UserRepository) IncrementPoints(uid uint, points int) error {
 		Updates(map[string]interface{}{
 			"points":         gorm.Expr("points + ?", points),
 			"monthly_points": gorm.Expr("monthly_points + ?", points),
+		}).Error
+}
+
+// IncrementMonthlyPoints 增加月度积分
+func (r *UserRepository) IncrementMonthlyPoints(uid uint, points int) error {
+	return r.db.Model(&database.User{}).Where("uid = ?", uid).
+		Update("monthly_points", gorm.Expr("monthly_points + ?", points)).Error
+}
+
+// ResetMonthlyPointsIfNeeded 如果需要，重置月度积分
+func (r *UserRepository) ResetMonthlyPointsIfNeeded() error {
+	now := time.Now()
+	// 获取上次重置时间，如果是新月份则重置
+	var lastReset time.Time
+	err := r.db.Model(&database.User{}).
+		Select("MAX(last_monthly_reset_at)").
+		Scan(&lastReset).Error
+	if err != nil {
+		return err
+	}
+
+	// 如果是新月份，重置所有用户的月度积分
+	if lastReset.Month() != now.Month() || lastReset.Year() != now.Year() {
+		return r.db.Model(&database.User{}).
+			Updates(map[string]interface{}{
+				"monthly_points":        0,
+				"last_monthly_reset_at": now,
+			}).Error
+	}
+	return nil
+}
+
+// DecayTopPlayersPoints 对排名前列的用户进行积分衰减
+func (r *UserRepository) DecayTopPlayersPoints(topCount int) error {
+	// 获取排名阈值
+	threshold, err := r.GetTopPointsThreshold(topCount)
+	if err != nil {
+		return err
+	}
+
+	// 对排名前列的用户积分衰减10%
+	now := time.Now()
+	return r.db.Model(&database.User{}).
+		Where("points >= ? AND points > 0", threshold).
+		Updates(map[string]interface{}{
+			"points":               gorm.Expr("CAST(points * 0.9 AS INTEGER)"),
+			"last_weekly_decay_at": now,
 		}).Error
 }
 
@@ -170,12 +224,27 @@ func (r *UserRepository) GetNegativePlayCount(uid uint) (int, error) {
 	return user.NegativePlayCount, err
 }
 
+// UpdateNegativePlayCount 更新消极游戏计数
+func (r *UserRepository) UpdateNegativePlayCount(uid uint, count int) error {
+	return r.db.Model(&database.User{}).Where("uid = ?", uid).Update("negative_play_count", count).Error
+}
+
 // DeductPoints 扣除积分
 func (r *UserRepository) DeductPoints(uid uint, points int) error {
 	return r.db.Model(&database.User{}).Where("uid = ?", uid).
 		Updates(map[string]interface{}{
 			"points":         gorm.Expr("points - ?", points),
 			"monthly_points": gorm.Expr("monthly_points - ?", points),
+		}).Error
+}
+
+// DeductPointsPercentage 扣除积分百分比
+func (r *UserRepository) DeductPointsPercentage(uid uint, percentage int) error {
+	multiplier := float64(100-percentage) / 100.0
+	return r.db.Model(&database.User{}).Where("uid = ?", uid).
+		Updates(map[string]interface{}{
+			"points":         gorm.Expr("CAST(points * ? AS INTEGER)", multiplier),
+			"monthly_points": gorm.Expr("CAST(monthly_points * ? AS INTEGER)", multiplier),
 		}).Error
 }
 
@@ -258,4 +327,11 @@ func (r *UserRepository) FindIsAdminByID(uid uint) (bool, error) {
 		Where("uid = ?", uid).
 		Scan(&isAdmin).Error
 	return isAdmin, err
+}
+
+// GetLeaderboard 获取排行榜
+func (r *UserRepository) GetLeaderboard(orderBy string, limit int) ([]database.User, error) {
+	var users []database.User
+	err := r.db.Order(orderBy + " DESC").Limit(limit).Find(&users).Error
+	return users, err
 }

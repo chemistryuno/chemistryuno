@@ -13,9 +13,9 @@ const shell = isWindows ? 'cmd.exe' : true;
 console.log('📦 启动后端服务器...');
 const backendPath = path.join(__dirname, 'backend');
 
-// 设置Go环境变量，禁用ASLR以兼容旧版GCC (可选，根据环境设置)
+// 禁用CGO以避免旧版MinGW链接器问题（modernc.org/sqlite是纯Go实现，不需要CGO）
 const backendEnv = Object.assign({}, process.env, {
-  'CGO_LDFLAGS': '-g -O2'
+  'CGO_ENABLED': '0'
 });
 
 const backendProcess = spawn('go', ['run', 'main.go'], {

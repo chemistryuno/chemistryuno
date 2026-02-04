@@ -79,3 +79,10 @@ func (r *SessionRepository) ValidateSessionForUser(id string, uid uint) (bool, e
 		Count(&count).Error
 	return count > 0, err
 }
+
+// CleanupInactive 清理24小时未活动的会话
+func (r *SessionRepository) CleanupInactive() (int64, error) {
+	result := r.db.Where("last_active < ?", time.Now().Add(-24*time.Hour)).
+		Delete(&database.UserSession{})
+	return result.RowsAffected, result.Error
+}

@@ -120,9 +120,9 @@ func main() {
 	r.GET("/auth/webauthn/login/begin", handlers.BeginLogin)
 	r.POST("/auth/webauthn/login/finish", handlers.FinishLogin)
 
-	// WebAuthn 找回密码 (公开)
-	r.POST("/auth/webauthn/reset-password/begin", handlers.BeginResetPasswordWebAuthn)
-	r.POST("/auth/webauthn/reset-password/finish", handlers.FinishResetPasswordWebAuthn)
+	// WebAuthn 找回密码 (公开) - 未实现
+	// r.POST("/auth/webauthn/reset-password/begin", handlers.BeginResetPasswordWebAuthn)
+	// r.POST("/auth/webauthn/reset-password/finish", handlers.FinishResetPasswordWebAuthn)
 
 	// 需要认证的路由
 	auth := r.Group("/")
@@ -168,9 +168,9 @@ func main() {
 		auth.GET("/user/webauthn/credentials", handlers.ListCredentials)
 		auth.DELETE("/user/webauthn/credentials/:id", handlers.RemoveCredential)
 
-		// WebAuthn 验证修改密码
-		auth.POST("/user/webauthn/change-password/begin", handlers.BeginChangePasswordWebAuthn)
-		auth.POST("/user/webauthn/change-password/finish", handlers.FinishChangePasswordWebAuthn)
+		// WebAuthn 验证修改密码 - 未实现
+		// auth.POST("/user/webauthn/change-password/begin", handlers.BeginChangePasswordWebAuthn)
+		// auth.POST("/user/webauthn/change-password/finish", handlers.FinishChangePasswordWebAuthn)
 
 		// 游戏相关
 		auth.GET("/rooms", handlers.GetRooms)

@@ -1,13 +1,11 @@
 ﻿package handlers
 
 import (
-	"chemistryuno/database"
 	"chemistryuno/game"
 	"chemistryuno/models"
+	"chemistryuno/repository"
 	"chemistryuno/websocket"
-	"encoding/json"
 	"fmt"
-	"log"
 	"math/rand"
 	"net/http"
 	"time"
@@ -110,55 +108,13 @@ func GetMyGameHistory(c *gin.Context) {
 		return
 	}
 
-	rows, err := database.LegacyDB.Query(`
-		SELECT gh.id, gh.room_id, COALESCE(gh.winner_uid, 0), COALESCE(u.username, '未结算'), gh.players, COALESCE(gh.started_at, ''), COALESCE(gh.finished_at, '')
-		FROM game_history gh
-		LEFT JOIN users u ON gh.winner_uid = u.UID
-		WHERE EXISTS (
-			SELECT 1 FROM json_each(gh.players) WHERE value = ?
-		)
-		ORDER BY gh.finished_at DESC
-		LIMIT 20
-	`, uid)
-
+	history, err := repository.GameRepo.FindByUserID(uint(uid))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误: " + err.Error()})
 		return
 	}
-	defer rows.Close()
 
-	var history []map[string]interface{}
-	for rows.Next() {
-		var (
-			id, winnerUID                   int
-			roomID, winnerName, playersJSON string
-			startedAt, finishedAt           string
-		)
-		if err := rows.Scan(&id, &roomID, &winnerUID, &winnerName, &playersJSON, &startedAt, &finishedAt); err != nil {
-			log.Printf("扫描个人游戏历史失败: %v", err)
-			continue
-		}
-
-		// 解析玩家列表 JSON
-		var players []int
-		if err := json.Unmarshal([]byte(playersJSON), &players); err != nil {
-			log.Printf("解析玩家列表失败: %v", err)
-			players = []int{}
-		}
-
-		history = append(history, map[string]interface{}{
-			"id":          id,
-			"room_id":     roomID,
-			"winner_uid":  winnerUID,
-			"winner_name": winnerName,
-			"players":     players,
-			"started_at":  startedAt,
-			"finished_at": finishedAt,
-			"created_at":  finishedAt, // 兼容前端字段名
-		})
-	}
-
-	c.JSON(http.StatusOK, history)
+	c.JSON(http.StatusOK, gin.H{"history": history})
 }
 
 // 开始游戏
@@ -341,12 +297,12 @@ func InitiateDuel(c *gin.Context) {
 	}
 
 	// 获取目标用户名
-	var targetName string
-	err := database.LegacyDB.QueryRow("SELECT username FROM users WHERE UID = ?", req.TargetUID).Scan(&targetName)
+	user, err := repository.UserRepo.FindByID(uint(req.TargetUID))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "目标用户不存在"})
 		return
 	}
+	targetName := user.Username
 
 	// 生成挑战 ID
 	challengeID := fmt.Sprintf("challenge_%d_%d", time.Now().Unix(), rand.Intn(1000))
@@ -361,6 +317,7 @@ func InitiateDuel(c *gin.Context) {
 			"challenge_id":    challengeID,
 			"challenger_uid":  challengerUID,
 			"challenger_name": challengerName,
+			"target_name":     targetName,
 			"timeout":         20,
 		},
 	}
@@ -413,7 +370,9 @@ func RespondToDuel(c *gin.Context) {
 
 	// 获取挑战者名称
 	var challengerName string
-	database.LegacyDB.QueryRow("SELECT username FROM users WHERE UID = ?", challengerUID).Scan(&challengerName)
+	if user, err := repository.UserRepo.FindByID(uint(challengerUID)); err == nil {
+		challengerName = user.Username
+	}
 
 	// 创建单挑房间
 	room, err := game.StartDuel(challengerUID, challengerName, responderUID, responderName)

@@ -2,30 +2,25 @@
 
 import (
 	"chemistryuno/database"
-	"chemistryuno/models"
+	"chemistryuno/repository"
 	"encoding/json"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
 
 func GetMyDecks(c *gin.Context) {
 	uid := c.GetInt("uid")
-	rows, err := database.LegacyDB.Query("SELECT id, name, is_global, cards, created_at FROM deck_configs WHERE created_by = ? OR is_global = 1", uid)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取卡组失败"})
-		return
-	}
-	defer rows.Close()
+	// 获取用户的自定义牌组和全局牌组
+	userDecks, _ := repository.DeckRepo.FindByUserID(uint(uid))
+	globalDeck, _ := repository.DeckRepo.FindGlobalDeck()
 
-	var decks []models.DeckConfig
-	for rows.Next() {
-		var deck models.DeckConfig
-		var cardsJSON string
-		if err := rows.Scan(&deck.ID, &deck.Name, &deck.IsGlobal, &cardsJSON, &deck.CreatedAt); err != nil {
-			continue
-		}
-		json.Unmarshal([]byte(cardsJSON), &deck.Cards)
+	var decks []interface{}
+	if globalDeck != nil {
+		decks = append(decks, globalDeck)
+	}
+	for _, deck := range userDecks {
 		decks = append(decks, deck)
 	}
 
@@ -43,10 +38,22 @@ func CreateMyDeck(c *gin.Context) {
 	}
 
 	uid := c.GetInt("uid")
-	cardsJSON, _ := json.Marshal(req.Cards)
 
-	_, err := database.LegacyDB.Exec("INSERT INTO deck_configs (name, cards, created_by, is_global) VALUES (?, ?, ?, 0)",
-		req.Name, string(cardsJSON), uid)
+	// 将cards转换为JSON字符串
+	cardsJSON, err := json.Marshal(req.Cards)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "序列化牌组失败"})
+		return
+	}
+
+	deck := &database.DeckConfig{
+		Name:      req.Name,
+		Cards:     string(cardsJSON),
+		CreatedBy: uint(uid),
+		IsGlobal:  false,
+	}
+
+	err = repository.DeckRepo.Create(deck)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建卡组失败"})
 		return
@@ -68,18 +75,31 @@ func UpdateMyDeck(c *gin.Context) {
 		return
 	}
 
-	cardsJSON, _ := json.Marshal(req.Cards)
-
-	result, err := database.LegacyDB.Exec("UPDATE deck_configs SET name = ?, cards = ? WHERE id = ? AND created_by = ?",
-		req.Name, string(cardsJSON), id, uid)
+	// 将cards转换为JSON字符串
+	cardsJSON, err := json.Marshal(req.Cards)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新卡组失败"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "序列化牌组失败"})
 		return
 	}
 
-	rows, _ := result.RowsAffected()
-	if rows == 0 {
-		c.JSON(http.StatusForbidden, gin.H{"error": "无权修改此卡组或卡组不存在"})
+	idUint, _ := strconv.ParseUint(id, 10, 32)
+	deck, err := repository.DeckRepo.FindByID(uint(idUint))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "卡组不存在"})
+		return
+	}
+
+	// 检查权限
+	if deck.CreatedBy != uint(uid) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "无权修改此卡组"})
+		return
+	}
+
+	deck.Name = req.Name
+	deck.Cards = string(cardsJSON)
+	err = repository.DeckRepo.Update(deck)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新卡组失败"})
 		return
 	}
 
@@ -90,15 +110,22 @@ func DeleteMyDeck(c *gin.Context) {
 	id := c.Param("id")
 	uid := c.GetInt("uid")
 
-	result, err := database.LegacyDB.Exec("DELETE FROM deck_configs WHERE id = ? AND created_by = ? AND is_global = 0", id, uid)
+	idUint, _ := strconv.ParseUint(id, 10, 32)
+	deck, err := repository.DeckRepo.FindByID(uint(idUint))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "删除卡组失败"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "卡组不存在"})
 		return
 	}
 
-	rows, _ := result.RowsAffected()
-	if rows == 0 {
-		c.JSON(http.StatusForbidden, gin.H{"error": "无权删除此卡组或卡组不存在"})
+	// 检查权限
+	if deck.CreatedBy != uint(uid) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "无权删除此卡组"})
+		return
+	}
+
+	err = repository.DeckRepo.Delete(uint(idUint))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "删除卡组失败"})
 		return
 	}
 

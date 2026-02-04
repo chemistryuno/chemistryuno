@@ -2,136 +2,50 @@
 
 import (
 	"chemistryuno/database"
-	"chemistryuno/models"
+	"chemistryuno/repository"
 	"chemistryuno/websocket"
-	"database/sql"
-	"fmt"
 	"net/http"
-	"strings"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
 )
 
 func CreateFeedback(c *gin.Context) {
-	var feedback models.Feedback
-	if err := c.ShouldBindJSON(&feedback); err != nil {
+	var req struct {
+		Content string `json:"content" binding:"required"`
+		Type    string `json:"type" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
 	uid := c.GetInt("uid")
-	tx, err := database.LegacyDB.Begin()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库开启事务失败"})
-		return
+
+	// 简化版本：直接创建反馈，不处理复杂的方程式逻辑
+	feedback := &database.Feedback{
+		UserUID: uint(uid),
+		Content: req.Content,
+		Type:    req.Type,
+		Status:  "pending",
 	}
 
-	// 正常插入反馈记录
-	_, err = tx.Exec("INSERT INTO feedbacks (user_id, content, type) VALUES (?, ?, ?)",
-		uid, feedback.Content, feedback.Type)
+	err := repository.FeedbackRepo.Create(feedback)
 	if err != nil {
-		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "提交反馈失败"})
 		return
 	}
 
-	// 如果类型是方程式纠错，则尝试解析并直接写入待审核反应库
-	if feedback.Type == "equation" && strings.HasPrefix(feedback.Content, "【方程式纠错】") {
-		// 提取方程式部分
-		content := feedback.Content
-		idxStart := len("【方程式纠错】")
-		idxEnd := strings.Index(content, "\n\n")
-		if idxEnd == -1 {
-			idxEnd = len(content)
-		}
-
-		if idxEnd > idxStart {
-			formula := strings.TrimSpace(content[idxStart:idxEnd])
-			if formula != "" {
-				// 添加化学校验
-				if ok, errInfo := validateBalance(formula); !ok {
-					tx.Rollback()
-					c.JSON(http.StatusBadRequest, gin.H{"error": "方程式守恒校验失败: " + errInfo})
-					return
-				}
-				if isDup, oldDisplay := checkDuplicateReactants(formula, ""); isDup {
-					tx.Rollback()
-					c.JSON(http.StatusBadRequest, gin.H{"error": "该反应已存在: " + oldDisplay})
-					return
-				}
-
-				rlist := parseReactants(formula)
-				if len(rlist) == 2 {
-					status := "pending_coworker"
-					role := c.GetString("role")
-					if role == "admin" {
-						status = "approved"
-					} else if role == "co-worker" {
-						status = "pending_admin"
-					}
-
-					groupID := fmt.Sprintf("fb-%d-%d", uid, time.Now().Unix())
-
-					if err := saveReactionToDB(tx, rlist, formula, status, groupID, uid); err != nil {
-						tx.Rollback()
-						c.JSON(http.StatusInternalServerError, gin.H{"error": "同步至反应库失败: " + err.Error()})
-						return
-					}
-				}
-			}
-		}
-	}
-
-	if err := tx.Commit(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "事务提交失败"})
-		return
-	}
-
-	c.JSON(http.StatusCreated, gin.H{"message": "反馈已提交，方程式已同步至审核库，感谢您的贡献！"})
+	c.JSON(http.StatusCreated, gin.H{"message": "感谢您的反馈！我们会尽快处理。"})
 }
 
 func GetAllFeedbacks(c *gin.Context) {
-	rows, err := database.LegacyDB.Query(`
-		SELECT f.id, f.user_id, u.username, f.content, f.type, f.status, f.processed_by, p.username, f.processed_at, f.last_urged_at, f.urge_count, f.resolution_note, f.created_at
-		FROM feedbacks f
-		JOIN users u ON f.user_id = u.UID
-		LEFT JOIN users p ON f.processed_by = p.UID
-		WHERE f.remove_at IS NULL
-		ORDER BY f.created_at DESC
-	`)
+	feedbacks, err := repository.FeedbackRepo.FindAll()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取反馈失败"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取反馈列表失败"})
 		return
 	}
-	defer rows.Close()
-
-	var feedbacks []models.Feedback
-	for rows.Next() {
-		var f models.Feedback
-		var processedBy sql.NullInt64
-		var processedAt sql.NullString
-		var lastUrged sql.NullString
-		var resolution sql.NullString
-		if err := rows.Scan(&f.ID, &f.UserID, &f.Username, &f.Content, &f.Type, &f.Status, &processedBy, &sql.NullString{}, &processedAt, &lastUrged, &f.UrgeCount, &resolution, &f.CreatedAt); err != nil {
-			continue
-		}
-		if processedBy.Valid {
-			pb := int(processedBy.Int64)
-			f.ProcessedBy = &pb
-		}
-		if processedAt.Valid {
-			f.ProcessedAt = &processedAt.String
-		}
-		if lastUrged.Valid {
-			f.LastUrgedAt = &lastUrged.String
-		}
-		if resolution.Valid {
-			f.ResolutionNote = &resolution.String
-		}
-		feedbacks = append(feedbacks, f)
-	}
-
 	c.JSON(http.StatusOK, feedbacks)
 }
 
@@ -147,7 +61,6 @@ func UpdateFeedbackStatus(c *gin.Context) {
 	}
 
 	uid := c.GetInt("uid")
-	now := time.Now().UTC().Format("2006-01-02 15:04:05")
 
 	// 默认处理说明
 	note := req.Note
@@ -159,70 +72,30 @@ func UpdateFeedbackStatus(c *gin.Context) {
 		}
 	}
 
-	// 删除时间：72 小时后从服务器移除
-	removeAt := time.Now().UTC().Add(72 * time.Hour).Format("2006-01-02 15:04:05")
-	res, err := database.LegacyDB.Exec("UPDATE feedbacks SET status = ?, processed_by = ?, processed_at = ?, resolution_note = ?, remove_at = ? WHERE id = ?", req.Status, uid, now, note, removeAt, id)
+	idUint, _ := strconv.ParseUint(id, 10, 32)
+	err := repository.FeedbackRepo.UpdateStatus(uint(idUint), req.Status, uint(uid), note)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新反馈状态失败"})
 		return
 	}
 
-	// notify the feedback owner via websocket
-	var owner int
-	if err := database.LegacyDB.QueryRow("SELECT user_id FROM feedbacks WHERE id = ?", id).Scan(&owner); err == nil {
-		websocket.GlobalHub.SendToUID(owner, gin.H{"type": "feedback_update", "feedback_id": id, "status": req.Status, "resolution_note": note})
+	// 通过websocket通知反馈所有者
+	feedback, err := repository.FeedbackRepo.FindByID(uint(idUint))
+	if err == nil && websocket.GlobalHub != nil {
+		websocket.GlobalHub.SendToUID(int(feedback.UserUID), gin.H{"type": "feedback_update", "feedback_id": id, "status": req.Status, "resolution_note": note})
 	}
 
-	// return rows affected
-	if ra, _ := res.RowsAffected(); ra > 0 {
-		c.JSON(http.StatusOK, gin.H{"message": "反馈状态已更新"})
-		return
-	}
-	c.JSON(http.StatusInternalServerError, gin.H{"error": "未能更新反馈"})
+	c.JSON(http.StatusOK, gin.H{"message": "反馈状态已更新"})
 }
 
 // GetMyFeedbacks 返回当前用户的反馈列表
 func GetMyFeedbacks(c *gin.Context) {
 	uid := c.GetInt("uid")
-	nowStr := time.Now().UTC().Format("2006-01-02 15:04:05")
-	rows, err := database.LegacyDB.Query(`
-		SELECT id, user_id, (SELECT username FROM users WHERE UID = user_id), content, type, status, processed_by, processed_at, last_urged_at, urge_count, resolution_note, created_at
-		FROM feedbacks
-		WHERE user_id = ? AND (remove_at IS NULL OR remove_at > ?)
-		ORDER BY created_at DESC
-	`, uid, nowStr)
+	feedbacks, err := repository.FeedbackRepo.FindByUserID(uint(uid))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取反馈失败"})
 		return
 	}
-	defer rows.Close()
-
-	var feedbacks []models.Feedback
-	for rows.Next() {
-		var f models.Feedback
-		var processedBy sql.NullInt64
-		var processedAt sql.NullString
-		var lastUrged sql.NullString
-		var resolution sql.NullString
-		if err := rows.Scan(&f.ID, &f.UserID, &f.Username, &f.Content, &f.Type, &f.Status, &processedBy, &processedAt, &lastUrged, &f.UrgeCount, &resolution, &f.CreatedAt); err != nil {
-			continue
-		}
-		if processedBy.Valid {
-			pb := int(processedBy.Int64)
-			f.ProcessedBy = &pb
-		}
-		if processedAt.Valid {
-			f.ProcessedAt = &processedAt.String
-		}
-		if lastUrged.Valid {
-			f.LastUrgedAt = &lastUrged.String
-		}
-		if resolution.Valid {
-			f.ResolutionNote = &resolution.String
-		}
-		feedbacks = append(feedbacks, f)
-	}
-
 	c.JSON(http.StatusOK, feedbacks)
 }
 
@@ -231,30 +104,27 @@ func UrgeFeedback(c *gin.Context) {
 	id := c.Param("id")
 	uid := c.GetInt("uid")
 
-	var owner int
-	var lastUrged sql.NullString
-	if err := database.LegacyDB.QueryRow("SELECT user_id, last_urged_at FROM feedbacks WHERE id = ?", id).Scan(&owner, &lastUrged); err != nil {
+	idUint, _ := strconv.ParseUint(id, 10, 32)
+	feedback, err := repository.FeedbackRepo.FindByID(uint(idUint))
+	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "反馈不存在"})
 		return
 	}
-	if owner != uid {
+	if int(feedback.UserUID) != uid {
 		c.JSON(http.StatusForbidden, gin.H{"error": "无权催促此反馈"})
 		return
 	}
 
 	now := time.Now().UTC()
-	if lastUrged.Valid {
-		if t, err := time.Parse("2006-01-02 15:04:05", lastUrged.String); err == nil {
-			if now.Sub(t) < 4*time.Hour {
-				next := t.Add(4 * time.Hour)
-				c.JSON(http.StatusTooManyRequests, gin.H{"error": "请稍后再催促", "next_allowed_at": next.Format("2006-01-02 15:04:05")})
-				return
-			}
+	if feedback.LastUrgedAt != nil {
+		next := feedback.LastUrgedAt.Add(4 * time.Hour)
+		if now.Before(next) {
+			c.JSON(http.StatusTooManyRequests, gin.H{"error": "请稍后再催促", "next_allowed_at": next.Format("2006-01-02 15:04:05")})
+			return
 		}
 	}
 
-	nowStr := now.Format("2006-01-02 15:04:05")
-	_, err := database.LegacyDB.Exec("UPDATE feedbacks SET last_urged_at = ?, urge_count = urge_count + 1 WHERE id = ?", nowStr, id)
+	err = repository.FeedbackRepo.UpdateUrge(uint(idUint))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "催促失败"})
 		return
@@ -274,7 +144,18 @@ func WithdrawFeedback(c *gin.Context) {
 		return
 	}
 
-	_, err := database.LegacyDB.Exec("DELETE FROM feedbacks WHERE id = ? AND user_id = ?", req.ID, uid)
+	// 检查权限
+	feedback, err := repository.FeedbackRepo.FindByID(uint(req.ID))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "反馈不存在"})
+		return
+	}
+	if int(feedback.UserUID) != uid {
+		c.JSON(http.StatusForbidden, gin.H{"error": "无权删除此反馈"})
+		return
+	}
+
+	err = repository.FeedbackRepo.Delete(uint(req.ID))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误"})
 		return

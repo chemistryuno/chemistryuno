@@ -96,7 +96,7 @@ func EnsureJWTSecret() error {
 		if contentExists && len(contentStr) > 0 && !strings.HasSuffix(contentStr, "\n") {
 			lines = append(lines, "")
 		}
-		lines = append(lines, fmt.Sprintf("# 自动生成的JWT密钥 - 请勿共享"))
+		lines = append(lines, "# 自动生成的JWT密钥 - 请勿共享")
 		lines = append(lines, fmt.Sprintf("JWT_SECRET=%s", secret))
 	}
 

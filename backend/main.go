@@ -43,6 +43,12 @@ func main() {
 	}
 	defer database.Close()
 
+	// 初始化所有Repository（需要在数据库初始化后）
+	repository.InitRepositories()
+
+	// 初始化Admin Handlers（需要在数据库初始化后）
+	handlers.InitAdminHandlers()
+
 	// 记录启动时间
 	startTime := time.Now()
 

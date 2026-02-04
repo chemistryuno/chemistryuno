@@ -27,7 +27,8 @@ var (
 	deckRepo            *repository.DeckRepository
 )
 
-func init() {
+// InitAdminHandlers 初始化admin handlers的依赖
+func InitAdminHandlers() {
 	// 初始化Repository
 	userRepo = repository.NewUserRepository()
 	deckRepo = repository.NewDeckRepository()

@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"log"
+	"strings"
 	"time"
 )
 
@@ -18,11 +19,19 @@ type Session struct {
 	CreatedAt  string `json:"created_at"`
 }
 
-var sessionRepo = repository.NewSessionRepository()
+var sessionRepo *repository.SessionRepository
+
+func getSessionRepo() *repository.SessionRepository {
+	if sessionRepo == nil {
+		sessionRepo = repository.SessionRepo
+	}
+	return sessionRepo
+}
 
 func GenerateSessionID() string {
 	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {
+		log.Printf("生成Session ID失败: %v", err)
 		return ""
 	}
 	return hex.EncodeToString(b)
@@ -32,35 +41,68 @@ func CreateSession(uid int, ua string, ip string) (string, error) {
 	// 允许用户在同一 UA 下拥有多个会话，不再自动清理
 	// 这样可以避免多标签页或相同 UA 的不同设备相互挤出的问题
 
-	sid := GenerateSessionID()
-	session := &database.UserSession{
-		ID:         sid,
-		UserUID:    uint(uid),
-		UserAgent:  ua,
-		IPAddress:  ip,
-		LastActive: time.Now(),
-		CreatedAt:  time.Now(),
+	// 重试机制：防止极端情况下的Session ID冲突
+	maxRetries := 3
+	var sid string
+	var err error
+
+	for i := 0; i < maxRetries; i++ {
+		sid = GenerateSessionID()
+		if sid == "" {
+			return "", err
+		}
+
+		session := &database.UserSession{
+			ID:         sid,
+			UserUID:    uint(uid),
+			UserAgent:  ua,
+			IPAddress:  ip,
+			LastActive: time.Now(),
+			CreatedAt:  time.Now(),
+		}
+
+		err = getSessionRepo().Create(session)
+		if err == nil {
+			// 创建成功
+			return sid, nil
+		}
+
+		// 如果是主键冲突错误（极其罕见），重试生成新的ID
+		// 其他错误直接返回
+		if !isDuplicateKeyError(err) {
+			log.Printf("创建会话失败: %v", err)
+			return "", err
+		}
+		log.Printf("Session ID冲突，重试 %d/%d", i+1, maxRetries)
 	}
 
-	err := sessionRepo.Create(session)
-	if err != nil {
-		log.Printf("创建会话失败: %v", err)
-		return "", err
+	log.Printf("创建会话失败，已重试%d次: %v", maxRetries, err)
+	return "", err
+}
+
+// isDuplicateKeyError 检查是否是主键冲突错误
+func isDuplicateKeyError(err error) bool {
+	if err == nil {
+		return false
 	}
-	return sid, nil
+	errMsg := err.Error()
+	// SQLite 和 MySQL 的主键冲突错误信息
+	return strings.Contains(errMsg, "UNIQUE constraint failed") ||
+		strings.Contains(errMsg, "Duplicate entry") ||
+		strings.Contains(errMsg, "duplicate key")
 }
 
 func DeleteSession(sid string) error {
-	return sessionRepo.Delete(sid)
+	return getSessionRepo().Delete(sid)
 }
 
 func UpdateSessionActivity(sid string, ip string) {
 	// 同时更新最后活跃时间和 IP，防止用户因为看到旧 IP 而误以为被盗号
-	_ = sessionRepo.UpdateActivity(sid, ip)
+	_ = getSessionRepo().UpdateActivity(sid, ip)
 }
 
 func IsSessionValid(sid string) bool {
-	exists, err := sessionRepo.Exists(sid)
+	exists, err := getSessionRepo().Exists(sid)
 	if err != nil {
 		return false
 	}
@@ -69,7 +111,7 @@ func IsSessionValid(sid string) bool {
 
 // ValidateSessionForUser 验证会话是否属于指定用户
 func ValidateSessionForUser(sid string, uid int) bool {
-	valid, err := sessionRepo.ValidateSessionForUser(sid, uint(uid))
+	valid, err := getSessionRepo().ValidateSessionForUser(sid, uint(uid))
 	if err != nil {
 		return false
 	}

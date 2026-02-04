@@ -125,7 +125,11 @@ func Login(c *gin.Context) {
 	}
 
 	// 生成会话
-	sid, _ := utils.CreateSession(user.UID, c.GetHeader("User-Agent"), c.ClientIP())
+	sid, err := utils.CreateSession(user.UID, c.GetHeader("User-Agent"), c.ClientIP())
+	if err != nil || sid == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建会话失败"})
+		return
+	}
 
 	// 生成token
 	token, err := utils.GenerateToken(int(user.UID), user.Username, user.IsAdmin, user.Role, sid)
@@ -148,6 +152,8 @@ func Login(c *gin.Context) {
 			CloseDelay: a.CloseDelay,
 		})
 	}
+
+	fmt.Printf("登录成功 - 用户: %s (UID=%d), SID: %s, IP: %s\n", user.Username, user.UID, sid, c.ClientIP())
 
 	c.JSON(http.StatusOK, gin.H{
 		"token": token,

@@ -50,12 +50,12 @@ func InitDB(dbPath string) error {
 		if sqlitePath == "" {
 			sqlitePath = "./chemistryuno.db"
 		}
-		// 指定使用 modernc.org/sqlite 纯Go驱动
+		// 指定使用 modernc.org/sqlite 纯Go驱动（SQLite3 默认使用 UTF-8）
 		dialector = sqlite.Dialector{
 			DriverName: "sqlite",
 			DSN:        sqlitePath,
 		}
-		log.Printf("📊 使用 SQLite 数据库 (纯Go): %s\n", sqlitePath)
+		log.Printf("📊 使用 SQLite 数据库 (纯Go, UTF-8): %s\n", sqlitePath)
 
 	default:
 		return fmt.Errorf("不支持的数据库类型: %s（支持: mysql, sqlite）", dbType)

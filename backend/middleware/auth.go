@@ -3,6 +3,7 @@
 import (
 	"chemistryuno/repository"
 	"chemistryuno/utils"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -54,18 +55,22 @@ func AuthMiddleware() gin.HandlerFunc {
 		// 验证会话是否依然有效
 		if claims.SID != "" {
 			if !utils.IsSessionValid(claims.SID) {
+				log.Printf("[会话失效] UID=%d, SID=%s, IP=%s", claims.UID, claims.SID, c.ClientIP())
 				c.JSON(http.StatusUnauthorized, gin.H{"error": "会话已过期或在其他设备登出"})
 				c.Abort()
 				return
 			}
 			// 验证会话是否属于该用户（防止会话劫持）
 			if !utils.ValidateSessionForUser(claims.SID, claims.UID) {
+				log.Printf("[会话验证失败] UID=%d, SID=%s, IP=%s", claims.UID, claims.SID, c.ClientIP())
 				c.JSON(http.StatusUnauthorized, gin.H{"error": "会话验证失败"})
 				c.Abort()
 				return
 			}
 			// 更新活动时间及当前访问 IP
 			utils.UpdateSessionActivity(claims.SID, c.ClientIP())
+		} else {
+			log.Printf("[警告] Token中缺少SID： UID=%d, Username=%s", claims.UID, claims.Username)
 		}
 
 		// 检查账号冻结/封禁状态（使用Repository）

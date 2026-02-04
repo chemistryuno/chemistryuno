@@ -249,7 +249,7 @@ func main() {
 		points.POST("/bounty", handlers.CreateBounty)
 	}
 
-	log.Println("服务器启动在 :8080")
+	log.Println("✅ 服务器准备启动在 :8080")
 
 	// 后台清理任务：删除已到达 remove_at 的反馈（每小时运行）
 	go func() {

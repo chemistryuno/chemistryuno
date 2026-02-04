@@ -66,6 +66,7 @@ func CreateSession(uid int, ua string, ip string) (string, error) {
 		err = getSessionRepo().Create(session)
 		if err == nil {
 			// 创建成功
+			log.Printf("[会话创建] UID=%d, SID=%s, IP=%s, UA=%s", uid, sid, ip, ua)
 			return sid, nil
 		}
 

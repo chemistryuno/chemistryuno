@@ -4,6 +4,7 @@ import (
 	"chemistryuno/database"
 	"chemistryuno/repository"
 	"chemistryuno/utils"
+	"encoding/base64"
 	"encoding/binary"
 	"log"
 	"net/http"
@@ -33,12 +34,10 @@ func InitWebAuthn() {
 	}
 
 	origins := []string{
-		"http://localhost:5173",
-		"http://127.0.0.1:5173",
 		"http://localhost:5000",
 		"http://127.0.0.1:5000",
-		"http://localhost:8080",
-		"http://127.0.0.1:8080",
+		"http://localhost:8081",
+		"http://127.0.0.1:8081",
 	}
 
 	if rpid != "" && rpid != "localhost" && rpid != "127.0.0.1" {
@@ -158,9 +157,9 @@ func FinishRegistration(c *gin.Context) {
 		return
 	}
 
-	// 保存凭证
+	// 保存凭证（使用 base64 URL-safe 编码存储二进制 ID）
 	cred := &database.WebAuthnCredential{
-		ID:              string(credential.ID),
+		ID:              base64.RawURLEncoding.EncodeToString(credential.ID),
 		UserUID:         uint(uid),
 		PublicKey:       credential.PublicKey,
 		AttestationType: credential.AttestationType,
@@ -261,8 +260,8 @@ func FinishLogin(c *gin.Context) {
 		return
 	}
 
-	// 更新签名计数
-	repository.WebAuthnRepo.UpdateSignCount(string(credential.ID), credential.Authenticator.SignCount)
+	// 更新签名计数（使用 base64 URL-safe 编码）
+	repository.WebAuthnRepo.UpdateSignCount(base64.RawURLEncoding.EncodeToString(credential.ID), credential.Authenticator.SignCount)
 
 	// 检查冻结状态
 	_, frozenUntil, _ := repository.UserRepo.CheckBanStatus(uint(uid))
@@ -272,7 +271,11 @@ func FinishLogin(c *gin.Context) {
 	}
 
 	// 生成会话和token
-	sid, _ := utils.CreateSession(int(uid), c.GetHeader("User-Agent"), c.ClientIP())
+	sid, err := utils.CreateSession(int(uid), c.GetHeader("User-Agent"), c.ClientIP())
+	if err != nil || sid == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建会话失败"})
+		return
+	}
 	token, err := utils.GenerateToken(int(uid), user.Username, user.IsAdmin, user.Role, sid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成token失败"})
@@ -313,7 +316,14 @@ func ListCredentials(c *gin.Context) {
 
 // RemoveCredential 移除凭证
 func RemoveCredential(c *gin.Context) {
+	// credential ID 已经是 base64 URL-safe 编码的字符串，直接使用
 	credID := c.Param("id")
+
+	// 验证是否为有效的 base64 URL-safe 字符串
+	if _, err := base64.RawURLEncoding.DecodeString(credID); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的凭证ID"})
+		return
+	}
 
 	err := repository.WebAuthnRepo.Delete(credID)
 	if err != nil {
@@ -352,8 +362,14 @@ func (u *WebAuthnUser) WebAuthnIcon() string {
 func (u *WebAuthnUser) WebAuthnCredentials() []webauthn.Credential {
 	creds := make([]webauthn.Credential, len(u.Credentials))
 	for i, c := range u.Credentials {
+		// 从 base64 URL-safe 编码的字符串解码为二进制
+		credID, err := base64.RawURLEncoding.DecodeString(c.ID)
+		if err != nil {
+			log.Printf("解码 credential ID 失败: %v", err)
+			credID = []byte(c.ID) // 降级处理
+		}
 		creds[i] = webauthn.Credential{
-			ID:              []byte(c.ID),
+			ID:              credID,
 			PublicKey:       c.PublicKey,
 			AttestationType: c.AttestationType,
 			Authenticator: webauthn.Authenticator{

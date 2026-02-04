@@ -80,20 +80,20 @@ cd ..
 :: 创建配置文件
 echo.
 echo ⚙️  创建配置文件...
-if not exist .env (
-    echo # Chemistry UNO Mendeleef 配置文件> .env
-    echo # 后端配置>> .env
-    echo PORT=8080>> .env
-    echo JWT_SECRET=chemistry-uno-secret-key-change-in-production>> .env
-    echo DB_PATH=./data.db>> .env
-    echo.>> .env
-    echo # 前端配置>> .env
-    echo VITE_API_URL=http://localhost:8080>> .env
-    echo VITE_WS_URL=ws://localhost:8080/ws>> .env
-    echo.>> .env
-    echo # 开发环境配置>> .env
-    echo NODE_ENV=development>> .env
-    echo GIN_MODE=debug>> .env
+if not exist backend\.env (
+    echo # Chemistry UNO Mendeleef 配置文件> backend\.env
+    echo # 后端配置>> backend\.env
+    echo PORT=8080>> backend\.env
+    echo JWT_SECRET=chemistry-uno-secret-key-change-in-production>> backend\.env
+    echo SQLITE_PATH=./chemistryuno.db>> backend\.env
+    echo.>> backend\.env
+    echo # 前端配置>> backend\.env
+    echo VITE_API_URL=http://localhost:8080>> backend\.env
+    echo VITE_WS_URL=ws://localhost:8080/ws>> backend\.env
+    echo.>> backend\.env
+    echo # 开发环境配置>> backend\.env
+    echo NODE_ENV=development>> backend\.env
+    echo GIN_MODE=debug>> backend\.env
     echo ✅ 创建 .env 配置文件
 ) else (
     echo ℹ️  .env 配置文件已存在
@@ -109,7 +109,7 @@ echo   🎨 仅启动前端:         npm run frontend
 echo   🏗️  仅启动后端:         npm run backend
 echo.
 echo 🌐 访问地址:
-echo   前端: http://localhost:8081
+echo   前端: http://localhost:5000
 echo   后端: http://localhost:8080
 echo.
 echo 👥 默认管理员账户:

@@ -12,6 +12,8 @@
     "install:frontend": "pnpm -C frontend install",
     "frontend": "pnpm -C frontend dev",
     "backend": "cd backend && set CGO_ENABLED=0 && go run main.go",
+    "tools:init-db": "go run tools/init_db.go",
+    "tools:migrate-creds": "go run tools/migrate_credential_ids.go",
     "clean": "node -e \"const fs = require('fs'); ['backend/chemistryuno.db', 'backend/chemistryuno.exe', 'dist'].forEach(f => { try { if (fs.existsSync(f)) { if (fs.statSync(f).isDirectory()) { fs.rmSync(f, {recursive: true}); } else { fs.unlinkSync(f); } } } catch(e) {} })\"",
     "clean:all": "pnpm clean && cd frontend && rimraf node_modules dist .vite"
   },

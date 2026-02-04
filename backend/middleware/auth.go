@@ -45,33 +45,39 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
+		// 强制要求 SID 存在（防止旧版 Token 或非法 Token 绕过会话检查）
+		if claims.SID == "" {
+			log.Printf("[强制踢出] Token中缺少SID: UID=%d, Username=%s, IP=%s", claims.UID, claims.Username, c.ClientIP())
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "认证信息不完整，请重新登录"})
+			c.Abort()
+			return
+		}
+
+		// 验证会话是否依然有效
+		if !utils.IsSessionValid(claims.SID) {
+			log.Printf("[会话失效] UID=%d, SID=%s, IP=%s", claims.UID, claims.SID, c.ClientIP())
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "会话已过期或在其他设备登出"})
+			c.Abort()
+			return
+		}
+
+		// 验证会话是否属于该用户（防止会话劫持）
+		if !utils.ValidateSessionForUser(claims.SID, claims.UID) {
+			log.Printf("[会话验证失败] UID=%d, SID=%s, IP=%s", claims.UID, claims.SID, c.ClientIP())
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "会话验证失败"})
+			c.Abort()
+			return
+		}
+
+		// 更新活动时间及当前访问 IP
+		utils.UpdateSessionActivity(claims.SID, c.ClientIP())
+
 		// 将用户信息存入上下文
 		c.Set("uid", claims.UID)
 		c.Set("username", claims.Username)
 		c.Set("is_admin", claims.IsAdmin)
 		c.Set("role", claims.Role)
 		c.Set("sid", claims.SID)
-
-		// 验证会话是否依然有效
-		if claims.SID != "" {
-			if !utils.IsSessionValid(claims.SID) {
-				log.Printf("[会话失效] UID=%d, SID=%s, IP=%s", claims.UID, claims.SID, c.ClientIP())
-				c.JSON(http.StatusUnauthorized, gin.H{"error": "会话已过期或在其他设备登出"})
-				c.Abort()
-				return
-			}
-			// 验证会话是否属于该用户（防止会话劫持）
-			if !utils.ValidateSessionForUser(claims.SID, claims.UID) {
-				log.Printf("[会话验证失败] UID=%d, SID=%s, IP=%s", claims.UID, claims.SID, c.ClientIP())
-				c.JSON(http.StatusUnauthorized, gin.H{"error": "会话验证失败"})
-				c.Abort()
-				return
-			}
-			// 更新活动时间及当前访问 IP
-			utils.UpdateSessionActivity(claims.SID, c.ClientIP())
-		} else {
-			log.Printf("[警告] Token中缺少SID： UID=%d, Username=%s", claims.UID, claims.Username)
-		}
 
 		// 检查账号冻结/封禁状态（使用Repository）
 		userRepo := repository.NewUserRepository()

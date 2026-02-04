@@ -29,7 +29,7 @@ init.bat
 # Start both frontend and backend (production mode)
 pnpm start
 
-# Start frontend only (dev server on port 8081)
+# Start frontend only (dev server on port 5000)
 pnpm run frontend
 
 # Start backend only (API server on port 8080)
@@ -74,7 +74,13 @@ go build -o chemistryuno.exe main.go
 ```bash
 # Clean database and binaries
 pnpm run clean
-# This removes: backend/data.db, backend/main.exe, backend/chemistryuno.exe
+# This removes: backend/chemistryuno.db, backend/main.exe, backend/chemistryuno.exe
+
+# Initialization (Manual)
+pnpm run tools:init-db
+
+# WebAuthn Credential Migration
+pnpm run tools:migrate-creds
 ```
 
 ## Architecture Overview
@@ -83,7 +89,7 @@ pnpm run clean
 
 **Entry Point**: `backend/main.go`
 
-- Initializes database at `./data.db`
+- Initializes database at `./chemistryuno.db`
 - Starts WebSocket hub for real-time communication
 - Starts room monitor for inactive player management
 - Configures Gin routes with CORS middleware
@@ -280,6 +286,6 @@ Change this immediately in production environments.
 
 ## Port Configuration
 
-- Frontend dev server: **8081** (configured in `frontend/package.json` scripts)
+- Frontend dev server: **5000** (configured in `frontend/package.json` scripts)
 - Backend API: **8080** (hardcoded in `backend/main.go:196`)
 - Frontend proxy: Vite proxies `/api` and `/ws` to backend automatically (check `vite.config.ts` if debugging connection issues)

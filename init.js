@@ -145,12 +145,10 @@ async function installBackendDependencies() {
 // 初始化数据库
 async function initializeDatabase() {
   log('\n🗄️  初始化数据库...', colors.cyan);
-  const backendPath = path.join(__dirname, 'backend');
   
   try {
     info('正在创建数据库表和默认数据...');
-    await runCommand('go', ['run', '-tags', 'init', 'main.go'], { 
-      cwd: backendPath,
+    await runCommand('go', ['run', 'tools/init_db.go'], { 
       env: { ...process.env, INIT_DB: 'true' }
     });
     success('数据库初始化成功');
@@ -164,13 +162,13 @@ async function createConfigFiles() {
   log('\n⚙️  创建配置文件...', colors.cyan);
 
   // 创建 .env 文件（如果不存在）
-  const envPath = path.join(__dirname, '.env');
+  const envPath = path.join(__dirname, 'backend', '.env');
   if (!fs.existsSync(envPath)) {
     const envContent = `# Chemistry UNO Mendeleef 配置文件
 # 后端配置
 PORT=8080
 JWT_SECRET=chemistry-uno-secret-key-change-in-production
-DB_PATH=./data.db
+SQLITE_PATH=./chemistryuno.db
 
 # 前端配置  
 VITE_API_URL=http://localhost:8080
@@ -259,7 +257,7 @@ function showStartupInfo() {
   log('  🎨 仅启动前端:         pnpm run frontend', colors.bright);
   log('  🏗️  仅启动后端:         pnpm run backend', colors.bright);
   log('\n🌐 访问地址:', colors.cyan);
-  log('  前端: http://localhost:8081', colors.bright);
+  log('  前端: http://localhost:5000', colors.bright);
   log('  后端: http://localhost:8080', colors.bright);
   log('\n👥 默认管理员账户:', colors.cyan);
   log('  用户名: admin', colors.bright);

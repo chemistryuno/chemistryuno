@@ -1,4 +1,4 @@
-﻿package main
+package main
 
 import (
 	"chemistryuno/database"
@@ -20,7 +20,6 @@ func main() {
 	}
 
 	log.Println("✅ 数据库初始化完成")
-	log.Println("📊 使用 MySQL 数据库")
-	log.Println("👤 默认管理员账户: admin / admin123")
+	log.Println(" 默认管理员账户: admin / admin123")
 	log.Println("🧪 默认化学反应数据已创建")
 }

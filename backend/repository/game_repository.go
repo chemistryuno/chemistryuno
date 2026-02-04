@@ -89,13 +89,13 @@ func (r *GameRepository) GetGameStatsByDateRange(startDate, endDate time.Time) (
 
 // GameHistoryWithWinner 带胜者信息的游戏历史
 type GameHistoryWithWinner struct {
-	ID         uint   `json:"id"`
-	RoomID     string `json:"room_id"`
-	WinnerUID  *uint  `json:"winner_uid"`
-	WinnerName string `json:"winner_name"`
-	Players    string `json:"players"`
-	StartedAt  string `json:"started_at"`
-	FinishedAt string `json:"finished_at"`
+	ID         uint          `json:"id"`
+	RoomID     string        `json:"room_id"`
+	WinnerUID  *uint         `json:"winner_uid"`
+	WinnerName string        `json:"winner_name"`
+	Players    database.JSON `json:"players"`
+	StartedAt  string        `json:"started_at"`
+	FinishedAt string        `json:"finished_at"`
 }
 
 // FindAllWithWinner 获取游戏历史（带胜者名称）

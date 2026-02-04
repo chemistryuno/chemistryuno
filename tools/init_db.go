@@ -6,7 +6,7 @@ import (
 	"os"
 )
 
-func init() {
+func main() {
 	log.Println("🗄️ 正在初始化数据库...")
 
 	// 检查是否是初始化模式

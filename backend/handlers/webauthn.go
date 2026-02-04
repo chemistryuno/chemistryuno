@@ -314,7 +314,7 @@ func ListCredentials(c *gin.Context) {
 	for _, cred := range credentials {
 		result = append(result, gin.H{
 			"id":         cred.ID,
-			"date":       cred.CreatedAt,
+			"date":       cred.CreatedAt.Format("2006-01-02"),
 			"created_at": cred.CreatedAt,
 		})
 	}

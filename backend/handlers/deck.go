@@ -14,14 +14,16 @@ func GetMyDecks(c *gin.Context) {
 	uid := c.GetInt("uid")
 	// 获取用户的自定义牌组和全局牌组
 	userDecks, _ := repository.DeckRepo.FindByUserID(uint(uid))
-	globalDeck, _ := repository.DeckRepo.FindGlobalDeck()
+	globalDecks, _ := repository.DeckRepo.FindGlobalDecks()
 
 	var decks []interface{}
-	if globalDeck != nil {
-		decks = append(decks, globalDeck)
+	// 添加所有全局牌组
+	for i := range globalDecks {
+		decks = append(decks, &globalDecks[i])
 	}
-	for _, deck := range userDecks {
-		decks = append(decks, deck)
+	// 添加用户的所有牌组
+	for i := range userDecks {
+		decks = append(decks, &userDecks[i])
 	}
 
 	c.JSON(http.StatusOK, decks)

@@ -132,7 +132,7 @@ func UpdateGlobalDeckConfig(c *gin.Context) {
 
 	cardsJSON, _ := json.Marshal(req.Cards)
 
-	err := deckRepo.UpdateGlobalDeck(req.Name, string(cardsJSON))
+	err := deckRepo.UpdateGlobalDeck(req.Name, cardsJSON)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新失败"})
 		return

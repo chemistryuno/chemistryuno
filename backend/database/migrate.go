@@ -108,7 +108,7 @@ func createDefaultDeckConfig() error {
 
 	deckConfig := DeckConfig{
 		Name:      "默认牌组",
-		Cards:     defaultCards,
+		Cards:     []byte(defaultCards),
 		CreatedBy: 1, // admin用户
 		IsGlobal:  true,
 	}

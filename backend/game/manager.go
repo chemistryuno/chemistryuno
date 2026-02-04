@@ -1,6 +1,7 @@
 ﻿package game
 
 import (
+	"chemistryuno/database"
 	"chemistryuno/models"
 	"chemistryuno/repository"
 	"chemistryuno/websocket"
@@ -1405,7 +1406,22 @@ func GetAvailableSubstances(roomID string, uid int) ([]string, error) {
 
 func saveGameHistory(roomID string, winnerUID int, players []int) {
 	// 创建游戏历史记录
-	// TODO: 实现SaveHistory方法
+	playersJSON, _ := json.Marshal(players)
+	history := &database.GameHistory{
+		RoomID:     roomID,
+		Players:    playersJSON,
+		FinishedAt: time.Now(),
+	}
+
+	if winnerUID > 0 {
+		wUID := uint(winnerUID)
+		history.WinnerUID = &wUID
+	}
+
+	err := repository.GameRepo.Create(history)
+	if err != nil {
+		fmt.Printf("保存游戏历史失败: %v\n", err)
+	}
 
 	// 更新玩家的总场次
 	for _, uid := range players {

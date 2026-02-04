@@ -114,7 +114,7 @@ func GetMyGameHistory(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"history": history})
+	c.JSON(http.StatusOK, history)
 }
 
 // 开始游戏

@@ -14,7 +14,14 @@ func NewDeckRepository() *DeckRepository {
 	return &DeckRepository{db: database.DB}
 }
 
-// FindGlobalDeck 查找全局牌组
+// FindGlobalDecks 查找所有全局牌组
+func (r *DeckRepository) FindGlobalDecks() ([]database.DeckConfig, error) {
+	var decks []database.DeckConfig
+	err := r.db.Where("is_global = ?", true).Find(&decks).Error
+	return decks, err
+}
+
+// FindGlobalDeck 查找第一个全局牌组（用于默认选择）
 func (r *DeckRepository) FindGlobalDeck() (*database.DeckConfig, error) {
 	var deck database.DeckConfig
 	err := r.db.Where("is_global = ?", true).First(&deck).Error
@@ -59,7 +66,7 @@ func (r *DeckRepository) Delete(id uint) error {
 }
 
 // UpdateGlobalDeck 更新全局牌组
-func (r *DeckRepository) UpdateGlobalDeck(name string, cards string) error {
+func (r *DeckRepository) UpdateGlobalDeck(name string, cards []byte) error {
 	return r.db.Model(&database.DeckConfig{}).
 		Where("is_global = ?", true).
 		Updates(map[string]interface{}{

@@ -94,8 +94,14 @@ type SubstanceWithCreator struct {
 // FindAllWithCreator 查找所有物质及创建者信息
 func (r *SubstanceRepository) FindAllWithCreator() ([]SubstanceWithCreator, error) {
 	var results []SubstanceWithCreator
-	// 已弃用：该功能依赖旧表结构
-	return results, nil
+
+	err := r.db.Table("substances").
+		Select("substances.id, substances.formula, substances.name, substances.elements, substances.status, substances.created_by, users.username as creator_name, substances.created_at").
+		Joins("LEFT JOIN users ON substances.created_by = users.uid").
+		Order("substances.created_at DESC").
+		Scan(&results).Error
+
+	return results, err
 }
 
 // UpdateWithElements 更新物质（包括元素信息）
@@ -104,7 +110,9 @@ func (r *SubstanceRepository) UpdateWithElements(id uint, formula, name, element
 		Where("id = ?", id).
 		Updates(map[string]interface{}{
 			"name":        name,
-			"description": formula, // formula映射到description
+			"formula":     formula,
+			"elements":    elements,
+			"description": formula,
 			"status":      status,
 		}).Error
 }
@@ -115,6 +123,8 @@ func (r *SubstanceRepository) UpdateFormula(id uint, formula, name, elements str
 		Where("id = ?", id).
 		Updates(map[string]interface{}{
 			"name":        name,
+			"formula":     formula,
+			"elements":    elements,
 			"description": formula,
 		}).Error
 }

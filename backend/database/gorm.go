@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -104,43 +105,88 @@ func InitDB(dbPath string) error {
 	return nil
 }
 
-// initRedis 初始化Redis客户端
+// initRedis 初始化Redis客户端（可选功能）
 func initRedis() {
 	redisAddr := os.Getenv("REDIS_ADDR")
+
+	// 默认尝试连接本地Redis
 	if redisAddr == "" {
-		// 如果没有配置Redis地址，跳过Redis初始化
-		log.Println("⚠️ 未配置Redis，缓存功能已禁用")
-		RedisClient = nil
-		return
+		// 尝试常见的Redis端口
+		defaultAddrs := []string{"localhost:6379", "127.0.0.1:6379"}
+		for _, addr := range defaultAddrs {
+			if tryConnectRedis(addr, "") {
+				redisAddr = addr
+				log.Printf("✅ 自动连接到本地Redis: %s", addr)
+				break
+			}
+		}
+
+		if redisAddr == "" {
+			log.Println("ℹ️  Redis未配置（缓存功能已禁用，不影响核心功能）")
+			log.Println("💡 如需启用Redis，请设置环境变量: REDIS_ADDR=localhost:6379")
+			RedisClient = nil
+			return
+		}
 	}
 
 	redisPassword := os.Getenv("REDIS_PASSWORD")
 	redisDB := 0 // 使用默认数据库0
 
+	// 从环境变量获取连接池配置（可选）
+	poolSize := getEnvInt("REDIS_POOL_SIZE", 100)
+	minIdleConns := getEnvInt("REDIS_MIN_IDLE_CONNS", 10)
+
 	RedisClient = redis.NewClient(&redis.Options{
 		Addr:         redisAddr,
 		Password:     redisPassword,
 		DB:           redisDB,
-		PoolSize:     100,             // 连接池大小
-		MinIdleConns: 10,              // 最小空闲连接
-		MaxRetries:   1,               // 最大重试次数（减少重试）
-		DialTimeout:  1 * time.Second, // 连接超时（减少超时时间）
-		ReadTimeout:  1 * time.Second, // 读取超时
-		WriteTimeout: 1 * time.Second, // 写入超时
-		PoolTimeout:  2 * time.Second, // 连接池超时
+		PoolSize:     poolSize,
+		MinIdleConns: minIdleConns,
+		MaxRetries:   1,
+		DialTimeout:  1 * time.Second,
+		ReadTimeout:  1 * time.Second,
+		WriteTimeout: 1 * time.Second,
+		PoolTimeout:  2 * time.Second,
 	})
 
-	// 测试连接（使用带超时的context）
+	// 测试连接
 	pingCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
 	if err := RedisClient.Ping(pingCtx).Err(); err != nil {
-		log.Printf("⚠️ Redis连接失败: %v (将继续运行，但缓存功能不可用)", err)
+		log.Printf("⚠️  Redis连接失败: %v (缓存功能已禁用)", err)
 		RedisClient.Close()
 		RedisClient = nil
 	} else {
-		log.Println("✅ Redis连接成功")
+		log.Printf("✅ Redis连接成功: %s", redisAddr)
 	}
+}
+
+// tryConnectRedis 尝试连接Redis（快速检测）
+func tryConnectRedis(addr, password string) bool {
+	client := redis.NewClient(&redis.Options{
+		Addr:        addr,
+		Password:    password,
+		DB:          0,
+		DialTimeout: 500 * time.Millisecond,
+	})
+	defer client.Close()
+
+	pingCtx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+
+	err := client.Ping(pingCtx).Err()
+	return err == nil
+}
+
+// getEnvInt 从环境变量获取整数值
+func getEnvInt(key string, defaultValue int) int {
+	if value := os.Getenv(key); value != "" {
+		if intValue, err := strconv.Atoi(value); err == nil {
+			return intValue
+		}
+	}
+	return defaultValue
 }
 
 // Close 关闭数据库连接

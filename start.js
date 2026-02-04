@@ -3,17 +3,68 @@
 const { spawn, execSync } = require('child_process');
 const path = require('path');
 const os = require('os');
+const fs = require('fs');
 
-console.log('🚀 正在启动 Chemistry UNO V1.0.0 Mendeleef (PRODUCTION)...\n');
+console.log('🚀 正在启动 Chemistry UNO V1.0.0 Mendeleef (DEVELOPMENT)...\n');
 
 const isWindows = process.platform === 'win32';
-const shell = isWindows ? 'cmd.exe' : true;
+
+// 检查Redis是否可用（可选功能）
+function checkRedis() {
+  try {
+    const net = require('net');
+    const redisAddr = process.env.REDIS_ADDR || 'localhost:6379';
+    const [host, port] = redisAddr.split(':');
+
+    const client = net.createConnection({ host, port: parseInt(port) }, () => {
+      console.log('✅ Redis连接正常:', redisAddr);
+      client.end();
+    });
+
+    client.on('error', () => {
+      console.log('⚠️  Redis未连接，缓存功能已禁用（这不影响核心功能）');
+      if (!process.env.REDIS_ADDR) {
+        console.log('💡 提示: 如需启用Redis，请设置环境变量 REDIS_ADDR=localhost:6379');
+      }
+    });
+
+    client.setTimeout(1000);
+    client.on('timeout', () => {
+      client.destroy();
+    });
+  } catch (err) {
+    console.log('⚠️  Redis检测失败（可选功能）');
+  }
+}
+
+// 检查并加载.env文件（如果存在）
+function loadEnvFile() {
+  const envPath = path.join(__dirname, 'backend', '.env');
+  if (fs.existsSync(envPath)) {
+    const envContent = fs.readFileSync(envPath, 'utf8');
+    envContent.split('\n').forEach(line => {
+      const [key, ...valueParts] = line.split('=');
+      if (key && valueParts.length > 0) {
+        const value = valueParts.join('=').trim();
+        if (!process.env[key]) {
+          process.env[key] = value;
+        }
+      }
+    });
+    console.log('✅ 已加载环境配置文件 (.env)');
+  }
+}
+
+console.log('🔍 检查环境配置...');
+loadEnvFile();
+checkRedis();
+console.log('');
 
 // 启动后端 (Go)
 console.log('📦 启动后端服务器...');
 const backendPath = path.join(__dirname, 'backend');
 
-// 禁用CGO以避免旧版MinGW链接器问题（modernc.org/sqlite是纯Go实现，不需要CGO）
+// 禁用CGO以避免MinGW链接器问题（modernc.org/sqlite是纯Go实现，不需要CGO）
 const backendEnv = Object.assign({}, process.env, {
   'CGO_ENABLED': '0'
 });

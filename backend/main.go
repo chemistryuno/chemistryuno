@@ -126,10 +126,6 @@ func main() {
 	r.GET("/auth/webauthn/login/begin", handlers.BeginLogin)
 	r.POST("/auth/webauthn/login/finish", handlers.FinishLogin)
 
-	// WebAuthn 找回密码 (公开) - 未实现
-	// r.POST("/auth/webauthn/reset-password/begin", handlers.BeginResetPasswordWebAuthn)
-	// r.POST("/auth/webauthn/reset-password/finish", handlers.FinishResetPasswordWebAuthn)
-
 	// 需要认证的路由
 	auth := r.Group("/")
 	auth.Use(middleware.AuthMiddleware())
@@ -174,10 +170,6 @@ func main() {
 		auth.GET("/user/webauthn/credentials", handlers.ListCredentials)
 		auth.DELETE("/user/webauthn/credentials/:id", handlers.RemoveCredential)
 
-		// WebAuthn 验证修改密码 - 未实现
-		// auth.POST("/user/webauthn/change-password/begin", handlers.BeginChangePasswordWebAuthn)
-		// auth.POST("/user/webauthn/change-password/finish", handlers.FinishChangePasswordWebAuthn)
-
 		// 游戏相关
 		auth.GET("/rooms", handlers.GetRooms)
 		auth.POST("/rooms", handlers.CreateRoom)
@@ -210,7 +202,6 @@ func main() {
 		substances := auth.Group("/substances")
 		{
 			substances.GET("", handlers.GetSubstances)
-			substances.GET("/", handlers.GetSubstances)
 			substances.POST("", handlers.AddSubstance)
 			substances.PUT("/:id", middleware.CoWorkerMiddleware(), handlers.UpdateSubstance)
 			substances.PUT("/approve/:id", middleware.CoWorkerMiddleware(), handlers.ApproveSubstance)

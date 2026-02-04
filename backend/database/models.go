@@ -71,6 +71,7 @@ type Reaction struct {
 	ID          uint       `gorm:"primaryKey;autoIncrement" json:"id"`
 	Reactants   string     `gorm:"not null;size:500" json:"reactants"`
 	Products    string     `gorm:"not null;size:500" json:"products"`
+	Display     string     `gorm:"size:1000" json:"display"`
 	CreatedBy   uint       `gorm:"not null" json:"created_by"`
 	Status      string     `gorm:"default:pending;size:20" json:"status"`
 	Bidirection bool       `gorm:"default:false" json:"bidirection"`
@@ -89,6 +90,8 @@ type Substance struct {
 	ID          uint       `gorm:"primaryKey;autoIncrement" json:"id"`
 	Name        string     `gorm:"not null;unique;size:255" json:"name"`
 	Description string     `gorm:"type:text" json:"description"`
+	Formula     string     `gorm:"size:255" json:"formula"`
+	Elements    string     `gorm:"size:500" json:"elements"`
 	CreatedBy   uint       `gorm:"not null" json:"created_by"`
 	Status      string     `gorm:"default:pending;size:20" json:"status"`
 	SubmittedAt time.Time  `gorm:"autoCreateTime" json:"submitted_at"`

@@ -5,7 +5,6 @@ import (
 	"chemistryuno/models"
 	"chemistryuno/repository"
 	"chemistryuno/utils"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -17,27 +16,25 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 var (
-	userRepo            *repository.UserRepository
-	legacyReactionRepo  *repository.LegacyReactionRepository
-	legacySubstanceRepo *repository.LegacySubstanceRepository
-	legacyGameRepo      *repository.LegacyGameRepository
-	deckRepo            *repository.DeckRepository
+	userRepo      *repository.UserRepository
+	reactionRepo  *repository.ReactionRepository
+	substanceRepo *repository.SubstanceRepository
+	gameRepo      *repository.GameRepository
+	deckRepo      *repository.DeckRepository
 )
 
 // InitAdminHandlers 初始化admin handlers的依赖
 func InitAdminHandlers() {
 	// 初始化Repository
 	userRepo = repository.NewUserRepository()
+	reactionRepo = repository.NewReactionRepository()
+	substanceRepo = repository.NewSubstanceRepository()
+	gameRepo = repository.NewGameRepository()
 	deckRepo = repository.NewDeckRepository()
-
-	// 初始化Legacy Repository（需要sql.DB）
-	sqlDB, _ := database.DB.DB()
-	legacyReactionRepo = repository.NewLegacyReactionRepository(sqlDB)
-	legacySubstanceRepo = repository.NewLegacySubstanceRepository(sqlDB)
-	legacyGameRepo = repository.NewLegacyGameRepository(sqlDB)
 }
 
 // 管理员创建用户
@@ -233,7 +230,7 @@ func PromoteUser(c *gin.Context) {
 
 // 获取游戏历史
 func GetGameHistory(c *gin.Context) {
-	historyList, err := legacyGameRepo.GetGameHistory(100)
+	historyList, err := gameRepo.FindAllWithWinner(100)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误: " + err.Error()})
 		return
@@ -243,7 +240,7 @@ func GetGameHistory(c *gin.Context) {
 	for _, h := range historyList {
 		// 解析玩家列表 JSON
 		var players []int
-		if err := json.Unmarshal([]byte(h.PlayersJSON), &players); err != nil {
+		if err := json.Unmarshal([]byte(h.Players), &players); err != nil {
 			log.Printf("解析玩家列表失败: %v", err)
 			players = []int{}
 		}
@@ -265,7 +262,7 @@ func GetGameHistory(c *gin.Context) {
 
 // 获取所有化学反应 (Admin/Co-worker)
 func GetReactions(c *gin.Context) {
-	reactionList, err := legacyReactionRepo.GetAllReactionsGrouped()
+	reactionList, err := reactionRepo.FindAllGroupedWithCreator()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误"})
 		return
@@ -289,29 +286,19 @@ func GetReactions(c *gin.Context) {
 
 // 获取所有已批准的反应 (Wiki)
 func GetAllReactions(c *gin.Context) {
-	reactionList, err := legacyReactionRepo.GetApprovedReactionsGrouped()
+	reactionList, err := reactionRepo.FindApprovedGrouped()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误"})
 		return
 	}
 
-	var reactions []map[string]interface{}
-	for _, r := range reactionList {
-		reactions = append(reactions, map[string]interface{}{
-			"id":         r.ID,
-			"display":    r.Display,
-			"r1":         r.R1,
-			"r2":         r.R2,
-			"created_at": r.CreatedAt,
-		})
-	}
-	c.JSON(http.StatusOK, reactions)
+	c.JSON(http.StatusOK, reactionList)
 }
 
 // 获取我提交的反应
 func GetMyReactions(c *gin.Context) {
 	uid := c.GetInt("uid")
-	reactionList, err := legacyReactionRepo.GetMyReactions(uid)
+	reactionList, err := reactionRepo.FindMyReactions(uint(uid))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误"})
 		return
@@ -337,7 +324,13 @@ func ApproveReaction(c *gin.Context) {
 		return
 	}
 
-	groupID := c.Param("group_id")
+	groupIDStr := c.Param("group_id")
+	groupIDUint, err := strconv.ParseUint(groupIDStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的group_id"})
+		return
+	}
+	groupID := uint(groupIDUint)
 
 	var req struct {
 		Display string `json:"display"`
@@ -350,7 +343,7 @@ func ApproveReaction(c *gin.Context) {
 	}
 
 	// 检查当前状态是否符合审批流
-	currentStatus, err := legacyReactionRepo.GetStatusByGroupID(groupID)
+	currentStatus, err := reactionRepo.GetStatusByGroupID(groupID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "未找到该反应请求"})
 		return
@@ -379,7 +372,6 @@ func ApproveReaction(c *gin.Context) {
 
 	// 如果提供了 display，且管理员/协作者修改了方程式
 	if !req.Reject && req.Display != "" {
-		// ... 保持原有的修改逻辑，但使用 newStatus ...
 		rlist := parseReactants(req.Display)
 		if len(rlist) != 2 {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "修改后的方程式必须包含且仅包含两种不同的反应物"})
@@ -387,43 +379,42 @@ func ApproveReaction(c *gin.Context) {
 		}
 
 		// 增加冲突校验
-		if isDup, oldDisplay := checkDuplicateReactants(req.Display, groupID); isDup {
+		if isDup, oldDisplay := checkDuplicateReactants(req.Display, &groupID); isDup {
 			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("修改后的组合已存在: %s", oldDisplay)})
 			return
 		}
 
-		tx, err := legacyReactionRepo.BeginTx()
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库事务失败"})
-			return
-		}
+		err = database.DB.Transaction(func(tx *gorm.DB) error {
+			// 获取创建者ID
+			var reaction database.Reaction
+			if err := tx.Where("group_id = ?", groupID).First(&reaction).Error; err != nil {
+				return fmt.Errorf("查找原作者失败")
+			}
 
-		creatorID, err := legacyReactionRepo.GetCreatorByGroupID(groupID)
-		if err != nil {
-			tx.Rollback()
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "查找原作者失败"})
-			return
-		}
+			// 删除旧记录
+			if err := tx.Where("group_id = ?", groupID).Delete(&database.Reaction{}).Error; err != nil {
+				return err
+			}
 
-		_, err = tx.Exec("DELETE FROM reactions WHERE group_id = ?", groupID)
-		if err != nil {
-			tx.Rollback()
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "更新旧数据失败"})
-			return
-		}
+			// 创建新反应记录
+			if err := saveReactionToDBGorm(tx, rlist, req.Display, newStatus, &groupID, reaction.CreatedBy); err != nil {
+				return err
+			}
 
-		if err := saveReactionToDB(tx, rlist, req.Display, newStatus, groupID, creatorID); err != nil {
-			tx.Rollback()
+			return nil
+		})
+
+		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "处理审批事务失败: " + err.Error()})
 			return
 		}
-		tx.Commit()
+
 		c.JSON(http.StatusOK, gin.H{"message": "审批已处理", "status": newStatus})
 		return
 	}
 
 	// 如果没有修改内容，直接更新状态
-	err = legacyReactionRepo.UpdateStatusByGroupID(groupID, newStatus)
+	err = reactionRepo.UpdateStatusByGroupID(groupID, newStatus)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新状态失败"})
 		return
@@ -497,7 +488,7 @@ func AddReaction(c *gin.Context) {
 	}
 
 	// 2. 校验反应物重复
-	if isDup, oldDisplay := checkDuplicateReactants(req.Display, ""); isDup {
+	if isDup, oldDisplay := checkDuplicateReactants(req.Display, nil); isDup {
 		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("该反应物组合已存在: %s", oldDisplay)})
 		return
 	}
@@ -520,21 +511,18 @@ func AddReaction(c *gin.Context) {
 	}
 
 	// 生成 group_id
-	groupID := fmt.Sprintf("%d-%d", uid, time.Now().UnixNano())
+	groupIDVal := uint(time.Now().UnixNano() / 1000000)
+	groupID := &groupIDVal
 
-	tx, err := legacyReactionRepo.BeginTx()
+	err := database.DB.Transaction(func(tx *gorm.DB) error {
+		return saveReactionToDBGorm(tx, rlist, req.Display, status, groupID, uint(uid))
+	})
+
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库事务开启失败"})
-		return
-	}
-
-	if err := saveReactionToDB(tx, rlist, req.Display, status, groupID, uid); err != nil {
-		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "保存反应失败: " + err.Error()})
 		return
 	}
 
-	tx.Commit()
 	msg := "反应已提交，等待管理员审核"
 	if status == "approved" {
 		msg = "反应已成功加入核心数据库"
@@ -542,8 +530,8 @@ func AddReaction(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": msg})
 }
 
-// 统一保存反应到数据库的工具函数
-func saveReactionToDB(tx *sql.Tx, reactants []string, display, status, groupID string, creatorID int) error {
+// 统一保存反应到数据库的工具函数 (GORM版本)
+func saveReactionToDBGorm(tx *gorm.DB, reactants []string, display, status string, groupID *uint, creatorID uint) error {
 	// 1. 去重并清理反应物
 	uniqueReactantsMap := make(map[string]bool)
 	var uniqueReactants []string
@@ -557,26 +545,29 @@ func saveReactionToDB(tx *sql.Tx, reactants []string, display, status, groupID s
 
 	// 严格要求必须有两个不同的反应物参与组合
 	if len(uniqueReactants) != 2 {
-		return fmt.Errorf("当前系统仅支持“双反应物”组合（如 A + B = C），请确保反应物恰好为两种不同的物质")
+		return fmt.Errorf("当前系统仅支持\"双反应物\"组合（如 A + B = C），请确保反应物恰好为两种不同的物质")
 	}
 
 	// 存储双向排列组合 (r1, r2) 和 (r2, r1)
 	// 这样可以保证 A 上能接 B，B 上也能接 A
+	var reactions []database.Reaction
 	for i := 0; i < len(uniqueReactants); i++ {
 		for j := 0; j < len(uniqueReactants); j++ {
 			if i == j {
 				continue
 			}
-			_, err := tx.Exec(`
-				INSERT INTO reactions (r1, r2, display, status, group_id, created_by)
-				VALUES (?, ?, ?, ?, ?, ?)
-			`, uniqueReactants[i], uniqueReactants[j], display, status, groupID, creatorID)
-			if err != nil {
-				return err
-			}
+			reactions = append(reactions, database.Reaction{
+				Reactants: uniqueReactants[i],
+				Products:  uniqueReactants[j],
+				Display:   display,
+				Status:    status,
+				GroupID:   groupID,
+				CreatedBy: creatorID,
+			})
 		}
 	}
-	return nil
+
+	return tx.Create(&reactions).Error
 }
 
 // 内部校验逻辑
@@ -680,7 +671,7 @@ func validateBalance(display string) (bool, string) {
 	return true, ""
 }
 
-func checkDuplicateReactants(display string, excludeGroupID string) (bool, string) {
+func checkDuplicateReactants(display string, excludeGroupID *uint) (bool, string) {
 	rList := parseReactants(display)
 	if len(rList) < 2 {
 		return false, ""
@@ -688,8 +679,22 @@ func checkDuplicateReactants(display string, excludeGroupID string) (bool, strin
 	sort.Strings(rList)
 	r1, r2 := rList[0], rList[1]
 
-	isDup, existingDisplay, _ := legacyReactionRepo.CheckDuplicateReactants(r1, r2, excludeGroupID)
-	return isDup, existingDisplay
+	// 查询是否已存在相同的反应物组合
+	query := database.DB.Model(&database.Reaction{}).
+		Where("((reactants = ? AND products = ?) OR (reactants = ? AND products = ?)) AND status = ?",
+			r1, r2, r2, r1, "approved")
+
+	if excludeGroupID != nil {
+		query = query.Where("group_id != ?", *excludeGroupID)
+	}
+
+	var reaction database.Reaction
+	err := query.First(&reaction).Error
+	if err == nil {
+		return true, reaction.Display
+	}
+
+	return false, ""
 }
 
 // 删除或拒绝化学反应 (Admin/Co-worker可以删除自己的)
@@ -704,22 +709,24 @@ func DeleteReaction(c *gin.Context) {
 		return
 	}
 
-	groupID, createdBy, err := legacyReactionRepo.GetGroupIDAndCreatorByID(id)
+	groupID, createdBy, err := reactionRepo.GetGroupIDAndCreatorByID(uint(id))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "未找到该反应"})
 		return
 	}
 
 	// 检查权限：admin 或者 提交者本人
-	if role != "admin" && uid != createdBy {
+	if role != "admin" && uint(uid) != createdBy {
 		c.JSON(http.StatusForbidden, gin.H{"error": "权限不足"})
 		return
 	}
 
-	err = legacyReactionRepo.DeleteByGroupID(groupID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "删除失败"})
-		return
+	if groupID != nil {
+		err = reactionRepo.DeleteByGroupID(*groupID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "删除失败"})
+			return
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "已从实验室档案中抹除"})
@@ -759,7 +766,7 @@ func UpdateReaction(c *gin.Context) {
 		return
 	}
 
-	groupID, creatorID, err := legacyReactionRepo.GetGroupIDAndCreatorByID(id)
+	groupID, creatorID, err := reactionRepo.GetGroupIDAndCreatorByID(uint(id))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "未找到原反应记录"})
 		return
@@ -778,26 +785,27 @@ func UpdateReaction(c *gin.Context) {
 		status = "pending_admin"
 	}
 
-	tx, err := legacyReactionRepo.BeginTx()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库事务启动失败"})
-		return
-	}
-	_, err = tx.Exec("DELETE FROM reactions WHERE group_id = ?", groupID)
-	if err != nil {
-		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新过程事务异常"})
-		return
-	}
+	err = database.DB.Transaction(func(tx *gorm.DB) error {
+		// 删除旧记录
+		if groupID != nil {
+			if err := tx.Where("group_id = ?", *groupID).Delete(&database.Reaction{}).Error; err != nil {
+				return err
+			}
+		}
 
-	// 统一设为对应角色的预期状态
-	if err := saveReactionToDB(tx, rlist, req.Display, status, groupID, creatorID); err != nil {
-		tx.Rollback()
+		// 统一设为对应角色的预期状态
+		if err := saveReactionToDBGorm(tx, rlist, req.Display, status, groupID, creatorID); err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "保存修改失败: " + err.Error()})
 		return
 	}
 
-	tx.Commit()
 	c.JSON(http.StatusOK, gin.H{"message": "方程式已直接修改并生效"})
 }
 
@@ -824,35 +832,33 @@ func BatchAddReactions(c *gin.Context) {
 		status = "pending_admin"
 	}
 
-	tx, err := legacyReactionRepo.BeginTx()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "事务开启失败"})
-		return
-	}
-
 	successCount := 0
-	for _, req := range reqs {
-		rlist := parseReactants(req.Display)
-		if len(rlist) != 2 {
-			continue
-		}
+	err := database.DB.Transaction(func(tx *gorm.DB) error {
+		for i, req := range reqs {
+			rlist := parseReactants(req.Display)
+			if len(rlist) != 2 {
+				continue
+			}
 
-		// 批量导入也进行基础校验，不满足的跳过
-		if ok, _ := validateBalance(req.Display); !ok {
-			continue
-		}
-		if isDup, _ := checkDuplicateReactants(req.Display, ""); isDup {
-			continue
-		}
+			// 批量导入也进行基础校验，不满足的跳过
+			if ok, _ := validateBalance(req.Display); !ok {
+				continue
+			}
+			if isDup, _ := checkDuplicateReactants(req.Display, nil); isDup {
+				continue
+			}
 
-		groupID := fmt.Sprintf("%d-%d-%d", uid, time.Now().UnixNano(), successCount)
+			groupIDVal := uint(time.Now().UnixNano()/1000000 + int64(i))
+			groupID := &groupIDVal
 
-		if err := saveReactionToDB(tx, rlist, req.Display, status, groupID, uid); err == nil {
-			successCount++
+			if err := saveReactionToDBGorm(tx, rlist, req.Display, status, groupID, uint(uid)); err == nil {
+				successCount++
+			}
 		}
-	}
+		return nil
+	})
 
-	if err := tx.Commit(); err != nil {
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "批量提交失败"})
 		return
 	}
@@ -865,8 +871,18 @@ func BatchAddReactions(c *gin.Context) {
 
 // GetSystemConfigs 获取所有系统基础配置
 func GetSystemConfigs(c *gin.Context) {
-	// TODO: 实现系统配置功能
-	c.JSON(http.StatusOK, gin.H{"configs": map[string]string{}})
+	var configs []database.SystemConfig
+	err := database.DB.Find(&configs).Error
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取配置失败"})
+		return
+	}
+
+	configMap := make(map[string]string)
+	for _, cfg := range configs {
+		configMap[cfg.Key] = cfg.Value
+	}
+	c.JSON(http.StatusOK, gin.H{"configs": configMap})
 }
 
 // UpdateSystemConfig 更新指定的系统配置
@@ -881,7 +897,17 @@ func UpdateSystemConfig(c *gin.Context) {
 		return
 	}
 
-	// TODO: 实现系统配置功能
+	config := database.SystemConfig{
+		Key:   req.Key,
+		Value: req.Value,
+	}
+
+	err := database.DB.Save(&config).Error
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "配置更新失败"})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{"message": "配置更新成功"})
 }
 
@@ -893,7 +919,7 @@ type SubstanceRequest struct {
 
 // GetSubstances 获取所有物质
 func GetSubstances(c *gin.Context) {
-	substanceList, err := legacySubstanceRepo.GetAllSubstances()
+	substanceList, err := substanceRepo.FindAllWithCreator()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误: " + err.Error()})
 		return
@@ -942,7 +968,16 @@ func AddSubstance(c *gin.Context) {
 		status = "pending_admin"
 	}
 
-	err := legacySubstanceRepo.Create(req.Formula, req.Name, elementsStr, status, uid)
+	substance := &database.Substance{
+		Name:        req.Name,
+		Formula:     req.Formula,
+		Elements:    elementsStr,
+		Description: req.Formula,
+		Status:      status,
+		CreatedBy:   uint(uid),
+	}
+
+	err := substanceRepo.Create(substance)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "添加物质失败，可能已存在"})
 		return
@@ -981,7 +1016,7 @@ func ApproveSubstance(c *gin.Context) {
 		return
 	}
 
-	currentStatus, err := legacySubstanceRepo.GetStatusByID(id)
+	currentStatus, err := substanceRepo.GetStatus(uint(id))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "未找到该物质请求"})
 		return
@@ -1015,9 +1050,9 @@ func ApproveSubstance(c *gin.Context) {
 		}
 		elementsStr := strings.Join(elementsArr, ",")
 
-		err = legacySubstanceRepo.UpdateWithElements(id, req.Formula, req.Name, elementsStr, newStatus)
+		err = substanceRepo.UpdateWithElements(uint(id), req.Formula, req.Name, elementsStr, newStatus)
 	} else {
-		err = legacySubstanceRepo.UpdateStatus(id, newStatus)
+		err = substanceRepo.UpdateStatus(uint(id), newStatus)
 	}
 
 	if err != nil {
@@ -1056,7 +1091,7 @@ func UpdateSubstance(c *gin.Context) {
 	}
 	elementsStr := strings.Join(elementsArr, ",")
 
-	err = legacySubstanceRepo.Update(id, req.Formula, req.Name, elementsStr)
+	err = substanceRepo.UpdateFormula(uint(id), req.Formula, req.Name, elementsStr)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新物质失败"})
 		return
@@ -1080,7 +1115,7 @@ func DeleteSubstance(c *gin.Context) {
 		return
 	}
 
-	err = legacySubstanceRepo.Delete(id)
+	err = substanceRepo.Delete(uint(id))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "删除失败"})
 		return

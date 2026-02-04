@@ -107,9 +107,9 @@ func (r *ReactionRepository) CheckDuplicateByR1R2(r1, r2, excludeGroupID string)
 }
 
 // GetGroupIDAndCreatorByID 根据ID获取group_id和创建者
-func (r *ReactionRepository) GetGroupIDAndCreatorByID(id uint) (string, uint, error) {
+func (r *ReactionRepository) GetGroupIDAndCreatorByID(id uint) (*uint, uint, error) {
 	var result struct {
-		GroupID   string
+		GroupID   *uint
 		CreatedBy uint
 	}
 	err := r.db.Model(&database.Reaction{}).
@@ -119,19 +119,59 @@ func (r *ReactionRepository) GetGroupIDAndCreatorByID(id uint) (string, uint, er
 	return result.GroupID, result.CreatedBy, err
 }
 
-// FindPendingByStatus 根据状态查找待审核反应（支持多种状态）
+// ReactionWithCreator 带创建者信息的反应
 type ReactionWithCreator struct {
 	ID          uint   `json:"id"`
 	Display     string `json:"display"`
 	Status      string `json:"status"`
-	GroupID     string `json:"group_id"`
+	GroupID     *uint  `json:"group_id"`
 	CreatedBy   uint   `json:"created_by"`
 	CreatorName string `json:"creator_name"`
 	CreatedAt   string `json:"created_at"`
 }
 
+// FindAllGroupedWithCreator 获取所有反应（按组分组，带创建者信息）
 func (r *ReactionRepository) FindAllGroupedWithCreator() ([]ReactionWithCreator, error) {
 	var results []ReactionWithCreator
-	// 已弃用：该功能依赖旧表结构
-	return results, nil
+
+	// 使用子查询找到每个group_id的第一条记录
+	err := r.db.Table("reactions").
+		Select("reactions.id, reactions.display, reactions.status, reactions.group_id, reactions.created_by, users.username as creator_name, reactions.created_at").
+		Joins("LEFT JOIN users ON reactions.created_by = users.uid").
+		Where("reactions.id IN (SELECT MIN(id) FROM reactions GROUP BY group_id)").
+		Order("reactions.created_at DESC").
+		Scan(&results).Error
+
+	return results, err
+}
+
+// FindApprovedGrouped 获取已批准的反应（按组分组）
+func (r *ReactionRepository) FindApprovedGrouped() ([]ReactionWithCreator, error) {
+	var results []ReactionWithCreator
+
+	err := r.db.Table("reactions").
+		Select("reactions.id, reactions.display, reactions.reactants as r1, reactions.products as r2, reactions.created_at").
+		Where("reactions.status = ? AND reactions.id IN (SELECT MIN(id) FROM reactions WHERE status = ? GROUP BY group_id)", "approved", "approved").
+		Order("reactions.created_at DESC").
+		Scan(&results).Error
+
+	return results, err
+}
+
+// FindMyReactions 获取用户提交的反应
+func (r *ReactionRepository) FindMyReactions(uid uint) ([]ReactionWithCreator, error) {
+	var results []ReactionWithCreator
+
+	err := r.db.Table("reactions").
+		Select("reactions.id, reactions.display, reactions.status, reactions.created_at").
+		Where("reactions.created_by = ? AND reactions.id IN (SELECT MIN(id) FROM reactions WHERE created_by = ? GROUP BY group_id)", uid, uid).
+		Order("reactions.created_at DESC").
+		Scan(&results).Error
+
+	return results, err
+}
+
+// CreateBatch 批量创建反应（用于事务）
+func (r *ReactionRepository) CreateBatch(reactions []database.Reaction) error {
+	return r.db.Create(&reactions).Error
 }

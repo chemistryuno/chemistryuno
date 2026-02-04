@@ -124,11 +124,16 @@ func createDefaultDeckConfig() error {
 // initDefaultSubstancesGORM 初始化默认物质数据
 func initDefaultSubstancesGORM() error {
 	substances := []Substance{
-		{Name: "H2", Description: "氢气", CreatedBy: 1, Status: "approved"},
-		{Name: "O2", Description: "氧气", CreatedBy: 1, Status: "approved"},
-		{Name: "H2O", Description: "水", CreatedBy: 1, Status: "approved"},
-		{Name: "CO2", Description: "二氧化碳", CreatedBy: 1, Status: "approved"},
-		{Name: "NaCl", Description: "氯化钠", CreatedBy: 1, Status: "approved"},
+		{Name: "H2", Formula: "H2", Elements: "H", Description: "氢气", CreatedBy: 1, Status: "approved"},
+		{Name: "O2", Formula: "O2", Elements: "O", Description: "氧气", CreatedBy: 1, Status: "approved"},
+		{Name: "H2O", Formula: "H2O", Elements: "H,O", Description: "水", CreatedBy: 1, Status: "approved"},
+		{Name: "CO2", Formula: "CO2", Elements: "C,O", Description: "二氧化碳", CreatedBy: 1, Status: "approved"},
+		{Name: "NaCl", Formula: "NaCl", Elements: "Na,Cl", Description: "氯化钠", CreatedBy: 1, Status: "approved"},
+		{Name: "HCl", Formula: "HCl", Elements: "H,Cl", Description: "盐酸", CreatedBy: 1, Status: "approved"},
+		{Name: "NaOH", Formula: "NaOH", Elements: "Na,O,H", Description: "氢氧化钠", CreatedBy: 1, Status: "approved"},
+		{Name: "H2SO4", Formula: "H2SO4", Elements: "H,S,O", Description: "硫酸", CreatedBy: 1, Status: "approved"},
+		{Name: "CaCO3", Formula: "CaCO3", Elements: "Ca,C,O", Description: "碳酸钙", CreatedBy: 1, Status: "approved"},
+		{Name: "Fe2O3", Formula: "Fe2O3", Elements: "Fe,O", Description: "氧化铁", CreatedBy: 1, Status: "approved"},
 	}
 
 	return DB.Create(&substances).Error
@@ -136,10 +141,25 @@ func initDefaultSubstancesGORM() error {
 
 // initDefaultReactionsGORM 初始化默认反应数据
 func initDefaultReactionsGORM() error {
+	// 获取第一个可用的group_id
+	groupIDBase := uint(1000)
+
 	reactions := []Reaction{
-		{Reactants: "H2,O2", Products: "H2O", CreatedBy: 1, Status: "approved", Bidirection: false},
-		{Reactants: "C,O2", Products: "CO2", CreatedBy: 1, Status: "approved", Bidirection: false},
-		{Reactants: "Na,Cl2", Products: "NaCl", CreatedBy: 1, Status: "approved", Bidirection: false},
+		// 反应1: H2 + O2 -> H2O (燃烧反应) - 双向排列
+		{Reactants: "H2", Products: "O2", Display: "2H2 + O2 → 2H2O", GroupID: &groupIDBase, CreatedBy: 1, Status: "approved"},
+		{Reactants: "O2", Products: "H2", Display: "2H2 + O2 → 2H2O", GroupID: &groupIDBase, CreatedBy: 1, Status: "approved"},
+
+		// 反应2: HCl + NaOH -> NaCl + H2O (中和反应)
+		{Reactants: "HCl", Products: "NaOH", Display: "HCl + NaOH → NaCl + H2O", GroupID: func() *uint { id := groupIDBase + 1; return &id }(), CreatedBy: 1, Status: "approved"},
+		{Reactants: "NaOH", Products: "HCl", Display: "HCl + NaOH → NaCl + H2O", GroupID: func() *uint { id := groupIDBase + 1; return &id }(), CreatedBy: 1, Status: "approved"},
+
+		// 反应3: CaCO3 + HCl -> CaCl2 + H2O + CO2 (复分解反应)
+		{Reactants: "CaCO3", Products: "HCl", Display: "CaCO3 + 2HCl → CaCl2 + H2O + CO2", GroupID: func() *uint { id := groupIDBase + 2; return &id }(), CreatedBy: 1, Status: "approved"},
+		{Reactants: "HCl", Products: "CaCO3", Display: "CaCO3 + 2HCl → CaCl2 + H2O + CO2", GroupID: func() *uint { id := groupIDBase + 2; return &id }(), CreatedBy: 1, Status: "approved"},
+
+		// 反应4: Fe + O2 -> Fe2O3 (氧化反应)
+		{Reactants: "Fe", Products: "O2", Display: "4Fe + 3O2 → 2Fe2O3", GroupID: func() *uint { id := groupIDBase + 3; return &id }(), CreatedBy: 1, Status: "approved"},
+		{Reactants: "O2", Products: "Fe", Display: "4Fe + 3O2 → 2Fe2O3", GroupID: func() *uint { id := groupIDBase + 3; return &id }(), CreatedBy: 1, Status: "approved"},
 	}
 
 	return DB.Create(&reactions).Error

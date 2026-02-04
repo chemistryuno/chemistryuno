@@ -134,11 +134,13 @@ type ReactionWithCreator struct {
 func (r *ReactionRepository) FindAllGroupedWithCreator() ([]ReactionWithCreator, error) {
 	var results []ReactionWithCreator
 
-	// 使用子查询找到每个group_id的第一条记录
+	// 子查询找到每个group_id的第一条记录
+	subQuery := r.db.Table("reactions").Select("MIN(id)").Group("group_id")
+
 	err := r.db.Table("reactions").
 		Select("reactions.id, reactions.display, reactions.status, reactions.group_id, reactions.created_by, users.username as creator_name, reactions.created_at").
 		Joins("LEFT JOIN users ON reactions.created_by = users.uid").
-		Where("reactions.id IN (SELECT MIN(id) FROM reactions GROUP BY group_id)").
+		Where("reactions.id IN (?)", subQuery).
 		Order("reactions.created_at DESC").
 		Scan(&results).Error
 
@@ -149,9 +151,15 @@ func (r *ReactionRepository) FindAllGroupedWithCreator() ([]ReactionWithCreator,
 func (r *ReactionRepository) FindApprovedGrouped() ([]ReactionWithCreator, error) {
 	var results []ReactionWithCreator
 
+	// 子查询找到每个已批准组的第一条记录
+	subQuery := r.db.Table("reactions").
+		Select("MIN(id)").
+		Where("status = ?", "approved").
+		Group("group_id")
+
 	err := r.db.Table("reactions").
 		Select("reactions.id, reactions.display, reactions.reactants as r1, reactions.products as r2, reactions.created_at").
-		Where("reactions.status = ? AND reactions.id IN (SELECT MIN(id) FROM reactions WHERE status = ? GROUP BY group_id)", "approved", "approved").
+		Where("reactions.status = ? AND reactions.id IN (?)", "approved", subQuery).
 		Order("reactions.created_at DESC").
 		Scan(&results).Error
 
@@ -162,9 +170,15 @@ func (r *ReactionRepository) FindApprovedGrouped() ([]ReactionWithCreator, error
 func (r *ReactionRepository) FindMyReactions(uid uint) ([]ReactionWithCreator, error) {
 	var results []ReactionWithCreator
 
+	// 子查询找到该用户每个组的第一条记录
+	subQuery := r.db.Table("reactions").
+		Select("MIN(id)").
+		Where("created_by = ?", uid).
+		Group("group_id")
+
 	err := r.db.Table("reactions").
 		Select("reactions.id, reactions.display, reactions.status, reactions.created_at").
-		Where("reactions.created_by = ? AND reactions.id IN (SELECT MIN(id) FROM reactions WHERE created_by = ? GROUP BY group_id)", uid, uid).
+		Where("reactions.created_by = ? AND reactions.id IN (?)", uid, subQuery).
 		Order("reactions.created_at DESC").
 		Scan(&results).Error
 

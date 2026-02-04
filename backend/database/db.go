@@ -40,10 +40,28 @@ func InitDB(dbPath string) error {
 		// MySQL配置
 		dsn := os.Getenv("MYSQL_DSN")
 		if dsn == "" {
-			dsn = "root:password@tcp(localhost:3306)/chemistryuno?charset=utf8mb4&parseTime=True&loc=Local"
+			host := os.Getenv("MYSQL_HOST")
+			if host == "" {
+				host = "localhost"
+			}
+			port := os.Getenv("MYSQL_PORT")
+			if port == "" {
+				port = "3306"
+			}
+			user := os.Getenv("MYSQL_USER")
+			if user == "" {
+				user = "root"
+			}
+			pass := os.Getenv("MYSQL_PASSWORD")
+			dbname := os.Getenv("MYSQL_DATABASE")
+			if dbname == "" {
+				dbname = "chemistryuno"
+			}
+			dsn = fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
+				user, pass, host, port, dbname)
 		}
 		dialector = mysql.Open(dsn)
-		log.Println("📊 使用 MySQL 数据库")
+		log.Printf("📊 使用 MySQL 数据库: %s", formatDSN(dsn))
 
 	case "sqlite":
 		// SQLite配置 - 使用纯Go实现（modernc.org/sqlite）
@@ -63,7 +81,7 @@ func InitDB(dbPath string) error {
 	}
 
 	DB, err = gorm.Open(dialector, &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Silent), // 生产环境使用Silent
+		Logger: logger.Default.LogMode(getGormLogLevel()),
 		NowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
@@ -75,17 +93,18 @@ func InitDB(dbPath string) error {
 		return fmt.Errorf("连接数据库失败: %v", err)
 	}
 
-	// 配置连接池以提高并发性能（仅对MySQL/PostgreSQL等网络数据库有效）
-	if dbType == "mysql" {
-		sqlDB, err := DB.DB()
-		if err != nil {
-			return fmt.Errorf("获取database实例失败: %v", err)
-		}
+	// 配置连接池
+	sqlDB, err := DB.DB()
+	if err == nil {
+		maxIdle := getEnvInt("DB_MAX_IDLE_CONNS", 10)
+		maxOpen := getEnvInt("DB_MAX_OPEN_CONNS", 100)
+		maxLifetime := getEnvInt("DB_CONN_MAX_LIFETIME", 3600) // 秒
 
-		// 连接池配置
-		sqlDB.SetMaxIdleConns(50)           // 最大空闲连接数
-		sqlDB.SetMaxOpenConns(200)          // 最大打开连接数
-		sqlDB.SetConnMaxLifetime(time.Hour) // 连接最大生命周期
+		sqlDB.SetMaxIdleConns(maxIdle)
+		sqlDB.SetMaxOpenConns(maxOpen)
+		sqlDB.SetConnMaxLifetime(time.Duration(maxLifetime) * time.Second)
+
+		log.Printf("⚙️  数据库连接池配置: MaxIdle=%d, MaxOpen=%d, MaxLifetime=%ds", maxIdle, maxOpen, maxLifetime)
 	}
 
 	// 初始化Redis
@@ -187,6 +206,40 @@ func getEnvInt(key string, defaultValue int) int {
 		}
 	}
 	return defaultValue
+}
+
+// getGormLogLevel 从环境变量获取 GORM 日志级别
+func getGormLogLevel() logger.LogLevel {
+	level := strings.ToUpper(os.Getenv("DB_LOG_LEVEL"))
+	switch level {
+	case "SILENT":
+		return logger.Silent
+	case "ERROR":
+		return logger.Error
+	case "WARN":
+		return logger.Warn
+	case "INFO":
+		return logger.Info
+	default:
+		// 默认非 Debug 模式下使用 Silent，否则使用 Warn
+		if os.Getenv("GIN_MODE") == "release" {
+			return logger.Silent
+		}
+		return logger.Warn
+	}
+}
+
+// formatDSN 格式化DSN以隐藏密码
+func formatDSN(dsn string) string {
+	parts := strings.Split(dsn, "@")
+	if len(parts) < 2 {
+		return dsn
+	}
+	userPass := strings.Split(parts[0], ":")
+	if len(userPass) < 2 {
+		return dsn
+	}
+	return fmt.Sprintf("%s:****@%s", userPass[0], parts[1])
 }
 
 // Close 关闭数据库连接

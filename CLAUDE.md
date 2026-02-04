@@ -29,7 +29,7 @@ init.bat
 # Start both frontend and backend (production mode)
 pnpm start
 
-# Start frontend only (dev server on port 5000)
+# Start frontend only (dev server on port 8081)
 pnpm run frontend
 
 # Start backend only (API server on port 8080)
@@ -280,6 +280,6 @@ Change this immediately in production environments.
 
 ## Port Configuration
 
-- Frontend dev server: **5000** (configured in `frontend/package.json` scripts)
+- Frontend dev server: **8081** (configured in `frontend/package.json` scripts)
 - Backend API: **8080** (hardcoded in `backend/main.go:196`)
 - Frontend proxy: Vite proxies `/api` and `/ws` to backend automatically (check `vite.config.ts` if debugging connection issues)

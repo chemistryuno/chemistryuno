@@ -2,6 +2,7 @@ package repository
 
 import (
 	"chemistryuno/database"
+	"fmt"
 	"time"
 
 	"gorm.io/gorm"
@@ -32,11 +33,17 @@ func (r *GameRepository) FindByRoomID(roomID string) ([]database.GameHistory, er
 // FindByUserID 查找用户的游戏历史
 func (r *GameRepository) FindByUserID(uid uint) ([]database.GameHistory, error) {
 	var histories []database.GameHistory
-	// 注意：players字段是JSON，需要使用JSON查询
-	err := r.db.Where("JSON_CONTAINS(players, ?)", uid).
-		Order("created_at DESC").
-		Limit(50).
-		Find(&histories).Error
+	query := r.db.Order("created_at DESC").Limit(50)
+
+	// 跨数据库兼容的 JSON 查询
+	if r.db.Dialector.Name() == "mysql" {
+		query = query.Where("JSON_CONTAINS(players, ?)", uid)
+	} else {
+		// SQLite 兼容性处理
+		query = query.Where("players LIKE ?", fmt.Sprintf("%%%d%%", uid))
+	}
+
+	err := query.Find(&histories).Error
 	return histories, err
 }
 
@@ -54,10 +61,20 @@ func (r *GameRepository) FindAll(limit int) ([]database.GameHistory, error) {
 // FindRecentByUserID 查找用户最近的游戏历史
 func (r *GameRepository) FindRecentByUserID(uid uint, limit int) ([]database.GameHistory, error) {
 	var histories []database.GameHistory
-	err := r.db.Where("JSON_CONTAINS(players, ?)", uid).
-		Order("created_at DESC").
-		Limit(limit).
-		Find(&histories).Error
+	query := r.db.Order("created_at DESC")
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+
+	// 跨数据库兼容的 JSON 查询
+	if r.db.Dialector.Name() == "mysql" {
+		query = query.Where("JSON_CONTAINS(players, ?)", uid)
+	} else {
+		// SQLite 兼容性处理
+		query = query.Where("players LIKE ?", fmt.Sprintf("%%%d%%", uid))
+	}
+
+	err := query.Find(&histories).Error
 	return histories, err
 }
 

@@ -109,7 +109,7 @@ echo   🎨 仅启动前端:         npm run frontend
 echo   🏗️  仅启动后端:         npm run backend
 echo.
 echo 🌐 访问地址:
-echo   前端: http://localhost:3000
+echo   前端: http://localhost:8081
 echo   后端: http://localhost:8080
 echo.
 echo 👥 默认管理员账户:

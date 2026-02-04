@@ -129,8 +129,8 @@ setTimeout(() => {
   process.on('SIGTERM', quit);
 
   // 前端端口通常在 package.json 或 vite.config.ts 中定义
-  // 这里同步为默认的 5000 (根据项目配置)
-  const frontendPort = 5000;
+  // 这里同步为默认的 8081 (根据项目配置)
+  const frontendPort = 8081;
   const backendPort = 8080;
 
   // 延时显示访问地址

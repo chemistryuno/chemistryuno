@@ -259,7 +259,7 @@ function showStartupInfo() {
   log('  🎨 仅启动前端:         pnpm run frontend', colors.bright);
   log('  🏗️  仅启动后端:         pnpm run backend', colors.bright);
   log('\n🌐 访问地址:', colors.cyan);
-  log('  前端: http://localhost:5000', colors.bright);
+  log('  前端: http://localhost:8081', colors.bright);
   log('  后端: http://localhost:8080', colors.bright);
   log('\n👥 默认管理员账户:', colors.cyan);
   log('  用户名: admin', colors.bright);

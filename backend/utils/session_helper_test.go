@@ -42,6 +42,19 @@ func TestGenerateSessionID_HexFormat(t *testing.T) {
 	}
 }
 
+func TestGenerateSessionID_NeverEmpty(t *testing.T) {
+	// 测试100次，确保没有返回空字符串
+	for i := 0; i < 100; i++ {
+		sid := GenerateSessionID()
+		if sid == "" {
+			t.Errorf("第 %d 次生成Session ID失败，返回空字符串", i+1)
+		}
+		if len(sid) == 0 {
+			t.Errorf("第 %d 次生成的Session ID长度为0", i+1)
+		}
+	}
+}
+
 func TestIsDuplicateKeyError(t *testing.T) {
 	tests := []struct {
 		name     string

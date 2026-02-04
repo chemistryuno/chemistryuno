@@ -5,6 +5,7 @@ import (
 	"chemistryuno/repository"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"log"
 	"strings"
 	"time"
@@ -49,7 +50,8 @@ func CreateSession(uid int, ua string, ip string) (string, error) {
 	for i := 0; i < maxRetries; i++ {
 		sid = GenerateSessionID()
 		if sid == "" {
-			return "", err
+			log.Printf("Session ID生成失败，重试 %d/%d", i+1, maxRetries)
+			continue
 		}
 
 		session := &database.UserSession{
@@ -76,8 +78,14 @@ func CreateSession(uid int, ua string, ip string) (string, error) {
 		log.Printf("Session ID冲突，重试 %d/%d", i+1, maxRetries)
 	}
 
-	log.Printf("创建会话失败，已重试%d次: %v", maxRetries, err)
-	return "", err
+	// 所有重试都失败
+	if err != nil {
+		log.Printf("创建会话失败，已重试%d次: %v", maxRetries, err)
+		return "", err
+	}
+	// Session ID生成失败
+	log.Printf("Session ID生成失败，已重试%d次", maxRetries)
+	return "", errors.New("无法生成有效的Session ID")
 }
 
 // isDuplicateKeyError 检查是否是主键冲突错误

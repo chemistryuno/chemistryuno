@@ -18,6 +18,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	ws "github.com/gorilla/websocket"
+	"github.com/joho/godotenv"
 )
 
 var upgrader = ws.Upgrader{
@@ -29,6 +30,13 @@ var upgrader = ws.Upgrader{
 var hub *websocket.Hub
 
 func main() {
+	// 加载.env文件
+	if err := godotenv.Load(); err != nil {
+		log.Println("警告: 未找到.env文件或加载失败，将使用环境变量或默认值")
+	} else {
+		log.Println("✓ 成功加载 .env 配置文件")
+	}
+
 	// 确保JWT密钥存在（首次启动自动生成）
 	if err := utils.EnsureJWTSecret(); err != nil {
 		log.Printf("警告: JWT密钥初始化失败: %v", err)

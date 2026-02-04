@@ -4,23 +4,30 @@ import (
 	"errors"
 	"log"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 )
 
-var jwtSecret []byte
+var (
+	jwtSecret     []byte
+	jwtSecretOnce sync.Once
+)
 
-// 初始化JWT密钥
-func init() {
-	secretKey := os.Getenv("JWT_SECRET")
-	if secretKey == "" {
-		log.Println("警告: JWT_SECRET 环境变量未设置，使用默认密钥（不安全，仅用于开发环境）")
-		secretKey = "your-secret-key-change-this-in-production"
-	} else if len(secretKey) < 32 {
-		log.Println("警告: JWT_SECRET 长度过短，建议至少32个字符")
-	}
-	jwtSecret = []byte(secretKey)
+// initJWTSecret 初始化JWT密钥（延迟初始化，确保.env已加载）
+func initJWTSecret() {
+	jwtSecretOnce.Do(func() {
+		secretKey := os.Getenv("JWT_SECRET")
+		if secretKey == "" {
+			log.Println("警告: JWT_SECRET 环境变量未设置，使用默认密钥（不安全，仅用于开发环境）")
+			secretKey = "your-secret-key-change-this-in-production"
+		} else if len(secretKey) < 32 {
+			log.Println("警告: JWT_SECRET 长度过短，建议至少32个字符")
+		}
+		jwtSecret = []byte(secretKey)
+		log.Printf("✓ JWT密钥已初始化（长度: %d）", len(secretKey))
+	})
 }
 
 type Claims struct {
@@ -32,8 +39,10 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
-// 生成JWT Token
+// GenerateToken 生成JWT Token
 func GenerateToken(uid int, username string, isAdmin bool, role string, sid string) (string, error) {
+	initJWTSecret() // 确保密钥已初始化
+
 	claims := Claims{
 		UID:      uid,
 		Username: username,
@@ -50,8 +59,10 @@ func GenerateToken(uid int, username string, isAdmin bool, role string, sid stri
 	return token.SignedString(jwtSecret)
 }
 
-// 解析JWT Token
+// ParseToken 解析JWT Token
 func ParseToken(tokenString string) (*Claims, error) {
+	initJWTSecret() // 确保密钥已初始化
+
 	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
 		return jwtSecret, nil
 	})

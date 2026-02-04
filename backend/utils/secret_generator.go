@@ -21,14 +21,10 @@ func GenerateRandomSecret(length int) (string, error) {
 
 // EnsureJWTSecret 确保JWT密钥存在，如果不存在则生成并保存
 func EnsureJWTSecret() error {
-	// 检查环境变量中是否已有JWT_SECRET
-	if secret := os.Getenv("JWT_SECRET"); secret != "" {
-		log.Println("JWT_SECRET 已配置")
-		return nil
-	}
-
 	// 查找.env文件路径
 	envPath := ".env"
+
+	// 检查.env文件是否存在
 	if _, err := os.Stat(envPath); os.IsNotExist(err) {
 		// 如果.env不存在，尝试从.env.example复制
 		examplePath := ".env.example"
@@ -44,38 +40,60 @@ func EnsureJWTSecret() error {
 		}
 	}
 
+	// 读取现有.env内容
+	var content []byte
+	contentExists := false
+	if _, err := os.Stat(envPath); err == nil {
+		content, err = os.ReadFile(envPath)
+		if err != nil {
+			return fmt.Errorf("读取 .env 文件失败: %v", err)
+		}
+		contentExists = true
+	}
+
+	contentStr := string(content)
+	lines := strings.Split(contentStr, "\n")
+	found := false
+	hasValidSecret := false
+
+	// 查找JWT_SECRET行
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "JWT_SECRET=") {
+			// 检查是否有有效的密钥值
+			parts := strings.SplitN(trimmed, "=", 2)
+			if len(parts) == 2 && len(strings.TrimSpace(parts[1])) > 0 {
+				found = true
+				hasValidSecret = true
+				log.Println("JWT_SECRET 已在 .env 文件中配置")
+				break
+			}
+		}
+	}
+
+	// 如果已有有效密钥，无需生成
+	if hasValidSecret {
+		return nil
+	}
+
 	// 生成50位随机密钥
 	secret, err := GenerateRandomSecret(50)
 	if err != nil {
 		return fmt.Errorf("生成随机密钥失败: %v", err)
 	}
 
-	// 读取现有.env内容
-	var content []byte
-	if _, err := os.Stat(envPath); err == nil {
-		content, err = os.ReadFile(envPath)
-		if err != nil {
-			return fmt.Errorf("读取 .env 文件失败: %v", err)
-		}
-	}
-
-	contentStr := string(content)
-	lines := strings.Split(contentStr, "\n")
-	found := false
-
 	// 查找并替换JWT_SECRET行
-	for i, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "JWT_SECRET=") || strings.HasPrefix(trimmed, "#JWT_SECRET=") {
-			lines[i] = fmt.Sprintf("JWT_SECRET=%s", secret)
-			found = true
-			break
+	if found {
+		for i, line := range lines {
+			trimmed := strings.TrimSpace(line)
+			if strings.HasPrefix(trimmed, "JWT_SECRET=") || strings.HasPrefix(trimmed, "#JWT_SECRET=") {
+				lines[i] = fmt.Sprintf("JWT_SECRET=%s", secret)
+				break
+			}
 		}
-	}
-
-	// 如果没找到，添加到文件末尾
-	if !found {
-		if len(contentStr) > 0 && !strings.HasSuffix(contentStr, "\n") {
+	} else {
+		// 如果没找到，添加到文件末尾
+		if contentExists && len(contentStr) > 0 && !strings.HasSuffix(contentStr, "\n") {
 			lines = append(lines, "")
 		}
 		lines = append(lines, fmt.Sprintf("# 自动生成的JWT密钥 - 请勿共享"))

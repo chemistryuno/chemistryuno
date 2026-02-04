@@ -12,7 +12,7 @@ import (
 )
 
 // 迁移脚本：将现有的二进制 credential ID 转换为 base64 URL-safe 编码
-func main() {
+func move() {
 	// 初始化数据库连接
 	sqlitePath := os.Getenv("SQLITE_PATH")
 	if sqlitePath == "" {

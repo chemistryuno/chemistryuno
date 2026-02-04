@@ -3,10 +3,12 @@ package handlers
 import (
 	"bytes"
 	"chemistryuno/database"
+	"chemistryuno/models"
 	"chemistryuno/repository"
 	"chemistryuno/utils"
 	"encoding/base64"
 	"encoding/binary"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -176,15 +178,33 @@ func FinishRegistration(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "硬件密钥注册成功"})
 }
 
-// BeginLogin 开始登录 (无需认证, 使用userHandle自动识别)
+// BeginLogin 开始登录 (根据是否提供用户名选择可发现或指定用户登录)
 func BeginLogin(c *gin.Context) {
 	if webAuthn == nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "WebAuthn 服务未初始化"})
 		return
 	}
 
-	// 不指定用户，使用 discoverable credentials
-	options, sessionData, err := webAuthn.BeginDiscoverableLogin()
+	username := c.Query("username")
+	var options *protocol.CredentialAssertion
+	var sessionData *webauthn.SessionData
+	var err error
+
+	if username != "" {
+		user, err2 := repository.UserRepo.FindByUsername(username)
+		if err2 == nil {
+			credentials, _ := repository.WebAuthnRepo.FindByUserID(uint(user.UID))
+			waUser := &WebAuthnUser{User: user, Credentials: credentials}
+			options, sessionData, err = webAuthn.BeginLogin(waUser)
+		} else {
+			// 如果用户未找到，回退到可发现登录
+			options, sessionData, err = webAuthn.BeginDiscoverableLogin()
+		}
+	} else {
+		// 不指定用户，使用 discoverable credentials
+		options, sessionData, err = webAuthn.BeginDiscoverableLogin()
+	}
+
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -228,31 +248,43 @@ func FinishLogin(c *gin.Context) {
 	bodyBytes, _ := io.ReadAll(c.Request.Body)
 	c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
-	// 使用 userHandle 从credential中识别用户
-	parsedResponse, err := protocol.ParseCredentialRequestResponse(c.Request)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "解析响应失败: " + err.Error()})
-		return
+	var user *database.User
+	username := c.Query("username")
+
+	if username != "" {
+		// 如果提供了用户名，直接查找用户
+		user, err = repository.UserRepo.FindByUsername(username)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
+			return
+		}
+	} else {
+		// 否则使用 userHandle 从 credential 中识别用户
+		parsedResponse, err := protocol.ParseCredentialRequestResponse(c.Request)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "解析响应失败: " + err.Error()})
+			return
+		}
+
+		// 从 userHandle 中获取用户ID
+		userHandle := parsedResponse.Response.UserHandle
+		if len(userHandle) == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "缺少用户标识"})
+			return
+		}
+
+		uid := binary.LittleEndian.Uint64(userHandle)
+		user, err = repository.UserRepo.FindByID(uint(uid))
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
+			return
+		}
 	}
 
 	// 恢复请求体，供下一次 FinishLogin 使用
 	c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
-	// 从 userHandle 中获取用户ID
-	userHandle := parsedResponse.Response.UserHandle
-	if len(userHandle) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "缺少用户标识"})
-		return
-	}
-
-	uid := binary.LittleEndian.Uint64(userHandle)
-	user, err := repository.UserRepo.FindByID(uint(uid))
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
-		return
-	}
-
-	credentials, _ := repository.WebAuthnRepo.FindByUserID(uint(uid))
+	credentials, _ := repository.WebAuthnRepo.FindByUserID(uint(user.UID))
 	if len(credentials) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "该用户未绑定硬件密钥"})
 		return
@@ -270,34 +302,63 @@ func FinishLogin(c *gin.Context) {
 	// 更新签名计数（使用 base64 URL-safe 编码）
 	repository.WebAuthnRepo.UpdateSignCount(base64.RawURLEncoding.EncodeToString(credential.ID), credential.Authenticator.SignCount)
 
+	// 检查封禁状态
+	now := time.Now()
+	if user.BannedUntil != nil && now.Before(*user.BannedUntil) {
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": "您的账号已被封禁，直到 " + user.BannedUntil.Format("2006-01-02 15:04:05"),
+		})
+		return
+	}
+
 	// 检查冻结状态
-	_, frozenUntil, _ := repository.UserRepo.CheckBanStatus(uint(uid))
-	if frozenUntil != nil && frozenUntil.After(timeNow()) {
-		c.JSON(http.StatusForbidden, gin.H{"error": "账号当前处于冷冻状态"})
+	if user.FrozenUntil != nil && now.Before(*user.FrozenUntil) {
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": "您的账号当前处于冷冻状态，直到 " + user.FrozenUntil.Format("2006-01-02 15:04:05"),
+		})
 		return
 	}
 
 	// 生成会话和token
-	sid, err := utils.CreateSession(int(uid), c.GetHeader("User-Agent"), c.ClientIP())
+	sid, err := utils.CreateSession(int(user.UID), c.GetHeader("User-Agent"), c.ClientIP())
 	if err != nil || sid == "" {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建会话失败"})
 		return
 	}
-	token, err := utils.GenerateToken(int(uid), user.Username, user.IsAdmin, user.Role, sid)
+	token, err := utils.GenerateToken(int(user.UID), user.Username, user.IsAdmin, user.Role, sid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成token失败"})
 		return
 	}
 
+	// 4. 获取当前可用公告 (登陆触发器)
+	announcementRepo := repository.NewAnnouncementRepository()
+	dbAnnouncements, _ := announcementRepo.FindActive()
+	var announcements []models.Announcement
+	for _, a := range dbAnnouncements {
+		announcements = append(announcements, models.Announcement{
+			ID:         int(a.ID),
+			Title:      a.Title,
+			Content:    a.Content,
+			Type:       a.Type,
+			IsTicker:   a.IsTicker,
+			CloseDelay: a.CloseDelay,
+		})
+	}
+
+	fmt.Printf("WebAuthn 登录成功 - 用户: %s (UID=%d), SID: %s, IP: %s\n", user.Username, user.UID, sid, c.ClientIP())
+
 	c.JSON(http.StatusOK, gin.H{
 		"token": token,
 		"user": gin.H{
-			"uid":      user.UID,
-			"username": user.Username,
-			"avatar":   user.Avatar,
-			"is_admin": user.IsAdmin,
-			"role":     user.Role,
+			"uid":                int(user.UID),
+			"username":           user.Username,
+			"avatar":             user.Avatar,
+			"is_admin":           user.IsAdmin,
+			"role":               user.Role,
+			"two_factor_enabled": user.TwoFactorEnabled,
 		},
+		"announcements": announcements,
 	})
 }
 

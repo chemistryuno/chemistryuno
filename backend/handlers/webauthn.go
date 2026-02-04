@@ -1,11 +1,13 @@
 package handlers
 
 import (
+	"bytes"
 	"chemistryuno/database"
 	"chemistryuno/repository"
 	"chemistryuno/utils"
 	"encoding/base64"
 	"encoding/binary"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -222,12 +224,19 @@ func FinishLogin(c *gin.Context) {
 		return
 	}
 
+	// 🔐 修复：确保请求体可以被多次读取（一次用于提取 UserHandle，一次用于 webauthn.FinishLogin）
+	bodyBytes, _ := io.ReadAll(c.Request.Body)
+	c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+
 	// 使用 userHandle 从credential中识别用户
 	parsedResponse, err := protocol.ParseCredentialRequestResponse(c.Request)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "解析响应失败"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "解析响应失败: " + err.Error()})
 		return
 	}
+
+	// 恢复请求体，供下一次 FinishLogin 使用
+	c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
 	// 从 userHandle 中获取用户ID
 	userHandle := parsedResponse.Response.UserHandle
@@ -305,6 +314,7 @@ func ListCredentials(c *gin.Context) {
 	for _, cred := range credentials {
 		result = append(result, gin.H{
 			"id":         cred.ID,
+			"date":       cred.CreatedAt,
 			"created_at": cred.CreatedAt,
 		})
 	}

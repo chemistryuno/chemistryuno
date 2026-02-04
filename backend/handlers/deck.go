@@ -48,7 +48,7 @@ func CreateMyDeck(c *gin.Context) {
 
 	deck := &database.DeckConfig{
 		Name:      req.Name,
-		Cards:     string(cardsJSON),
+		Cards:     cardsJSON,
 		CreatedBy: uint(uid),
 		IsGlobal:  false,
 	}
@@ -96,7 +96,7 @@ func UpdateMyDeck(c *gin.Context) {
 	}
 
 	deck.Name = req.Name
-	deck.Cards = string(cardsJSON)
+	deck.Cards = cardsJSON
 	err = repository.DeckRepo.Update(deck)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新卡组失败"})

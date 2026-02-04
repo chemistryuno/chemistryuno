@@ -1,6 +1,7 @@
 ﻿package database
 
 import (
+	"encoding/json"
 	"time"
 
 	"gorm.io/gorm"
@@ -125,13 +126,13 @@ func (Feedback) TableName() string {
 
 // DeckConfig GORM模型 - 牌组配置表
 type DeckConfig struct {
-	ID        uint      `gorm:"primaryKey;autoIncrement" json:"id"`
-	Name      string    `gorm:"not null;size:100" json:"name"`
-	Cards     string    `gorm:"not null;type:text" json:"cards"`
-	CreatedBy uint      `gorm:"not null;index" json:"created_by"`
-	IsGlobal  bool      `gorm:"default:false" json:"is_global"`
-	CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+	ID        uint            `gorm:"primaryKey;autoIncrement" json:"id"`
+	Name      string          `gorm:"not null;size:100" json:"name"`
+	Cards     json.RawMessage `gorm:"not null;type:text" json:"cards"`
+	CreatedBy uint            `gorm:"not null;index" json:"created_by"`
+	IsGlobal  bool            `gorm:"default:false" json:"is_global"`
+	CreatedAt time.Time       `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt time.Time       `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
 func (DeckConfig) TableName() string {
@@ -140,13 +141,13 @@ func (DeckConfig) TableName() string {
 
 // GameHistory GORM模型 - 游戏历史表
 type GameHistory struct {
-	ID         uint      `gorm:"primaryKey;autoIncrement" json:"id"`
-	RoomID     string    `gorm:"not null;size:50;index" json:"room_id"`
-	WinnerUID  *uint     `json:"winner_uid"`
-	Players    string    `gorm:"not null;type:json" json:"players"`
-	StartedAt  time.Time `json:"started_at"`
-	FinishedAt time.Time `json:"finished_at"`
-	CreatedAt  time.Time `gorm:"autoCreateTime" json:"created_at"`
+	ID         uint            `gorm:"primaryKey;autoIncrement" json:"id"`
+	RoomID     string          `gorm:"not null;size:50;index" json:"room_id"`
+	WinnerUID  *uint           `json:"winner_uid"`
+	Players    json.RawMessage `gorm:"not null;type:json" json:"players"`
+	StartedAt  time.Time       `json:"started_at"`
+	FinishedAt time.Time       `json:"finished_at"`
+	CreatedAt  time.Time       `gorm:"autoCreateTime" json:"created_at"`
 }
 
 func (GameHistory) TableName() string {

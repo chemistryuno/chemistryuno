@@ -182,17 +182,5 @@ func (c *Client) handleMessage(msg *Message) {
 			// 同时发送给自己，以便在发送者的 UI 上显示
 			c.hub.SendToUID(c.uid, payload)
 		}
-
-	case "broadcast":
-		// 全服广播消息
-		c.hub.BroadcastToAll(Message{
-			Type:    "broadcast",
-			UID:     c.uid,
-			Message: msg.Message,
-			Data: map[string]interface{}{
-				"username":          c.username,
-				"is_user_broadcast": true,
-			},
-		})
 	}
 }

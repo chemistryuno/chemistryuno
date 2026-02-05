@@ -51,18 +51,18 @@ watch(searchTerm, (newVal) => {
     try {
       const res = await authAPI.searchUsers(newVal)
       // 排除掉自己
-      globalSearchResults.value = res.data.filter((u: any) => {
+      globalSearchResults.value = (res.data || []).filter((u: any) => {
         return Number(u.uid) !== Number(currentUser.value.uid)
       })
     } catch (err) {
       console.error('全局搜索失败', err)
+      globalSearchResults.value = []
     } finally {
       searchLoading.value = false
     }
   }, 500)
 })
 
-const isSearchingDetailed = ref(false)
 
 const triggerSearch = async () => {
   if (!searchTerm.value.trim()) return
@@ -71,11 +71,12 @@ const triggerSearch = async () => {
   searchLoading.value = true
   try {
     const res = await authAPI.searchUsers(searchTerm.value)
-    globalSearchResults.value = res.data.filter((u: any) => {
+    globalSearchResults.value = (res.data || []).filter((u: any) => {
       return Number(u.uid) !== Number(currentUser.value.uid)
     })
   } catch (err) {
     console.error('搜索点击执行失败', err)
+    globalSearchResults.value = []
   } finally {
     searchLoading.value = false
   }
@@ -361,6 +362,7 @@ const formatTime = (date: Date) => {
                   <div class="flex items-center gap-2 mt-0.5">
                     <span class="text-[8px] text-slate-400 font-mono tracking-tighter uppercase">ID: {{ result.uid }}</span>
                     <span class="text-[8px] text-blue-500/60 font-black uppercase tracking-tighter">{{ result.points }}PT</span>
+                    <span v-if="result.bounty > 0" class="text-[8px] text-rose-500 font-black uppercase tracking-tighter">赏: {{ result.bounty }}</span>
                     <span class="text-[8px] text-amber-500/60 font-black uppercase tracking-tighter">WIN: {{ result.win_count }}</span>
                   </div>
                 </div>

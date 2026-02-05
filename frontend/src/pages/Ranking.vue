@@ -367,9 +367,10 @@ watch(searchTerm, (newVal) => {
   searchTimeout = setTimeout(async () => {
     try {
       const res = await authAPI.searchUsers(newVal)
-      searchResults.value = res.data
+      searchResults.value = res.data || []
     } catch (err) {
       console.error('搜索失败:', err)
+      searchResults.value = []
     } finally {
       isSearching.value = false
     }

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, nextTick } from 'vue'
-import { Send, MessageSquare, User, Radio, X } from 'lucide-vue-next'
+import { Send, MessageSquare, User, X } from 'lucide-vue-next'
 import websocket from '../utils/websocket'
 import { cn } from '../utils/cn'
 
@@ -17,7 +17,7 @@ const currentUID = ref(JSON.parse(localStorage.getItem('user') || '{}').uid)
 const scrollContainer = ref<HTMLElement | null>(null)
 
 // 聊天模式切换
-const chatMode = ref<'normal' | 'broadcast' | 'private'>('normal')
+const chatMode = ref<'normal' | 'private'>('normal')
 const privateTarget = ref<{uid: number, username: string} | null>(null)
 
 const scrollToBottom = () => {
@@ -63,13 +63,7 @@ onMounted(() => {
 const handleSend = () => {
   if (!newMessage.value.trim()) return
 
-  if (chatMode.value === 'broadcast') {
-    websocket.send({
-      type: 'broadcast',
-      message: newMessage.value
-    })
-    // 广播消息由服务器回传 broadcast 事件处理，这里不直接 push
-  } else if (chatMode.value === 'private' && privateTarget.value) {
+  if (chatMode.value === 'private' && privateTarget.value) {
     websocket.send({
       type: 'private_chat',
       target_uid: privateTarget.value.uid,
@@ -155,14 +149,10 @@ const formatTime = (date: Date) => {
     <!-- Input -->
     <div class="p-6 border-t border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.01] space-y-4">
       <!-- Mode Selector -->
-      <div v-if="chatMode !== 'normal'" class="flex items-center gap-2 animate-in slide-in-from-bottom-2">
-        <div :class="cn(
-          'flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all',
-          chatMode === 'broadcast' ? 'bg-amber-500 text-white' : 'bg-rose-500 text-white'
-        )">
-          <Radio v-if="chatMode === 'broadcast'" class="w-3 h-3" />
-          <User v-else class="w-3 h-3" />
-          {{ chatMode === 'broadcast' ? '全服广播模式' : `私聊: ${privateTarget?.username}` }}
+      <div v-if="chatMode === 'private'" class="flex items-center gap-2 animate-in slide-in-from-bottom-2">
+        <div class="flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all bg-rose-500 text-white">
+          <User class="w-3 h-3" />
+          {{ `私聊: ${privateTarget?.username}` }}
         </div>
         <button @click="chatMode = 'normal'; privateTarget = null" class="p-1.5 rounded-lg bg-slate-200 dark:bg-white/10 text-slate-500 hover:bg-slate-300 transition-all">
           <X class="w-3 h-3" />
@@ -170,24 +160,12 @@ const formatTime = (date: Date) => {
       </div>
 
       <div class="flex gap-3">
-        <button 
-          @click="chatMode = chatMode === 'broadcast' ? 'normal' : 'broadcast'"
-          :class="cn(
-            'w-12 h-12 flex items-center justify-center rounded-2xl border transition-all',
-            chatMode === 'broadcast' 
-              ? 'bg-amber-500 border-amber-500 text-white shadow-lg shadow-amber-500/20' 
-              : 'bg-white dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-400 hover:text-amber-500'
-          )"
-          title="广播消息"
-        >
-          <Radio class="w-5 h-5" />
-        </button>
         <div class="flex-1 relative group">
           <div class="absolute -inset-0.5 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-2xl blur opacity-0 group-focus-within:opacity-20 transition duration-500"></div>
           <input 
             v-model="newMessage"
             type="text" 
-            :placeholder="placeholder || (chatMode === 'broadcast' ? '输入广播内容...' : '向指挥中心发送讯息...')"
+            :placeholder="placeholder || '向各研究员发送讯息...'"
             class="relative w-full h-12 bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-2xl px-5 text-xs font-medium focus:outline-none focus:border-blue-500/50 transition-all dark:text-white"
             @keydown.enter="handleSend"
           />

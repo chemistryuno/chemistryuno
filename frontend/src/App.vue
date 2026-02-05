@@ -82,12 +82,6 @@ onMounted(() => {
     showAlert(`研究员 ${msg.data.username} 拒绝了你的挑战邀请。`, '挑战被拒绝')
   }
 
-  const handleBroadcast = (msg: any) => {
-    if (msg.data?.is_user_broadcast) {
-      showAlert(msg.message, `来自 ${msg.data.username} 的广播信号`, '接收')
-    }
-  }
-
   const handleSystemAnnouncement = (msg: any) => {
     const ann = msg.data
     // 如果不是跑马灯，则视为弹窗公告
@@ -103,7 +97,6 @@ onMounted(() => {
   websocket.on('duel_start', handleDuelStart)
   websocket.on('duel_invite', handleDuelInvite)
   websocket.on('duel_declined', handleDuelDeclined)
-  websocket.on('broadcast', handleBroadcast)
   websocket.on('system_announcement', handleSystemAnnouncement)
 
   onUnmounted(() => {
@@ -113,7 +106,6 @@ onMounted(() => {
     websocket.off('duel_start', handleDuelStart)
     websocket.off('duel_invite', handleDuelInvite)
     websocket.off('duel_declined', handleDuelDeclined)
-    websocket.off('broadcast', handleBroadcast)
     websocket.off('system_announcement', handleSystemAnnouncement)
   })
 

@@ -343,7 +343,7 @@ func (r *UserRepository) FindIsAdminByID(uid uint) (bool, error) {
 
 // SearchUsers 搜索用户 (通过UID或用户名)
 func (r *UserRepository) SearchUsers(query string) ([]database.User, error) {
-	var users []database.User
+	users := []database.User{}
 
 	dbQuery := r.db.Select("uid, username, avatar, points, monthly_points, win_count, total_games")
 

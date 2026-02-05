@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 import { gameAPI, authAPI, commonAPI, friendAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
 import websocket from '../utils/websocket'
-import { Beaker, Plus, Users, Shield, LogOut, Settings, Play, Info, X, Loader2, Database, MessageSquare, MessageCircle, Trash2, Trophy, Bell, Megaphone, Clock, Search, UserPlus, Target } from 'lucide-vue-next'
+import { Beaker, Plus, Users, Shield, LogOut, Settings, Play, Info, X, Loader2, Database, MessageSquare, MessageCircle, Trash2, Trophy, Bell, Megaphone, Clock, Target } from 'lucide-vue-next'
 import { cn } from '../utils/cn'
 import ChatBox from '../components/ChatBox.vue'
 
@@ -16,62 +16,7 @@ const router = useRouter()
 const { showAlert, showConfirm, showPrompt } = useDialog()
 const user = ref(JSON.parse(localStorage.getItem('user') || '{}'))
 
-const searchTerm = ref('')
-const searchResults = ref<any[]>([])
-const searchLoading = ref(false)
 const friendsList = ref<any[]>([])
-
-const isFriend = (uid: number) => {
-  return friendsList.value.some(f => f.uid === uid)
-}
-
-const handleAddFriend = async (player: any) => {
-  const message = await showPrompt('请输入申请信息（可选）:', '你好，我想和你一起进行化学实验。', '建立同步请求')
-  if (message === null) return
-
-  try {
-    await friendAPI.sendRequest(player.uid, message)
-    showAlert(`已向研究员 ${player.username} 发送同步请求，等待量子握手。`, '请求已发送')
-  } catch (error: any) {
-    showAlert(error.response?.data?.error || '请求发送失败', '链路故障')
-  }
-}
-
-// 搜索逻辑
-let searchTimeout: any = null
-watch(searchTerm, (newVal) => {
-  if (searchTimeout) clearTimeout(searchTimeout)
-  if (!newVal.trim()) {
-    searchResults.value = []
-    return
-  }
-  searchLoading.value = true
-  searchTimeout = setTimeout(async () => {
-    try {
-      const res = await authAPI.searchUsers(newVal)
-      searchResults.value = res.data
-    } catch (err) {
-      console.error(err)
-    } finally {
-      searchLoading.value = false
-    }
-  }, 500)
-})
-
-const handleManualSearch = async () => {
-  if (!searchTerm.value.trim()) return
-  if (searchTimeout) clearTimeout(searchTimeout)
-
-  searchLoading.value = true
-  try {
-    const res = await authAPI.searchUsers(searchTerm.value)
-    searchResults.value = res.data
-  } catch (err) {
-    console.error(err)
-  } finally {
-    searchLoading.value = false
-  }
-}
 
 const loadFriends = async () => {
   try {
@@ -552,83 +497,10 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
         </div>
       </div>
 
-      <!-- Right Column: Research Discovery & World Chat -->
+      <!-- Right Column: World Chat -->
       <div class="xl:col-span-3 space-y-6">
-        <!-- Persistent Search Panel -->
-        <div class="bg-white/80 dark:bg-[#121216]/60 backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-[28px] p-6 shadow-xl">
-          <div class="flex items-center gap-3 mb-6">
-            <div class="w-8 h-8 bg-blue-500/10 rounded-xl flex items-center justify-center text-blue-500">
-              <Search class="w-4 h-4" />
-            </div>
-            <div>
-              <p class="text-[9px] font-black text-slate-500 uppercase tracking-widest leading-none">Discovery</p>
-              <h3 class="text-xs font-black text-slate-900 dark:text-white mt-1 uppercase tracking-tighter">研究员探测器</h3>
-            </div>
-          </div>
-
-          <div class="relative group mb-4">
-            <input 
-              v-model="searchTerm"
-              @keyup.enter="handleManualSearch"
-              placeholder="UID / 用户名..."
-              class="w-full h-11 bg-slate-100 dark:bg-black/40 border border-slate-200 dark:border-white/5 rounded-2xl pl-10 pr-10 text-[11px] text-slate-900 dark:text-white focus:outline-none focus:border-blue-500/50 transition-all font-medium"
-            />
-            <Search class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
-            <button 
-              v-if="searchTerm"
-              @click="searchTerm = ''; searchResults = []"
-              class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
-            >
-              <X class="w-3 h-3" />
-            </button>
-          </div>
-
-          <!-- Quick Results -->
-          <div v-if="searchResults.length > 0" class="space-y-3 max-h-[300px] overflow-y-auto pr-1 select-none custom-scrollbar">
-            <div 
-              v-for="player in searchResults" 
-              :key="player.uid"
-              class="p-3 bg-slate-50 dark:bg-white/[0.03] border border-slate-100 dark:border-white/5 rounded-2xl flex items-center justify-between group/result"
-            >
-              <div class="flex items-center gap-3">
-                <div class="relative w-8 h-8 rounded-lg bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-center justify-center text-base">
-                  {{ player.avatar || '🧪' }}
-                  <div v-if="player.is_online" class="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-emerald-500 border-2 border-white dark:border-[#121216] rounded-full"></div>
-                </div>
-                <div class="flex flex-col">
-                  <span class="text-[11px] font-black text-slate-900 dark:text-white truncate max-w-[80px]">
-                    {{ player.username }}
-                  </span>
-                  <span class="text-[8px] font-mono text-slate-400">#{{ player.uid }}</span>
-                </div>
-              </div>
-              
-              <div class="flex items-center gap-1.5">
-                <div class="text-right mr-1">
-                  <p class="text-[8px] font-black text-blue-500 leading-none">{{ player.points }}P</p>
-                  <p class="text-[7px] text-slate-500 font-bold uppercase leading-none mt-1">{{ player.win_count }}W</p>
-                </div>
-                <button 
-                  v-if="player.uid !== user.uid && !isFriend(player.uid)"
-                  @click="handleAddFriend(player)"
-                  class="w-7 h-7 bg-blue-600 hover:bg-blue-500 text-white rounded-lg flex items-center justify-center transition-all shadow-lg shadow-blue-500/20"
-                  title="添加连结"
-                >
-                  <UserPlus class="w-3 h-3" />
-                </button>
-              </div>
-            </div>
-          </div>
-          <div v-else-if="searchLoading" class="py-10 flex justify-center">
-            <Loader2 class="w-5 h-5 animate-spin text-blue-500 opacity-50" />
-          </div>
-          <div v-else-if="searchTerm && !searchLoading" class="py-8 text-center">
-            <p class="text-[9px] font-black text-slate-500 uppercase tracking-widest opacity-40 italic">No Result Found</p>
-          </div>
-        </div>
-
         <div class="sticky top-28">
-           <ChatBox title="全球通信频率" placeholder="发送广播信号..." maxHeight="500px" />
+           <ChatBox title="全域通信频道" placeholder="向研究员们发送信息..." maxHeight="600px" />
         </div>
       </div>
     </div>

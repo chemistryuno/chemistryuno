@@ -437,7 +437,7 @@ func SearchUsers(c *gin.Context) {
 		return
 	}
 
-	var result []map[string]interface{}
+	result := []map[string]interface{}{}
 	for _, user := range users {
 		totalBounty, _ := repository.BountyRepo.GetTotalBounty(user.UID)
 		isOnline := false

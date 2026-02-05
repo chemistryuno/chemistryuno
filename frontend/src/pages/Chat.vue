@@ -26,7 +26,11 @@ const activeChat = ref<any>(null) // 当前选中的好友
 const messages = ref<Record<number, any[]>>({}) // 缓存各好友的聊天记录
 const newMessage = ref('')
 const searchTerm = ref('')
+const searchQuery = ref('') // 模态框搜索词
 const scrollContainer = ref<HTMLElement | null>(null)
+
+const showSearchModal = ref(false)
+const showRequestsModal = ref(false)
 
 // 过滤后的好友列表
 const filteredFriends = computed(() => {
@@ -37,9 +41,9 @@ const filteredFriends = computed(() => {
   )
 })
 
-// 监听搜索词变化，进行全局搜索
+// 监听模态框搜索词变化
 let searchTimeout: any = null
-watch(searchTerm, (newVal) => {
+watch(searchQuery, (newVal) => {
   if (searchTimeout) clearTimeout(searchTimeout)
   if (!newVal.trim()) {
     globalSearchResults.value = []
@@ -50,7 +54,6 @@ watch(searchTerm, (newVal) => {
   searchTimeout = setTimeout(async () => {
     try {
       const res = await authAPI.searchUsers(newVal)
-      // 排除掉自己
       globalSearchResults.value = (res.data || []).filter((u: any) => {
         return Number(u.uid) !== Number(currentUser.value.uid)
       })
@@ -63,14 +66,13 @@ watch(searchTerm, (newVal) => {
   }, 500)
 })
 
-
 const triggerSearch = async () => {
-  if (!searchTerm.value.trim()) return
+  if (!searchQuery.value.trim()) return
   if (searchTimeout) clearTimeout(searchTimeout)
   
   searchLoading.value = true
   try {
-    const res = await authAPI.searchUsers(searchTerm.value)
+    const res = await authAPI.searchUsers(searchQuery.value)
     globalSearchResults.value = (res.data || []).filter((u: any) => {
       return Number(u.uid) !== Number(currentUser.value.uid)
     })
@@ -167,11 +169,7 @@ const scrollToBottom = () => {
 }
 
 const focusSearch = () => {
-  searchTerm.value = ''
-  nextTick(() => {
-    const el = document.getElementById('search-input')
-    if (el) el.focus()
-  })
+  showSearchModal.value = true
 }
 
 // 选择聊天对象
@@ -277,112 +275,15 @@ const formatTime = (date: Date) => {
           </button>
         </div>
 
-        <!-- Search -->
         <div class="p-6">
           <div class="relative group">
             <div class="absolute inset-0 bg-blue-500/5 rounded-2xl blur group-focus-within:bg-blue-500/10 transition-all"></div>
             <Search class="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input 
-              id="search-input"
               v-model="searchTerm"
-              @keyup.enter="triggerSearch"
-              placeholder="搜索 ID 或称号以建立链接..."
-              class="relative w-full h-14 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl pl-12 pr-12 text-sm text-slate-700 dark:text-white focus:outline-none focus:border-blue-500/50 transition-all font-medium"
+              placeholder="搜索联系人..."
+              class="relative w-full h-12 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl pl-12 pr-4 text-sm text-slate-700 dark:text-white focus:outline-none focus:border-blue-500/50 transition-all font-medium"
             />
-            <button 
-              @click="triggerSearch"
-              class="absolute right-4 top-1/2 -translate-y-1/2 p-2 text-slate-400 hover:text-blue-500 transition-colors"
-            >
-              <Send class="w-4 h-4 rotate-[-45deg]" />
-            </button>
-          </div>
-        </div>
-
-        <!-- Requests Section -->
-        <div v-if="pendingRequests.length > 0" class="px-6 mb-6">
-          <div class="flex items-center gap-2 mb-4 px-2">
-            <UserPlus class="w-4 h-4 text-amber-500" />
-            <span class="text-[10px] font-black uppercase tracking-widest text-slate-500">同步请求 / Requests</span>
-            <span class="px-2 py-0.5 bg-amber-500 text-white text-[10px] font-black rounded-lg ml-auto animate-pulse">{{ pendingRequests.length }}</span>
-          </div>
-          <div class="space-y-3">
-            <div 
-              v-for="req in pendingRequests" 
-              :key="req.id"
-              class="p-4 bg-amber-500/5 dark:bg-amber-500/[0.02] border border-amber-500/10 rounded-2xl flex items-center justify-between animate-in slide-in-from-left-4"
-            >
-              <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-lg border border-amber-500/20">
-                  {{ req.avatar || '🧪' }}
-                </div>
-                <div class="min-w-0 flex-1">
-                  <div class="text-sm font-bold text-slate-700 dark:text-white truncate">{{ req.username }}</div>
-                  <div v-if="req.hello_message" class="text-[9px] text-amber-500/80 font-medium italic mt-0.5 line-clamp-1">"{{ req.hello_message }}"</div>
-                  <div v-else class="text-[9px] text-amber-500/60 font-mono">REQ_CONNECT</div>
-                </div>
-              </div>
-              <div class="flex gap-2">
-                <button @click="handleRequest(req.id, 'accept')" class="w-8 h-8 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white flex items-center justify-center transition-all shadow-lg shadow-emerald-500/10 active:scale-95">
-                  <Check class="w-4 h-4" />
-                </button>
-                <button @click="handleRequest(req.id, 'decline')" class="w-8 h-8 rounded-lg bg-rose-500 hover:bg-rose-600 text-white flex items-center justify-center transition-all shadow-lg shadow-rose-500/10 active:scale-95">
-                  <X class="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Global Search Results -->
-        <div v-if="searchTerm && (globalSearchResults.length > 0 || searchLoading)" class="px-6 mb-6">
-          <div class="flex items-center gap-2 mb-4 px-2">
-            <Globe class="w-4 h-4 text-purple-500" />
-            <span class="text-[10px] font-black uppercase tracking-widest text-slate-500">发现研究员 / DISCOVERY</span>
-            <Loader2 v-if="searchLoading" class="w-3 h-3 animate-spin text-slate-400 ml-auto" />
-          </div>
-          <div class="space-y-2">
-            <div 
-              v-for="result in globalSearchResults" 
-              :key="result.uid"
-              @click="handleSearchClick(result)"
-              class="group p-3 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl flex items-center justify-between hover:border-purple-500/30 transition-all cursor-pointer"
-            >
-              <div class="flex items-center gap-3">
-                <div class="relative">
-                  <div class="w-9 h-9 rounded-xl bg-slate-100 dark:bg-white/10 flex items-center justify-center text-lg">
-                    {{ result.avatar || '🧪' }}
-                  </div>
-                  <div v-if="result.is_online" class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 border-2 border-white dark:border-[#0a0a0c] rounded-full"></div>
-                </div>
-                <div class="min-w-0 flex-1">
-                  <div class="text-xs font-bold text-slate-700 dark:text-white truncate flex items-center gap-1.5">
-                    {{ result.username }}
-                    <span v-if="result.is_online" class="w-1 h-1 rounded-full bg-emerald-500 animate-pulse"></span>
-                  </div>
-                  <div class="flex items-center gap-2 mt-0.5">
-                    <span class="text-[8px] text-slate-400 font-mono tracking-tighter uppercase">ID: {{ result.uid }}</span>
-                    <span class="text-[8px] text-blue-500/60 font-black uppercase tracking-tighter">{{ result.points }}PT</span>
-                    <span v-if="result.bounty > 0" class="text-[8px] text-rose-500 font-black uppercase tracking-tighter">赏: {{ result.bounty }}</span>
-                    <span class="text-[8px] text-amber-500/60 font-black uppercase tracking-tighter">WIN: {{ result.win_count }}</span>
-                  </div>
-                </div>
-              </div>
-              
-              <div class="flex items-center gap-2">
-                <span v-if="isFriend(result.uid)" class="text-[8px] font-black text-emerald-500 uppercase tracking-widest bg-emerald-500/10 px-2 py-1 rounded-lg">已建立链接</span>
-                <button 
-                  v-else
-                  @click.stop="sendRequest(result.uid)"
-                  class="w-8 h-8 rounded-lg bg-blue-600/10 hover:bg-blue-600 text-blue-600 hover:text-white flex items-center justify-center transition-all"
-                  title="添加研究员"
-                >
-                  <UserPlus class="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-            <div v-if="!searchLoading && globalSearchResults.length === 0" class="text-center py-4 opacity-30">
-               <p class="text-[9px] font-black uppercase tracking-[0.2em]">End_Of_Transmission</p>
-            </div>
           </div>
         </div>
 
@@ -443,6 +344,23 @@ const formatTime = (date: Date) => {
               <Trash2 class="w-4 h-4" />
             </button>
           </div>
+        </div>
+
+        <!-- Footer Actions -->
+        <div class="p-6 border-t border-slate-200 dark:border-white/5">
+          <button 
+            @click="showRequestsModal = true"
+            class="w-full flex items-center justify-between px-6 h-14 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 rounded-2xl text-sm font-black uppercase tracking-widest text-slate-600 dark:text-white transition-all group relative overflow-hidden"
+          >
+            <div class="flex items-center gap-3 relative z-10">
+              <UserPlus class="w-5 h-5 text-blue-500 group-hover:scale-110 transition-transform" />
+              好友请求
+            </div>
+            <div v-if="pendingRequests.length > 0" class="relative z-10 flex items-center justify-center min-w-[24px] h-6 px-2 bg-rose-500 text-white text-[10px] rounded-full animate-bounce">
+              {{ pendingRequests.length }}
+            </div>
+            <div class="absolute inset-0 bg-gradient-to-r from-blue-500/0 via-blue-500/5 to-blue-500/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
+          </button>
         </div>
       </aside>
 
@@ -560,6 +478,155 @@ const formatTime = (date: Date) => {
         </div>
       </section>
     </main>
+
+    <!-- 搜索研究员模态框 -->
+    <div v-if="showSearchModal" class="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+      <div @click.stop class="w-full max-w-xl bg-white dark:bg-[#0f0f12] rounded-[40px] border border-slate-200 dark:border-white/10 shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
+        <div class="p-8 border-b border-slate-100 dark:border-white/5 flex items-center justify-between">
+          <div>
+            <h3 class="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tighter flex items-center gap-2">
+              <Globe class="w-5 h-5 text-purple-500" />
+              发现新研究员
+            </h3>
+            <p class="text-[10px] text-slate-400 font-mono uppercase tracking-widest mt-1">Cross-Server Researcher Search</p>
+          </div>
+          <button @click="showSearchModal = false" class="p-3 hover:bg-slate-100 dark:hover:bg-white/5 rounded-2xl text-slate-400 transition-all">
+            <X class="w-6 h-6" />
+          </button>
+        </div>
+
+        <div class="p-8 space-y-6">
+          <div class="relative group">
+            <div class="absolute inset-0 bg-blue-500/5 rounded-2xl blur group-focus-within:bg-blue-500/10 transition-all"></div>
+            <Search class="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+            <input 
+              v-model="searchQuery"
+              @keyup.enter="triggerSearch"
+              autoFocus
+              placeholder="输入 ID 或称号进行扫描..."
+              class="relative w-full h-16 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl pl-14 pr-16 text-lg text-slate-700 dark:text-white focus:outline-none focus:border-blue-500/50 transition-all font-medium"
+            />
+            <button 
+              @click="triggerSearch"
+              class="absolute right-4 top-1/2 -translate-y-1/2 p-3 text-slate-400 hover:text-blue-500 transition-colors"
+            >
+              <Send class="w-6 h-6 rotate-[-45deg]" />
+            </button>
+          </div>
+
+          <div class="min-h-[300px] max-h-[450px] overflow-y-auto custom-scrollbar pr-2 space-y-3">
+            <div v-if="searchLoading" class="flex flex-col items-center justify-center py-20 opacity-30">
+              <Loader2 class="w-8 h-8 animate-spin text-blue-500 mb-4" />
+              <span class="text-[10px] font-black uppercase tracking-widest">Scanning_Transmissions...</span>
+            </div>
+            
+            <template v-else-if="globalSearchResults.length > 0">
+              <div 
+                v-for="result in globalSearchResults" 
+                :key="result.uid"
+                class="group p-4 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-[28px] flex items-center justify-between hover:border-purple-500/30 transition-all"
+              >
+                <div class="flex items-center gap-4">
+                  <div class="relative">
+                    <div class="w-14 h-14 rounded-2xl bg-white dark:bg-white/10 flex items-center justify-center text-3xl border border-slate-200 dark:border-white/10 shadow-sm">
+                      {{ result.avatar || '🧪' }}
+                    </div>
+                    <div v-if="result.is_online" class="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 border-4 border-white dark:border-[#0f0f12] rounded-full shadow-lg shadow-emerald-500/20"></div>
+                  </div>
+                  <div>
+                    <div class="text-base font-bold text-slate-700 dark:text-white flex items-center gap-2">
+                      {{ result.username }}
+                      <span v-if="result.is_online" class="px-2 py-0.5 bg-emerald-500/10 text-emerald-500 text-[8px] font-black rounded uppercase tracking-widest">Active</span>
+                    </div>
+                    <div class="flex items-center gap-3 mt-1.5 grayscale opacity-60">
+                      <span class="text-[9px] text-slate-400 font-mono tracking-tight uppercase">ID: {{ result.uid }}</span>
+                      <span class="text-[9px] text-blue-500 font-black uppercase tracking-widest">{{ result.points }}PT</span>
+                      <span v-if="result.bounty > 0" class="text-[9px] text-rose-500 font-black uppercase tracking-widest">赏: {{ result.bounty }}</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <button 
+                  v-if="!isFriend(result.uid)"
+                  @click="sendRequest(result.uid)"
+                  class="px-6 h-12 bg-blue-600 hover:bg-blue-500 text-white text-xs font-black uppercase tracking-widest rounded-2xl transition-all shadow-lg shadow-blue-500/10 active:scale-95"
+                >
+                  建立连接
+                </button>
+                <div v-else class="px-6 h-12 flex items-center gap-2 bg-emerald-500/10 text-emerald-500 text-xs font-black uppercase tracking-widest rounded-2xl">
+                  <Check class="w-4 h-4" />
+                  已是联络员
+                </div>
+              </div>
+            </template>
+
+            <div v-else-if="searchQuery" class="flex flex-col items-center justify-center py-20 opacity-20 grayscale">
+              <FlaskConical class="w-16 h-16 mb-4" />
+              <p class="text-sm font-black uppercase tracking-[0.2em]">Signal_Lost_404</p>
+              <p class="text-[10px] mt-2 italic font-medium uppercase">未能发现目标频率</p>
+            </div>
+            <div v-else class="flex flex-col items-center justify-center py-20 opacity-10">
+              <Search class="w-20 h-20 mb-4" />
+              <p class="text-xs font-bold uppercase tracking-widest">Waiting_For_Target_Input</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 好友请求模态框 -->
+    <div v-if="showRequestsModal" class="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+      <div @click.stop class="w-full max-w-xl bg-white dark:bg-[#0f0f12] rounded-[40px] border border-slate-200 dark:border-white/10 shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
+        <div class="p-8 border-b border-slate-100 dark:border-white/5 flex items-center justify-between">
+          <div>
+            <h3 class="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tighter flex items-center gap-2">
+              <UserPlus class="w-5 h-5 text-amber-500" />
+              同步请求管理
+            </h3>
+            <p class="text-[10px] text-slate-400 font-mono uppercase tracking-widest mt-1">Pending Connection Requests</p>
+          </div>
+          <button @click="showRequestsModal = false" class="p-3 hover:bg-slate-100 dark:hover:bg-white/5 rounded-2xl text-slate-400 transition-all">
+            <X class="w-6 h-6" />
+          </button>
+        </div>
+
+        <div class="p-8 max-h-[600px] overflow-y-auto custom-scrollbar">
+          <div v-if="pendingRequests.length === 0" class="flex flex-col items-center justify-center py-16 opacity-20 grayscale">
+            <ShieldAlert class="w-16 h-16 mb-4" />
+            <p class="text-sm font-black uppercase tracking-[0.2em]">All_Synced</p>
+            <p class="text-[10px] mt-2 italic font-medium uppercase">暂无待处理的研究请求</p>
+          </div>
+          <div v-else class="space-y-4">
+            <div 
+              v-for="req in pendingRequests" 
+              :key="req.id"
+              class="p-5 bg-amber-500/5 dark:bg-amber-500/[0.02] border border-amber-500/10 rounded-[32px] flex items-center justify-between animate-in slide-in-from-bottom-4 transition-all"
+            >
+              <div class="flex items-center gap-4">
+                <div class="w-14 h-14 rounded-2xl bg-amber-500/10 flex items-center justify-center text-3xl border border-amber-500/20">
+                  {{ req.avatar || '🧪' }}
+                </div>
+                <div>
+                  <div class="text-base font-bold text-slate-700 dark:text-white">{{ req.username }}</div>
+                  <div v-if="req.hello_message" class="text-xs text-amber-600/80 font-medium italic mt-1 bg-amber-500/10 px-3 py-1 rounded-lg line-clamp-2 italic">
+                    "{{ req.hello_message }}"
+                  </div>
+                  <div v-else class="text-[10px] text-amber-500/60 font-mono mt-1 px-2 py-0.5 bg-amber-500/5 rounded">REQ_CONNECT_P2P</div>
+                </div>
+              </div>
+              <div class="flex gap-3">
+                <button @click="handleRequest(req.id, 'accept')" class="w-12 h-12 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white flex items-center justify-center transition-all shadow-lg shadow-emerald-500/20 active:scale-95">
+                  <Check class="w-6 h-6" />
+                </button>
+                <button @click="handleRequest(req.id, 'decline')" class="w-12 h-12 rounded-2xl bg-rose-500 hover:bg-rose-600 text-white flex items-center justify-center transition-all shadow-lg shadow-rose-500/20 active:scale-95">
+                  <X class="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 

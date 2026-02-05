@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { friendAPI } from '../utils/api'
+import { friendAPI, authAPI } from '../utils/api'
 import websocket from '../utils/websocket'
 import { 
   MessageSquare, User, UserPlus, Send, 
   Search, ArrowLeft, MoreVertical, X, Check,
-  Trash2, ShieldAlert, FlaskConical
+  Trash2, ShieldAlert, FlaskConical, Globe, Loader2
 } from 'lucide-vue-next'
 import { cn } from '../utils/cn'
 import { useDialog } from '../utils/dialog'
@@ -19,7 +19,9 @@ const currentUser = ref(JSON.parse(localStorage.getItem('user') || '{}'))
 // 状态管理
 const friends = ref<any[]>([])
 const pendingRequests = ref<any[]>([])
+const globalSearchResults = ref<any[]>([])
 const loading = ref(true)
+const searchLoading = ref(false)
 const activeChat = ref<any>(null) // 当前选中的好友
 const messages = ref<Record<number, any[]>>({}) // 缓存各好友的聊天记录
 const newMessage = ref('')
@@ -30,8 +32,35 @@ const scrollContainer = ref<HTMLElement | null>(null)
 const filteredFriends = computed(() => {
   if (!searchTerm.value) return friends.value
   return friends.value.filter(f => 
-    f.username.toLowerCase().includes(searchTerm.value.toLowerCase())
+    f.username.toLowerCase().includes(searchTerm.value.toLowerCase()) ||
+    String(f.uid).includes(searchTerm.value)
   )
+})
+
+// 监听搜索词变化，进行全局搜索
+let searchTimeout: any = null
+watch(searchTerm, (newVal) => {
+  if (searchTimeout) clearTimeout(searchTimeout)
+  if (!newVal.trim()) {
+    globalSearchResults.value = []
+    return
+  }
+  
+  searchTimeout = setTimeout(async () => {
+    searchLoading.value = true
+    try {
+      const res = await authAPI.searchUsers(newVal)
+      // 排除掉已经是好友的人和自己
+      globalSearchResults.value = res.data.filter((u: any) => 
+        u.uid !== currentUser.value.uid && 
+        !friends.value.find(f => f.uid === u.uid)
+      )
+    } catch (err) {
+      console.error('全局搜索失败', err)
+    } finally {
+      searchLoading.value = false
+    }
+  }, 500)
 })
 
 const fetchFriends = async () => {
@@ -69,6 +98,15 @@ const handleRequest = async (id: number, action: 'accept' | 'decline') => {
     showAlert(action === 'accept' ? '已通过好友请求' : '已拒绝好友请求', '同步完成')
   } catch (err: any) {
     showAlert(err.response?.data?.error || '操作失败', '错误')
+  }
+}
+
+const sendRequest = async (uid: number) => {
+  try {
+    await friendAPI.sendRequest(uid)
+    showAlert('研究者连接请求已发出，等待对方同步波段。', '请求已发送')
+  } catch (err: any) {
+    showAlert(err.response?.data?.error || '请求发送失败', '错误')
   }
 }
 
@@ -224,6 +262,42 @@ const formatTime = (date: Date) => {
                   <X class="w-4 h-4" />
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Global Search Results -->
+        <div v-if="searchTerm && (globalSearchResults.length > 0 || searchLoading)" class="px-6 mb-6">
+          <div class="flex items-center gap-2 mb-4 px-2">
+            <Globe class="w-4 h-4 text-purple-500" />
+            <span class="text-[10px] font-black uppercase tracking-widest text-slate-500">发现研究员 / DISCOVERY</span>
+            <Loader2 v-if="searchLoading" class="w-3 h-3 animate-spin text-slate-400 ml-auto" />
+          </div>
+          <div class="space-y-2">
+            <div 
+              v-for="result in globalSearchResults" 
+              :key="result.uid"
+              class="group p-3 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl flex items-center justify-between hover:border-purple-500/30 transition-all"
+            >
+              <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl bg-slate-100 dark:bg-white/10 flex items-center justify-center text-lg">
+                  {{ result.avatar || '🧪' }}
+                </div>
+                <div class="min-w-0">
+                  <div class="text-xs font-bold text-slate-700 dark:text-white truncate">{{ result.username }}</div>
+                  <div class="text-[8px] text-slate-400 font-mono">UID: {{ result.uid }}</div>
+                </div>
+              </div>
+              <button 
+                @click="sendRequest(result.uid)"
+                class="w-8 h-8 rounded-lg bg-blue-600/10 hover:bg-blue-600 text-blue-600 hover:text-white flex items-center justify-center transition-all"
+                title="添加研究员"
+              >
+                <UserPlus class="w-4 h-4" />
+              </button>
+            </div>
+            <div v-if="!searchLoading && globalSearchResults.length === 0" class="text-center py-4 opacity-30">
+               <p class="text-[9px] font-black uppercase tracking-[0.2em]">End_Of_Transmission</p>
             </div>
           </div>
         </div>

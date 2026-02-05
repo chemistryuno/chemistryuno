@@ -63,6 +63,8 @@ export const authAPI = {
     api.put('/user/avatar', { avatar }),
   deleteAccount: () => 
     api.delete('/user/account'),
+  searchUsers: (query: string) =>
+    api.get(`/users/search?q=${encodeURIComponent(query)}`),
   submitFeedback: (content: string, type: string) =>
     api.post('/feedback', { content, type }),
   getMyFeedbacks: () =>

@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { Lock, Shield, UserX, Loader2, Cpu, Smartphone } from 'lucide-vue-next'
+import { Lock, Shield, UserX, Loader2, Cpu, Smartphone, Mail } from 'lucide-vue-next'
 
 defineProps<{
   twoFactorEnabled: boolean
   twoFactorLoading: boolean
+  smtpEnabled: boolean
 }>()
 
 defineEmits<{
   (e: 'changePassword'): void
+  (e: 'changeEmail'): void
   (e: 'setup2fa'): void
   (e: 'disable2fa'): void
   (e: 'manageHardwareKeys'): void
@@ -39,6 +41,20 @@ defineEmits<{
         <div>
           <span class="text-sm font-bold text-slate-900 dark:text-white block">修改密码</span>
           <span class="text-slate-500 text-[10px]">定期更新以确保安全</span>
+        </div>
+      </button>
+
+      <button 
+        v-if="smtpEnabled"
+        @click="$emit('changeEmail')"
+        class="group relative flex items-center gap-4 p-4 bg-slate-50 dark:bg-white/5 hover:bg-orange-50 dark:hover:bg-orange-500/10 border border-slate-200 dark:border-white/5 hover:border-orange-300 dark:hover:border-orange-500/30 rounded-2xl transition-all text-left"
+      >
+        <div class="bg-orange-500/10 dark:bg-orange-500/20 p-2.5 rounded-xl group-hover:rotate-12 transition-transform shrink-0">
+          <Mail class="w-5 h-5 text-orange-600 dark:text-orange-400" />
+        </div>
+        <div>
+          <span class="text-sm font-bold text-slate-900 dark:text-white block">重置通讯邮箱</span>
+          <span class="text-slate-500 text-[10px]">变更接收验证码的电子邮箱</span>
         </div>
       </button>
 

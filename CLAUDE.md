@@ -278,7 +278,7 @@ Use `beforeEnter` guards in Vue Router or check `localStorage.getItem('token')` 
 
 After initial database setup:
 
-- Username: `admin`
+- Username: `admin@chemistryuno.com`
 - Password: `admin123`
 - Role: `admin`
 

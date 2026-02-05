@@ -26,6 +26,11 @@ func Register(c *gin.Context) {
 	smtpConfigured := utils.IsSMTPConfigured()
 	userRepo := repository.NewUserRepository()
 
+	// 统一处理邮箱大小写
+	if req.Email != "" {
+		req.Email = strings.ToLower(strings.TrimSpace(req.Email))
+	}
+
 	// 1. 系统模式判断与参数验证
 	if smtpConfigured {
 		if req.Email == "" {
@@ -125,6 +130,13 @@ func Login(c *gin.Context) {
 	identifier := req.Username
 	if identifier == "" {
 		identifier = req.Email
+	}
+
+	// 邮箱不区分大小写
+	if strings.Contains(identifier, "@") {
+		identifier = strings.ToLower(strings.TrimSpace(identifier))
+	} else {
+		identifier = strings.TrimSpace(identifier)
 	}
 
 	fmt.Printf("登录尝试 - 用户: %s, 来源IP: %s\n", identifier, c.ClientIP())
@@ -309,7 +321,7 @@ func ResetPasswordBy2FA(c *gin.Context) {
 	userRepo := repository.NewUserRepository()
 	dbUser, err := userRepo.FindByEmailOrUsername(req.Username)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "账户不存在"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "账户核验失败，请核对用户名"})
 		return
 	}
 
@@ -402,6 +414,8 @@ func SendVerificationCode(c *gin.Context) {
 		return
 	}
 
+	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
+
 	if !utils.IsSMTPConfigured() {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "系统未启用邮件服务"})
 		return
@@ -426,6 +440,29 @@ func SendVerificationCode(c *gin.Context) {
 		exists, err := userRepo.ExistsByEmail(req.Email)
 		if err != nil || !exists {
 			c.JSON(http.StatusNotFound, gin.H{"error": "该邮箱未注册"})
+			return
+		}
+	}
+
+	// 如果是更换邮箱验证原邮箱，确保是当前用户的邮箱
+	if codeType == "change_email_old" {
+		// 这里虽然是公开路由，但我们可以尝试从 token 中获取 uid (如果提供了)
+		// 或者在发送代码时不做严格检查，但在执行更换时严格检查
+		// 为了防止骚扰，这里可以不做额外检查，只要邮箱存在即可
+		userRepo := repository.NewUserRepository()
+		exists, err := userRepo.ExistsByEmail(req.Email)
+		if err != nil || !exists {
+			c.JSON(http.StatusNotFound, gin.H{"error": "此邮箱未在系统中登记"})
+			return
+		}
+	}
+
+	// 如果是更换邮箱验证新邮箱，确保邮箱未被占用
+	if codeType == "change_email_new" {
+		userRepo := repository.NewUserRepository()
+		exists, err := userRepo.ExistsByEmail(req.Email)
+		if err == nil && exists {
+			c.JSON(http.StatusConflict, gin.H{"error": "该邮箱已被其他研究员占用"})
 			return
 		}
 	}
@@ -459,6 +496,26 @@ func SendVerificationCode(c *gin.Context) {
 				<p>该验证码将在 10 分钟后过期。如非本人操作，请立刻检查账号安全。</p>
 			</div>
 		`, code)
+	} else if codeType == "change_email_old" {
+		subject = "变动档案邮箱确认"
+		body = fmt.Sprintf(`
+			<div style="padding: 20px; font-family: sans-serif;">
+				<h2>确认原有的研究通讯地址</h2>
+				<p>您正在申请更换您的研究员通讯邮箱。这是对原邮箱的二次验证，验证码为：</p>
+				<h1 style="color: #4b5563; letter-spacing: 5px;">%s</h1>
+				<p>该验证码将在 10 分钟后过期。如果这不是您的操作，请忽略此邮件。</p>
+			</div>
+		`, code)
+	} else if codeType == "change_email_new" {
+		subject = "新档案邮箱验证"
+		body = fmt.Sprintf(`
+			<div style="padding: 20px; font-family: sans-serif;">
+				<h2>验证新的研究通讯地址</h2>
+				<p>您正尝试将此邮箱绑定为您的研究员通讯地址。验证码为：</p>
+				<h1 style="color: #2563eb; letter-spacing: 5px;">%s</h1>
+				<p>该验证码将在 10 分钟后过期。如果这不是您的操作，请忽略此邮件。</p>
+			</div>
+		`, code)
 	} else {
 		body = fmt.Sprintf(`
 			<div style="padding: 20px; font-family: sans-serif;">
@@ -487,6 +544,8 @@ func ResetPasswordByEmail(c *gin.Context) {
 		return
 	}
 
+	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
+
 	// 验证验证码
 	var code database.VerificationCode
 	err := database.DB.Where("email = ? AND code = ? AND type = ? AND expires_at > ?",
@@ -506,7 +565,7 @@ func ResetPasswordByEmail(c *gin.Context) {
 	userRepo := repository.NewUserRepository()
 	dbUser, err := userRepo.FindByEmail(req.Email)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "账户核验失败，请核对邮箱地址"})
 		return
 	}
 
@@ -525,6 +584,74 @@ func ResetPasswordByEmail(c *gin.Context) {
 	_ = sessionRepo.DeleteByUserID(dbUser.UID)
 
 	c.JSON(http.StatusOK, gin.H{"message": "密码重置成功，请重新登录"})
+}
+
+// ChangeEmail 更换邮箱地址
+func ChangeEmail(c *gin.Context) {
+	uid := c.GetInt("uid")
+	if uid == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未授权的访问"})
+		return
+	}
+
+	var req models.ChangeEmailRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的参数"})
+		return
+	}
+
+	req.NewEmail = strings.ToLower(strings.TrimSpace(req.NewEmail))
+
+	userRepo := repository.NewUserRepository()
+	dbUser, err := userRepo.FindByID(uint(uid))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "账户不存在"})
+		return
+	}
+
+	if dbUser.Email == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "当前账号未绑定邮箱，无法执行更换流程"})
+		return
+	}
+
+	// 1. 验证原邮箱验证码
+	var oldCode database.VerificationCode
+	err = database.DB.Where("email = ? AND code = ? AND type = ? AND expires_at > ?",
+		dbUser.Email, req.OldCode, "change_email_old", time.Now()).First(&oldCode).Error
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "原邮箱验证码错误或已过期"})
+		return
+	}
+
+	// 2. 验证新邮箱验证码
+	var newCode database.VerificationCode
+	err = database.DB.Where("email = ? AND code = ? AND type = ? AND expires_at > ?",
+		req.NewEmail, req.NewCode, "change_email_new", time.Now()).First(&newCode).Error
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "新邮箱验证码错误或已过期"})
+		return
+	}
+
+	// 3. 检查新邮箱是否被占用
+	exists, err := userRepo.ExistsByEmail(req.NewEmail)
+	if err == nil && exists {
+		c.JSON(http.StatusConflict, gin.H{"error": "新邮箱已被其他研究员占用"})
+		return
+	}
+
+	// 4. 更新邮箱
+	dbUser.Email = req.NewEmail
+	err = userRepo.Update(dbUser)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新邮箱失败"})
+		return
+	}
+
+	// 成功后删除验证码
+	database.DB.Delete(&oldCode)
+	database.DB.Delete(&newCode)
+
+	c.JSON(http.StatusOK, gin.H{"message": "邮箱地址已更新"})
 }
 
 // 注销账号

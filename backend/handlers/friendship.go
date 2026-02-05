@@ -33,6 +33,16 @@ func SendFriendRequest(c *gin.Context) {
 		return
 	}
 
+	// 尝试通知目标用户有新的好友请求
+	if websocket.GlobalHub != nil {
+		websocket.GlobalHub.SendToUser(int(req.FriendID), websocket.Message{
+			Type: "friend_request",
+			Data: map[string]interface{}{
+				"from_uid": uid,
+			},
+		})
+	}
+
 	c.JSON(http.StatusOK, gin.H{"message": "好友请求已发送"})
 }
 
@@ -106,6 +116,18 @@ func HandleFriendRequest(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "处理失败"})
 		return
+	}
+
+	// 尝试通过 WebSocket 通知对方
+	if websocket.GlobalHub != nil {
+		websocket.GlobalHub.SendToUser(int(f.UserID), websocket.Message{
+			Type: "friend_request_handled",
+			Data: map[string]interface{}{
+				"id":     req.RequestID,
+				"action": req.Action,
+				"by_uid": uid,
+			},
+		})
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "处理成功"})

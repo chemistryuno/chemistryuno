@@ -260,7 +260,7 @@ function showStartupInfo() {
   log('  前端: http://localhost:5000', colors.bright);
   log('  后端: http://localhost:8080', colors.bright);
   log('\n👥 默认管理员账户:', colors.cyan);
-  log('  用户名: admin', colors.bright);
+  log('  用户名: admin@chemistryuno.com', colors.bright);
   log('  密码: admin123', colors.bright);
   log('\n📁 项目结构:', colors.cyan);
   log('  📂 frontend/     - Vue.js 前端应用', colors.bright);

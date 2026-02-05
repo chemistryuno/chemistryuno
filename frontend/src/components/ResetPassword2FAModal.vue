@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { User, Lock, Fingerprint, Loader2, Eye, EyeOff, Cpu, Mail, Shield } from 'lucide-vue-next'
+import { User, Lock, Fingerprint, Loader2, Eye, EyeOff, Mail, Shield, AlertTriangle } from 'lucide-vue-next'
 import { authAPI } from '../utils/api'
-import { get } from '@github/webauthn-json'
 import { useDialog } from '../utils/dialog'
 
 defineProps<{
@@ -19,21 +18,11 @@ const dialog = useDialog()
 const smtpEnabled = ref(false)
 const username = ref('')
 
-onMounted(async () => {
-  try {
-    const res = await authAPI.getAuthConfig()
-    smtpEnabled.value = res.data.smtp_enabled
-  } catch (err) {
-    console.error('获取配置失败', err)
-  }
-})
-
 const code = ref('')
 const newPassword = ref('')
 const confirmPassword = ref('')
 const showPassword = ref(false)
-const recoveryMode = ref<'2fa' | 'webauthn' | 'email'>('2fa')
-const webauthnLoading = ref(false)
+const recoveryMode = ref<'2fa' | 'email'>('2fa')
 const emailLoading = ref(false)
 const countdown = ref(0)
 
@@ -96,32 +85,6 @@ const handleReset = async () => {
   
   emit('submit', username.value, code.value, newPassword.value)
 }
-
-const handleWebAuthnRecovery = async () => {
-  if (!username.value) {
-    alert('请输入用户名')
-    return
-  }
-  if (!newPassword.value || newPassword.value !== confirmPassword.value) {
-    alert('请正确设置新密码')
-    return
-  }
-
-  webauthnLoading.value = true
-  try {
-    const res = await authAPI.beginResetPasswordWebAuthn(username.value)
-    const credential = await get(res.data)
-    await authAPI.finishResetPasswordWebAuthn(username.value, newPassword.value, credential)
-    
-    emit('close')
-    dialog.showAlert('已通过硬件密钥验证身份，凭证重置成功。', '回收协议完成')
-  } catch (err: any) {
-    console.error('WebAuthn recovery error:', err)
-    alert(err.response?.data?.error || '硬件密钥验证失败')
-  } finally {
-    webauthnLoading.value = false
-  }
-}
 </script>
 
 <template>
@@ -130,13 +93,21 @@ const handleWebAuthnRecovery = async () => {
       <div class="flex flex-col items-center mb-6">
         <div class="w-16 h-16 bg-blue-600/10 rounded-2xl flex items-center justify-center mb-4">
           <Mail v-if="recoveryMode === 'email'" class="w-8 h-8 text-blue-600 dark:text-blue-500" />
-          <Cpu v-else-if="recoveryMode === 'webauthn'" class="w-8 h-8 text-blue-600 dark:text-blue-500" />
           <Fingerprint v-else class="w-8 h-8 text-blue-600 dark:text-blue-500" />
         </div>
         <h3 class="text-2xl font-black italic uppercase text-slate-900 dark:text-white tracking-tight text-center">
-          {{ recoveryMode === 'email' ? '电子邮箱凭证回收' : recoveryMode === 'webauthn' ? '硬件凭证回放' : '2FA 凭证授权' }}
+          {{ recoveryMode === 'email' ? '电子邮箱凭证回收' : '2FA 凭证授权' }}
         </h3>
         <p class="text-slate-500 text-[10px] font-black mt-2 uppercase tracking-[0.2em] font-mono">AUTHORIZED RECOVERY PROTOCOL</p>
+      </div>
+
+      <!-- Security Notice -->
+      <div class="mb-6 p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex gap-3 items-start">
+        <AlertTriangle class="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+        <div class="text-[10px] text-amber-700 dark:text-amber-500 font-medium leading-relaxed">
+          <p class="font-black mb-1 uppercase tracking-widest">安全建议 / Security Protocol</p>
+          重置密码是一个高风险操作。请确保您的新密码包含大小写字母、数字及特殊符号，且不要在其他平台重复使用。请务必保护好您的邮箱与 2FA 凭证。
+        </div>
       </div>
 
       <!-- Mode Selector -->
@@ -160,25 +131,16 @@ const handleWebAuthnRecovery = async () => {
         >
           2FA 验证
         </button>
-        <button 
-          @click="recoveryMode = 'webauthn'"
-          :class="[
-            'flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all',
-            recoveryMode === 'webauthn' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-          ]"
-        >
-          硬件密钥
-        </button>
       </div>
 
       <form @submit.prevent="handleReset" class="space-y-4">
         <div class="space-y-4">
           <div class="relative group">
-            <component :is="recoveryMode === 'email' || smtpEnabled ? Mail : User" class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500 group-focus-within:text-blue-600 dark:group-focus-within:text-blue-500 transition-colors" />
+            <component :is="recoveryMode === 'email' ? Mail : User" class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500 group-focus-within:text-blue-600 dark:group-focus-within:text-blue-500 transition-colors" />
             <input
               v-model="username"
               type="text"
-              :placeholder="recoveryMode === 'email' || smtpEnabled ? '确认注册邮箱 / Entry Email' : '确认用户名 / Entry Username'"
+              :placeholder="recoveryMode === 'email' ? '确认注册邮箱 / Entry Email' : '确认用户名 / Entry Username'"
               class="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 focus:border-blue-500/50 rounded-2xl py-4 pl-12 pr-4 outline-none transition-all text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 font-bold text-sm"
               required
             />
@@ -260,25 +222,13 @@ const handleWebAuthnRecovery = async () => {
             中止实验
           </button>
 
-          <!-- Submit Button based on Mode -->
           <button 
-            v-if="recoveryMode === '2fa'"
             type="submit"
-            :disabled="loading"
-            class="flex-1 py-4 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 rounded-2xl font-black transition-all text-white shadow-lg shadow-blue-500/20 active:scale-95 flex items-center justify-center gap-2 uppercase text-[10px] tracking-widest"
+            :disabled="loading || emailLoading"
+            class="flex-[2] py-4 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 rounded-2xl font-black transition-all text-white shadow-lg shadow-blue-500/20 active:scale-95 flex items-center justify-center gap-2 uppercase text-[10px] tracking-widest"
           >
-            <Loader2 v-if="loading" class="w-3 h-3 animate-spin" />
-            提交重置
-          </button>
-          <button 
-            v-else
-            type="button"
-            @click="handleWebAuthnRecovery"
-            :disabled="webauthnLoading"
-            class="flex-1 py-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 rounded-2xl font-black transition-all text-white shadow-lg shadow-emerald-500/20 active:scale-95 flex items-center justify-center gap-2 uppercase text-[10px] tracking-widest"
-          >
-            <Loader2 v-if="webauthnLoading" class="w-3 h-3 animate-spin" />
-            调起硬件密钥
+            <Loader2 v-if="loading || emailLoading" class="w-3 h-3 animate-spin" />
+            {{ recoveryMode === 'email' ? '确认同步新密码' : '验证 2FA 并重置' }}
           </button>
         </div>
       </form>

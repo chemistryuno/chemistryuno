@@ -63,6 +63,7 @@ func main() {
 
 	// 初始化WebSocket Hub
 	hub = websocket.NewHub()
+	websocket.GlobalHub = hub // 设置全局 Hub 引用
 	hub.OnRegister = game.PushOnJoinAnnouncements
 	go hub.Run()
 
@@ -127,19 +128,24 @@ func main() {
 			})
 		})
 
-		// 公开路由
-		api.POST("/auth/register", handlers.Register)
-		api.POST("/auth/login", handlers.Login)
-		api.GET("/auth/config", handlers.GetAuthConfig)
-		api.POST("/auth/send-code", handlers.SendVerificationCode)
-		api.POST("/auth/reset-password", handlers.ResetPasswordByEmail)
-		api.GET("/announcements", handlers.GetActiveAnnouncements)
-		api.POST("/auth/2fa/verify", handlers.Verify2FALogin)
-		api.POST("/auth/2fa/reset-password", handlers.ResetPasswordBy2FA)
+		// 公开路由 - 认证组
+		authGroup := api.Group("/auth")
+		{
+			authGroup.POST("/register", handlers.Register)
+			authGroup.POST("/login", handlers.Login)
+			authGroup.GET("/config", handlers.GetAuthConfig)
+			authGroup.POST("/send-code", handlers.SendVerificationCode)
+			authGroup.POST("/reset-password", handlers.ResetPasswordByEmail)
+			authGroup.POST("/reset_password", handlers.ResetPasswordByEmail) // 别名兼容
+			authGroup.POST("/2fa/reset-password", handlers.ResetPasswordBy2FA)
+			authGroup.POST("/2fa/verify", handlers.Verify2FALogin)
 
-		// WebAuthn 登录 (公开)
-		api.GET("/auth/webauthn/login/begin", handlers.BeginLogin)
-		api.POST("/auth/webauthn/login/finish", handlers.FinishLogin)
+			// WebAuthn 登录 (公开)
+			authGroup.GET("/webauthn/login/begin", handlers.BeginLogin)
+			authGroup.POST("/webauthn/login/finish", handlers.FinishLogin)
+		}
+
+		api.GET("/announcements", handlers.GetActiveAnnouncements)
 
 		// 需要认证的路由
 		auth := api.Group("/")
@@ -147,6 +153,7 @@ func main() {
 		{
 			// 用户相关
 			auth.GET("/user/info", handlers.GetUserInfo)
+			auth.POST("/user/change-email", handlers.ChangeEmail)
 			auth.GET("/user/game-history", handlers.GetMyGameHistory)
 			auth.PUT("/user/password", handlers.ChangePassword)
 			auth.PUT("/user/avatar", handlers.UpdateAvatar)

@@ -16,6 +16,27 @@ type Hub struct {
 	OnRegister func(*Client)
 }
 
+func (h *Hub) SendToUser(uid int, message Message) {
+	h.mutex.RLock()
+	defer h.mutex.RUnlock()
+
+	jsonData, err := json.Marshal(message)
+	if err != nil {
+		log.Printf("JSON 序列化失败: %v", err)
+		return
+	}
+
+	for client := range h.clients {
+		if client.uid == uid {
+			select {
+			case client.send <- jsonData:
+			default:
+				h.unregister <- client
+			}
+		}
+	}
+}
+
 var GlobalHub *Hub
 
 func NewHub() *Hub {
@@ -127,6 +148,7 @@ func (h *Hub) LeaveRoom(client *Client) {
 	}
 }
 
+// BroadcastToRoom 将消息广播到指定房间
 func (h *Hub) BroadcastToRoom(roomID string, message interface{}) {
 	h.mutex.RLock()
 	defer h.mutex.RUnlock()
@@ -142,8 +164,7 @@ func (h *Hub) BroadcastToRoom(roomID string, message interface{}) {
 			select {
 			case client.send <- data:
 			default:
-				close(client.send)
-				delete(h.clients, client)
+				h.unregister <- client
 			}
 		}
 	}
@@ -165,8 +186,7 @@ func (h *Hub) SendToUID(uid int, message interface{}) {
 			select {
 			case client.send <- data:
 			default:
-				close(client.send)
-				delete(h.clients, client)
+				h.unregister <- client
 			}
 		}
 	}
@@ -201,8 +221,7 @@ func (h *Hub) BroadcastToAll(message interface{}) {
 		select {
 		case client.send <- data:
 		default:
-			close(client.send)
-			delete(h.clients, client)
+			h.unregister <- client
 		}
 	}
 }

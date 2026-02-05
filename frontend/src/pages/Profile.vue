@@ -23,6 +23,7 @@ import ChangePasswordModal from '../components/profile/ChangePasswordModal.vue'
 import TwoFactorSetupModal from '../components/profile/TwoFactorSetupModal.vue'
 import HardwareKeyModal from '../components/profile/HardwareKeyModal.vue'
 import DeviceManagementModal from '../components/profile/DeviceManagementModal.vue'
+import ChangeEmailModal from '../components/profile/ChangeEmailModal.vue'
 import { LayoutDashboard, ShieldCheck, FlaskConical, History, Sliders, Menu, X as CloseIcon } from 'lucide-vue-next'
 
 const router = useRouter()
@@ -64,6 +65,8 @@ const show2FASetup = ref(false)
 const qrCode = ref('')
 const showHardwareKeys = ref(false)
 const showDeviceManagement = ref(false)
+const showChangeEmail = ref(false)
+const smtpEnabled = ref(false)
 
 const fetchLatestUserInfo = async () => {
   try {
@@ -75,7 +78,15 @@ const fetchLatestUserInfo = async () => {
   }
 }
 
-onMounted(fetchLatestUserInfo)
+onMounted(async () => {
+  fetchLatestUserInfo()
+  try {
+    const res = await authAPI.getAuthConfig()
+    smtpEnabled.value = res.data.smtp_enabled
+  } catch (error) {
+    console.error('获取配置失败:', error)
+  }
+})
 
 const handleUpdateAvatar = async (avatar: string) => {
   try {
@@ -316,7 +327,9 @@ const handleDeleteAccount = async () => {
             <SecurityPanel 
               :two-factor-enabled="user.two_factor_enabled"
               :two-factor-loading="twoFactorLoading"
+              :smtp-enabled="smtpEnabled"
               @change-password="showChangePassword = true"
+              @change-email="showChangeEmail = true"
               @setup2fa="handleSetup2FA"
               @disable2fa="handleDisable2FA"
               @manage-hardware-keys="showHardwareKeys = true"
@@ -399,6 +412,12 @@ const handleDeleteAccount = async () => {
     <DeviceManagementModal
       :show="showDeviceManagement"
       @close="showDeviceManagement = false"
+    />
+    <ChangeEmailModal
+      :show="showChangeEmail"
+      :current-email="user.email"
+      @close="showChangeEmail = false"
+      @success="(newEmail) => { user.email = newEmail }"
     />
   </div>
 </template>

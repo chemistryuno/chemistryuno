@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { Key, Lock, Eye, EyeOff, Loader2, Fingerprint, Cpu } from 'lucide-vue-next'
+import { Key, Lock, Eye, EyeOff, Loader2, Fingerprint, Cpu, AlertTriangle } from 'lucide-vue-next'
 import api, { authAPI } from '../../utils/api'
 import { get } from '@github/webauthn-json'
 import { onMounted, watch } from 'vue'
@@ -102,6 +102,15 @@ const handleWebauthnReset = async () => {
           <p class="text-slate-500 text-[10px] font-black mt-2 uppercase tracking-[0.2em] font-mono">
             {{ mode === 'webauthn' ? 'BY HARDWARE TOKEN' : mode === '2fa' ? 'BY AUTHENTICATOR APP' : 'BY CLASSIC SECRET' }}
           </p>
+      </div>
+
+      <!-- Security Notice -->
+      <div class="mb-6 p-4 bg-blue-500/5 border border-blue-500/10 rounded-2xl flex gap-3 items-start">
+        <AlertTriangle class="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
+        <div class="text-[10px] text-slate-500 font-medium leading-relaxed">
+          <p class="font-black mb-1 uppercase tracking-widest text-slate-700 dark:text-slate-300">密码安全准则 / Password Policy</p>
+          严禁使用过于简单的密码（如 123456 或生日）。建议结合字母、数字及符号，长度不少于 8 位。系统会自动记录异常登录尝试并锁定账户。
+        </div>
       </div>
 
       <form @submit.prevent="handleSave" class="space-y-5">

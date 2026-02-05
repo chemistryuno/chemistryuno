@@ -241,12 +241,26 @@ onMounted(() => {
 
   websocket.on('private_chat', onPrivateMessage)
   websocket.on('error', onErrorMessage)
+  websocket.on('friend_request', handleIncomingFriendRequest)
+  websocket.on('friend_request_handled', handleFriendRequestHandled)
 })
 
 onUnmounted(() => {
   websocket.off('private_chat', onPrivateMessage)
   websocket.off('error', onErrorMessage)
+  websocket.off('friend_request', handleIncomingFriendRequest)
+  websocket.off('friend_request_handled', handleFriendRequestHandled)
 })
+
+const handleIncomingFriendRequest = () => {
+  fetchRequests()
+}
+
+const handleFriendRequestHandled = (data: any) => {
+  if (data.action === 'accept') {
+    fetchFriends()
+  }
+}
 
 const formatTime = (date: Date) => {
   const d = new Date(date)

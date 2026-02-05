@@ -69,6 +69,8 @@ export const authAPI = {
     api.put('/user/avatar', { avatar }),
   updateNickname: (nickname: string) =>
     api.put('/user/nickname', { nickname }),
+  changeEmail: (data: { old_code: string, new_email: string, new_code: string }) =>
+    api.post('/user/change-email', data),
   deleteAccount: () => 
     api.delete('/user/account'),
   searchUsers: (query: string) =>

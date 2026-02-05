@@ -141,7 +141,8 @@ func (r *UserRepository) ResetMonthlyPointsIfNeeded() error {
 	if lastReset.Month() != now.Month() || lastReset.Year() != now.Year() {
 		return r.db.Model(&database.User{}).
 			Updates(map[string]interface{}{
-				"monthly_points":        0,
+				"points":                1000,
+				"monthly_points":        1000,
 				"last_monthly_reset_at": now,
 			}).Error
 	}
@@ -263,13 +264,14 @@ func (r *UserRepository) MultiplyPoints(uid uint, multiplier float64) error {
 		Update("points", gorm.Expr("CAST(points * ? AS INTEGER)", multiplier)).Error
 }
 
-// ResetMonthlyPoints 重置月度积分
+// ResetMonthlyPoints 重置月度积分 (设为初始1000)
 func (r *UserRepository) ResetMonthlyPoints() error {
 	now := time.Now()
 	return r.db.Model(&database.User{}).
 		Where("strftime('%Y-%m', last_monthly_reset_at) != ?", now.Format("2006-01")).
 		Updates(map[string]interface{}{
-			"monthly_points":        0,
+			"points":                1000,
+			"monthly_points":        1000,
 			"last_monthly_reset_at": now,
 		}).Error
 }
@@ -342,15 +344,17 @@ func (r *UserRepository) FindIsAdminByID(uid uint) (bool, error) {
 func (r *UserRepository) SearchUsers(query string) ([]database.User, error) {
 	var users []database.User
 
-	dbQuery := r.db.Select("uid, username, avatar, points, win_count, total_games")
+	dbQuery := r.db.Select("uid, username, avatar, points, monthly_points, win_count, total_games")
 
 	// 尝试将 query 解析为数字 (UID)
 	var uid uint
 	_, err := fmt.Sscanf(query, "%d", &uid)
 
 	if err == nil && uid > 0 {
-		// 如果是数字且大于0，则同时搜索 UID 和用户名
-		err = dbQuery.Where("uid = ? OR username LIKE ?", uid, "%"+query+"%").Limit(20).Find(&users).Error
+		// 如果是数字且大于0，则优先精准匹配 UID，同时模糊匹配用户名
+		err = dbQuery.Where("uid = ? OR username LIKE ?", uid, "%"+query+"%").
+			Order(fmt.Sprintf("CASE WHEN uid = %d THEN 0 ELSE 1 END", uid)).
+			Limit(20).Find(&users).Error
 	} else {
 		// 否则仅模糊搜索用户名
 		err = dbQuery.Where("username LIKE ?", "%"+query+"%").Limit(20).Find(&users).Error

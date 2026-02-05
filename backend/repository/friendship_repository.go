@@ -2,6 +2,7 @@ package repository
 
 import (
 	"chemistryuno/database"
+	"time"
 
 	"gorm.io/gorm"
 )
@@ -16,18 +17,21 @@ func NewFriendshipRepository() *FriendshipRepository {
 	}
 }
 
-func (r *FriendshipRepository) CreateRequest(userID, friendID uint) error {
+func (r *FriendshipRepository) CreateRequest(userID, friendID uint, message string) error {
 	// 如果已经存在（无论是 pending 还是 accepted），不再创建
 	var existing database.Friendship
 	err := r.db.Where("(user_id = ? AND friend_id = ?) OR (user_id = ? AND friend_id = ?)", userID, friendID, friendID, userID).First(&existing).Error
 	if err == nil {
-		return nil // 已经存在记录
+		// 如果是已经接受了，或者过期的 pending，可能需要不同处理，但这里先按用户逻辑：已有记录就不再创建
+		// 如果是 pending 状态，更新 hello_message 和 CreatedAt 也是一种思路，但先保持简单
+		return nil
 	}
 
 	f := database.Friendship{
-		UserID:   userID,
-		FriendID: friendID,
-		Status:   "pending",
+		UserID:       userID,
+		FriendID:     friendID,
+		Status:       "pending",
+		HelloMessage: message,
 	}
 	return r.db.Create(&f).Error
 }
@@ -38,7 +42,11 @@ func (r *FriendshipRepository) UpdateStatus(id uint, status string) error {
 
 func (r *FriendshipRepository) GetPendingRequests(uid uint) ([]database.Friendship, error) {
 	var requests []database.Friendship
-	err := r.db.Preload("Friend").Preload("User").Where("friend_id = ? AND status = ?", uid, "pending").Find(&requests).Error
+	sevenDaysAgo := time.Now().AddDate(0, 0, -7)
+	err := r.db.Preload("Friend").Preload("User").
+		Where("friend_id = ? AND status = ? AND created_at > ?", uid, "pending", sevenDaysAgo).
+		Order("created_at DESC").
+		Find(&requests).Error
 	return requests, err
 }
 
@@ -84,4 +92,10 @@ func (r *FriendshipRepository) GetFriendshipByID(id uint) (*database.Friendship,
 	var f database.Friendship
 	err := r.db.First(&f, id).Error
 	return &f, err
+}
+
+func (r *FriendshipRepository) CleanupExpiredRequests() error {
+	sevenDaysAgo := time.Now().AddDate(0, 0, -7)
+	// 删除状态为 pending 且创建时间超过 7 天的请求
+	return r.db.Where("status = ? AND created_at < ?", "pending", sevenDaysAgo).Delete(&database.Friendship{}).Error
 }

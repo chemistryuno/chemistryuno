@@ -215,8 +215,8 @@ export const substanceAPI = {
 
 // 好友系统API
 export const friendAPI = {
-  sendRequest: (friendId: number) =>
-    api.post('/friends/request', { friend_id: friendId }),
+  sendRequest: (friendId: number, message: string = '') =>
+    api.post('/friends/request', { friend_id: friendId, message }),
   getPendingRequests: () =>
     api.get('/friends/pending'),
   handleRequest: (requestId: number, action: 'accept' | 'decline') =>

@@ -54,6 +54,22 @@
             </button>
           </div>
 
+          <!-- Search Bar -->
+          <div class="flex-1 max-w-sm md:ml-4">
+             <div class="relative group">
+                <div class="absolute inset-0 bg-blue-500/5 rounded-2xl blur group-focus-within:bg-blue-500/10 transition-all"></div>
+                <Search class="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
+                <input 
+                  v-model="searchTerm"
+                  placeholder="搜索研究员 ID 或称号..."
+                  class="relative w-full h-12 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-[20px] pl-12 pr-6 text-xs text-slate-700 dark:text-white focus:outline-none focus:border-blue-500/50 transition-all font-medium"
+                />
+                <div v-if="isSearching" class="absolute right-4 top-1/2 -translate-y-1/2">
+                  <Loader2 class="w-4 h-4 text-blue-500 animate-spin" />
+                </div>
+             </div>
+          </div>
+
           <!-- Compact Stats Overview -->
           <div class="flex flex-wrap items-center gap-3">
             <div class="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 flex items-center gap-3 shadow-sm group hover:border-amber-500/30 transition-colors">
@@ -96,7 +112,7 @@
             <table class="w-full border-collapse">
               <thead>
                 <tr class="bg-slate-50/50 dark:bg-white/[0.02] border-b border-slate-100 dark:border-white/5 text-left">
-                  <th class="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Rank</th>
+                  <th class="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">{{ searchTerm ? 'Match' : 'Rank' }}</th>
                   <th class="px-6 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Researcher</th>
                   <th class="px-6 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Points</th>
                   <th class="px-6 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Experimental_Bonus</th>
@@ -105,7 +121,7 @@
               </thead>
               <tbody class="divide-y divide-slate-100 dark:divide-white/5">
                 <tr 
-                  v-for="(player, idx) in leaderboard" 
+                  v-for="(player, idx) in (searchTerm ? searchResults : leaderboard)" 
                   :key="player.uid"
                   :class="cn(
                     'group transition-colors',
@@ -114,15 +130,22 @@
                 >
                   <td class="px-8 py-4">
                     <div class="flex items-center gap-4">
-                      <span :class="cn(
-                        'w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-black italic shadow-lg',
-                        idx === 0 ? 'bg-amber-500 text-amber-950 dark:text-black' :
-                        idx === 1 ? 'bg-slate-300 text-slate-900 dark:text-black' :
-                        idx === 2 ? 'bg-amber-700 text-white' :
-                        'bg-slate-100 dark:bg-white/5 text-slate-500'
-                      )">
-                        {{ idx + 1 }}
-                      </span>
+                      <template v-if="!searchTerm">
+                        <span :class="cn(
+                          'w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-black italic shadow-lg',
+                          idx === 0 ? 'bg-amber-500 text-amber-950 dark:text-black' :
+                          idx === 1 ? 'bg-slate-300 text-slate-900 dark:text-black' :
+                          idx === 2 ? 'bg-amber-700 text-white' :
+                          'bg-slate-100 dark:bg-white/5 text-slate-500'
+                        )">
+                          {{ idx + 1 }}
+                        </span>
+                      </template>
+                      <template v-else>
+                        <div class="w-7 h-7 bg-blue-500/10 text-blue-500 rounded-lg flex items-center justify-center">
+                          <Target class="w-3 h-3" />
+                        </div>
+                      </template>
                     </div>
                   </td>
                   <td class="px-6 py-4">
@@ -292,7 +315,7 @@
       @click="showChat = !showChat" 
       class="fixed bottom-6 right-6 z-50 w-14 h-14 bg-blue-600 hover:bg-blue-500 text-white rounded-[24px] shadow-2xl shadow-blue-500/30 flex items-center justify-center transition-all hover:scale-110 active:scale-95 group"
     >
-      <MessageSquare class="w-6 h-6 group-hover:rotate-12 transition-transform" />
+      <MessageCircle class="w-6 h-6 group-hover:rotate-12 transition-transform" />
       <div v-if="hasNewMessage" class="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 border-2 border-white dark:border-[#0a0a0c] rounded-full animate-pulse"></div>
     </button>
 
@@ -309,14 +332,15 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { pointsAPI, gameAPI, friendAPI } from '../utils/api'
+import { pointsAPI, gameAPI, friendAPI, authAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
-import { Trophy, ArrowLeft, Loader2, Target, RefreshCw, ShieldCheck, Crosshair, Flame, X, Swords, MessageCircle, MessageSquare, UserPlus } from 'lucide-vue-next'
+import { Trophy, ArrowLeft, Loader2, Target, RefreshCw, ShieldCheck, Crosshair, Flame, X, Swords, MessageCircle, MessageSquare, UserPlus, Search } from 'lucide-vue-next'
 import { cn } from '../utils/cn'
 import ChatBox from '../components/ChatBox.vue'
+import websocket from '../utils/websocket'
 
 const router = useRouter()
-const { showAlert } = useDialog()
+const { showAlert, showPrompt } = useDialog()
 const user = ref(JSON.parse(localStorage.getItem('user') || '{}'))
 
 const leaderboard = ref<any[]>([])
@@ -325,13 +349,43 @@ const loading = ref(true)
 const userPoints = ref(0)
 const rankingMode = ref<'total' | 'monthly'>('total')
 
+const searchTerm = ref('')
+const searchResults = ref<any[]>([])
+const isSearching = ref(false)
+
+// 监听搜索词
+let searchTimeout: any = null
+watch(searchTerm, (newVal) => {
+  if (searchTimeout) clearTimeout(searchTimeout)
+  if (!newVal.trim()) {
+    searchResults.value = []
+    isSearching.value = false
+    return
+  }
+  
+  isSearching.value = true
+  searchTimeout = setTimeout(async () => {
+    try {
+      const res = await authAPI.searchUsers(newVal)
+      searchResults.value = res.data
+    } catch (err) {
+      console.error('搜索失败:', err)
+    } finally {
+      isSearching.value = false
+    }
+  }, 500)
+})
+
 const isFriend = (uid: number) => {
   return friendsList.value.some(f => f.uid === uid)
 }
 
 const handleAddFriend = async (player: any) => {
+  const message = await showPrompt('请输入申请信息（可选）:', '你好，我想和你一起进行化学实验。', '发送好友请求')
+  if (message === null) return
+
   try {
-    await friendAPI.sendRequest(player.uid)
+    await friendAPI.sendRequest(player.uid, message)
     showAlert(`已向研究员 ${player.username} 发送同步请求，等待量子握手。`, '请求已发送')
   } catch (error: any) {
     showAlert(error.response?.data?.error || '请求发送失败', '链路故障')

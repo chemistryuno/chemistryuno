@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { gameAPI, authAPI, commonAPI } from '../utils/api'
+import { gameAPI, authAPI, commonAPI, friendAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
 import websocket from '../utils/websocket'
-import { Beaker, Plus, Users, Shield, LogOut, Settings, Play, Info, X, Loader2, Database, MessageSquare, Trash2, Trophy, Bell, Megaphone, Clock } from 'lucide-vue-next'
+import { Beaker, Plus, Users, Shield, LogOut, Settings, Play, Info, X, Loader2, Database, MessageSquare, MessageCircle, Trash2, Trophy, Bell, Megaphone, Clock, Search, UserPlus, Target } from 'lucide-vue-next'
 import { cn } from '../utils/cn'
 import ChatBox from '../components/ChatBox.vue'
 
@@ -13,8 +13,63 @@ const props = defineProps<{
 }>()
 
 const router = useRouter()
-const { showAlert, showConfirm } = useDialog()
+const { showAlert, showConfirm, showPrompt } = useDialog()
 const user = ref(JSON.parse(localStorage.getItem('user') || '{}'))
+
+const showSearchModal = ref(false)
+const searchTerm = ref('')
+const searchResults = ref<any[]>([])
+const searchLoading = ref(false)
+const friendsList = ref<any[]>([])
+
+const isFriend = (uid: number) => {
+  return friendsList.value.some(f => f.uid === uid)
+}
+
+const handleAddFriend = async (player: any) => {
+  const message = await showPrompt('请输入申请信息（可选）:', '你好，我想和你一起进行化学实验。', '建立同步请求')
+  if (message === null) return
+
+  try {
+    await friendAPI.sendRequest(player.uid, message)
+    showAlert(`已向研究员 ${player.username} 发送同步请求，等待量子握手。`, '请求已发送')
+  } catch (error: any) {
+    showAlert(error.response?.data?.error || '请求发送失败', '链路故障')
+  }
+}
+
+// 搜索逻辑
+let searchTimeout: any = null
+watch(searchTerm, (newVal) => {
+  if (searchTimeout) clearTimeout(searchTimeout)
+  if (!newVal.trim()) {
+    searchResults.value = []
+    return
+  }
+  searchLoading.value = true
+  searchTimeout = setTimeout(async () => {
+    try {
+      const res = await authAPI.searchUsers(newVal)
+      searchResults.value = res.data
+    } catch (err) {
+      console.error(err)
+    } finally {
+      searchLoading.value = false
+    }
+  }, 500)
+})
+
+const openSearch = async () => {
+  showSearchModal.value = true
+  searchTerm.value = ''
+  try {
+    const res = await friendAPI.getFriends()
+    friendsList.value = res.data
+  } catch (err) {
+    console.error(err)
+  }
+}
+
 const rooms = ref<any[]>([])
 const decks = ref<any[]>([])
 const pendingFeedbacks = ref<any[]>([])
@@ -238,8 +293,8 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
                 <Trophy class="w-5 h-5 group-hover:scale-110 transition-transform" />
                 <span class="text-[10px] font-black uppercase tracking-widest hidden md:block">全球排名</span>
               </router-link>
-              <router-link to="/feedbacks" class="p-3 hover:bg-white/5 rounded-2xl transition-all text-slate-400 hover:text-white" title="消息中心">
-                <MessageSquare class="w-5 h-5" />
+              <router-link to="/feedbacks" class="p-3 hover:bg-amber-500/10 rounded-2xl transition-all text-amber-500/70 hover:text-amber-400" title="反馈与公告">
+                <Megaphone class="w-5 h-5" />
               </router-link>
               <router-link to="/profile" class="p-3 hover:bg-white/5 rounded-2xl transition-all text-slate-400 hover:text-white" title="实验室档案">
                 <Settings class="w-5 h-5" />
@@ -247,8 +302,11 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
               <router-link to="/data" class="p-3 hover:bg-blue-500/10 rounded-2xl transition-all text-blue-500/70 hover:text-blue-400" title="反应数据库">
                 <Database class="w-5 h-5" />
               </router-link>
-              <router-link to="/chat" class="p-3 hover:bg-blue-500/10 rounded-2xl transition-all text-blue-500/70 hover:text-blue-400" title="加密通讯">
-                <MessageSquare class="w-5 h-5" />
+              <button @click="openSearch" class="p-3 hover:bg-amber-500/10 rounded-2xl transition-all text-amber-500/70 hover:text-amber-400" title="搜索玩家">
+                <Search class="w-5 h-5" />
+              </button>
+              <router-link to="/chat" class="p-3 hover:bg-indigo-500/10 rounded-2xl transition-all text-indigo-500/70 hover:text-indigo-400" title="加密通讯">
+                <MessageCircle class="w-5 h-5" />
               </router-link>
               <router-link v-if="user.is_admin" to="/admin" class="p-3 hover:bg-yellow-500/10 rounded-2xl transition-all text-yellow-500/70 hover:text-yellow-400" title="科研管理">
                 <Shield class="w-5 h-5" />
@@ -492,6 +550,89 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
       </div>
     </div>
   </main>
+
+  <!-- Search Player Modal -->
+  <div v-if="showSearchModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-slate-900/40 dark:bg-black/80 backdrop-blur-md" @click="showSearchModal = false"></div>
+    <div class="relative w-full max-w-lg bg-white dark:bg-[#0f0f12] border border-slate-200 dark:border-white/5 rounded-[40px] shadow-2xl overflow-hidden animate-in zoom-in duration-300">
+      <div class="p-8 border-b border-slate-100 dark:border-white/5 flex items-center justify-between bg-blue-500/5">
+        <div class="flex items-center gap-4">
+          <div class="w-12 h-12 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center justify-center text-blue-500">
+            <Search class="w-6 h-6" />
+          </div>
+          <div>
+            <h2 class="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">发现研究员</h2>
+            <p class="text-[9px] text-blue-500/60 font-mono uppercase tracking-widest mt-1">Player_Network_Scanner</p>
+          </div>
+        </div>
+        <button @click="showSearchModal = false" class="p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl transition-colors">
+          <X class="w-6 h-6 text-slate-400" />
+        </button>
+      </div>
+
+      <div class="p-8 space-y-6">
+        <!-- Search Input -->
+        <div class="relative group">
+          <div class="absolute inset-0 bg-blue-500/5 rounded-3xl blur group-focus-within:bg-blue-500/10 transition-all"></div>
+          <Search class="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
+          <input 
+            v-model="searchTerm"
+            placeholder="输入用户名或 UID 进行全网扫描..."
+            class="relative w-full h-16 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-3xl pl-16 pr-6 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-blue-500/50 transition-all font-medium"
+          />
+          <div v-if="searchLoading" class="absolute right-6 top-1/2 -translate-y-1/2">
+            <Loader2 class="w-5 h-5 text-blue-500 animate-spin" />
+          </div>
+        </div>
+
+        <!-- Results Scroll Area -->
+        <div class="max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+          <div v-if="searchResults.length > 0" class="space-y-3">
+            <div 
+              v-for="player in searchResults" 
+              :key="player.uid"
+              class="group p-4 bg-slate-50/50 dark:bg-white/[0.02] border border-slate-100 dark:border-white/5 rounded-[24px] flex items-center justify-between hover:border-blue-500/30 transition-all animate-in slide-in-from-bottom-2"
+            >
+              <div class="flex items-center gap-4">
+                <div class="w-12 h-12 rounded-2xl bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-center justify-center text-2xl shadow-sm">
+                  {{ player.avatar || '🧪' }}
+                </div>
+                <div>
+                  <h3 class="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
+                      {{ player.username }}
+                      <span v-if="player.uid === user.uid" class="text-[8px] bg-blue-600 px-1.5 py-0.5 rounded uppercase font-black text-white">You</span>
+                  </h3>
+                  <p class="text-[10px] text-slate-400 font-mono uppercase tracking-tighter">UID: {{ player.uid }}</p>
+                </div>
+              </div>
+
+              <div v-if="player.uid !== user.uid" class="flex gap-2">
+                <button 
+                  v-if="!isFriend(player.uid)"
+                  @click="handleAddFriend(player)"
+                  class="h-10 px-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-blue-500/20 flex items-center gap-2"
+                >
+                  <UserPlus class="w-3.5 h-3.5" />
+                  添加
+                </button>
+                <div v-else class="h-10 px-4 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+                  已连接
+                </div>
+              </div>
+            </div>
+          </div>
+          <div v-else-if="searchTerm && !searchLoading" class="py-20 flex flex-col items-center justify-center text-slate-400 opacity-40">
+            <Target class="w-12 h-12 mb-4 animate-pulse" />
+            <p class="text-[10px] font-black uppercase tracking-[0.2em]">未探测到匹配数据流</p>
+          </div>
+          <div v-else-if="!searchTerm" class="py-20 flex flex-col items-center justify-center text-slate-400 opacity-20">
+            <Search class="w-16 h-16 mb-4" />
+            <p class="text-xs font-bold">准备就绪，等待输入指令...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
       <!-- Global Footer Terminal -->
       <footer class="mt-auto border-t border-white/5 bg-black/40 backdrop-blur-md p-4">

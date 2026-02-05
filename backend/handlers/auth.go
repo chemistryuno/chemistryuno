@@ -5,6 +5,7 @@ import (
 	"chemistryuno/models"
 	"chemistryuno/repository"
 	"chemistryuno/utils"
+	"chemistryuno/websocket"
 	"fmt"
 	"net/http"
 	"time"
@@ -44,10 +45,12 @@ func Register(c *gin.Context) {
 
 	// 3. 创建用户
 	user := &database.User{
-		Username: req.Username,
-		Password: hashedPassword,
-		Avatar:   "🧪",
-		Role:     "user",
+		Username:      req.Username,
+		Password:      hashedPassword,
+		Avatar:        "🧪",
+		Role:          "user",
+		Points:        1000,
+		MonthlyPoints: 1000,
 	}
 
 	err = userRepo.Create(user)
@@ -434,5 +437,26 @@ func SearchUsers(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, users)
+	var result []map[string]interface{}
+	for _, user := range users {
+		totalBounty, _ := repository.BountyRepo.GetTotalBounty(user.UID)
+		isOnline := false
+		if websocket.GlobalHub != nil {
+			isOnline = websocket.GlobalHub.IsUIDOnline(int(user.UID))
+		}
+
+		result = append(result, map[string]interface{}{
+			"uid":            user.UID,
+			"username":       user.Username,
+			"avatar":         user.Avatar,
+			"points":         user.Points,
+			"monthly_points": user.MonthlyPoints,
+			"win_count":      user.WinCount,
+			"total_games":    user.TotalGames,
+			"bounty":         totalBounty,
+			"is_online":      isOnline,
+		})
+	}
+
+	c.JSON(http.StatusOK, result)
 }

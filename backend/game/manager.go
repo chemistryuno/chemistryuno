@@ -342,16 +342,14 @@ func StartRoomMonitor() {
 }
 
 func performPeriodicMaintenance() {
-	now := time.Now()
-
-	// 1. 每月1号重置月榜积分
-	if now.Day() == 1 {
-		// 使用 Repository 重置月度积分
-		repository.UserRepo.ResetMonthlyPointsIfNeeded()
-	}
+	// 1. 每月重置月榜积分 (ResetMonthlyPointsIfNeeded 内部会判断是否是新月份)
+	repository.UserRepo.ResetMonthlyPointsIfNeeded()
 
 	// 2. 每周衰减前10%玩家积分2%
 	repository.UserRepo.DecayTopPlayersPoints(10) // 10% 的玩家
+
+	// 3. 清理过期的好友请求 (7天过期)
+	repository.FriendshipRepo.CleanupExpiredRequests()
 }
 
 func checkAllRooms() {

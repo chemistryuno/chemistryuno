@@ -66,10 +66,12 @@ func CreateUser(c *gin.Context) {
 
 	// 创建用户
 	user := &database.User{
-		Username: req.Username,
-		Password: hashedPassword,
-		Avatar:   "🧪",
-		Role:     "user",
+		Username:      req.Username,
+		Password:      hashedPassword,
+		Avatar:        "🧪",
+		Role:          "user",
+		Points:        1000,
+		MonthlyPoints: 1000,
 	}
 
 	err = userRepo.Create(user)

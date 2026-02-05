@@ -6,7 +6,7 @@ import { useDialog } from '../utils/dialog'
 import ws from '../utils/websocket'
 import { 
   ArrowLeft, 
-  MessageSquare, 
+  Megaphone, 
   Clock, 
   User, 
   CheckCircle2, 
@@ -115,9 +115,9 @@ const urge = async (id: number, idx: number) => {
       <div class="flex items-center justify-between mb-8">
         <h2 class="text-3xl font-black uppercase tracking-tighter flex items-center gap-4">
           <div class="p-3 bg-blue-500/10 rounded-2xl">
-            <MessageSquare class="w-8 h-8 text-blue-500" />
+            <Megaphone class="w-8 h-8 text-blue-500" />
           </div>
-          反馈与消息 / Messages
+          反馈与消息 / Feedbacks
         </h2>
       </div>
 

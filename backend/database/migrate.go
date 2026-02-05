@@ -80,11 +80,13 @@ func createDefaultAdmin() error {
 	hashedPassword := "$2a$10$BTDLnKl4G7Z26XzUU0VLouw1yxATdub5i2HHj0iVcW0cofNNXkMQe"
 
 	admin := User{
-		Username: "admin",
-		Password: hashedPassword,
-		Avatar:   "⚗️",
-		IsAdmin:  true,
-		Role:     "admin",
+		Username:      "admin",
+		Password:      hashedPassword,
+		Avatar:        "⚗️",
+		IsAdmin:       true,
+		Role:          "admin",
+		Points:        1000,
+		MonthlyPoints: 1000,
 	}
 
 	if err := DB.Create(&admin).Error; err != nil {

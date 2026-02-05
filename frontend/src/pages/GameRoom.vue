@@ -1409,7 +1409,7 @@ onMounted(() => {
       @click="showChat = !showChat" 
       class="fixed bottom-6 right-6 z-50 w-14 h-14 bg-blue-600 hover:bg-blue-500 text-white rounded-[24px] shadow-2xl shadow-blue-500/30 flex items-center justify-center transition-all hover:scale-110 active:scale-95 group"
     >
-      <MessageSquare class="w-6 h-6 group-hover:rotate-12 transition-transform" />
+      <MessageCircle class="w-6 h-6 group-hover:rotate-12 transition-transform" />
       <div v-if="hasNewMessage" class="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 border-2 border-white dark:border-[#0a0a0c] rounded-full animate-pulse"></div>
     </button>
 

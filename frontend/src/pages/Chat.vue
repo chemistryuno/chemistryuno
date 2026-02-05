@@ -4,7 +4,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { friendAPI, authAPI } from '../utils/api'
 import websocket from '../utils/websocket'
 import { 
-  MessageSquare, User, UserPlus, Send, 
+  MessageCircle, User, UserPlus, Send, 
   Search, ArrowLeft, MoreVertical, X, Check,
   Trash2, ShieldAlert, FlaskConical, Globe, Loader2
 } from 'lucide-vue-next'
@@ -13,7 +13,7 @@ import { useDialog } from '../utils/dialog'
 
 const router = useRouter()
 const route = useRoute()
-const { showAlert, showConfirm } = useDialog()
+const { showAlert, showConfirm, showPrompt } = useDialog()
 const currentUser = ref(JSON.parse(localStorage.getItem('user') || '{}'))
 
 // 状态管理
@@ -46,15 +46,16 @@ watch(searchTerm, (newVal) => {
     return
   }
   
+  searchLoading.value = true
   searchTimeout = setTimeout(async () => {
-    searchLoading.value = true
     try {
       const res = await authAPI.searchUsers(newVal)
-      // 排除掉已经是好友的人和自己
-      globalSearchResults.value = res.data.filter((u: any) => 
-        u.uid !== currentUser.value.uid && 
-        !friends.value.find(f => f.uid === u.uid)
-      )
+      // 排除掉或者是好友的人和自己
+      globalSearchResults.value = res.data.filter((u: any) => {
+        const isMe = Number(u.uid) === Number(currentUser.value.uid)
+        const isFriend = friends.value.some(f => Number(f.uid) === Number(u.uid))
+        return !isMe && !isFriend
+      })
     } catch (err) {
       console.error('全局搜索失败', err)
     } finally {
@@ -102,8 +103,11 @@ const handleRequest = async (id: number, action: 'accept' | 'decline') => {
 }
 
 const sendRequest = async (uid: number) => {
+  const message = await showPrompt('请输入申请信息（可选）:', '你好，我想和你一起进行化学实验。', '建立研究连接')
+  if (message === null) return // 用户取消
+  
   try {
-    await friendAPI.sendRequest(uid)
+    await friendAPI.sendRequest(uid, message)
     showAlert('研究者连接请求已发出，等待对方同步波段。', '请求已发送')
   } catch (err: any) {
     showAlert(err.response?.data?.error || '请求发送失败', '错误')
@@ -208,7 +212,7 @@ const formatTime = (date: Date) => {
         </button>
         <div>
           <h1 class="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tighter flex items-center gap-3">
-            <MessageSquare class="w-6 h-6 text-blue-500" />
+            <MessageCircle class="w-6 h-6 text-blue-500" />
             加密通讯链路
           </h1>
           <p class="text-[10px] text-slate-400 font-mono uppercase tracking-widest mt-0.5">Secure_P2P_Messaging_System</p>
@@ -219,14 +223,30 @@ const formatTime = (date: Date) => {
     <main class="flex-1 flex overflow-hidden">
       <!-- Sidebar -->
       <aside class="w-[380px] border-r border-slate-200 dark:border-white/5 flex flex-col bg-white/30 dark:bg-white/[0.01] shrink-0">
+        <!-- Sidebar Header -->
+        <div class="p-6 pb-2 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <User class="w-4 h-4 text-blue-500" />
+            <span class="text-[10px] font-black uppercase tracking-widest text-slate-500">研究员目录 / Registry</span>
+          </div>
+          <button 
+            @click="searchTerm = ''; nextTick(() => { const el = document.getElementById('search-input'); if(el) el.focus() })"
+            class="p-2 hover:bg-blue-500/10 text-blue-500 rounded-xl transition-all"
+            title="添加新研究员"
+          >
+            <UserPlus class="w-4 h-4" />
+          </button>
+        </div>
+
         <!-- Search -->
         <div class="p-6">
           <div class="relative group">
             <div class="absolute inset-0 bg-blue-500/5 rounded-2xl blur group-focus-within:bg-blue-500/10 transition-all"></div>
             <Search class="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input 
+              id="search-input"
               v-model="searchTerm"
-              placeholder="搜索研究员 ID 或称号..."
+              placeholder="搜索 ID 或称号以建立链接..."
               class="relative w-full h-14 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl pl-12 pr-6 text-sm text-slate-700 dark:text-white focus:outline-none focus:border-blue-500/50 transition-all font-medium"
             />
           </div>
@@ -249,9 +269,10 @@ const formatTime = (date: Date) => {
                 <div class="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-lg border border-amber-500/20">
                   {{ req.avatar || '🧪' }}
                 </div>
-                <div class="min-w-0">
+                <div class="min-w-0 flex-1">
                   <div class="text-sm font-bold text-slate-700 dark:text-white truncate">{{ req.username }}</div>
-                  <div class="text-[9px] text-amber-500/60 font-mono">REQ_CONNECT</div>
+                  <div v-if="req.hello_message" class="text-[9px] text-amber-500/80 font-medium italic mt-0.5 line-clamp-1">"{{ req.hello_message }}"</div>
+                  <div v-else class="text-[9px] text-amber-500/60 font-mono">REQ_CONNECT</div>
                 </div>
               </div>
               <div class="flex gap-2">
@@ -280,12 +301,15 @@ const formatTime = (date: Date) => {
               class="group p-3 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl flex items-center justify-between hover:border-purple-500/30 transition-all"
             >
               <div class="flex items-center gap-3">
-                <div class="w-9 h-9 rounded-xl bg-slate-100 dark:bg-white/10 flex items-center justify-center text-lg">
-                  {{ result.avatar || '🧪' }}
+                <div class="relative">
+                  <div class="w-9 h-9 rounded-xl bg-slate-100 dark:bg-white/10 flex items-center justify-center text-lg">
+                    {{ result.avatar || '🧪' }}
+                  </div>
+                  <div v-if="result.is_online" class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 border-2 border-white dark:border-[#0f0f12] rounded-full"></div>
                 </div>
                 <div class="min-w-0">
                   <div class="text-xs font-bold text-slate-700 dark:text-white truncate">{{ result.username }}</div>
-                  <div class="text-[8px] text-slate-400 font-mono">UID: {{ result.uid }}</div>
+                  <div class="text-[8px] text-slate-400 font-mono tracking-tighter">UID: {{ result.uid }}</div>
                 </div>
               </div>
               <button 
@@ -456,12 +480,19 @@ const formatTime = (date: Date) => {
         <div v-else class="flex-1 flex flex-col items-center justify-center p-20 opacity-30">
           <div class="relative mb-12">
             <div class="absolute inset-0 bg-blue-500/10 rounded-full blur-3xl animate-pulse"></div>
-            <MessageSquare class="w-24 h-24 text-blue-500 relative z-10" />
+            <MessageCircle class="w-24 h-24 text-blue-500 relative z-10" />
           </div>
           <h3 class="text-2xl font-black text-slate-400 dark:text-white uppercase tracking-[0.2em] mb-4">选择活跃波段</h3>
-          <p class="text-sm font-medium text-slate-500 dark:text-slate-400 max-w-sm text-center leading-relaxed">
+          <p class="text-sm font-medium text-slate-500 dark:text-slate-400 max-w-sm text-center leading-relaxed mb-8">
             点击左侧活跃研究员成员，建立点对点（P2P）加密对话隧道。
           </p>
+          <button 
+            @click="searchTerm = ''; nextTick(() => { const el = document.getElementById('search-input'); if(el) el.focus() })"
+            class="px-8 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black uppercase tracking-widest transition-all shadow-xl shadow-blue-500/20 active:scale-95 flex items-center gap-3 opacity-100"
+          >
+            <UserPlus class="w-4 h-4" />
+            建立新研究连接
+          </button>
         </div>
       </section>
     </main>

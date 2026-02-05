@@ -91,11 +91,6 @@ onMounted(() => {
   websocket.on('online_count', handleOnlineCountUpdate)
   websocket.on('system_announcement', handleSystemAnnouncement)
   
-  // 加入大厅聊天频道
-  setTimeout(() => {
-    websocket.send({ type: 'join_room', room_id: 'lobby' })
-  }, 500)
-
   roomInterval = setInterval(loadRooms, 3000)
   timeInterval = setInterval(() => {
     currentTime.value = new Date()
@@ -331,7 +326,7 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
         </div>
 
         <!-- Main Layout Grid -->
-        <div class="grid grid-cols-1 xl:grid-cols-12 gap-8">
+        <div class="grid grid-cols-1 xl:grid-cols-12 gap-8 items-stretch">
           <!-- Left Column: Notifications & Room List -->
           <div class="xl:col-span-9 space-y-8">
             <!-- Persistent Announcements -->
@@ -498,9 +493,9 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
       </div>
 
       <!-- Right Column: World Chat -->
-      <div class="xl:col-span-3 space-y-6">
-        <div class="sticky top-28">
-           <ChatBox title="全域通信频道" placeholder="向研究员们发送信息..." maxHeight="600px" />
+      <div class="xl:col-span-3 h-full">
+        <div class="sticky top-28 h-[calc(100vh-160px)] xl:h-full">
+           <ChatBox title="全域通信频道" placeholder="向研究员们发送信息..." maxHeight="100%" />
         </div>
       </div>
     </div>

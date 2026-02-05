@@ -146,6 +146,9 @@ func main() {
 		auth.DELETE("/user/account", handlers.DeleteAccount)
 		auth.GET("/users/search", handlers.SearchUsers)
 
+		// 聊天相关
+		auth.GET("/chat/global/history", handlers.GetGlobalChatHistory)
+
 		// 会话与设备管理
 		auth.GET("/user/sessions", handlers.GetSessions)
 		auth.POST("/user/sessions/logout", handlers.RevokeSession)
@@ -323,13 +326,19 @@ func handleWebSocket(c *gin.Context) {
 	uid := c.GetInt("uid")
 	username := c.GetString("username")
 
+	// 获取用户头像
+	avatar := "🧪"
+	if user, err := repository.UserRepo.FindByID(uint(uid)); err == nil {
+		avatar = user.Avatar
+	}
+
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		log.Printf("WebSocket升级失败: %v", err)
 		return
 	}
 
-	client := websocket.NewClient(hub, conn, uid, username)
+	client := websocket.NewClient(hub, conn, uid, username, avatar)
 	hub.Register(client)
 
 	go client.WritePump()

@@ -22,6 +22,7 @@ type Client struct {
 	send     chan []byte
 	uid      int
 	username string
+	avatar   string
 	roomID   string
 }
 
@@ -34,13 +35,14 @@ type Message struct {
 	Message   string      `json:"message,omitempty"`
 }
 
-func NewClient(hub *Hub, conn *websocket.Conn, uid int, username string) *Client {
+func NewClient(hub *Hub, conn *websocket.Conn, uid int, username string, avatar string) *Client {
 	return &Client{
 		hub:      hub,
 		conn:     conn,
 		send:     make(chan []byte, 256),
 		uid:      uid,
 		username: username,
+		avatar:   avatar,
 	}
 }
 
@@ -146,6 +148,12 @@ func (c *Client) handleMessage(msg *Message) {
 		if targetRoom == "" {
 			targetRoom = "lobby"
 		}
+
+		// 如果是大厅对话，保存到数据库
+		if targetRoom == "lobby" {
+			repository.ChatRepo.SaveChatMessage(uint(c.uid), c.username, c.avatar, msg.Message)
+		}
+
 		c.hub.BroadcastToRoom(targetRoom, Message{
 			Type:    "chat",
 			UID:     c.uid,

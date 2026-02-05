@@ -32,6 +32,10 @@ const scrollContainer = ref<HTMLElement | null>(null)
 const showSearchModal = ref(false)
 const showRequestsModal = ref(false)
 
+watch(showRequestsModal, (val) => {
+  if (val) fetchRequests()
+})
+
 // 过滤后的好友列表
 const filteredFriends = computed(() => {
   if (!searchTerm.value) return friends.value

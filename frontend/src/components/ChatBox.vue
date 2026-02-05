@@ -2,6 +2,7 @@
 import { ref, onMounted, nextTick } from 'vue'
 import { Send, MessageSquare, User, X } from 'lucide-vue-next'
 import websocket from '../utils/websocket'
+import { authAPI } from '../utils/api'
 import { cn } from '../utils/cn'
 
 const props = defineProps<{
@@ -26,7 +27,32 @@ const scrollToBottom = () => {
   }
 }
 
+const loadHistory = async () => {
+  try {
+    const res = await authAPI.getGlobalChatHistory(50)
+    messages.value = (res.data || []).map((m: any) => ({
+      uid: m.user_uid,
+      username: m.username,
+      text: m.message,
+      time: new Date(m.created_at),
+      type: 'normal'
+    }))
+    nextTick(scrollToBottom)
+  } catch (err) {
+    console.error('加载聊天历史失败', err)
+  }
+}
+
 onMounted(() => {
+  // 只有非房间内聊天才加载全服历史并加入大厅频道
+  if (!props.roomId) {
+    loadHistory()
+    // 延迟加入，确保连接已建立
+    setTimeout(() => {
+      websocket.send({ type: 'join_room', room_id: 'lobby' })
+    }, 1000)
+  }
+
   const handleChatMessage = (msg: any) => {
     messages.value.push({
       uid: msg.uid,
@@ -87,29 +113,31 @@ const formatTime = (date: Date) => {
 </script>
 
 <template>
-  <div class="flex flex-col bg-white dark:bg-[#121216]/80 backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-[28px] overflow-hidden shadow-2xl">
+  <div 
+    class="flex flex-col bg-white dark:bg-[#121216]/80 backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-[28px] overflow-hidden shadow-2xl"
+    :style="maxHeight ? { height: maxHeight } : {}"
+  >
     <!-- Header -->
-    <div class="px-6 py-4 border-b border-slate-100 dark:border-white/5 flex items-center justify-between bg-slate-50/50 dark:bg-white/[0.02]">
+    <div class="px-4 py-3 border-b border-slate-100 dark:border-white/5 flex items-center justify-between bg-slate-50/50 dark:bg-white/[0.02] shrink-0">
       <div class="flex items-center gap-2">
-        <div class="w-8 h-8 rounded-xl bg-blue-500/10 flex items-center justify-center">
-          <MessageSquare class="w-4 h-4 text-blue-500" />
+        <div class="w-6 h-6 rounded-lg bg-blue-500/10 flex items-center justify-center">
+          <MessageSquare class="w-3.5 h-3.5 text-blue-500" />
         </div>
         <div>
-          <h3 class="text-xs font-black uppercase tracking-widest text-slate-800 dark:text-white">{{ title || '实验通信频道' }}</h3>
-          <p class="text-[9px] font-mono text-slate-400 uppercase tracking-tighter">Secure_Messaging_Protocol</p>
+          <h3 class="text-[10px] font-black uppercase tracking-widest text-slate-800 dark:text-white">{{ title || '实验通信频道' }}</h3>
+          <p class="text-[8px] font-mono text-slate-400 uppercase tracking-tighter">Messaging_Protocol</p>
         </div>
       </div>
-      <div class="flex items-center gap-1.5 px-2.5 py-1 bg-blue-500/10 rounded-full border border-blue-500/20">
-        <span class="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse"></span>
-        <span class="text-[9px] font-black text-blue-500 uppercase">Live</span>
+      <div class="flex items-center gap-1 px-2 py-0.5 bg-blue-500/10 rounded-full border border-blue-500/20">
+        <span class="w-1 h-1 bg-blue-500 rounded-full animate-pulse"></span>
+        <span class="text-[8px] font-black text-blue-500 uppercase">Live</span>
       </div>
     </div>
 
     <!-- Messages -->
     <div 
       ref="scrollContainer"
-      class="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar"
-      :style="{ maxHeight: maxHeight || '300px', minHeight: '200px' }"
+      class="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar"
     >
       <div v-if="messages.length === 0" class="flex flex-col items-center justify-center h-full py-10 opacity-20">
         <MessageSquare class="w-12 h-12 mb-2" />
@@ -120,23 +148,23 @@ const formatTime = (date: Date) => {
         v-for="(msg, idx) in messages" 
         :key="idx"
         :class="cn(
-          'flex flex-col gap-1 max-w-[85%]',
+          'flex flex-col gap-0.5 max-w-[90%]',
           msg.uid === currentUID ? 'ml-auto items-end' : 'mr-auto items-start'
         )"
       >
-        <div class="flex items-center gap-2 px-1">
-          <span v-if="msg.uid !== currentUID" class="text-[9px] font-black text-slate-400 uppercase tracking-tighter">
+        <div class="flex items-center gap-1.5 px-0.5">
+          <span v-if="msg.uid !== currentUID" class="text-[8px] font-black text-slate-400 uppercase tracking-tighter">
             {{ msg.username }}
             <span v-if="msg.type === 'private'" class="text-rose-500 ml-1">(私语)</span>
           </span>
-          <span v-else-if="msg.type === 'private'" class="text-[9px] font-black text-rose-500 uppercase tracking-tighter">
+          <span v-else-if="msg.type === 'private'" class="text-[8px] font-black text-rose-500 uppercase tracking-tighter">
             对 {{ msg.target_uid === currentUID ? '自己' : '研究员' }} 说道
           </span>
-          <span class="text-[8px] font-mono text-slate-300 dark:text-slate-600">{{ formatTime(msg.time) }}</span>
+          <span class="text-[7px] font-mono text-slate-300 dark:text-slate-600">{{ formatTime(msg.time) }}</span>
         </div>
         <div :class="cn(
-          'px-4 py-2.5 rounded-2xl text-sm font-medium leading-relaxed break-words shadow-sm',
-          msg.type === 'private' ? 'border-2 border-rose-500/20' : '',
+          'px-3 py-1.5 rounded-xl text-[11px] font-medium leading-relaxed break-words shadow-sm',
+          msg.type === 'private' ? 'border-2 border-rose-500/10' : '',
           msg.uid === currentUID 
             ? 'bg-blue-600 text-white rounded-tr-none' 
             : 'bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-200 border border-slate-200/50 dark:border-white/5 rounded-tl-none'
@@ -147,35 +175,35 @@ const formatTime = (date: Date) => {
     </div>
 
     <!-- Input -->
-    <div class="p-6 border-t border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.01] space-y-4">
+    <div class="p-4 border-t border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.01] space-y-3 shrink-0">
       <!-- Mode Selector -->
-      <div v-if="chatMode === 'private'" class="flex items-center gap-2 animate-in slide-in-from-bottom-2">
-        <div class="flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all bg-rose-500 text-white">
-          <User class="w-3 h-3" />
+      <div v-if="chatMode === 'private'" class="flex items-center gap-2 animate-in slide-in-from-bottom-1">
+        <div class="flex items-center gap-2 px-2 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all bg-rose-500 text-white">
+          <User class="w-2.5 h-2.5" />
           {{ `私聊: ${privateTarget?.username}` }}
         </div>
-        <button @click="chatMode = 'normal'; privateTarget = null" class="p-1.5 rounded-lg bg-slate-200 dark:bg-white/10 text-slate-500 hover:bg-slate-300 transition-all">
-          <X class="w-3 h-3" />
+        <button @click="chatMode = 'normal'; privateTarget = null" class="p-1 rounded-md bg-slate-200 dark:bg-white/10 text-slate-500 hover:bg-slate-300 transition-all">
+          <X class="w-2.5 h-2.5" />
         </button>
       </div>
 
-      <div class="flex gap-3">
+      <div class="flex gap-2">
         <div class="flex-1 relative group">
-          <div class="absolute -inset-0.5 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-2xl blur opacity-0 group-focus-within:opacity-20 transition duration-500"></div>
+          <div class="absolute -inset-0.5 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-xl blur opacity-0 group-focus-within:opacity-20 transition duration-500"></div>
           <input 
             v-model="newMessage"
             type="text" 
             :placeholder="placeholder || '向各研究员发送讯息...'"
-            class="relative w-full h-12 bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-2xl px-5 text-xs font-medium focus:outline-none focus:border-blue-500/50 transition-all dark:text-white"
+            class="relative w-full h-10 bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 text-[11px] font-medium focus:outline-none focus:border-blue-500/50 transition-all dark:text-white"
             @keydown.enter="handleSend"
           />
         </div>
         <button 
           @click="handleSend"
           :disabled="!newMessage.trim()"
-          class="w-12 h-12 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:grayscale text-white rounded-2xl flex items-center justify-center transition-all shadow-lg shadow-blue-500/20 active:scale-95 shrink-0"
+          class="w-10 h-10 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:grayscale text-white rounded-xl flex items-center justify-center transition-all shadow-lg shadow-blue-500/20 active:scale-95 shrink-0"
         >
-          <Send class="w-5 h-5" />
+          <Send class="w-4 h-4" />
         </button>
       </div>
     </div>

@@ -8,6 +8,7 @@ import (
 	"chemistryuno/websocket"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -424,9 +425,9 @@ func GetUserInfo(c *gin.Context) {
 
 // SearchUsers 搜索用户
 func SearchUsers(c *gin.Context) {
-	query := c.Query("q")
+	query := strings.TrimSpace(c.Query("q"))
 	if query == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "搜索内容不能为空"})
+		c.JSON(http.StatusOK, []interface{}{}) // 搜索内容为空返回空数组而不是错误
 		return
 	}
 

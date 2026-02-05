@@ -12,6 +12,7 @@ var (
 	SubstanceRepo    *SubstanceRepository
 	BountyRepo       *BountyRepository
 	FriendshipRepo   *FriendshipRepository
+	ChatRepo         *ChatRepository
 )
 
 func InitRepositories() {
@@ -26,4 +27,5 @@ func InitRepositories() {
 	SubstanceRepo = NewSubstanceRepository()
 	BountyRepo = NewBountyRepository()
 	FriendshipRepo = NewFriendshipRepository()
+	ChatRepo = NewChatRepository()
 }

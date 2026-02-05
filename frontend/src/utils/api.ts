@@ -73,6 +73,8 @@ export const authAPI = {
     api.post(`/feedbacks/${id}/urge`),
   withdrawFeedback: (id: number) =>
     api.post('/feedback/withdraw', { id }),
+  getGlobalChatHistory: (limit: number = 50) =>
+    api.get(`/chat/global/history?limit=${limit}`),
   
   // 2FA相关
   setup2FA: () => api.post('/user/2fa/setup'),

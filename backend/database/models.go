@@ -95,6 +95,20 @@ func (UserSession) TableName() string {
 	return "user_sessions"
 }
 
+// GlobalChat GORM模型 - 全服聊天记录表
+type GlobalChat struct {
+	ID        uint      `gorm:"primaryKey;autoIncrement" json:"id"`
+	UserUID   uint      `gorm:"not null;index" json:"user_uid"`
+	Username  string    `gorm:"size:50" json:"username"`
+	Avatar    string    `gorm:"size:10" json:"avatar"`
+	Message   string    `gorm:"type:text;not null" json:"message"`
+	CreatedAt time.Time `gorm:"autoCreateTime;index" json:"created_at"`
+}
+
+func (GlobalChat) TableName() string {
+	return "global_chats"
+}
+
 // WebAuthnCredential GORM模型 - WebAuthn凭证表
 type WebAuthnCredential struct {
 	ID              string    `gorm:"primaryKey;size:255" json:"id"`

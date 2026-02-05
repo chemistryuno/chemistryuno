@@ -12,6 +12,7 @@ func autoMigrate() error {
 	err := DB.AutoMigrate(
 		&User{},
 		&UserSession{},
+		&GlobalChat{},
 		&WebAuthnCredential{},
 		&Friendship{},
 		&Reaction{},

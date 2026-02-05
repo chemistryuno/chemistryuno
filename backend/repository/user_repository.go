@@ -345,7 +345,8 @@ func (r *UserRepository) FindIsAdminByID(uid uint) (bool, error) {
 func (r *UserRepository) SearchUsers(query string) ([]database.User, error) {
 	users := []database.User{}
 
-	dbQuery := r.db.Select("uid, username, avatar, points, monthly_points, win_count, total_games")
+	// 使用模型进行查询，确保 GORM 正确处理字段映射和软删除
+	dbQuery := r.db.Model(&database.User{})
 
 	// 尝试将 query 解析为数字 (UID)
 	var uid uint

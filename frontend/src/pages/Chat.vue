@@ -62,6 +62,25 @@ watch(searchTerm, (newVal) => {
   }, 500)
 })
 
+const isSearchingDetailed = ref(false)
+
+const triggerSearch = async () => {
+  if (!searchTerm.value.trim()) return
+  if (searchTimeout) clearTimeout(searchTimeout)
+  
+  searchLoading.value = true
+  try {
+    const res = await authAPI.searchUsers(searchTerm.value)
+    globalSearchResults.value = res.data.filter((u: any) => {
+      return Number(u.uid) !== Number(currentUser.value.uid)
+    })
+  } catch (err) {
+    console.error('搜索点击执行失败', err)
+  } finally {
+    searchLoading.value = false
+  }
+}
+
 const isFriend = (uid: number) => {
   return friends.value.some(f => Number(f.uid) === Number(uid))
 }
@@ -265,9 +284,16 @@ const formatTime = (date: Date) => {
             <input 
               id="search-input"
               v-model="searchTerm"
+              @keyup.enter="triggerSearch"
               placeholder="搜索 ID 或称号以建立链接..."
-              class="relative w-full h-14 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl pl-12 pr-6 text-sm text-slate-700 dark:text-white focus:outline-none focus:border-blue-500/50 transition-all font-medium"
+              class="relative w-full h-14 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl pl-12 pr-12 text-sm text-slate-700 dark:text-white focus:outline-none focus:border-blue-500/50 transition-all font-medium"
             />
+            <button 
+              @click="triggerSearch"
+              class="absolute right-4 top-1/2 -translate-y-1/2 p-2 text-slate-400 hover:text-blue-500 transition-colors"
+            >
+              <Send class="w-4 h-4 rotate-[-45deg]" />
+            </button>
           </div>
         </div>
 
@@ -327,9 +353,16 @@ const formatTime = (date: Date) => {
                   </div>
                   <div v-if="result.is_online" class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 border-2 border-white dark:border-[#0a0a0c] rounded-full"></div>
                 </div>
-                <div class="min-w-0">
-                  <div class="text-xs font-bold text-slate-700 dark:text-white truncate">{{ result.username }}</div>
-                  <div class="text-[8px] text-slate-400 font-mono tracking-tighter">UID: {{ result.uid }}</div>
+                <div class="min-w-0 flex-1">
+                  <div class="text-xs font-bold text-slate-700 dark:text-white truncate flex items-center gap-1.5">
+                    {{ result.username }}
+                    <span v-if="result.is_online" class="w-1 h-1 rounded-full bg-emerald-500 animate-pulse"></span>
+                  </div>
+                  <div class="flex items-center gap-2 mt-0.5">
+                    <span class="text-[8px] text-slate-400 font-mono tracking-tighter uppercase">ID: {{ result.uid }}</span>
+                    <span class="text-[8px] text-blue-500/60 font-black uppercase tracking-tighter">{{ result.points }}PT</span>
+                    <span class="text-[8px] text-amber-500/60 font-black uppercase tracking-tighter">WIN: {{ result.win_count }}</span>
+                  </div>
                 </div>
               </div>
               

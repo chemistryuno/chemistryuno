@@ -4,6 +4,7 @@ import (
 	"chemistryuno/database"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"gorm.io/gorm"
@@ -348,9 +349,14 @@ func (r *UserRepository) SearchUsers(query string) ([]database.User, error) {
 
 	// 尝试将 query 解析为数字 (UID)
 	var uid uint
-	_, err := fmt.Sscanf(query, "%d", &uid)
+	isNumeric := false
+	uidValue, err := strconv.ParseUint(query, 10, 32)
+	if err == nil {
+		uid = uint(uidValue)
+		isNumeric = true
+	}
 
-	if err == nil && uid > 0 {
+	if isNumeric && uid > 0 {
 		// 如果是数字且大于0，则优先精准匹配 UID，同时模糊匹配用户名
 		err = dbQuery.Where("uid = ? OR username LIKE ?", uid, "%"+query+"%").
 			Order(fmt.Sprintf("CASE WHEN uid = %d THEN 0 ELSE 1 END", uid)).

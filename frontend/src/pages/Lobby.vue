@@ -594,12 +594,14 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
               class="group p-4 bg-slate-50/50 dark:bg-white/[0.02] border border-slate-100 dark:border-white/5 rounded-[24px] flex items-center justify-between hover:border-blue-500/30 transition-all animate-in slide-in-from-bottom-2"
             >
               <div class="flex items-center gap-4">
-                <div class="w-12 h-12 rounded-2xl bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-center justify-center text-2xl shadow-sm">
+                <div class="relative w-12 h-12 rounded-2xl bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-center justify-center text-2xl shadow-sm">
                   {{ player.avatar || '🧪' }}
+                  <div v-if="player.is_online" class="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-emerald-500 border-[3px] border-white dark:border-[#0f0f12] rounded-full"></div>
                 </div>
                 <div>
                   <h3 class="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
                       {{ player.username }}
+                      <span v-if="player.is_online" class="text-[7px] text-emerald-500 font-black uppercase tracking-tighter">Online</span>
                       <span v-if="player.uid === user.uid" class="text-[8px] bg-blue-600 px-1.5 py-0.5 rounded uppercase font-black text-white">You</span>
                   </h3>
                   <p class="text-[10px] text-slate-400 font-mono uppercase tracking-tighter">UID: {{ player.uid }}</p>

@@ -672,9 +672,10 @@ onMounted(() => {
                 </div>
               </div>
               <div class="flex flex-col min-w-0">
-                <div class="flex items-center gap-1.5">
-                  <span class="text-[10px] font-bold truncate max-w-[60px] tracking-tight" :class="gameState?.current_player === index ? 'text-white' : 'text-slate-500'">{{ player.username }}</span>
-                  <Zap v-if="player.double_action_available" :class="cn('w-2.5 h-2.5 fill-current', gameState?.current_player === index ? 'text-amber-300' : 'text-amber-500')" />
+                <div class="flex items-center gap-1.5 leading-none">
+                  <span class="text-[9px] font-black truncate max-w-[50px] tracking-tight" :class="gameState?.current_player === index ? 'text-white' : 'text-slate-500'">{{ player.username }}</span>
+                  <span class="text-[7px] font-mono opacity-40 shrink-0" :class="gameState?.current_player === index ? 'text-white' : 'text-slate-500'">#{{ player.uid }}</span>
+                  <Zap v-if="player.double_action_available" :class="cn('w-2 h-2 fill-current', gameState?.current_player === index ? 'text-amber-300' : 'text-amber-500')" />
                   <span v-if="player.is_host" :class="cn('w-2 h-2 rounded-full ring-2', gameState?.current_player === index ? 'bg-amber-300 ring-amber-300/20' : 'bg-amber-500 ring-amber-500/20')" title="房主"></span>
                   <!-- Player Actions -->
                   <div class="flex items-center gap-0.5 ml-auto">

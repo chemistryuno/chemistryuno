@@ -50,11 +50,9 @@ watch(searchTerm, (newVal) => {
   searchTimeout = setTimeout(async () => {
     try {
       const res = await authAPI.searchUsers(newVal)
-      // 排除掉或者是好友的人和自己
+      // 排除掉自己
       globalSearchResults.value = res.data.filter((u: any) => {
-        const isMe = Number(u.uid) === Number(currentUser.value.uid)
-        const isFriend = friends.value.some(f => Number(f.uid) === Number(u.uid))
-        return !isMe && !isFriend
+        return Number(u.uid) !== Number(currentUser.value.uid)
       })
     } catch (err) {
       console.error('全局搜索失败', err)
@@ -63,6 +61,19 @@ watch(searchTerm, (newVal) => {
     }
   }, 500)
 })
+
+const isFriend = (uid: number) => {
+  return friends.value.some(f => Number(f.uid) === Number(uid))
+}
+
+const handleSearchClick = (user: any) => {
+  if (isFriend(user.uid)) {
+    const friend = friends.value.find(f => Number(f.uid) === Number(user.uid))
+    if (friend) selectChat(friend)
+  } else {
+    sendRequest(user.uid)
+  }
+}
 
 const fetchFriends = async () => {
   try {
@@ -132,6 +143,14 @@ const scrollToBottom = () => {
     if (scrollContainer.value) {
       scrollContainer.value.scrollTop = scrollContainer.value.scrollHeight
     }
+  })
+}
+
+const focusSearch = () => {
+  searchTerm.value = ''
+  nextTick(() => {
+    const el = document.getElementById('search-input')
+    if (el) el.focus()
   })
 }
 
@@ -230,7 +249,7 @@ const formatTime = (date: Date) => {
             <span class="text-[10px] font-black uppercase tracking-widest text-slate-500">研究员目录 / Registry</span>
           </div>
           <button 
-            @click="searchTerm = ''; nextTick(() => { const el = document.getElementById('search-input'); if(el) el.focus() })"
+            @click="focusSearch"
             class="p-2 hover:bg-blue-500/10 text-blue-500 rounded-xl transition-all"
             title="添加新研究员"
           >
@@ -298,27 +317,33 @@ const formatTime = (date: Date) => {
             <div 
               v-for="result in globalSearchResults" 
               :key="result.uid"
-              class="group p-3 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl flex items-center justify-between hover:border-purple-500/30 transition-all"
+              @click="handleSearchClick(result)"
+              class="group p-3 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl flex items-center justify-between hover:border-purple-500/30 transition-all cursor-pointer"
             >
               <div class="flex items-center gap-3">
                 <div class="relative">
                   <div class="w-9 h-9 rounded-xl bg-slate-100 dark:bg-white/10 flex items-center justify-center text-lg">
                     {{ result.avatar || '🧪' }}
                   </div>
-                  <div v-if="result.is_online" class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 border-2 border-white dark:border-[#0f0f12] rounded-full"></div>
+                  <div v-if="result.is_online" class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 border-2 border-white dark:border-[#0a0a0c] rounded-full"></div>
                 </div>
                 <div class="min-w-0">
                   <div class="text-xs font-bold text-slate-700 dark:text-white truncate">{{ result.username }}</div>
                   <div class="text-[8px] text-slate-400 font-mono tracking-tighter">UID: {{ result.uid }}</div>
                 </div>
               </div>
-              <button 
-                @click="sendRequest(result.uid)"
-                class="w-8 h-8 rounded-lg bg-blue-600/10 hover:bg-blue-600 text-blue-600 hover:text-white flex items-center justify-center transition-all"
-                title="添加研究员"
-              >
-                <UserPlus class="w-4 h-4" />
-              </button>
+              
+              <div class="flex items-center gap-2">
+                <span v-if="isFriend(result.uid)" class="text-[8px] font-black text-emerald-500 uppercase tracking-widest bg-emerald-500/10 px-2 py-1 rounded-lg">已建立链接</span>
+                <button 
+                  v-else
+                  @click.stop="sendRequest(result.uid)"
+                  class="w-8 h-8 rounded-lg bg-blue-600/10 hover:bg-blue-600 text-blue-600 hover:text-white flex items-center justify-center transition-all"
+                  title="添加研究员"
+                >
+                  <UserPlus class="w-4 h-4" />
+                </button>
+              </div>
             </div>
             <div v-if="!searchLoading && globalSearchResults.length === 0" class="text-center py-4 opacity-30">
                <p class="text-[9px] font-black uppercase tracking-[0.2em]">End_Of_Transmission</p>
@@ -342,12 +367,12 @@ const formatTime = (date: Date) => {
             <span class="text-[10px] font-black uppercase tracking-widest">No_Connections_Found</span>
           </div>
 
-          <button 
+          <div 
             v-for="friend in filteredFriends" 
             :key="friend.uid"
             @click="selectChat(friend)"
             :class="cn(
-              'w-full p-4 rounded-3xl flex items-center gap-4 transition-all group relative overflow-hidden',
+              'w-full p-4 rounded-3xl flex items-center gap-4 transition-all group relative overflow-hidden cursor-pointer',
               activeChat?.uid === friend.uid 
                 ? 'bg-blue-600 text-white shadow-xl shadow-blue-500/20 translate-x-1' 
                 : 'hover:bg-white dark:hover:bg-white/5 text-slate-700 dark:text-slate-400'
@@ -365,6 +390,7 @@ const formatTime = (date: Date) => {
             <div class="flex-1 min-w-0 text-left">
               <div class="font-black text-sm tracking-tight flex items-center gap-2">
                 <span class="truncate">{{ friend.username }}</span>
+                <span class="text-[9px] font-mono text-slate-400 group-hover:text-white/60 transition-colors">ID:{{ friend.uid }}</span>
               </div>
               <div :class="cn(
                 'text-[10px] font-mono mt-0.5 truncate uppercase tracking-tighter opacity-60',
@@ -381,7 +407,7 @@ const formatTime = (date: Date) => {
             >
               <Trash2 class="w-4 h-4" />
             </button>
-          </button>
+          </div>
         </div>
       </aside>
 
@@ -395,7 +421,10 @@ const formatTime = (date: Date) => {
                 {{ activeChat.avatar || '🧪' }}
               </div>
               <div>
-                <h2 class="text-sm font-black text-slate-800 dark:text-white uppercase tracking-wider">{{ activeChat.username }}</h2>
+                <h2 class="text-sm font-black text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                  {{ activeChat.username }}
+                  <span class="text-[9px] font-mono text-slate-400 bg-slate-100 dark:bg-white/5 px-1.5 py-0.5 rounded">ID:{{ activeChat.uid }}</span>
+                </h2>
                 <div class="flex items-center gap-1.5 mt-0.5">
                   <div :class="cn('w-1.5 h-1.5 rounded-full', activeChat.is_online ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400')"></div>
                   <span class="text-[9px] font-mono text-slate-500 uppercase tracking-widest">{{ activeChat.is_online ? 'Encrypted Link Active' : 'Offline' }}</span>
@@ -487,7 +516,7 @@ const formatTime = (date: Date) => {
             点击左侧活跃研究员成员，建立点对点（P2P）加密对话隧道。
           </p>
           <button 
-            @click="searchTerm = ''; nextTick(() => { const el = document.getElementById('search-input'); if(el) el.focus() })"
+            @click="focusSearch"
             class="px-8 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black uppercase tracking-widest transition-all shadow-xl shadow-blue-500/20 active:scale-95 flex items-center gap-3 opacity-100"
           >
             <UserPlus class="w-4 h-4" />

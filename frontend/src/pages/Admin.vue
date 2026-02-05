@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, watch, computed, reactive } from 'vue'
+import { ref, onMounted, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { adminAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
@@ -26,8 +26,7 @@ import {
   Trophy,
   Bell,
   Megaphone,
-  Clock,
-  ExternalLink
+  Clock
 } from 'lucide-vue-next'
 import { cn } from '../utils/cn'
 
@@ -331,19 +330,7 @@ const handleUpdateDeck = async () => {
   }
 }
 
-const handleCardCountChange = (cardType: string, value: string) => {
-  // 此方法在新的数组驱动模式下可能不再直接使用，但保留以防万一
-  if (deckConfig.value && !editingDeck.value) {
-    deckConfig.value = {
-      ...deckConfig.value,
-      cards: {
-        ...deckConfig.value.cards,
-        [cardType]: parseInt(value) || 0,
-      },
-    }
-  }
-}
-
+// handleCardCountChange was removed because it was unused
 const filteredUsers = computed(() => {
   return users.value.filter(u => 
     u.username.includes(searchTerm.value) ||

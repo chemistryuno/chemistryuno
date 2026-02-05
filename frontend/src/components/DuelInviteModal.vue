@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import { Swords, X, Check, Timer, FlaskConical } from 'lucide-vue-next'
+import { Swords, Check, Timer, FlaskConical } from 'lucide-vue-next'
 import { gameAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
-import { cn } from '../utils/cn'
 
 const props = defineProps<{
   invite: {

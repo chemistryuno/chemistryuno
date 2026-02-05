@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -86,179 +87,200 @@ func main() {
 	// 信任本地代理，确保 c.ClientIP() 能获取到真实 IP
 	r.SetTrustedProxies([]string{"127.0.0.1"})
 
-	// 健康检查接口
-	r.GET("/ping", func(c *gin.Context) {
-		c.JSON(200, gin.H{"message": "pong"})
-	})
-
-	r.GET("/health", func(c *gin.Context) {
-		// 检查数据库连接
-		dbStatus := "ok"
-		if database.DB != nil {
-			if sqlDB, err := database.DB.DB(); err != nil {
-				dbStatus = "error"
-			} else if err := sqlDB.Ping(); err != nil {
-				dbStatus = "error"
-			}
-		} else {
-			dbStatus = "error"
-		}
-
-		// 检查Redis连接
-		redisStatus := "disabled"
-		if database.RedisClient != nil {
-			if err := database.RedisClient.Ping(context.Background()).Err(); err == nil {
-				redisStatus = "ok"
-			} else {
-				redisStatus = "error"
-			}
-		}
-
-		c.JSON(200, gin.H{
-			"status":    "healthy",
-			"database":  dbStatus,
-			"redis":     redisStatus,
-			"uptime":    time.Since(startTime).String(),
-			"timestamp": time.Now().Unix(),
+	// API 路由组
+	api := r.Group("/api")
+	{
+		// 健康检查接口
+		api.GET("/ping", func(c *gin.Context) {
+			c.JSON(200, gin.H{"message": "pong"})
 		})
-	})
 
-	// 公开路由
-	r.POST("/auth/register", handlers.Register)
-	r.POST("/auth/login", handlers.Login)
-	r.GET("/announcements", handlers.GetActiveAnnouncements)
-	r.POST("/auth/2fa/verify", handlers.Verify2FALogin)
-	r.POST("/auth/2fa/reset-password", handlers.ResetPasswordBy2FA)
+		api.GET("/health", func(c *gin.Context) {
+			// 检查数据库连接
+			dbStatus := "ok"
+			if database.DB != nil {
+				if sqlDB, err := database.DB.DB(); err != nil {
+					dbStatus = "error"
+				} else if err := sqlDB.Ping(); err != nil {
+					dbStatus = "error"
+				}
+			} else {
+				dbStatus = "error"
+			}
 
-	// WebAuthn 登录 (公开)
-	r.GET("/auth/webauthn/login/begin", handlers.BeginLogin)
-	r.POST("/auth/webauthn/login/finish", handlers.FinishLogin)
+			// 检查Redis连接
+			redisStatus := "disabled"
+			if database.RedisClient != nil {
+				if err := database.RedisClient.Ping(context.Background()).Err(); err == nil {
+					redisStatus = "ok"
+				} else {
+					redisStatus = "error"
+				}
+			}
 
-	// 需要认证的路由
-	auth := r.Group("/")
-	auth.Use(middleware.AuthMiddleware())
-	{
-		// 用户相关
-		auth.GET("/user/info", handlers.GetUserInfo)
-		auth.GET("/user/game-history", handlers.GetMyGameHistory)
-		auth.PUT("/user/password", handlers.ChangePassword)
-		auth.PUT("/user/avatar", handlers.UpdateAvatar)
-		auth.DELETE("/user/account", handlers.DeleteAccount)
-		auth.GET("/users/search", handlers.SearchUsers)
+			c.JSON(200, gin.H{
+				"status":    "healthy",
+				"database":  dbStatus,
+				"redis":     redisStatus,
+				"uptime":    time.Since(startTime).String(),
+				"timestamp": time.Now().Unix(),
+			})
+		})
 
-		// 聊天相关
-		auth.GET("/chat/global/history", handlers.GetGlobalChatHistory)
+		// 公开路由
+		api.POST("/auth/register", handlers.Register)
+		api.POST("/auth/login", handlers.Login)
+		api.GET("/announcements", handlers.GetActiveAnnouncements)
+		api.POST("/auth/2fa/verify", handlers.Verify2FALogin)
+		api.POST("/auth/2fa/reset-password", handlers.ResetPasswordBy2FA)
 
-		// 会话与设备管理
-		auth.GET("/user/sessions", handlers.GetSessions)
-		auth.POST("/user/sessions/logout", handlers.RevokeSession)
-		auth.POST("/user/account/freeze", handlers.FreezeAccount)
+		// WebAuthn 登录 (公开)
+		api.GET("/auth/webauthn/login/begin", handlers.BeginLogin)
+		api.POST("/auth/webauthn/login/finish", handlers.FinishLogin)
 
-		// 反馈
-		auth.POST("/feedback", handlers.CreateFeedback)
-		auth.GET("/feedbacks/my", handlers.GetMyFeedbacks)
-		auth.POST("/feedbacks/:id/urge", handlers.UrgeFeedback)
-		auth.POST("/feedback/withdraw", handlers.WithdrawFeedback)
-
-		// 玩家自定义卡组
-		auth.GET("/my-decks", handlers.GetMyDecks)
-		auth.POST("/my-decks", handlers.CreateMyDeck)
-		auth.PUT("/my-decks/:id", handlers.UpdateMyDeck)
-		auth.DELETE("/my-decks/:id", handlers.DeleteMyDeck)
-
-		// 方程式相关的普通用户路由
-		auth.GET("/reactions/my", handlers.GetMyReactions)
-		auth.GET("/reactions/all", handlers.GetAllReactions)
-		auth.POST("/reactions", handlers.AddReaction)
-
-		// 2FA相关
-		auth.POST("/user/2fa/setup", handlers.Setup2FA)
-		auth.POST("/user/2fa/enable", handlers.Enable2FA)
-		auth.POST("/user/2fa/disable", handlers.Disable2FA)
-
-		// WebAuthn 注册与管理
-		auth.GET("/user/webauthn/register/begin", handlers.BeginRegistration)
-		auth.POST("/user/webauthn/register/finish", handlers.FinishRegistration)
-		auth.GET("/user/webauthn/credentials", handlers.ListCredentials)
-		auth.DELETE("/user/webauthn/credentials/:id", handlers.RemoveCredential)
-
-		// 好友系统
-		auth.POST("/friends/request", handlers.SendFriendRequest)
-		auth.GET("/friends/pending", handlers.GetPendingRequests)
-		auth.POST("/friends/handle", handlers.HandleFriendRequest)
-		auth.GET("/friends", handlers.GetFriendsList)
-		auth.DELETE("/friends/:id", handlers.DeleteFriend)
-
-		// 游戏相关
-		auth.GET("/rooms", handlers.GetRooms)
-		auth.POST("/rooms", handlers.CreateRoom)
-		auth.POST("/game/duel", handlers.InitiateDuel)
-		auth.POST("/game/duel/respond", handlers.RespondToDuel)
-		auth.GET("/rooms/:id", handlers.GetRoomState)
-		auth.POST("/rooms/:id/join", handlers.JoinRoom)
-		auth.POST("/rooms/:id/leave", handlers.LeaveRoom)
-		auth.POST("/rooms/:id/start", handlers.StartGame)
-		auth.POST("/rooms/:id/play", handlers.PlayCard)
-		auth.POST("/rooms/:id/play-double", handlers.DoublePlay)
-		auth.POST("/rooms/:id/draw", handlers.DrawCard)
-		auth.GET("/rooms/:id/substances", handlers.GetAvailableSubstances)
-		auth.POST("/game/check-reaction", handlers.VerifyReaction)
-
-		// WebSocket
-		auth.GET("/ws", handleWebSocket)
-
-		// 反应管理路由
-		reactions := auth.Group("/reactions")
+		// 需要认证的路由
+		auth := api.Group("/")
+		auth.Use(middleware.AuthMiddleware())
 		{
-			reactions.GET("", handlers.GetReactions)
-			reactions.POST("/batch", middleware.CoWorkerMiddleware(), handlers.BatchAddReactions)
-			reactions.PUT("/:id", middleware.CoWorkerMiddleware(), handlers.UpdateReaction)
-			reactions.PUT("/approve/:group_id", middleware.CoWorkerMiddleware(), handlers.ApproveReaction)
-			reactions.DELETE("/:id", middleware.AdminMiddleware(), handlers.DeleteReaction)
+			// 用户相关
+			auth.GET("/user/info", handlers.GetUserInfo)
+			auth.GET("/user/game-history", handlers.GetMyGameHistory)
+			auth.PUT("/user/password", handlers.ChangePassword)
+			auth.PUT("/user/avatar", handlers.UpdateAvatar)
+			auth.DELETE("/user/account", handlers.DeleteAccount)
+			auth.GET("/users/search", handlers.SearchUsers)
+
+			// 聊天相关
+			auth.GET("/chat/global/history", handlers.GetGlobalChatHistory)
+
+			// 会话与设备管理
+			auth.GET("/user/sessions", handlers.GetSessions)
+			auth.POST("/user/sessions/logout", handlers.RevokeSession)
+			auth.POST("/user/account/freeze", handlers.FreezeAccount)
+
+			// 反馈
+			auth.POST("/feedback", handlers.CreateFeedback)
+			auth.GET("/feedbacks/my", handlers.GetMyFeedbacks)
+			auth.POST("/feedbacks/:id/urge", handlers.UrgeFeedback)
+			auth.POST("/feedback/withdraw", handlers.WithdrawFeedback)
+
+			// 玩家自定义卡组
+			auth.GET("/my-decks", handlers.GetMyDecks)
+			auth.POST("/my-decks", handlers.CreateMyDeck)
+			auth.PUT("/my-decks/:id", handlers.UpdateMyDeck)
+			auth.DELETE("/my-decks/:id", handlers.DeleteMyDeck)
+
+			// 方程式相关的普通用户路由
+			auth.GET("/reactions/my", handlers.GetMyReactions)
+			auth.GET("/reactions/all", handlers.GetAllReactions)
+			auth.POST("/reactions", handlers.AddReaction)
+
+			// 2FA相关
+			auth.POST("/user/2fa/setup", handlers.Setup2FA)
+			auth.POST("/user/2fa/enable", handlers.Enable2FA)
+			auth.POST("/user/2fa/disable", handlers.Disable2FA)
+
+			// WebAuthn 注册与管理
+			auth.GET("/user/webauthn/register/begin", handlers.BeginRegistration)
+			auth.POST("/user/webauthn/register/finish", handlers.FinishRegistration)
+			auth.GET("/user/webauthn/credentials", handlers.ListCredentials)
+			auth.DELETE("/user/webauthn/credentials/:id", handlers.RemoveCredential)
+
+			// 好友系统
+			auth.POST("/friends/request", handlers.SendFriendRequest)
+			auth.GET("/friends/pending", handlers.GetPendingRequests)
+			auth.POST("/friends/handle", handlers.HandleFriendRequest)
+			auth.GET("/friends", handlers.GetFriendsList)
+			auth.DELETE("/friends/:id", handlers.DeleteFriend)
+
+			// 游戏相关
+			auth.GET("/rooms", handlers.GetRooms)
+			auth.POST("/rooms", handlers.CreateRoom)
+			auth.POST("/game/duel", handlers.InitiateDuel)
+			auth.POST("/game/duel/respond", handlers.RespondToDuel)
+			auth.GET("/rooms/:id", handlers.GetRoomState)
+			auth.POST("/rooms/:id/join", handlers.JoinRoom)
+			auth.POST("/rooms/:id/leave", handlers.LeaveRoom)
+			auth.POST("/rooms/:id/start", handlers.StartGame)
+			auth.POST("/rooms/:id/play", handlers.PlayCard)
+			auth.POST("/rooms/:id/play-double", handlers.DoublePlay)
+			auth.POST("/rooms/:id/draw", handlers.DrawCard)
+			auth.GET("/rooms/:id/substances", handlers.GetAvailableSubstances)
+			auth.POST("/game/check-reaction", handlers.VerifyReaction)
+
+			// WebSocket
+			auth.GET("/ws", handleWebSocket)
+
+			// 反应管理路由
+			reactions := auth.Group("/reactions")
+			{
+				reactions.GET("", handlers.GetReactions)
+				reactions.POST("/batch", middleware.CoWorkerMiddleware(), handlers.BatchAddReactions)
+				reactions.PUT("/:id", middleware.CoWorkerMiddleware(), handlers.UpdateReaction)
+				reactions.PUT("/approve/:group_id", middleware.CoWorkerMiddleware(), handlers.ApproveReaction)
+				reactions.DELETE("/:id", middleware.AdminMiddleware(), handlers.DeleteReaction)
+			}
+
+			// 物质管理路由
+			substances := auth.Group("/substances")
+			{
+				substances.GET("", handlers.GetSubstances)
+				substances.POST("", handlers.AddSubstance)
+				substances.PUT("/:id", middleware.CoWorkerMiddleware(), handlers.UpdateSubstance)
+				substances.PUT("/approve/:id", middleware.CoWorkerMiddleware(), handlers.ApproveSubstance)
+				substances.DELETE("/:id", middleware.AdminMiddleware(), handlers.DeleteSubstance)
+			}
 		}
 
-		// 物质管理路由
-		substances := auth.Group("/substances")
+		// 管理员路由
+		admin := api.Group("/admin")
+		admin.Use(middleware.AuthMiddleware(), middleware.AdminMiddleware())
 		{
-			substances.GET("", handlers.GetSubstances)
-			substances.POST("", handlers.AddSubstance)
-			substances.PUT("/:id", middleware.CoWorkerMiddleware(), handlers.UpdateSubstance)
-			substances.PUT("/approve/:id", middleware.CoWorkerMiddleware(), handlers.ApproveSubstance)
-			substances.DELETE("/:id", middleware.AdminMiddleware(), handlers.DeleteSubstance)
+			admin.GET("/users", handlers.GetAllUsers)
+			admin.POST("/users", handlers.CreateUser)
+			admin.DELETE("/users/:id", handlers.DeleteUser)
+			admin.PUT("/users/:id/password", handlers.AdminChangePassword)
+			admin.PUT("/users/:id/role", handlers.PromoteUser)
+			admin.POST("/users/ban", handlers.BanUser)
+			admin.POST("/rooms/kick", handlers.KickPlayer)
+			admin.GET("/deck-config", handlers.GetGlobalDeckConfig)
+			admin.PUT("/deck-config", handlers.UpdateGlobalDeckConfig)
+			admin.GET("/game-history", handlers.GetGameHistory)
+			admin.GET("/feedbacks", handlers.GetAllFeedbacks)
+			admin.PUT("/feedbacks/:id/status", handlers.UpdateFeedbackStatus)
+			admin.GET("/configs", handlers.GetSystemConfigs)
+			admin.PUT("/configs", handlers.UpdateSystemConfig)
+			// 公告管理
+			admin.GET("/announcements", handlers.GetAllAnnouncements)
+			admin.POST("/announcements", handlers.CreateAnnouncement)
+			admin.PUT("/announcements/:id/status", handlers.UpdateAnnouncementStatus)
+			admin.DELETE("/announcements/:id", handlers.DeleteAnnouncement)
+		}
+
+		// 积分和悬赏
+		points := api.Group("/points")
+		points.Use(middleware.AuthMiddleware())
+		{
+			points.GET("/leaderboard", handlers.GetLeaderboard)
+			points.POST("/bounty", handlers.CreateBounty)
 		}
 	}
 
-	// 管理员路由
-	admin := r.Group("/admin")
-	admin.Use(middleware.AuthMiddleware(), middleware.AdminMiddleware())
-	{
-		admin.GET("/users", handlers.GetAllUsers)
-		admin.POST("/users", handlers.CreateUser)
-		admin.DELETE("/users/:id", handlers.DeleteUser)
-		admin.PUT("/users/:id/password", handlers.AdminChangePassword)
-		admin.PUT("/users/:id/role", handlers.PromoteUser)
-		admin.POST("/users/ban", handlers.BanUser)
-		admin.POST("/rooms/kick", handlers.KickPlayer)
-		admin.GET("/deck-config", handlers.GetGlobalDeckConfig)
-		admin.PUT("/deck-config", handlers.UpdateGlobalDeckConfig)
-		admin.GET("/game-history", handlers.GetGameHistory)
-		admin.GET("/feedbacks", handlers.GetAllFeedbacks)
-		admin.PUT("/feedbacks/:id/status", handlers.UpdateFeedbackStatus)
-		admin.GET("/configs", handlers.GetSystemConfigs)
-		admin.PUT("/configs", handlers.UpdateSystemConfig)
-		// 公告管理
-		admin.GET("/announcements", handlers.GetAllAnnouncements)
-		admin.POST("/announcements", handlers.CreateAnnouncement)
-		admin.PUT("/announcements/:id/status", handlers.UpdateAnnouncementStatus)
-		admin.DELETE("/announcements/:id", handlers.DeleteAnnouncement)
-	}
+	// 静态文件服务 (仅在 production 模式或 frontend 目录存在时)
+	// 判断 frontend 目录是否存在
+	if _, err := os.Stat("./frontend"); err == nil {
+		r.Static("/assets", "./frontend/assets")
+		r.StaticFile("/favicon.ico", "./frontend/favicon.ico")
+		r.StaticFile("/", "./frontend/index.html")
 
-	// 积分和悬赏
-	points := r.Group("/points")
-	points.Use(middleware.AuthMiddleware())
-	{
-		points.GET("/leaderboard", handlers.GetLeaderboard)
-		points.POST("/bounty", handlers.CreateBounty)
+		// SPA 路由回退
+		r.NoRoute(func(c *gin.Context) {
+			if !strings.HasPrefix(c.Request.URL.Path, "/api") {
+				c.File("./frontend/index.html")
+				return
+			}
+			c.JSON(404, gin.H{"error": "API route not found"})
+		})
 	}
 
 	log.Println("✅ 服务器准备启动在 :8080")

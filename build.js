@@ -22,11 +22,16 @@ const backendBinary = isWindows ? 'chemistryuno.exe' : 'chemistryuno';
 const backendOutput = path.join(backendPath, backendBinary);
 
 try {
-  const buildCmd = isWindows
-    ? `cd ${backendPath} && set CGO_ENABLED=0 && go build -ldflags="-s -w" -o ${backendBinary} main.go`
-    : `cd ${backendPath} && CGO_ENABLED=0 go build -ldflags="-s -w" -o ${backendBinary} main.go`;
+  // 设置跨平台的环境变量
+  const env = { ...process.env, CGO_ENABLED: '0' };
+  const buildCmd = `go build -ldflags="-s -w" -o ${backendBinary} main.go`;
 
-  execSync(buildCmd, { stdio: 'inherit', shell: true });
+  execSync(buildCmd, { 
+    cwd: backendPath, 
+    stdio: 'inherit', 
+    shell: true,
+    env: env
+  });
 
   const stats = fs.statSync(backendOutput);
   const sizeMB = (stats.size / (1024 * 1024)).toFixed(2);
@@ -41,11 +46,13 @@ console.log('🎨 构建前端 (Vue + Vite)...');
 const frontendPath = path.join(__dirname, 'frontend');
 
 try {
-  const buildCmd = isWindows
-    ? `cd ${frontendPath} && pnpm build`
-    : `cd ${frontendPath} && pnpm build`;
+  const buildCmd = `pnpm build`;
 
-  execSync(buildCmd, { stdio: 'inherit', shell: true });
+  execSync(buildCmd, { 
+    cwd: frontendPath, 
+    stdio: 'inherit', 
+    shell: true 
+  });
   console.log('✅ 前端构建成功: frontend/dist/\n');
 } catch (err) {
   console.error('❌ 前端构建失败:', err.message);
@@ -191,11 +198,28 @@ console.log(`   - 前端静态文件: dist/frontend/`);
 console.log(`   - 启动脚本: dist/${isWindows ? 'start.bat' : 'start.sh'}`);
 console.log(`   - 说明文档: dist/README.md\n`);
 
-const distSize = execSync(`du -sh ${distDir} 2>/dev/null || echo "N/A"`, {
-  encoding: 'utf8',
-  shell: true
-}).trim();
-console.log(`📊 总大小: ${distSize.split('\t')[0] || 'N/A'}\n`);
+function getDirSize(dirPath) {
+  let size = 0;
+  const files = fs.readdirSync(dirPath);
+  for (let file of files) {
+    const filePath = path.join(dirPath, file);
+    const stats = fs.statSync(filePath);
+    if (stats.isDirectory()) {
+      size += getDirSize(filePath);
+    } else {
+      size += stats.size;
+    }
+  }
+  return size;
+}
+
+try {
+  const totalSizeBytes = getDirSize(distDir);
+  const totalSizeMB = (totalSizeBytes / (1024 * 1024)).toFixed(2);
+  console.log(`📊 总大小: ${totalSizeMB} MB\n`);
+} catch (e) {
+  console.log(`📊 总大小: N/A\n`);
+}
 
 console.log('🚀 运行方式:');
 if (isWindows) {

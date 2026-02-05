@@ -22,7 +22,7 @@ class WebSocketService {
 
     this.isConnecting = true
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const wsUrl = `${protocol}//${window.location.host}/ws?token=${token}`
+    const wsUrl = `${protocol}//${window.location.host}/api/ws?token=${token}`
     
     this.ws = new WebSocket(wsUrl)
 

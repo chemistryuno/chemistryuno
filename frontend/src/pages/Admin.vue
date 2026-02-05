@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, watch, computed } from 'vue'
+import { ref, onMounted, watch, computed, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { adminAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
@@ -488,23 +488,15 @@ const filteredHistory = computed(() => {
             v-for="tab in tabs"
             :key="tab.id"
             @click="activeTab = tab.id"
-            :class="cn(
-              'flex items-center gap-3 px-8 py-4 text-[10px] font-black uppercase tracking-[0.1em] transition-all rounded-2xl relative whitespace-nowrap group/tab z-10',
+            class="flex items-center gap-3 px-8 py-4 rounded-2xl transition-all shrink-0 group relative"
+            :class="[
               activeTab === tab.id 
-                ? 'text-cyan-600 dark:text-cyan-400' 
+                ? 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400' 
                 : 'text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-slate-300'
-            )"
+            ]"
           >
-            <LiquidGlass
-              v-if="activeTab === tab.id"
-              :corner-radius="16"
-              mode="shader"
-              effect="liquidGlass"
-              :displacement-scale="30"
-              class="absolute inset-0 pointer-events-none"
-            />
-            <component :is="tab.icon" :class="cn('w-4 h-4 transition-transform group-hover/tab:scale-110 relative z-10', activeTab === tab.id ? 'text-cyan-500 animate-pulse' : '')" />
-            <span class="relative z-10">{{ tab.label }}</span>
+            <component :is="tab.icon" :class="cn('w-4 h-4 transition-transform group-hover:scale-110', activeTab === tab.id ? 'text-cyan-500 animate-pulse' : '')" />
+            <span class="font-black uppercase tracking-widest text-[10px]">{{ tab.label }}</span>
             <div v-if="activeTab === tab.id" class="absolute inset-x-0 bottom-1 px-8 z-10">
               <div class="h-0.5 bg-cyan-500 shadow-[0_0_15px_rgba(6,182,212,0.8)] rounded-full" />
             </div>

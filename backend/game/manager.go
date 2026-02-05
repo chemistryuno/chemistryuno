@@ -715,6 +715,13 @@ func StartGame(roomID string, uid int) error {
 		shuffledPlayers[i], shuffledPlayers[j] = shuffledPlayers[j], shuffledPlayers[i]
 	})
 
+	// 计算每个玩家应当获得相同的初始手牌数，最大为10
+	numPlayers := len(shuffledPlayers)
+	initialCardsCount := 10
+	if len(gameRoom.GameState.DrawPile) < numPlayers*initialCardsCount {
+		initialCardsCount = len(gameRoom.GameState.DrawPile) / numPlayers
+	}
+
 	// 初始化玩家
 	for _, pid := range shuffledPlayers {
 		user, _ := repository.UserRepo.FindByID(uint(pid))
@@ -732,8 +739,8 @@ func StartGame(roomID string, uid int) error {
 			ActionProgress:        0,
 		}
 
-		// 发10张初始手牌
-		for i := 0; i < 10 && len(gameRoom.GameState.DrawPile) > 0; i++ {
+		// 发初始手牌
+		for i := 0; i < initialCardsCount && len(gameRoom.GameState.DrawPile) > 0; i++ {
 			card := gameRoom.GameState.DrawPile[0]
 			gameRoom.GameState.DrawPile = gameRoom.GameState.DrawPile[1:]
 			player.HandCards = append(player.HandCards, card)

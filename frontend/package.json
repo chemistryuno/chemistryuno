@@ -11,7 +11,6 @@
   },
   "dependencies": {
     "@github/webauthn-json": "^2.1.1",
-    "@wxperia/liquid-glass-vue": "^1.0.9",
     "axios": "^1.6.5",
     "clsx": "^2.1.1",
     "lucide-vue-next": "^0.474.0",

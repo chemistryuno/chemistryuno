@@ -30,40 +30,25 @@
           <button 
             @click="rankingMode = 'total'"
             :class="cn(
-              'px-6 py-2.5 rounded-[15px] text-[10px] font-black uppercase tracking-widest transition-all relative overflow-hidden group',
+              'px-6 py-2.5 rounded-[15px] text-[10px] font-black uppercase tracking-widest transition-all',
               rankingMode === 'total' 
-                ? 'text-blue-600 dark:text-blue-400' 
+                ? 'bg-blue-600/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 shadow-sm' 
                 : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
             )"
           >
-            <LiquidGlass
-              v-if="rankingMode === 'total'"
-              :corner-radius="12"
-              mode="shader"
-              effect="liquidGlass"
-              :displacement-scale="30"
-              class="absolute inset-0 pointer-events-none"
-            />
-            <span class="relative z-10">全量积分</span>
+            全量积分
           </button>
+
           <button 
             @click="rankingMode = 'monthly'"
             :class="cn(
-              'px-6 py-2.5 rounded-[15px] text-[10px] font-black uppercase tracking-widest transition-all relative overflow-hidden group',
+              'px-6 py-2.5 rounded-[15px] text-[10px] font-black uppercase tracking-widest transition-all',
               rankingMode === 'monthly' 
-                ? 'text-indigo-600 dark:text-indigo-400' 
+                ? 'bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 shadow-sm' 
                 : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
             )"
           >
-            <LiquidGlass
-              v-if="rankingMode === 'monthly'"
-              :corner-radius="12"
-              mode="shader"
-              effect="liquidGlass"
-              :displacement-scale="30"
-              class="absolute inset-0 pointer-events-none"
-            />
-            <span class="relative z-10">本月活跃 (月榜)</span>
+            本月活跃 (月榜)
           </button>
         </div>
 

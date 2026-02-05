@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { authAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
@@ -24,7 +24,6 @@ import TwoFactorSetupModal from '../components/profile/TwoFactorSetupModal.vue'
 import HardwareKeyModal from '../components/profile/HardwareKeyModal.vue'
 import DeviceManagementModal from '../components/profile/DeviceManagementModal.vue'
 import { LayoutDashboard, ShieldCheck, FlaskConical, History, Sliders, Menu, X as CloseIcon } from 'lucide-vue-next'
-import { computed } from 'vue'
 
 const router = useRouter()
 const { showAlert, showConfirm, showPrompt } = useDialog()
@@ -195,23 +194,15 @@ const handleDeleteAccount = async () => {
           v-for="cat in categories" 
           :key="cat.id" 
           @click="currentCategory = cat.id; isSidebarOpen = false"
-          class="w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all relative overflow-hidden"
+          class="w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all font-bold text-sm"
           :class="[
             currentCategory === cat.id 
-              ? 'text-blue-600 dark:text-blue-400 font-bold' 
-              : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5 font-bold text-sm'
+              ? 'bg-blue-600/10 text-blue-600 dark:text-blue-400' 
+              : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5'
           ]"
         >
-          <LiquidGlass 
-            v-if="currentCategory === cat.id"
-            :corner-radius="16"
-            mode="shader"
-            effect="liquidGlass"
-            :displacement-scale="30"
-            class="absolute inset-0 pointer-events-none"
-          />
-          <component :is="cat.icon" class="w-4 h-4 relative z-10" />
-          <span class="text-sm relative z-10">{{ cat.name }}</span>
+          <component :is="cat.icon" class="w-4 h-4" />
+          <span class="text-sm">{{ cat.name }}</span>
         </button>
       </nav>
     </aside>
@@ -234,28 +225,20 @@ const handleDeleteAccount = async () => {
         </div>
 
         <!-- PC Top Navigation -->
-        <nav class="hidden lg:flex items-center gap-1 p-1 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-[1.5rem] backdrop-blur-xl relative">
+        <nav class="hidden lg:flex items-center gap-1 p-1 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-[1.5rem] backdrop-blur-xl shrink-0 overflow-hidden">
           <button 
             v-for="cat in categories" 
             :key="cat.id" 
             @click="currentCategory = cat.id"
-            class="transition-all flex flex-col items-center justify-center gap-0.5 min-w-[110px] py-4 rounded-2xl relative overflow-hidden group"
+            class="flex flex-col items-center justify-center min-w-[110px] py-3 px-6 rounded-2xl transition-all"
             :class="[
               currentCategory === cat.id 
-                ? 'text-blue-600 dark:text-blue-400 font-bold' 
+                ? 'bg-blue-600/10 text-blue-600 dark:text-blue-400 font-bold' 
                 : 'text-slate-400 hover:text-slate-600 dark:hover:text-white'
             ]"
           >
-            <LiquidGlass 
-              v-if="currentCategory === cat.id"
-              :corner-radius="16"
-              mode="shader"
-              effect="liquidGlass"
-              :displacement-scale="40"
-              class="absolute inset-0 pointer-events-none"
-            />
-            <component :is="cat.icon" class="w-4 h-4 relative z-10" />
-            <span class="text-[11px] font-black uppercase relative z-10">{{ cat.name }}</span>
+            <component :is="cat.icon" class="w-4 h-4" />
+            <span class="text-[11px] font-black uppercase tracking-tight">{{ cat.name }}</span>
           </button>
         </nav>
 
@@ -379,9 +362,9 @@ const handleDeleteAccount = async () => {
       @close="showHardwareKeys = false"
     />
 
-        <DeviceManagementModal
-          :show="showDeviceManagement"
-          @close="showDeviceManagement = false"
-        />
-      </div>
-    </template>
+    <DeviceManagementModal
+      :show="showDeviceManagement"
+      @close="showDeviceManagement = false"
+    />
+  </div>
+</template>

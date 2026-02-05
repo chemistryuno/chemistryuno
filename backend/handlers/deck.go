@@ -31,8 +31,9 @@ func GetMyDecks(c *gin.Context) {
 
 func CreateMyDeck(c *gin.Context) {
 	var req struct {
-		Name  string         `json:"name" binding:"required"`
-		Cards map[string]int `json:"cards" binding:"required"`
+		Name         string         `json:"name" binding:"required"`
+		Cards        map[string]int `json:"cards" binding:"required"`
+		InitialCards int            `json:"initial_cards"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -40,6 +41,10 @@ func CreateMyDeck(c *gin.Context) {
 	}
 
 	uid := c.GetInt("uid")
+
+	if req.InitialCards <= 0 {
+		req.InitialCards = 10
+	}
 
 	// 将cards转换为JSON字符串
 	cardsJSON, err := json.Marshal(req.Cards)
@@ -49,10 +54,11 @@ func CreateMyDeck(c *gin.Context) {
 	}
 
 	deck := &database.DeckConfig{
-		Name:      req.Name,
-		Cards:     cardsJSON,
-		CreatedBy: uint(uid),
-		IsGlobal:  false,
+		Name:         req.Name,
+		Cards:        cardsJSON,
+		InitialCards: req.InitialCards,
+		CreatedBy:    uint(uid),
+		IsGlobal:     false,
 	}
 
 	err = repository.DeckRepo.Create(deck)
@@ -69,12 +75,17 @@ func UpdateMyDeck(c *gin.Context) {
 	uid := c.GetInt("uid")
 
 	var req struct {
-		Name  string         `json:"name" binding:"required"`
-		Cards map[string]int `json:"cards" binding:"required"`
+		Name         string         `json:"name" binding:"required"`
+		Cards        map[string]int `json:"cards" binding:"required"`
+		InitialCards int            `json:"initial_cards"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
+	}
+
+	if req.InitialCards <= 0 {
+		req.InitialCards = 10
 	}
 
 	// 将cards转换为JSON字符串
@@ -99,6 +110,7 @@ func UpdateMyDeck(c *gin.Context) {
 
 	deck.Name = req.Name
 	deck.Cards = cardsJSON
+	deck.InitialCards = req.InitialCards
 	err = repository.DeckRepo.Update(deck)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新卡组失败"})

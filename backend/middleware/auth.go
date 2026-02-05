@@ -81,11 +81,15 @@ func AuthMiddleware() gin.HandlerFunc {
 
 		// 检查账号冻结/封禁状态（使用Repository）
 		userRepo := repository.NewUserRepository()
-		bannedUntil, frozenUntil, err := userRepo.CheckBanStatus(uint(claims.UID))
+		bannedUntil, frozenUntil, reason, err := userRepo.CheckBanStatus(uint(claims.UID))
 		if err == nil {
 			now := time.Now()
 			if bannedUntil != nil && bannedUntil.After(now) {
-				c.JSON(http.StatusForbidden, gin.H{"error": "账号已被封禁至 " + bannedUntil.Format("2006-01-02 15:04:05")})
+				msg := "账号已被封禁"
+				if reason != "" {
+					msg = reason
+				}
+				c.JSON(http.StatusForbidden, gin.H{"error": msg + " (截至 " + bannedUntil.Format("2006-01-02 15:04:05") + ")"})
 				c.Abort()
 				return
 			}

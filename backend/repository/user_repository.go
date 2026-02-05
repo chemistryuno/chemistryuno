@@ -75,18 +75,26 @@ func (r *UserRepository) Delete(uid uint) error {
 }
 
 // CheckBanStatus 检查封禁状态
-func (r *UserRepository) CheckBanStatus(uid uint) (bannedUntil *time.Time, frozenUntil *time.Time, err error) {
+func (r *UserRepository) CheckBanStatus(uid uint) (bannedUntil *time.Time, frozenUntil *time.Time, banReason string, err error) {
 	var user database.User
-	err = r.db.Select("banned_until, frozen_until").First(&user, uid).Error
+	err = r.db.Select("banned_until, frozen_until, ban_reason").First(&user, uid).Error
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, "", err
 	}
-	return user.BannedUntil, user.FrozenUntil, nil
+	return user.BannedUntil, user.FrozenUntil, user.BanReason, nil
 }
 
 // UpdateBanStatus 更新封禁状态
 func (r *UserRepository) UpdateBanStatus(uid uint, bannedUntil *time.Time) error {
 	return r.db.Model(&database.User{}).Where("uid = ?", uid).Update("banned_until", bannedUntil).Error
+}
+
+// UpdateBanStatusWithReason 更新封禁状态及原因
+func (r *UserRepository) UpdateBanStatusWithReason(uid uint, bannedUntil *time.Time, reason string) error {
+	return r.db.Model(&database.User{}).Where("uid = ?", uid).Updates(map[string]interface{}{
+		"banned_until": bannedUntil,
+		"ban_reason":   reason,
+	}).Error
 }
 
 // AddPoints 增加用户积分

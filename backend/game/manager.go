@@ -26,16 +26,16 @@ type GameRoom struct {
 	OfflineAt map[int]time.Time // UID -> 离线起始时间
 }
 
-func isBanned(uid int) (bool, time.Time, error) {
+func isBanned(uid int) (bool, time.Time, string, error) {
 	userRepo := repository.NewUserRepository()
-	bannedUntil, _, err := userRepo.CheckBanStatus(uint(uid))
+	bannedUntil, _, reason, err := userRepo.CheckBanStatus(uint(uid))
 	if err != nil {
-		return false, time.Time{}, err
+		return false, time.Time{}, "", err
 	}
 	if bannedUntil != nil && time.Now().Before(*bannedUntil) {
-		return true, *bannedUntil, nil
+		return true, *bannedUntil, reason, nil
 	}
-	return false, time.Time{}, nil
+	return false, time.Time{}, "", nil
 }
 
 // IsPlayerIdle 检查玩家是否由于已在游戏中而忙碌
@@ -70,25 +70,28 @@ func getDefaultDeckConfig() map[string]int {
 }
 
 // 获取当前全局牌组配置
-func getGlobalDeckConfigFromDB() (map[string]int, string) {
+func getGlobalDeckConfigFromDB() (map[string]int, string, int) {
 	deckRepo := repository.NewDeckRepository()
 	deck, err := deckRepo.FindGlobalDeck()
 	if err != nil {
-		return getDefaultDeckConfig(), "默认牌组"
+		return getDefaultDeckConfig(), "默认牌组", 10
 	}
 
 	var cards map[string]int
 	if err := json.Unmarshal([]byte(deck.Cards), &cards); err != nil {
-		return getDefaultDeckConfig(), "默认牌组"
+		return getDefaultDeckConfig(), "默认牌组", 10
 	}
-	return cards, deck.Name
+	return cards, deck.Name, deck.InitialCards
 }
 
 // 创建房间
 func CreateRoom(name string, hostUID int, hostName string, maxPlayers int, deckID int, isPointsMode bool) (*models.Room, error) {
-	banned, until, _ := isBanned(hostUID)
+	banned, until, reason, _ := isBanned(hostUID)
 	if banned {
-		return nil, fmt.Errorf("您的账号由于多次消极游戏已被封禁，直到 %s", until.Format("15:04:05"))
+		if reason == "" {
+			reason = "您的账号由于多次消极游戏已被封禁"
+		}
+		return nil, fmt.Errorf("%s，直到 %s", reason, until.Format("2006-01-02 15:04:05"))
 	}
 
 	if name == "" {
@@ -107,29 +110,33 @@ func CreateRoom(name string, hostUID int, hostName string, maxPlayers int, deckI
 	var deckConfig models.DeckConfig
 	// 积分模式强制使用默认牌组
 	if isPointsMode || deckID <= 1 { // deckID <= 1 意味着使用全局默认牌组 (ID=1)
-		cards, dname := getGlobalDeckConfigFromDB()
+		cards, dname, initialCards := getGlobalDeckConfigFromDB()
 		deckConfig.Cards = cards
 		deckConfig.Name = dname
+		deckConfig.InitialCards = initialCards
 		deckConfig.IsGlobal = true
 		deckConfig.ID = 1
 	} else {
 		deck, err := repository.DeckRepo.FindByID(uint(deckID))
 		if err != nil {
-			cards, dname := getGlobalDeckConfigFromDB()
+			cards, dname, initialCards := getGlobalDeckConfigFromDB()
 			deckConfig.Cards = cards
 			deckConfig.Name = dname
+			deckConfig.InitialCards = initialCards
 			deckConfig.IsGlobal = true
 			deckConfig.ID = 1
 		} else {
 			deckConfig.ID = int(deck.ID)
 			deckConfig.Name = deck.Name
+			deckConfig.InitialCards = deck.InitialCards
 			// 解析JSON字符串到map
 			var cards map[string]int
 			if err := json.Unmarshal([]byte(deck.Cards), &cards); err != nil {
 				// 解析失败，使用默认牌组
-				cards, dname := getGlobalDeckConfigFromDB()
+				cards, dname, initialCards := getGlobalDeckConfigFromDB()
 				deckConfig.Cards = cards
 				deckConfig.Name = dname
+				deckConfig.InitialCards = initialCards
 				deckConfig.IsGlobal = true
 				deckConfig.ID = 1
 			} else {
@@ -167,12 +174,13 @@ func CreateRoom(name string, hostUID int, hostName string, maxPlayers int, deckI
 // StartDuel 创建单挑房间
 func StartDuel(challengerUID int, challengerName string, targetUID int, targetName string) (*models.Room, error) {
 	// 默认配置
-	cards, name := getGlobalDeckConfigFromDB()
+	cards, name, initialCards := getGlobalDeckConfigFromDB()
 	deckConfig := models.DeckConfig{
-		Cards:    cards,
-		Name:     name,
-		IsGlobal: true,
-		ID:       1,
+		Cards:        cards,
+		Name:         name,
+		InitialCards: initialCards,
+		IsGlobal:     true,
+		ID:           1,
 	}
 
 	roomID := fmt.Sprintf("duel_%d_%d", time.Now().Unix(), rand.Intn(1000))
@@ -547,9 +555,12 @@ func (gr *GameRoom) terminateRoom(reason string) {
 
 // 加入房间
 func JoinRoom(roomID string, uid int, username string) error {
-	banned, until, _ := isBanned(uid)
+	banned, until, reason, _ := isBanned(uid)
 	if banned {
-		return fmt.Errorf("您的账号由于多次消极游戏已被封禁，直到 %s", until.Format("15:04:05"))
+		if reason == "" {
+			reason = "您的账号由于多次消极游戏已被封禁"
+		}
+		return fmt.Errorf("%s，直到 %s", reason, until.Format("2006-01-02 15:04:05"))
 	}
 
 	roomMutex.RLock()
@@ -715,9 +726,12 @@ func StartGame(roomID string, uid int) error {
 		shuffledPlayers[i], shuffledPlayers[j] = shuffledPlayers[j], shuffledPlayers[i]
 	})
 
-	// 计算每个玩家应当获得相同的初始手牌数，最大为10
+	// 计算每个玩家应当获得相同的初始手牌数
 	numPlayers := len(shuffledPlayers)
-	initialCardsCount := 10
+	initialCardsCount := gameRoom.Room.DeckConfig.InitialCards
+	if initialCardsCount <= 0 {
+		initialCardsCount = 10 // 容错
+	}
 	if len(gameRoom.GameState.DrawPile) < numPlayers*initialCardsCount {
 		initialCardsCount = len(gameRoom.GameState.DrawPile) / numPlayers
 	}
@@ -1698,4 +1712,37 @@ func processRoomTimeout(roomID string) {
 			})
 		}(roomID)
 	}
+}
+
+// AdminKickPlayer 管理员强制踢出玩家
+func AdminKickPlayer(roomID string, targetUID int, reason string) error {
+	roomMutex.RLock()
+	gr, ok := rooms[roomID]
+	roomMutex.RUnlock()
+
+	if !ok {
+		return errors.New("房间不存在")
+	}
+
+	gr.mutex.Lock()
+	defer gr.mutex.Unlock()
+
+	// 检查玩家是否在房间中
+	found := false
+	for _, puid := range gr.Room.Players {
+		if puid == targetUID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return errors.New("玩家不在房间中")
+	}
+
+	if reason == "" {
+		reason = "由于管理员操作，您已被踢出实验"
+	}
+
+	gr.kickPlayer(targetUID, reason)
+	return nil
 }

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { Plus, Trash2, Edit2, Hexagon, Save, AlertCircle, X } from 'lucide-vue-next'
+import { Plus, Minus, Trash2, Edit2, Hexagon, Save, AlertCircle, X } from 'lucide-vue-next'
 import { gameAPI } from '../../utils/api'
 import { useDialog } from '../../utils/dialog'
 
@@ -11,6 +11,7 @@ const { showAlert } = useDialog()
 const editingDeck = ref<any>(null)
 const newDeckName = ref('')
 const selectedElements = ref<Record<string, number>>({})
+const initialHandSize = ref(10)
 
 // 可选元素列表
 const ALL_ELEMENTS = [
@@ -43,6 +44,7 @@ const openEdit = (deck: any) => {
   editingDeck.value = deck
   newDeckName.value = deck.name
   selectedElements.value = { ...deck.cards }
+  initialHandSize.value = deck.initial_cards || 10
 }
 
 const openCreate = () => {
@@ -52,8 +54,10 @@ const openCreate = () => {
   const globalDeck = decks.value.find(d => d.is_global)
   if (globalDeck) {
     selectedElements.value = { ...globalDeck.cards }
+    initialHandSize.value = globalDeck.initial_cards || 10
   } else {
     selectedElements.value = { 'H': 12, 'O': 12, 'C': 4, '+2': 8, '+4': 4 }
+    initialHandSize.value = 10
   }
 }
 
@@ -76,9 +80,9 @@ const saveDeck = async () => {
   
   try {
     if (editingDeck.value.id === 0) {
-      await gameAPI.createMyDeck(newDeckName.value, selectedElements.value)
+      await gameAPI.createMyDeck(newDeckName.value, selectedElements.value, initialHandSize.value)
     } else {
-      await gameAPI.updateMyDeck(editingDeck.value.id, newDeckName.value, selectedElements.value)
+      await gameAPI.updateMyDeck(editingDeck.value.id, newDeckName.value, selectedElements.value, initialHandSize.value)
     }
     showAlert('卡组保存成功', '成功')
     editingDeck.value = null
@@ -183,6 +187,36 @@ onMounted(loadDecks)
                   placeholder="EXPERIMENTAL DECK LEGACY"
                   class="w-full bg-slate-100 dark:bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-lg font-black uppercase tracking-tight focus:border-blue-500 transition-all outline-none"
                 />
+             </div>
+
+             <div>
+                <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Initial Hand Size (Default 10)</label>
+                <div class="flex items-center gap-4">
+                  <div class="flex-1 flex items-center bg-slate-100 dark:bg-white/5 border border-white/10 rounded-2xl overflow-hidden px-4">
+                    <button 
+                      @click="initialHandSize = Math.max(1, initialHandSize - 1)"
+                      class="p-2 text-blue-500 hover:bg-white/5 transition-colors"
+                    >
+                      <Minus class="w-4 h-4" />
+                    </button>
+                    <input 
+                      v-model.number="initialHandSize"
+                      type="number"
+                      min="1"
+                      max="40"
+                      class="w-full bg-transparent border-none text-center py-4 text-lg font-black focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                    <button 
+                      @click="initialHandSize = Math.min(40, initialHandSize + 1)"
+                      class="p-2 text-blue-500 hover:bg-white/5 transition-colors"
+                    >
+                      <Plus class="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div class="text-[10px] font-black text-slate-400 uppercase w-20 text-center">
+                    Cards
+                  </div>
+                </div>
              </div>
 
              <div>

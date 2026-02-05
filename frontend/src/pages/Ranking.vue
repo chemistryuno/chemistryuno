@@ -24,61 +24,70 @@
         </div>
       </header>
 
-      <main class="flex-1 max-w-[1000px] mx-auto w-full px-6 py-12">
-        <!-- Mode Switch Tabs -->
-        <div class="flex items-center gap-2 mb-8 bg-slate-200/50 dark:bg-white/5 p-1.5 rounded-[20px] border border-slate-200 dark:border-white/5 w-fit">
-          <button 
-            @click="rankingMode = 'total'"
-            :class="cn(
-              'px-6 py-2.5 rounded-[15px] text-[10px] font-black uppercase tracking-widest transition-all',
-              rankingMode === 'total' 
-                ? 'bg-blue-600/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 shadow-sm' 
-                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-            )"
-          >
-            全量积分
-          </button>
+      <main class="flex-1 max-w-[1100px] mx-auto w-full px-6 py-8">
+        <!-- Top Section: Mode Switch & Stats -->
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
+          <!-- Mode Switch Tabs -->
+          <div class="flex items-center gap-2 bg-slate-200/50 dark:bg-white/5 p-1.5 rounded-[20px] border border-slate-200 dark:border-white/5 w-fit">
+            <button 
+              @click="rankingMode = 'total'"
+              :class="cn(
+                'px-6 py-2.5 rounded-[15px] text-[10px] font-black uppercase tracking-widest transition-all',
+                rankingMode === 'total' 
+                  ? 'bg-blue-600/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 shadow-sm' 
+                  : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+              )"
+            >
+              全量积分
+            </button>
 
-          <button 
-            @click="rankingMode = 'monthly'"
-            :class="cn(
-              'px-6 py-2.5 rounded-[15px] text-[10px] font-black uppercase tracking-widest transition-all',
-              rankingMode === 'monthly' 
-                ? 'bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 shadow-sm' 
-                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-            )"
-          >
-            本月活跃 (月榜)
-          </button>
-        </div>
+            <button 
+              @click="rankingMode = 'monthly'"
+              :class="cn(
+                'px-6 py-2.5 rounded-[15px] text-[10px] font-black uppercase tracking-widest transition-all',
+                rankingMode === 'monthly' 
+                  ? 'bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 shadow-sm' 
+                  : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+              )"
+            >
+              本月活跃 (月榜)
+            </button>
+          </div>
 
-        <!-- Stats Overview -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-          <div class="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-[32px] p-8 flex flex-col items-center text-center shadow-sm">
-            <div class="w-12 h-12 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-center justify-center text-amber-500 mb-4">
-              <Target class="w-6 h-6" />
+          <!-- Compact Stats Overview -->
+          <div class="flex flex-wrap items-center gap-3">
+            <div class="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 flex items-center gap-3 shadow-sm group hover:border-amber-500/30 transition-colors">
+              <div class="w-8 h-8 bg-amber-500/10 border border-amber-500/20 rounded-lg flex items-center justify-center text-amber-500 shrink-0">
+                <Target class="w-4 h-4" />
+              </div>
+              <div class="flex flex-col">
+                <span class="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none mb-1">Decay</span>
+                <p class="text-[11px] font-bold text-slate-600 dark:text-slate-300 leading-tight">前10%每周衰减2%</p>
+              </div>
             </div>
-            <span class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Decay_Protocol</span>
-            <p class="text-sm font-bold text-slate-600 dark:text-slate-300">前10%每周衰减2%</p>
-          </div>
-          <div class="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-[32px] p-8 flex flex-col items-center text-center shadow-sm">
-            <div class="w-12 h-12 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center justify-center text-blue-500 mb-4">
-              <RefreshCw class="w-6 h-6" />
+            <div class="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 flex items-center gap-3 shadow-sm group hover:border-blue-500/30 transition-colors">
+              <div class="w-8 h-8 bg-blue-500/10 border border-blue-500/20 rounded-lg flex items-center justify-center text-blue-500 shrink-0">
+                <RefreshCw class="w-4 h-4" />
+              </div>
+              <div class="flex flex-col">
+                <span class="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none mb-1">Status</span>
+                <p class="text-[11px] font-bold text-slate-600 dark:text-slate-300 leading-tight">赛季活跃中</p>
+              </div>
             </div>
-            <span class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Season_Status</span>
-            <p class="text-sm font-bold text-slate-600 dark:text-slate-300">本月活跃赛季中</p>
-          </div>
-          <div class="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-[32px] p-8 flex flex-col items-center text-center shadow-sm">
-            <div class="w-12 h-12 bg-purple-500/10 border border-purple-500/20 rounded-2xl flex items-center justify-center text-purple-500 mb-4">
-              <ShieldCheck class="w-6 h-6" />
+            <div class="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 flex items-center gap-3 shadow-sm group hover:border-purple-500/30 transition-colors">
+              <div class="w-8 h-8 bg-purple-500/10 border border-purple-500/20 rounded-lg flex items-center justify-center text-purple-500 shrink-0">
+                <ShieldCheck class="w-4 h-4" />
+              </div>
+              <div class="flex flex-col">
+                <span class="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none mb-1">Total</span>
+                <p class="text-[11px] font-bold text-slate-600 dark:text-slate-300 leading-tight">{{ leaderboard.length }} 名研究员</p>
+              </div>
             </div>
-            <span class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Total_Competitors</span>
-            <p class="text-sm font-bold text-slate-600 dark:text-slate-300">{{ leaderboard.length }} 名活跃研究员</p>
           </div>
         </div>
 
         <!-- Leaderboard Table -->
-        <div class="bg-white/80 dark:bg-[#121216]/60 backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-[40px] overflow-hidden shadow-2xl dark:shadow-none">
+        <div class="bg-white/80 dark:bg-[#121216]/60 backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-[32px] overflow-hidden shadow-2xl dark:shadow-none">
           <div v-if="loading" class="py-32 flex flex-col items-center justify-center">
             <Loader2 class="w-10 h-10 animate-spin text-blue-500 mb-4" />
             <p class="text-xs font-black uppercase tracking-widest text-slate-500">Accessing_Database</p>
@@ -87,11 +96,11 @@
             <table class="w-full border-collapse">
               <thead>
                 <tr class="bg-slate-50/50 dark:bg-white/[0.02] border-b border-slate-100 dark:border-white/5 text-left">
-                  <th class="px-8 py-6 text-[10px] font-black text-slate-500 uppercase tracking-widest">Rank</th>
-                  <th class="px-6 py-6 text-[10px] font-black text-slate-500 uppercase tracking-widest">Researcher</th>
-                  <th class="px-6 py-6 text-[10px] font-black text-slate-500 uppercase tracking-widest">Points</th>
-                  <th class="px-6 py-6 text-[10px] font-black text-slate-500 uppercase tracking-widest">Experimental_Bonus</th>
-                  <th class="px-8 py-6 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Actions</th>
+                  <th class="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Rank</th>
+                  <th class="px-6 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Researcher</th>
+                  <th class="px-6 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Points</th>
+                  <th class="px-6 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Experimental_Bonus</th>
+                  <th class="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Actions</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-100 dark:divide-white/5">
@@ -103,10 +112,10 @@
                     player.uid === user.uid ? 'bg-blue-50/70 dark:bg-blue-500/[0.03]' : 'hover:bg-slate-50/50 dark:hover:bg-white/[0.02]'
                   )"
                 >
-                  <td class="px-8 py-6">
+                  <td class="px-8 py-4">
                     <div class="flex items-center gap-4">
                       <span :class="cn(
-                        'w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black italic shadow-lg',
+                        'w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-black italic shadow-lg',
                         idx === 0 ? 'bg-amber-500 text-amber-950 dark:text-black' :
                         idx === 1 ? 'bg-slate-300 text-slate-900 dark:text-black' :
                         idx === 2 ? 'bg-amber-700 text-white' :
@@ -116,17 +125,16 @@
                       </span>
                     </div>
                   </td>
-                  <td class="px-6 py-6">
+                  <td class="px-6 py-4">
                     <div class="flex items-center gap-4">
-                       <div class="relative w-10 h-10 rounded-xl bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-center justify-center text-xl overflow-hidden">
+                       <div class="relative w-9 h-9 rounded-lg bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-center justify-center text-lg overflow-hidden shrink-0">
                           <template v-if="player.avatar && player.avatar.startsWith('data:')">
                             <img :src="player.avatar" class="w-full h-full object-cover" />
                           </template>
                           <template v-else>
                             {{ player.avatar || '🧪' }}
                           </template>
-                          <!-- Online Status Badge -->
-                          <div v-if="player.is_online" class="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white dark:border-[#121216] rounded-full"></div>
+                          <div v-if="player.is_online" class="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-white dark:border-[#121216] rounded-full"></div>
                        </div>
                        <div class="flex flex-col">
                           <span class="text-sm font-black text-slate-900 dark:text-white group-hover:text-blue-500 transition-colors flex items-center gap-2">
@@ -134,52 +142,48 @@
                             <span v-if="player.is_online" class="text-[7px] text-emerald-500 font-black uppercase tracking-tighter">Online</span>
                             <span v-if="player.uid === user.uid" class="text-[8px] bg-blue-600 px-1.5 py-0.5 rounded uppercase font-black tracking-widest text-white">You</span>
                           </span>
-                          <span class="text-[9px] font-mono text-slate-400 dark:text-slate-500 uppercase tracking-tighter mt-1">ID: {{ player.uid }}</span>
+                          <span class="text-[8px] font-mono text-slate-400 dark:text-slate-500 uppercase tracking-tighter mt-0.5">ID: {{ player.uid }}</span>
                        </div>
                     </div>
                   </td>
-                  <td class="px-6 py-6">
+                  <td class="px-6 py-4">
                     <div class="flex flex-col">
-                       <span class="text-lg font-black text-slate-900 dark:text-white font-mono tracking-tighter">
+                       <span class="text-base font-black text-slate-900 dark:text-white font-mono tracking-tighter">
                          {{ rankingMode === 'monthly' ? player.monthly_points : player.points }}
-                       </span>
-                       <span class="text-[8px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-widest mt-0.5">
-                         {{ rankingMode === 'monthly' ? 'Monthly_Status' : 'Total_Contribution' }}
                        </span>
                     </div>
                   </td>
-                  <td class="px-6 py-6">
+                  <td class="px-6 py-4">
                     <div v-if="player.bounty > 0" class="flex flex-col">
-                       <div class="flex items-center gap-2 text-rose-500">
+                       <div class="flex items-center gap-1.5 text-rose-500">
                           <Flame class="w-3 h-3" />
                           <span class="text-sm font-black font-mono tracking-tighter">{{ player.bounty }}</span>
                        </div>
-                       <span class="text-[8px] font-black text-rose-500/60 uppercase tracking-widest mt-1 italic">Active_Bounty_Detected</span>
                     </div>
-                    <div v-else class="text-[9px] font-bold text-slate-400 dark:text-slate-600 uppercase italic opacity-40">
-                      Standard_Protocol
+                    <div v-else class="text-[8px] font-bold text-slate-400 dark:text-slate-600 uppercase italic opacity-40 leading-none">
+                      Standard
                     </div>
                   </td>
-                  <td class="px-8 py-6 text-right">
-                    <div v-if="player.uid !== user.uid" class="flex flex-col items-end gap-2">
+                  <td class="px-8 py-4 text-right">
+                    <div v-if="player.uid !== user.uid" class="flex items-center justify-end gap-2">
                       <button 
                         v-if="player.is_online"
                         @click="handleDuel(player)"
-                        class="px-4 py-2 bg-blue-600/10 hover:bg-blue-600 text-blue-600 hover:text-white border border-blue-500/20 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all active:scale-95 flex items-center gap-2"
+                        title="Duel Protocol"
+                        class="p-2.5 bg-blue-600/10 hover:bg-blue-600 text-blue-600 hover:text-white border border-blue-500/20 rounded-xl transition-all active:scale-95 shadow-sm"
                       >
-                        <Swords class="w-3 h-3" />
-                        Duel_Protocol
+                        <Swords class="w-3.5 h-3.5" />
                       </button>
                       <button 
                         @click="openBountyModal(player)"
-                        class="px-4 py-2 bg-rose-600/10 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-500/20 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all active:scale-95 flex items-center gap-2"
+                        title="Issue Bounty"
+                        class="p-2.5 bg-rose-600/10 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-500/20 rounded-xl transition-all active:scale-95 shadow-sm"
                       >
-                        <Crosshair class="w-3 h-3" />
-                        Issue_Bounty
+                        <Crosshair class="w-3.5 h-3.5" />
                       </button>
                     </div>
-                    <div v-else class="text-[9px] font-black text-blue-600 dark:text-blue-500 uppercase tracking-widest italic pr-4">
-                      Protocol_Master
+                    <div v-else class="text-[9px] font-black text-blue-600 dark:text-blue-500 uppercase tracking-widest italic pr-2">
+                      Master
                     </div>
                   </td>
                 </tr>

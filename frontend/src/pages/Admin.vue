@@ -41,6 +41,7 @@ const configs = ref<any>({})
 const deckConfig = ref<any>(null)
 const editingDeck = ref(false)
 const deckCardsEdit = ref<{ key: string, value: number, id: string }[]>([])
+const initialCardsEdit = ref(10)
 const activeTab = ref('users')
 const loading = ref(false)
 
@@ -288,6 +289,7 @@ const toggleDeckEdit = () => {
       value: value as number,
       id: Math.random().toString(36).substr(2, 9)
     }))
+    initialCardsEdit.value = deckConfig.value.initial_cards || 10
     editingDeck.value = true
   } else {
     // 退出编辑模式且不保存
@@ -317,11 +319,12 @@ const handleUpdateDeck = async () => {
       }
     })
     
-    await adminAPI.updateGlobalDeckConfig(deckConfig.value.name, newCards)
+    await adminAPI.updateGlobalDeckConfig(deckConfig.value.name, newCards, initialCardsEdit.value)
     await showAlert('配置已生效并同步至全球', '🌐 配置更新成功')
     
     // 更新本地显示并退出编辑
     deckConfig.value.cards = newCards
+    deckConfig.value.initial_cards = initialCardsEdit.value
     editingDeck.value = false
   } catch (error: any) {
     await showAlert(error.response?.data?.error || '更新失败', '错误')
@@ -617,6 +620,10 @@ const filteredHistory = computed(() => {
                   全局卡组配置 <span class="text-slate-400 dark:text-slate-600 font-mono not-italic text-[10px] tracking-normal">/ DECK@GLOBAL</span>
                 </h3>
                 <div class="flex items-center gap-3">
+                  <div v-if="!editingDeck" class="bg-white/50 dark:bg-white/5 backdrop-blur-sm px-4 py-2 border border-slate-200 dark:border-white/10 rounded-xl flex items-center gap-3">
+                    <span class="text-[9px] font-black uppercase text-slate-400 tracking-widest leading-none">Init_Hand:</span>
+                    <span class="text-sm font-black text-cyan-500 font-mono leading-none">{{ deckConfig.initial_cards || 10 }}</span>
+                  </div>
                   <div v-if="!editingDeck" class="relative group">
                     <SearchIcon class="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-cyan-500 transition-colors" />
                     <input 
@@ -657,6 +664,27 @@ const filteredHistory = computed(() => {
               </div>
 
               <div class="overflow-x-auto custom-scrollbar border border-slate-200 dark:border-white/10 rounded-[2.5rem] bg-slate-50 dark:bg-black/20">
+                <div v-if="editingDeck" class="p-6 border-b border-slate-200 dark:border-white/10 bg-white/50 dark:bg-white/[0.02] backdrop-blur-md flex flex-wrap items-center gap-6">
+                  <div class="flex items-center gap-3">
+                    <span class="text-[10px] font-black uppercase text-slate-500 tracking-widest flex items-center gap-2">
+                       <Settings2 class="w-3 h-3" />
+                       初始手牌数目:
+                    </span>
+                    <div class="flex items-center bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl overflow-hidden shadow-sm">
+                      <button @click="initialCardsEdit = Math.max(1, initialCardsEdit - 1)" class="px-3 py-2 hover:bg-slate-50 dark:hover:bg-white/5 text-slate-500 transition-colors border-r border-slate-200 dark:border-white/10">-</button>
+                      <input 
+                        v-model.number="initialCardsEdit" 
+                        type="number" 
+                        min="1" 
+                        max="20"
+                        class="w-14 bg-transparent text-center text-sm font-black text-slate-900 dark:text-white outline-none font-mono"
+                      />
+                      <button @click="initialCardsEdit = Math.min(20, initialCardsEdit + 1)" class="px-3 py-2 hover:bg-slate-50 dark:hover:bg-white/5 text-slate-500 transition-colors border-l border-slate-200 dark:border-white/10">+</button>
+                    </div>
+                  </div>
+                  <div class="h-4 w-px bg-slate-200 dark:bg-white/10 hidden md:block"></div>
+                  <p class="text-[9px] text-slate-400 dark:text-slate-600 font-bold italic tracking-tight uppercase">/ Global_Initial_Hand_Allocation_Protocol</p>
+                </div>
                 <table class="w-full text-left table-fixed">
                   <thead>
                     <tr class="text-slate-400 dark:text-slate-600 text-[9px] font-black uppercase tracking-[0.3em] border-b border-slate-200 dark:border-white/10">

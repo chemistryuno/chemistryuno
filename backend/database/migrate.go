@@ -107,10 +107,11 @@ func createDefaultDeckConfig() error {
 	}`
 
 	deckConfig := DeckConfig{
-		Name:      "默认牌组",
-		Cards:     []byte(defaultCards),
-		CreatedBy: 1, // admin用户
-		IsGlobal:  true,
+		Name:         "默认牌组",
+		Cards:        []byte(defaultCards),
+		InitialCards: 10,
+		CreatedBy:    1, // admin用户
+		IsGlobal:     true,
 	}
 
 	if err := DB.Create(&deckConfig).Error; err != nil {

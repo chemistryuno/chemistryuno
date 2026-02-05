@@ -116,10 +116,10 @@ export const gameAPI = {
     api.post('/game/check-reaction', { r1, r2 }),
   getMyDecks: () => 
     api.get('/my-decks'),
-  createMyDeck: (name: string, cards: Record<string, number>) =>
-    api.post('/my-decks', { name, cards }),
-  updateMyDeck: (id: number, name: string, cards: Record<string, number>) =>
-    api.put(`/my-decks/${id}`, { name, cards }),
+  createMyDeck: (name: string, cards: Record<string, number>, initialCards?: number) =>
+    api.post('/my-decks', { name, cards, initial_cards: initialCards }),
+  updateMyDeck: (id: number, name: string, cards: Record<string, number>, initialCards?: number) =>
+    api.put(`/my-decks/${id}`, { name, cards, initial_cards: initialCards }),
   deleteMyDeck: (id: number) =>
     api.delete(`/my-decks/${id}`),
 }
@@ -142,10 +142,14 @@ export const adminAPI = {
     api.put(`/admin/users/${userId}/password`, { new_password: newPassword }),
   promoteUser: (userId: string, role: string) => 
     api.put(`/admin/users/${userId}/role`, { role }),
+  banUser: (targetUID: number, hours: number, reason: string) =>
+    api.post('/admin/users/ban', { target_uid: targetUID, hours, reason }),
+  kickPlayer: (roomID: string, targetUID: number, reason: string) =>
+    api.post('/admin/rooms/kick', { room_id: roomID, target_uid: targetUID, reason }),
   getGlobalDeckConfig: () => 
     api.get('/admin/deck-config'),
-  updateGlobalDeckConfig: (name: string, cards: Record<string, number>) => 
-    api.put('/admin/deck-config', { name, cards }),
+  updateGlobalDeckConfig: (name: string, cards: Record<string, number>, initialCards?: number) => 
+    api.put('/admin/deck-config', { name, cards, initial_cards: initialCards }),
   getGameHistory: () => 
     api.get('/admin/game-history'),
   getFeedbacks: () =>

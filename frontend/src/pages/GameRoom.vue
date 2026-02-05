@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { gameAPI } from '../utils/api'
+import { gameAPI, adminAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
 import websocket from '../utils/websocket'
-import { ArrowLeft, Play, RefreshCw, Zap, Activity, FlaskConical, Trophy, ChevronRight, Loader2, Users, Timer, Plus, QrCode, Copy, Sparkles } from 'lucide-vue-next'
+import { ArrowLeft, Play, RefreshCw, Zap, Activity, FlaskConical, Trophy, ChevronRight, Loader2, Users, Timer, Plus, QrCode, Copy, Sparkles, ShieldAlert, Ban, UserMinus, X, MessageSquare } from 'lucide-vue-next'
 import { cn } from '../utils/cn'
+import ChatBox from '../components/ChatBox.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -29,6 +30,45 @@ const isRedirecting = ref(false)
 const showQrModal = ref(false)
 const timeRemaining = ref(30)
 let timerInterval: any = null
+
+// Chat system
+const showChat = ref(false)
+const hasNewMessage = ref(false)
+
+// Admin management state
+const showAdminModal = ref(false)
+const adminTargetUser = ref<any>(null)
+const adminActionType = ref<'kick' | 'ban'>('kick')
+const banHours = ref(24)
+const banReason = ref('你由于违规游戏而被踢出')
+
+watch(showChat, (val) => {
+  if (val) hasNewMessage.value = false
+})
+
+const openAdminAction = (player: any) => {
+  if (!user.value.is_admin || player.uid === user.value.uid) return
+  adminTargetUser.value = player
+  adminActionType.value = 'kick'
+  banReason.value = '你由于违规游戏而被踢出'
+  showAdminModal.value = true
+}
+
+const handleAdminAction = async () => {
+  if (!adminTargetUser.value) return
+  try {
+    if (adminActionType.value === 'kick') {
+      await adminAPI.kickPlayer(id, adminTargetUser.value.uid, banReason.value)
+      showAlert('已踢出该玩家', '成功')
+    } else {
+      await adminAPI.banUser(adminTargetUser.value.uid, banHours.value, banReason.value)
+      showAlert('该玩家已被封禁', '成功')
+    }
+    showAdminModal.value = false
+  } catch (e: any) {
+    showAlert(e.response?.data?.error || '操作失败', '错误')
+  }
+}
 
 const allPlayers = computed(() => {
   if (gameState.value?.players) {
@@ -249,6 +289,11 @@ onMounted(() => {
       isRedirecting.value = true
       await showAlert(msg.message || '由于消极游戏，您已被踢出', '权限移除')
       router.push('/')
+    })
+    websocket.on('chat', () => {
+      if (!showChat.value) {
+        hasNewMessage.value = true
+      }
     })
   })
 })
@@ -607,6 +652,14 @@ onMounted(() => {
                   <span class="text-[10px] font-bold truncate max-w-[60px] tracking-tight" :class="gameState?.current_player === index ? 'text-white' : 'text-slate-500'">{{ player.username }}</span>
                   <Zap v-if="player.double_action_available" :class="cn('w-2.5 h-2.5 fill-current', gameState?.current_player === index ? 'text-amber-300' : 'text-amber-500')" />
                   <span v-if="player.is_host" :class="cn('w-2 h-2 rounded-full ring-2', gameState?.current_player === index ? 'bg-amber-300 ring-amber-300/20' : 'bg-amber-500 ring-amber-500/20')" title="房主"></span>
+                  <!-- Admin Actions -->
+                  <button v-if="user.is_admin && Number(player.uid) !== Number(user.uid)" 
+                          @click.stop="openAdminAction(player)" 
+                          :class="cn('p-1 rounded transition-colors ml-auto', gameState?.current_player === index ? 'hover:bg-white/20 text-white' : 'hover:bg-red-500/20 text-red-500')"
+                          title="管理玩家"
+                  >
+                    <ShieldAlert class="w-3 h-3" />
+                  </button>
                 </div>
                 <!-- Status/Card Count -->
                 <div class="flex items-center gap-1">
@@ -1224,5 +1277,107 @@ onMounted(() => {
         </div>
       </div>
     </template>
+    <!-- Admin Management Modal -->
+    <div v-if="showAdminModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <div class="absolute inset-0 bg-black/80 backdrop-blur-md" @click="showAdminModal = false"></div>
+      <div class="relative w-full max-w-lg bg-white dark:bg-[#121216] border border-slate-200 dark:border-white/10 rounded-[40px] shadow-2xl overflow-hidden animate-in zoom-in duration-300">
+        <div class="p-8 border-b border-slate-200 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.02]">
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="text-2xl font-black text-slate-900 dark:text-white tracking-tighter flex items-center gap-3">
+              <ShieldAlert class="w-6 h-6 text-red-500" />
+              权限执行控制
+            </h3>
+            <button @click="showAdminModal = false" class="p-2 hover:bg-slate-200 dark:hover:bg-white/5 rounded-full transition-colors">
+              <X class="w-6 h-6 text-slate-400" />
+            </button>
+          </div>
+          <p class="text-[10px] text-slate-500 font-mono uppercase tracking-[0.2em]">Target: {{ adminTargetUser?.username }} (UID: {{ adminTargetUser?.uid }})</p>
+        </div>
+
+        <div class="p-8 space-y-8">
+          <!-- Action Selection -->
+          <div class="grid grid-cols-2 gap-4">
+            <button 
+              @click="adminActionType = 'kick'; banReason = '你由于违规游戏而被踢出'"
+              :class="cn(
+                'flex flex-col items-center gap-3 p-6 rounded-3xl border transition-all group',
+                adminActionType === 'kick' ? 'bg-amber-500/10 border-amber-500/50 text-amber-500' : 'bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-500'
+              )"
+            >
+              <UserMinus class="w-8 h-8 group-hover:scale-110 transition-transform" />
+              <span class="text-xs font-black uppercase tracking-widest">驱逐出场</span>
+            </button>
+            <button 
+              @click="adminActionType = 'ban'; banReason = '你由于违规游戏而被封禁'"
+              :class="cn(
+                'flex flex-col items-center gap-3 p-6 rounded-3xl border transition-all group',
+                adminActionType === 'ban' ? 'bg-red-500/10 border-red-500/50 text-red-500' : 'bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-500'
+              )"
+            >
+              <Ban class="w-8 h-8 group-hover:scale-110 transition-transform" />
+              <span class="text-xs font-black uppercase tracking-widest">限制访问</span>
+            </button>
+          </div>
+
+          <!-- Ban Duration (Only if Ban is selected) -->
+          <div v-if="adminActionType === 'ban'" class="space-y-4 animate-in slide-in-from-top-4 duration-300">
+            <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest block">封禁时长</label>
+            <div class="grid grid-cols-3 gap-2">
+              <button 
+                v-for="h in [1, 24, 72, 168, 720, -1]" 
+                :key="h"
+                @click="banHours = h"
+                :class="cn(
+                  'py-2.5 rounded-xl text-[10px] font-bold border transition-all',
+                  banHours === h ? 'bg-red-500 text-white border-red-500' : 'bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-500'
+                )"
+              >
+                {{ h === -1 ? '永久' : (h < 24 ? h + 'h' : Math.floor(h/24) + 'd') }}
+              </button>
+            </div>
+          </div>
+
+          <!-- Reason -->
+          <div class="space-y-4">
+            <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest block">操作事由</label>
+            <div class="relative group">
+              <div class="absolute inset-0 bg-red-500/5 rounded-2xl blur-lg group-focus-within:bg-red-500/10 transition-all"></div>
+              <textarea 
+                v-model="banReason"
+                placeholder="请输入详细的违规事由..."
+                class="relative w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl px-6 py-4 text-sm font-medium text-slate-700 dark:text-white focus:outline-none focus:border-red-500/50 min-h-[100px] transition-all"
+              ></textarea>
+            </div>
+          </div>
+
+          <button 
+            @click="handleAdminAction"
+            :class="cn(
+              'w-full h-16 rounded-[24px] font-black uppercase tracking-[0.2em] text-xs transition-all shadow-xl active:scale-95',
+              adminActionType === 'kick' ? 'bg-amber-500 hover:bg-amber-400 text-white shadow-amber-500/20' : 'bg-red-600 hover:bg-red-500 text-white shadow-red-500/20'
+            )"
+          >
+            确认执行操作
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Floating Chat Toggle -->
+    <button 
+      @click="showChat = !showChat" 
+      class="fixed bottom-6 right-6 z-50 w-14 h-14 bg-blue-600 hover:bg-blue-500 text-white rounded-[24px] shadow-2xl shadow-blue-500/30 flex items-center justify-center transition-all hover:scale-110 active:scale-95 group"
+    >
+      <MessageSquare class="w-6 h-6 group-hover:rotate-12 transition-transform" />
+      <div v-if="hasNewMessage" class="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 border-2 border-white dark:border-[#0a0a0c] rounded-full animate-pulse"></div>
+    </button>
+
+    <!-- Chat Sidebar/Modal -->
+    <div 
+      v-if="showChat"
+      class="fixed bottom-24 right-6 z-50 w-[calc(100vw-3rem)] sm:w-[400px] shadow-2xl animate-in slide-in-from-bottom-10 duration-300 pointer-events-auto"
+    >
+      <ChatBox title="实验内通信线程" />
+    </div>
   </div>
 </template>

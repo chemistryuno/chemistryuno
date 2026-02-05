@@ -2,6 +2,7 @@
 
 import (
 	"chemistryuno/database"
+	"chemistryuno/game"
 	"chemistryuno/models"
 	"chemistryuno/repository"
 	"chemistryuno/utils"
@@ -94,6 +95,77 @@ func GetAllUsers(c *gin.Context) {
 	c.JSON(http.StatusOK, users)
 }
 
+// 管理员踢出玩家
+func KickPlayer(c *gin.Context) {
+	var req struct {
+		RoomID    string `json:"room_id" binding:"required"`
+		TargetUID int    `json:"target_uid" binding:"required"`
+		Reason    string `json:"reason"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+
+	if req.Reason == "" {
+		req.Reason = "你由于违规游戏而被踢出"
+	}
+
+	err := game.AdminKickPlayer(req.RoomID, req.TargetUID, req.Reason)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "玩家已踢出"})
+}
+
+// 管理员封禁用户
+func BanUser(c *gin.Context) {
+	var req struct {
+		TargetUID int    `json:"target_uid" binding:"required"`
+		Hours     int    `json:"hours"` // 0 为永久
+		Reason    string `json:"reason"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+
+	if req.Reason == "" {
+		req.Reason = "你由于违规游戏而被封禁"
+	}
+
+	var bannedUntil *time.Time
+	if req.Hours > 0 {
+		t := time.Now().Add(time.Duration(req.Hours) * time.Hour)
+		bannedUntil = &t
+	} else if req.Hours == -1 {
+		// 实际上前端可以传-1表示永久
+		t := time.Now().AddDate(100, 0, 0) // 100年后，相当于永久
+		bannedUntil = &t
+	}
+
+	err := userRepo.UpdateBanStatusWithReason(uint(req.TargetUID), bannedUntil, req.Reason)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "封禁失败"})
+		return
+	}
+
+	// 封禁后强制登出
+	sessionRepo := repository.NewSessionRepository()
+	_ = sessionRepo.DeleteByUserID(uint(req.TargetUID))
+
+	msg := "用户已被永久封禁"
+	if req.Hours > 0 {
+		msg = fmt.Sprintf("用户已被封禁 %d 小时", req.Hours)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": msg})
+}
+
 // 获取全局牌组配置
 func GetGlobalDeckConfig(c *gin.Context) {
 	deck, err := deckRepo.FindGlobalDeck()
@@ -107,12 +179,13 @@ func GetGlobalDeckConfig(c *gin.Context) {
 	json.Unmarshal([]byte(deck.Cards), &cards)
 
 	config := models.DeckConfig{
-		ID:        int(deck.ID),
-		Name:      deck.Name,
-		IsGlobal:  deck.IsGlobal,
-		Cards:     cards,
-		CreatedBy: int(deck.CreatedBy),
-		CreatedAt: deck.CreatedAt,
+		ID:           int(deck.ID),
+		Name:         deck.Name,
+		IsGlobal:     deck.IsGlobal,
+		Cards:        cards,
+		InitialCards: deck.InitialCards,
+		CreatedBy:    int(deck.CreatedBy),
+		CreatedAt:    deck.CreatedAt,
 	}
 
 	c.JSON(http.StatusOK, config)
@@ -121,8 +194,9 @@ func GetGlobalDeckConfig(c *gin.Context) {
 // 更新全局牌组配置
 func UpdateGlobalDeckConfig(c *gin.Context) {
 	var req struct {
-		Name  string         `json:"name" binding:"required"`
-		Cards map[string]int `json:"cards" binding:"required"`
+		Name         string         `json:"name" binding:"required"`
+		Cards        map[string]int `json:"cards" binding:"required"`
+		InitialCards int            `json:"initial_cards"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -130,9 +204,24 @@ func UpdateGlobalDeckConfig(c *gin.Context) {
 		return
 	}
 
+	if req.InitialCards <= 0 {
+		req.InitialCards = 10
+	}
+
 	cardsJSON, _ := json.Marshal(req.Cards)
 
-	err := deckRepo.UpdateGlobalDeck(req.Name, cardsJSON)
+	// 更新数据库
+	deck, err := deckRepo.FindGlobalDeck()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "全局配置不存在"})
+		return
+	}
+
+	deck.Name = req.Name
+	deck.Cards = cardsJSON
+	deck.InitialCards = req.InitialCards
+
+	err = deckRepo.Update(deck)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新失败"})
 		return

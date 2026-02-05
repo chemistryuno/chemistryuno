@@ -6,12 +6,15 @@ import { gameAPI } from './utils/api'
 import CustomDialog from './components/CustomDialog.vue'
 import FeedbackButton from './components/FeedbackButton.vue'
 import AnnouncementTicker from './components/AnnouncementTicker.vue'
+import DuelInviteModal from './components/DuelInviteModal.vue'
 import { useDialog } from './utils/dialog'
 
 const loading = ref(true)
 const { showAlert, showConfirm, closeDialog } = useDialog()
 const route = useRoute()
 const feedbackBtnRef = ref<any>(null)
+
+const activeDuelInvite = ref<any>(null)
 
 watch(() => route.query.report, (val) => {
   if (val) {
@@ -68,20 +71,10 @@ onMounted(() => {
     }
   }
 
-  const handleDuelInvite = async (msg: any) => {
-    const { challenger_name, challenger_uid } = msg.data
-    const timer = setTimeout(() => closeDialog(), 20000)
-    const result = await showConfirm(
-      `研究员 ${challenger_name} 向你发起了单挑邀请！`,
-      '挑战书 (20s后自动拒绝)',
-      '接受挑战',
-      '拒绝'
-    )
-    clearTimeout(timer)
-    try {
-      await gameAPI.respondToDuel(challenger_uid, result === true)
-    } catch (err: any) {
-      showAlert(err.response?.data?.error || '响应失败')
+  const handleDuelInvite = (msg: any) => {
+    activeDuelInvite.value = {
+      challenger_name: msg.data.challenger_name,
+      challenger_uid: msg.data.challenger_uid
     }
   }
 
@@ -136,6 +129,7 @@ onMounted(() => {
       <router-view></router-view>
       <CustomDialog />
       <FeedbackButton ref="feedbackBtnRef" />
+      <DuelInviteModal v-if="activeDuelInvite" :invite="activeDuelInvite" @close="activeDuelInvite = null" />
     </div>
   </template>
 </template>

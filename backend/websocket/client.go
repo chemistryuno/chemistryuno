@@ -140,15 +140,17 @@ func (c *Client) handleMessage(msg *Message) {
 		})
 
 	case "chat":
-		if c.roomID != "" {
-			c.hub.BroadcastToRoom(c.roomID, Message{
-				Type:    "chat",
-				UID:     c.uid,
-				Message: msg.Message,
-				Data: map[string]string{
-					"username": c.username,
-				},
-			})
+		targetRoom := c.roomID
+		if targetRoom == "" {
+			targetRoom = "lobby"
 		}
+		c.hub.BroadcastToRoom(targetRoom, Message{
+			Type:    "chat",
+			UID:     c.uid,
+			Message: msg.Message,
+			Data: map[string]string{
+				"username": c.username,
+			},
+		})
 	}
 }

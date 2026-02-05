@@ -64,6 +64,7 @@ type User struct {
 	MonthlyPoints      int            `gorm:"default:0" json:"monthly_points"`
 	NegativePlayCount  int            `gorm:"default:0" json:"negative_play_count"`
 	BannedUntil        *time.Time     `json:"banned_until"`
+	BanReason          string         `gorm:"size:255" json:"ban_reason"`
 	FrozenUntil        *time.Time     `json:"frozen_until"`
 	TotalGames         int            `gorm:"default:0" json:"total_games"`
 	WinCount           int            `gorm:"default:0" json:"win_count"`
@@ -169,13 +170,14 @@ func (Feedback) TableName() string {
 
 // DeckConfig GORM模型 - 牌组配置表
 type DeckConfig struct {
-	ID        uint      `gorm:"primaryKey;autoIncrement" json:"id"`
-	Name      string    `gorm:"not null;size:100" json:"name"`
-	Cards     JSON      `gorm:"not null;type:text" json:"cards"`
-	CreatedBy uint      `gorm:"not null;index" json:"created_by"`
-	IsGlobal  bool      `gorm:"default:false" json:"is_global"`
-	CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+	ID           uint      `gorm:"primaryKey;autoIncrement" json:"id"`
+	Name         string    `gorm:"not null;size:100" json:"name"`
+	Cards        JSON      `gorm:"not null;type:text" json:"cards"`
+	InitialCards int       `gorm:"default:10" json:"initial_cards"`
+	CreatedBy    uint      `gorm:"not null;index" json:"created_by"`
+	IsGlobal     bool      `gorm:"default:false" json:"is_global"`
+	CreatedAt    time.Time `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt    time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
 func (DeckConfig) TableName() string {

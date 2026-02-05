@@ -11,12 +11,13 @@ type Card struct {
 
 // 牌组配置
 type DeckConfig struct {
-	ID        int            `json:"id" db:"id"`
-	Name      string         `json:"name" db:"name"`
-	IsGlobal  bool           `json:"is_global" db:"is_global"`
-	Cards     map[string]int `json:"cards"` // 元素->数量
-	CreatedBy int            `json:"created_by" db:"created_by"`
-	CreatedAt time.Time      `json:"created_at" db:"created_at"`
+	ID           int            `json:"id" db:"id"`
+	Name         string         `json:"name" db:"name"`
+	IsGlobal     bool           `json:"is_global" db:"is_global"`
+	Cards        map[string]int `json:"cards"` // 元素->数量
+	InitialCards int            `json:"initial_cards" db:"initial_cards"`
+	CreatedBy    int            `json:"created_by" db:"created_by"`
+	CreatedAt    time.Time      `json:"created_at" db:"created_at"`
 }
 
 // 游戏房间

@@ -226,6 +226,8 @@ func main() {
 		admin.DELETE("/users/:id", handlers.DeleteUser)
 		admin.PUT("/users/:id/password", handlers.AdminChangePassword)
 		admin.PUT("/users/:id/role", handlers.PromoteUser)
+		admin.POST("/users/ban", handlers.BanUser)
+		admin.POST("/rooms/kick", handlers.KickPlayer)
 		admin.GET("/deck-config", handlers.GetGlobalDeckConfig)
 		admin.PUT("/deck-config", handlers.UpdateGlobalDeckConfig)
 		admin.GET("/game-history", handlers.GetGameHistory)

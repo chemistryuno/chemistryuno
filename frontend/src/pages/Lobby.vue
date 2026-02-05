@@ -6,6 +6,7 @@ import { useDialog } from '../utils/dialog'
 import websocket from '../utils/websocket'
 import { Beaker, Plus, Users, Shield, LogOut, Settings, Play, Info, X, Loader2, Database, MessageSquare, Trash2, Trophy, Bell, Megaphone, Clock } from 'lucide-vue-next'
 import { cn } from '../utils/cn'
+import ChatBox from '../components/ChatBox.vue'
 
 const props = defineProps<{
   // user props can be added if we pass from App.vue
@@ -76,6 +77,11 @@ onMounted(() => {
   websocket.connect()
   websocket.on('online_count', handleOnlineCountUpdate)
   websocket.on('system_announcement', handleSystemAnnouncement)
+  
+  // 加入大厅聊天频道
+  setTimeout(() => {
+    websocket.send({ type: 'join_room', room_id: 'lobby' })
+  }, 500)
 
   roomInterval = setInterval(loadRooms, 3000)
   timeInterval = setInterval(() => {
@@ -308,61 +314,65 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
           </div>
         </div>
 
-        <!-- Persistent Announcements -->
-        <div v-if="persistentAnnouncements.length > 0" class="mb-8 space-y-4 animate-in fade-in duration-700">
-           <div v-for="ann in persistentAnnouncements" :key="ann.id" 
-                :class="cn(
-                  'relative overflow-hidden p-6 rounded-[28px] border transition-all hover:shadow-lg',
-                  ann.type === 'emergency' ? 'bg-red-500/5 border-red-500/20 shadow-red-500/5' : 
-                  ann.type === 'maintenance' ? 'bg-amber-500/5 border-amber-500/20 shadow-amber-500/5' : 
-                  'bg-blue-500/5 border-blue-500/20 shadow-blue-500/5'
-                )">
-              <div class="absolute top-0 right-0 p-4 opacity-10">
-                 <Bell class="w-24 h-24 -mr-8 -mt-8" />
-              </div>
-              <div class="relative z-10 flex flex-col md:flex-row md:items-center gap-6">
-                <div :class="cn(
-                   'w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 border',
-                   ann.type === 'emergency' ? 'bg-red-500/10 text-red-500 border-red-500/20' : 
-                   ann.type === 'maintenance' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 
-                   'bg-blue-500/10 text-blue-500 border-blue-500/20'
-                )">
-                  <Megaphone class="w-6 h-6" />
-                </div>
-                <div class="flex-1">
-                   <div class="flex items-center gap-3 mb-1">
-                      <span :class="cn(
-                        'text-[10px] font-black uppercase tracking-[0.2em]',
-                        ann.type === 'emergency' ? 'text-red-500' : 
-                        ann.type === 'maintenance' ? 'text-amber-500' : 
-                        'text-blue-500'
-                      )">
-                        {{ ann.type }} // SYSTEM_MESSAGE
-                      </span>
-                      <span class="text-[9px] text-slate-400 font-mono">ID: {{ String(ann.id).padStart(4, '0') }}</span>
-                   </div>
-                   <h3 class="text-lg font-black text-slate-900 dark:text-white mb-2" v-if="ann.title">{{ ann.title }}</h3>
-                   <p class="text-sm font-medium text-slate-600 dark:text-slate-400 leading-relaxed">{{ ann.content }}</p>
-                </div>
-                <div class="flex items-center gap-4 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                   <div class="flex items-center gap-2">
-                      <Clock class="w-3 h-3" />
-                      {{ ann.expires_at ? '至 ' + new Date(ann.expires_at).toLocaleDateString() : '永久存续' }}
-                   </div>
-                </div>
-              </div>
-           </div>
-        </div>
+        <!-- Main Layout Grid -->
+        <div class="grid grid-cols-1 xl:grid-cols-12 gap-8">
+          <!-- Left Column: Notifications & Room List -->
+          <div class="xl:col-span-9 space-y-8">
+            <!-- Persistent Announcements -->
+            <div v-if="persistentAnnouncements.length > 0" class="space-y-4 animate-in fade-in duration-700">
+               <div v-for="ann in persistentAnnouncements" :key="ann.id" 
+                    :class="cn(
+                      'relative overflow-hidden p-6 rounded-[28px] border transition-all hover:shadow-lg',
+                      ann.type === 'emergency' ? 'bg-red-500/5 border-red-500/20 shadow-red-500/5' : 
+                      ann.type === 'maintenance' ? 'bg-amber-500/5 border-amber-500/20 shadow-amber-500/5' : 
+                      'bg-blue-500/5 border-blue-500/20 shadow-blue-500/5'
+                    )">
+                  <div class="absolute top-0 right-0 p-4 opacity-10">
+                     <Bell class="w-24 h-24 -mr-8 -mt-8" />
+                  </div>
+                  <div class="relative z-10 flex flex-col md:flex-row md:items-center gap-6">
+                    <div :class="cn(
+                       'w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 border',
+                       ann.type === 'emergency' ? 'bg-red-500/10 text-red-500 border-red-500/20' : 
+                       ann.type === 'maintenance' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 
+                       'bg-blue-500/10 text-blue-500 border-blue-500/20'
+                    )">
+                      <Megaphone class="w-6 h-6" />
+                    </div>
+                    <div class="flex-1">
+                       <div class="flex items-center gap-3 mb-1">
+                          <span :class="cn(
+                            'text-[10px] font-black uppercase tracking-[0.2em]',
+                            ann.type === 'emergency' ? 'text-red-500' : 
+                            ann.type === 'maintenance' ? 'text-amber-500' : 
+                            'text-blue-500'
+                          )">
+                            {{ ann.type }} // SYSTEM_MESSAGE
+                          </span>
+                          <span class="text-[9px] text-slate-400 font-mono">ID: {{ String(ann.id).padStart(4, '0') }}</span>
+                       </div>
+                       <h3 class="text-lg font-black text-slate-900 dark:text-white mb-2" v-if="ann.title">{{ ann.title }}</h3>
+                       <p class="text-sm font-medium text-slate-600 dark:text-slate-400 leading-relaxed">{{ ann.content }}</p>
+                    </div>
+                    <div class="flex items-center gap-4 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                       <div class="flex items-center gap-2">
+                          <Clock class="w-3 h-3" />
+                          {{ ann.expires_at ? '至 ' + new Date(ann.expires_at).toLocaleDateString() : '永久存续' }}
+                       </div>
+                    </div>
+                  </div>
+               </div>
+            </div>
 
-        <!-- Experimental Nodes (Room List Table) -->
-        <div class="bg-white/80 dark:bg-[#121216]/60 backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-[28px] overflow-hidden">
+            <!-- Experimental Nodes (Room List Table) -->
+            <div class="bg-white/80 dark:bg-[#121216]/60 backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-[28px] overflow-hidden">
           <div class="overflow-x-auto">
             <table class="w-full text-left border-collapse">
               <thead>
                 <tr class="border-b border-slate-200 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.02]">
                   <th class="px-6 py-4 text-[9px] font-black text-slate-500 uppercase tracking-widest">Experiment_Status</th>
                   <th class="px-6 py-4 text-[9px] font-black text-slate-500 uppercase tracking-widest">Node_Identifier</th>
-                  <th class="px-6 py-4 text-[9px] font-black text-slate-500 uppercase tracking-widest">Protocol_Type</th>
+                  <th class="px-6 py-4 text-[9px] font-black text-slate-500 uppercase tracking-widest">Protocol_Config</th>
                   <th class="px-6 py-4 text-[9px] font-black text-slate-500 uppercase tracking-widest">Participants</th>
                   <th class="px-6 py-4 text-[9px] font-black text-slate-500 uppercase tracking-widest text-right">Access_Control</th>
                 </tr>
@@ -413,12 +423,21 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
                     </div>
                   </td>
                   <td class="px-6 py-6">
-                    <div class="flex items-center gap-2">
-                      <div v-if="room.is_points_mode" class="px-2 py-0.5 bg-amber-500/10 border border-amber-500/20 rounded-md text-amber-500 text-[8px] font-black uppercase">
-                        Competitive
+                    <div class="flex flex-col gap-2">
+                      <div class="flex items-center gap-2">
+                        <div v-if="room.is_points_mode" class="px-2 py-0.5 bg-amber-500/10 border border-amber-500/20 rounded-md text-amber-500 text-[8px] font-black uppercase">
+                          Competitive
+                        </div>
+                        <div v-else class="px-2 py-0.5 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-md text-slate-500 text-[8px] font-black uppercase">
+                          Standard
+                        </div>
+                        <div v-if="room.deck_config" class="px-2 py-0.5 bg-blue-500/10 border border-blue-500/20 rounded-md text-blue-500 text-[8px] font-black uppercase">
+                          {{ room.deck_config.name }}
+                        </div>
                       </div>
-                      <div v-else class="px-2 py-0.5 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-md text-slate-500 text-[8px] font-black uppercase">
-                        Standard
+                      <div v-if="room.deck_config" class="flex items-center gap-1.5 text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                        <Database class="w-3 h-3" />
+                        Init: {{ room.deck_config.initial_cards }} Samples
                       </div>
                     </div>
                   </td>
@@ -460,7 +479,16 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
             </table>
           </div>
         </div>
-      </main>
+      </div>
+
+      <!-- Right Column: World Chat -->
+      <div class="xl:col-span-3">
+        <div class="sticky top-28">
+           <ChatBox title="全球通信频率" placeholder="发送广播信号..." maxHeight="600px" />
+        </div>
+      </div>
+    </div>
+  </main>
 
       <!-- Global Footer Terminal -->
       <footer class="mt-auto border-t border-white/5 bg-black/40 backdrop-blur-md p-4">

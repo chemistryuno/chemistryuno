@@ -111,6 +111,23 @@ func (WebAuthnCredential) TableName() string {
 	return "webauthn_credentials"
 }
 
+// Friendship GORM模型 - 好友关系表
+type Friendship struct {
+	ID        uint      `gorm:"primaryKey;autoIncrement" json:"id"`
+	UserID    uint      `gorm:"not null;index:idx_friendship" json:"user_id"`   // 发起方
+	FriendID  uint      `gorm:"not null;index:idx_friendship" json:"friend_id"` // 接收方
+	Status    string    `gorm:"default:pending;size:20" json:"status"`          // pending, accepted, declined
+	CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+
+	User   User `gorm:"foreignKey:UserID" json:"-"`
+	Friend User `gorm:"foreignKey:FriendID" json:"friend"`
+}
+
+func (Friendship) TableName() string {
+	return "friendships"
+}
+
 // Reaction GORM模型 - 化学反应表
 type Reaction struct {
 	ID          uint       `gorm:"primaryKey;autoIncrement" json:"id"`

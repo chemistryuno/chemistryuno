@@ -181,6 +181,22 @@
                       >
                         <Crosshair class="w-3.5 h-3.5" />
                       </button>
+                      <button 
+                        v-if="!isFriend(player.uid)"
+                        @click="handleAddFriend(player)"
+                        title="Add Friend"
+                        class="p-2.5 bg-amber-600/10 hover:bg-amber-600 text-amber-600 hover:text-white border border-amber-500/20 rounded-xl transition-all active:scale-95 shadow-sm"
+                      >
+                        <UserPlus class="w-3.5 h-3.5" />
+                      </button>
+                      <button 
+                        v-else
+                        @click="startPrivateChat(player)"
+                        title="Private Message"
+                        class="p-2.5 bg-emerald-600/10 hover:bg-emerald-600 text-emerald-600 hover:text-white border border-emerald-500/20 rounded-xl transition-all active:scale-95 shadow-sm"
+                      >
+                        <MessageCircle class="w-3.5 h-3.5" />
+                      </button>
                     </div>
                     <div v-else class="text-[9px] font-black text-blue-600 dark:text-blue-500 uppercase tracking-widest italic pr-2">
                       Master
@@ -270,42 +286,88 @@
           </div>
        </div>
     </div>
+
+    <!-- Floating Chat Toggle -->
+    <button 
+      @click="showChat = !showChat" 
+      class="fixed bottom-6 right-6 z-50 w-14 h-14 bg-blue-600 hover:bg-blue-500 text-white rounded-[24px] shadow-2xl shadow-blue-500/30 flex items-center justify-center transition-all hover:scale-110 active:scale-95 group"
+    >
+      <MessageSquare class="w-6 h-6 group-hover:rotate-12 transition-transform" />
+      <div v-if="hasNewMessage" class="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 border-2 border-white dark:border-[#0a0a0c] rounded-full animate-pulse"></div>
+    </button>
+
+    <!-- Chat Sidebar/Modal -->
+    <div 
+      v-if="showChat"
+      class="fixed bottom-24 right-6 z-50 w-[calc(100vw-3rem)] sm:w-[400px] shadow-2xl animate-in slide-in-from-bottom-10 duration-300 pointer-events-auto"
+    >
+      <ChatBox title="全球通信频率" maxHeight="500px" />
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { pointsAPI, gameAPI } from '../utils/api'
+import { pointsAPI, gameAPI, friendAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
-import { Trophy, ArrowLeft, Loader2, Target, RefreshCw, ShieldCheck, Crosshair, Flame, X, Swords } from 'lucide-vue-next'
+import { Trophy, ArrowLeft, Loader2, Target, RefreshCw, ShieldCheck, Crosshair, Flame, X, Swords, MessageCircle, MessageSquare, UserPlus } from 'lucide-vue-next'
 import { cn } from '../utils/cn'
+import ChatBox from '../components/ChatBox.vue'
 
 const router = useRouter()
 const { showAlert } = useDialog()
 const user = ref(JSON.parse(localStorage.getItem('user') || '{}'))
 
 const leaderboard = ref<any[]>([])
+const friendsList = ref<any[]>([])
 const loading = ref(true)
 const userPoints = ref(0)
 const rankingMode = ref<'total' | 'monthly'>('total')
 
-const showBountyModal = ref(false)
-const selectedTarget = ref<any>(null)
-const bountyAmount = ref<number | null>(null)
-const submitting = ref(false)
+const isFriend = (uid: number) => {
+  return friendsList.value.some(f => f.uid === uid)
+}
+
+const handleAddFriend = async (player: any) => {
+  try {
+    await friendAPI.sendRequest(player.uid)
+    showAlert(`已向研究员 ${player.username} 发送同步请求，等待量子握手。`, '请求已发送')
+  } catch (error: any) {
+    showAlert(error.response?.data?.error || '请求发送失败', '链路故障')
+  }
+}
+
+const showChat = ref(false)
+const hasNewMessage = ref(false)
+
+const startPrivateChat = (player: any) => {
+  if (!isFriend(player.uid)) {
+    showAlert('只有互为好友的研究员才能开启单向加密传输。', '权限受限')
+    return
+  }
+  showChat.value = true
+  hasNewMessage.value = false
+  window.dispatchEvent(new CustomEvent('start-private-chat', {
+    detail: { uid: player.uid, username: player.username }
+  }))
+}
 
 const loadLeaderboard = async () => {
   try {
     loading.value = true
-    const response = await pointsAPI.getLeaderboard(rankingMode.value)
-    leaderboard.value = response.data
+    const [leaderRes, friendsRes] = await Promise.all([
+      pointsAPI.getLeaderboard(rankingMode.value),
+      friendAPI.getFriends()
+    ])
+    leaderboard.value = leaderRes.data
+    friendsList.value = friendsRes.data
     
     // 同时也尝试更新一下本地的用户分数实时显示
     const self = leaderboard.value.find(p => p.uid === user.value.uid)
     if (self) userPoints.value = self.points
   } catch (error) {
-    console.error('Failed to load leaderboard:', error)
+    console.error('Failed to load ranking data:', error)
   } finally {
     loading.value = false
   }
@@ -352,8 +414,21 @@ const handleDuel = async (player: any) => {
   }
 }
 
+const onChatMessage = () => {
+  if (!showChat.value) {
+    hasNewMessage.value = true
+  }
+}
+
 onMounted(() => {
   loadLeaderboard()
+  websocket.on('chat', onChatMessage)
+  websocket.on('private_chat', onChatMessage)
+})
+
+onUnmounted(() => {
+  websocket.off('chat', onChatMessage)
+  websocket.off('private_chat', onChatMessage)
 })
 </script>
 

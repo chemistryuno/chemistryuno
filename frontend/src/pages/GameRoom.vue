@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { gameAPI, adminAPI } from '../utils/api'
+import { gameAPI, adminAPI, friendAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
 import websocket from '../utils/websocket'
-import { ArrowLeft, Play, RefreshCw, Zap, Activity, FlaskConical, Trophy, ChevronRight, Loader2, Users, Timer, Plus, QrCode, Copy, Sparkles, ShieldAlert, Ban, UserMinus, X, MessageSquare } from 'lucide-vue-next'
+import { ArrowLeft, Play, RefreshCw, Zap, Activity, FlaskConical, Trophy, ChevronRight, Loader2, Users, Timer, Plus, QrCode, Copy, Sparkles, ShieldAlert, Ban, UserMinus, X, MessageSquare, MessageCircle, UserPlus } from 'lucide-vue-next'
 import { cn } from '../utils/cn'
 import ChatBox from '../components/ChatBox.vue'
 
@@ -17,23 +17,39 @@ const user = ref(JSON.parse(localStorage.getItem('user') || '{}'))
 const gameState = ref<any>(null)
 const roomInfo = ref<any>(null)
 const playersInfo = ref<any[]>([])
+const friendsList = ref<any[]>([])
 const availableSubstances = ref<string[]>([])
-const turnReadySubstances = ref<string[]>([])
-const selectedCard = ref<any>(null)
-const selectedSubstance = ref<string | null>(null)
-const doubleMode = ref(false)
-const firstDoubleSubstance = ref<string | null>(null)
-const secondDoubleSubstance = ref<string | null>(null)
-const substanceInput = ref('')
-const loading = ref(true)
-const isRedirecting = ref(false)
-const showQrModal = ref(false)
-const timeRemaining = ref(30)
-let timerInterval: any = null
+
+// ... (existing state)
+
+const isFriend = (uid: number) => {
+  return friendsList.value.some(f => Number(f.uid) === Number(uid))
+}
+
+const handleAddFriend = async (player: any) => {
+  try {
+    await friendAPI.sendRequest(player.uid)
+    showAlert(`已向研究员 ${player.username} 发送同步请求，等待量子握手。`, '请求已发送')
+  } catch (error: any) {
+    showAlert(error.response?.data?.error || '请求发送失败', '链路故障')
+  }
+}
 
 // Chat system
 const showChat = ref(false)
 const hasNewMessage = ref(false)
+
+const startPrivateChat = (player: any) => {
+  if (!isFriend(player.uid)) {
+    showAlert('只有互为好友的研究员才能开启单向加密传输。', '权限受限')
+    return
+  }
+  showChat.value = true
+  hasNewMessage.value = false
+  window.dispatchEvent(new CustomEvent('start-private-chat', {
+    detail: { uid: player.uid, username: player.username }
+  }))
+}
 
 // Admin management state
 const showAdminModal = ref(false)
@@ -271,6 +287,7 @@ const loadGameState = async () => {
 }
 
 onMounted(() => {
+  friendAPI.getFriends().then(res => friendsList.value = res.data)
   loadGameState().then(() => {
     websocket.joinRoom(id)
     websocket.on('game_update', handleGameUpdate)
@@ -295,6 +312,11 @@ onMounted(() => {
         hasNewMessage.value = true
       }
     })
+    websocket.on('private_chat', () => {
+      if (!showChat.value) {
+        hasNewMessage.value = true
+      }
+    })
   })
 })
 
@@ -305,6 +327,8 @@ onUnmounted(() => {
   websocket.off('player_joined', loadGameState)
   websocket.off('player_left', loadGameState)
   websocket.off('room_terminated', () => {})
+  websocket.off('chat', () => {})
+  websocket.off('private_chat', () => {})
 })
 
 const handleStartGame = async () => {
@@ -652,14 +676,31 @@ onMounted(() => {
                   <span class="text-[10px] font-bold truncate max-w-[60px] tracking-tight" :class="gameState?.current_player === index ? 'text-white' : 'text-slate-500'">{{ player.username }}</span>
                   <Zap v-if="player.double_action_available" :class="cn('w-2.5 h-2.5 fill-current', gameState?.current_player === index ? 'text-amber-300' : 'text-amber-500')" />
                   <span v-if="player.is_host" :class="cn('w-2 h-2 rounded-full ring-2', gameState?.current_player === index ? 'bg-amber-300 ring-amber-300/20' : 'bg-amber-500 ring-amber-500/20')" title="房主"></span>
-                  <!-- Admin Actions -->
-                  <button v-if="user.is_admin && Number(player.uid) !== Number(user.uid)" 
-                          @click.stop="openAdminAction(player)" 
-                          :class="cn('p-1 rounded transition-colors ml-auto', gameState?.current_player === index ? 'hover:bg-white/20 text-white' : 'hover:bg-red-500/20 text-red-500')"
-                          title="管理玩家"
-                  >
-                    <ShieldAlert class="w-3 h-3" />
-                  </button>
+                  <!-- Player Actions -->
+                  <div class="flex items-center gap-0.5 ml-auto">
+                    <button v-if="Number(player.uid) !== Number(user.uid) && !isFriend(player.uid)" 
+                            @click.stop="handleAddFriend(player)"
+                            :class="cn('p-1 rounded transition-colors', gameState?.current_player === index ? 'hover:bg-white/20 text-white' : 'hover:bg-amber-500/20 text-amber-500')"
+                            title="添加好友"
+                    >
+                      <UserPlus class="w-3 h-3" />
+                    </button>
+                    <button v-if="Number(player.uid) !== Number(user.uid) && isFriend(player.uid)" 
+                            @click.stop="startPrivateChat(player)"
+                            :class="cn('p-1 rounded transition-colors', gameState?.current_player === index ? 'hover:bg-white/20 text-white' : 'hover:bg-blue-500/20 text-blue-500')"
+                            title="私聊"
+                    >
+                      <MessageCircle class="w-3 h-3" />
+                    </button>
+                    <!-- Admin Actions -->
+                    <button v-if="user.is_admin && Number(player.uid) !== Number(user.uid)" 
+                            @click.stop="openAdminAction(player)" 
+                            :class="cn('p-1 rounded transition-colors', gameState?.current_player === index ? 'hover:bg-white/20 text-white' : 'hover:bg-red-500/20 text-red-500')"
+                            title="管理玩家"
+                    >
+                      <ShieldAlert class="w-3 h-3" />
+                    </button>
+                  </div>
                 </div>
                 <!-- Status/Card Count -->
                 <div class="flex items-center gap-1">

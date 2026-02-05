@@ -1,6 +1,7 @@
 ﻿package websocket
 
 import (
+	"chemistryuno/repository"
 	"encoding/json"
 	"log"
 	"time"
@@ -25,11 +26,12 @@ type Client struct {
 }
 
 type Message struct {
-	Type    string      `json:"type"`
-	RoomID  string      `json:"room_id,omitempty"`
-	Data    interface{} `json:"data,omitempty"`
-	UID     int         `json:"uid,omitempty"`
-	Message string      `json:"message,omitempty"`
+	Type      string      `json:"type"`
+	RoomID    string      `json:"room_id,omitempty"`
+	Data      interface{} `json:"data,omitempty"`
+	UID       int         `json:"uid,omitempty"`
+	TargetUID int         `json:"target_uid,omitempty"`
+	Message   string      `json:"message,omitempty"`
 }
 
 func NewClient(hub *Hub, conn *websocket.Conn, uid int, username string) *Client {
@@ -150,6 +152,46 @@ func (c *Client) handleMessage(msg *Message) {
 			Message: msg.Message,
 			Data: map[string]string{
 				"username": c.username,
+			},
+		})
+
+	case "private_chat":
+		if msg.TargetUID != 0 {
+			// 检查是否是好友
+			isFriend, err := repository.FriendshipRepo.IsFriend(uint(c.uid), uint(msg.TargetUID))
+			if err != nil || !isFriend {
+				// 发送系统通知告知不能私聊
+				c.hub.SendToUID(c.uid, Message{
+					Type:    "error",
+					Message: "只有互为好友的研究员才能进行单向加密通信",
+				})
+				return
+			}
+
+			// 发送给目标用户
+			payload := Message{
+				Type:      "private_chat",
+				UID:       c.uid,
+				TargetUID: msg.TargetUID,
+				Message:   msg.Message,
+				Data: map[string]string{
+					"username": c.username,
+				},
+			}
+			c.hub.SendToUID(msg.TargetUID, payload)
+			// 同时发送给自己，以便在发送者的 UI 上显示
+			c.hub.SendToUID(c.uid, payload)
+		}
+
+	case "broadcast":
+		// 全服广播消息
+		c.hub.BroadcastToAll(Message{
+			Type:    "broadcast",
+			UID:     c.uid,
+			Message: msg.Message,
+			Data: map[string]interface{}{
+				"username":          c.username,
+				"is_user_broadcast": true,
 			},
 		})
 	}

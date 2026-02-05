@@ -247,6 +247,9 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
               <router-link to="/data" class="p-3 hover:bg-blue-500/10 rounded-2xl transition-all text-blue-500/70 hover:text-blue-400" title="反应数据库">
                 <Database class="w-5 h-5" />
               </router-link>
+              <router-link to="/chat" class="p-3 hover:bg-blue-500/10 rounded-2xl transition-all text-blue-500/70 hover:text-blue-400" title="加密通讯">
+                <MessageSquare class="w-5 h-5" />
+              </router-link>
               <router-link v-if="user.is_admin" to="/admin" class="p-3 hover:bg-yellow-500/10 rounded-2xl transition-all text-yellow-500/70 hover:text-yellow-400" title="科研管理">
                 <Shield class="w-5 h-5" />
               </router-link>

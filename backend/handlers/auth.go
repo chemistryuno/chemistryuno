@@ -418,3 +418,21 @@ func GetUserInfo(c *gin.Context) {
 
 	c.JSON(http.StatusOK, user)
 }
+
+// SearchUsers 搜索用户
+func SearchUsers(c *gin.Context) {
+	query := c.Query("q")
+	if query == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "搜索内容不能为空"})
+		return
+	}
+
+	userRepo := repository.NewUserRepository()
+	users, err := userRepo.SearchUsers(query)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "搜索失败"})
+		return
+	}
+
+	c.JSON(http.StatusOK, users)
+}

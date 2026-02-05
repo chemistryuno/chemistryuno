@@ -337,6 +337,27 @@ func (r *UserRepository) FindIsAdminByID(uid uint) (bool, error) {
 	return isAdmin, err
 }
 
+// SearchUsers 搜索用户 (通过UID或用户名)
+func (r *UserRepository) SearchUsers(query string) ([]database.User, error) {
+	var users []database.User
+	
+	dbQuery := r.db.Select("uid, username, avatar, points, win_count, total_games")
+	
+	// 尝试将 query 解析为数字 (UID)
+	var uid uint
+	_, err := fmt.Sscanf(query, "%d", &uid)
+	
+	if err == nil && uid > 0 {
+		// 如果是数字且大于0，则同时搜索 UID 和用户名
+		err = dbQuery.Where("uid = ? OR username LIKE ?", uid, "%"+query+"%").Limit(20).Find(&users).Error
+	} else {
+		// 否则仅模糊搜索用户名
+		err = dbQuery.Where("username LIKE ?", "%"+query+"%").Limit(20).Find(&users).Error
+	}
+	
+	return users, err
+}
+
 // GetLeaderboard 获取排行榜
 func (r *UserRepository) GetLeaderboard(orderBy string, limit int) ([]database.User, error) {
 	var users []database.User

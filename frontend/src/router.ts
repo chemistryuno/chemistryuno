@@ -10,6 +10,7 @@ import Feedbacks from './pages/Feedbacks.vue'
 import Ranking from './pages/Ranking.vue'
 import DataConfig from './pages/DataConfig.vue'
 import Substances from './pages/Substances.vue'
+import Chat from './pages/Chat.vue'
 
 const routes = [
   {
@@ -28,6 +29,12 @@ const routes = [
     path: '/',
     name: 'Lobby',
     component: Lobby,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/chat',
+    name: 'Chat',
+    component: Chat,
     meta: { requiresAuth: true }
   },
   {

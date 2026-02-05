@@ -211,4 +211,18 @@ export const substanceAPI = {
     api.delete(`/substances/${id}`),
 }
 
+// 好友系统API
+export const friendAPI = {
+  sendRequest: (friendId: number) =>
+    api.post('/friends/request', { friend_id: friendId }),
+  getPendingRequests: () =>
+    api.get('/friends/pending'),
+  handleRequest: (requestId: number, action: 'accept' | 'decline') =>
+    api.post('/friends/handle', { request_id: requestId, action }),
+  getFriends: () =>
+    api.get('/friends'),
+  deleteFriend: (friendId: number) =>
+    api.delete(`/friends/${friendId}`),
+}
+
 export default api

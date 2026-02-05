@@ -11,6 +11,7 @@ var (
 	ReactionRepo     *ReactionRepository
 	SubstanceRepo    *SubstanceRepository
 	BountyRepo       *BountyRepository
+	FriendshipRepo   *FriendshipRepository
 )
 
 func InitRepositories() {
@@ -24,4 +25,5 @@ func InitRepositories() {
 	ReactionRepo = NewReactionRepository()
 	SubstanceRepo = NewSubstanceRepository()
 	BountyRepo = NewBountyRepository()
+	FriendshipRepo = NewFriendshipRepository()
 }

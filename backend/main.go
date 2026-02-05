@@ -144,6 +144,7 @@ func main() {
 		auth.PUT("/user/password", handlers.ChangePassword)
 		auth.PUT("/user/avatar", handlers.UpdateAvatar)
 		auth.DELETE("/user/account", handlers.DeleteAccount)
+		auth.GET("/users/search", handlers.SearchUsers)
 
 		// 会话与设备管理
 		auth.GET("/user/sessions", handlers.GetSessions)
@@ -177,6 +178,13 @@ func main() {
 		auth.POST("/user/webauthn/register/finish", handlers.FinishRegistration)
 		auth.GET("/user/webauthn/credentials", handlers.ListCredentials)
 		auth.DELETE("/user/webauthn/credentials/:id", handlers.RemoveCredential)
+
+		// 好友系统
+		auth.POST("/friends/request", handlers.SendFriendRequest)
+		auth.GET("/friends/pending", handlers.GetPendingRequests)
+		auth.POST("/friends/handle", handlers.HandleFriendRequest)
+		auth.GET("/friends", handlers.GetFriendsList)
+		auth.DELETE("/friends/:id", handlers.DeleteFriend)
 
 		// 游戏相关
 		auth.GET("/rooms", handlers.GetRooms)

@@ -13,6 +13,7 @@ func autoMigrate() error {
 		&User{},
 		&UserSession{},
 		&WebAuthnCredential{},
+		&Friendship{},
 		&Reaction{},
 		&Substance{},
 		&Feedback{},

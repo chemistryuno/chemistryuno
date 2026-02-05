@@ -41,9 +41,9 @@ watch(currentTheme, (newTheme) => {
         :key="theme.id"
         @click="currentTheme = theme.id"
         :class="[
-          'flex items-center gap-3 p-4 rounded-2xl border-2 transition-all group',
+          'flex items-center gap-3 p-4 rounded-2xl border-2 transition-all group backdrop-blur-md',
           currentTheme === theme.id 
-            ? 'border-blue-500 bg-blue-500/5 text-blue-600 dark:text-blue-400' 
+            ? 'border-blue-500/50 bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 shadow-[0_4px_15px_rgba(59,130,246,0.1)]' 
             : 'border-slate-100 dark:border-white/5 bg-slate-50 dark:bg-white/[0.02] text-slate-400 hover:border-slate-200 dark:hover:border-white/10'
         ]"
       >

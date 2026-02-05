@@ -33,6 +33,14 @@ const user = ref<any>(JSON.parse(localStorage.getItem('user') || '{}'))
 const currentCategory = ref('overview')
 const isSidebarOpen = ref(false)
 
+const categories = [
+  { id: 'overview', name: '个人主页', icon: LayoutDashboard, eng: 'Dashboard' },
+  { id: 'security', name: '安全中心', icon: ShieldCheck, eng: 'Security' },
+  { id: 'research', name: '实验资产', icon: FlaskConical, eng: 'Research' },
+  { id: 'history', name: '反应记录', icon: History, eng: 'Records' },
+  { id: 'settings', name: '参数偏好', icon: Sliders, eng: 'Preferences' }
+]
+
 const userStats = computed(() => {
   const total = user.value.total_games || 0
   const wins = user.value.win_count || 0
@@ -41,14 +49,6 @@ const userStats = computed(() => {
     winRate: total > 0 ? Math.round((wins / total) * 100) : 0
   }
 })
-
-const categories = [
-  { id: 'overview', name: '个人主页', icon: LayoutDashboard, eng: 'Dashboard' },
-  { id: 'security', name: '安全中心', icon: ShieldCheck, eng: 'Security' },
-  { id: 'research', name: '实验资产', icon: FlaskConical, eng: 'Research' },
-  { id: 'history', name: '反应记录', icon: History, eng: 'Records' },
-  { id: 'settings', name: '参数偏好', icon: Sliders, eng: 'Preferences' }
-]
 
 const showChangePassword = ref(false)
 const showChangeAvatar = ref(false)
@@ -195,13 +195,23 @@ const handleDeleteAccount = async () => {
           v-for="cat in categories" 
           :key="cat.id" 
           @click="currentCategory = cat.id; isSidebarOpen = false"
+          class="w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all relative overflow-hidden"
           :class="[
-            'w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all font-bold text-sm',
-            currentCategory === cat.id ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5'
+            currentCategory === cat.id 
+              ? 'text-blue-600 dark:text-blue-400 font-bold' 
+              : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5 font-bold text-sm'
           ]"
         >
-          <component :is="cat.icon" class="w-4 h-4" />
-          {{ cat.name }}
+          <LiquidGlass 
+            v-if="currentCategory === cat.id"
+            :corner-radius="16"
+            mode="shader"
+            effect="liquidGlass"
+            :displacement-scale="30"
+            class="absolute inset-0 pointer-events-none"
+          />
+          <component :is="cat.icon" class="w-4 h-4 relative z-10" />
+          <span class="text-sm relative z-10">{{ cat.name }}</span>
         </button>
       </nav>
     </aside>
@@ -224,20 +234,28 @@ const handleDeleteAccount = async () => {
         </div>
 
         <!-- PC Top Navigation -->
-        <nav class="hidden lg:flex items-center gap-1 p-1 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-[1.5rem] backdrop-blur-xl">
+        <nav class="hidden lg:flex items-center gap-1 p-1 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-[1.5rem] backdrop-blur-xl relative">
           <button 
             v-for="cat in categories" 
             :key="cat.id" 
             @click="currentCategory = cat.id"
+            class="transition-all flex flex-col items-center justify-center gap-0.5 min-w-[110px] py-4 rounded-2xl relative overflow-hidden group"
             :class="[
-              'px-6 py-3 rounded-2xl transition-all flex flex-col items-center gap-0.5 min-w-[110px]',
               currentCategory === cat.id 
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20 scale-105' 
-                : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5 hover:text-slate-600 dark:hover:text-white'
+                ? 'text-blue-600 dark:text-blue-400 font-bold' 
+                : 'text-slate-400 hover:text-slate-600 dark:hover:text-white'
             ]"
           >
-             <component :is="cat.icon" class="w-4 h-4" />
-             <span class="text-[11px] font-black uppercase">{{ cat.name }}</span>
+            <LiquidGlass 
+              v-if="currentCategory === cat.id"
+              :corner-radius="16"
+              mode="shader"
+              effect="liquidGlass"
+              :displacement-scale="40"
+              class="absolute inset-0 pointer-events-none"
+            />
+            <component :is="cat.icon" class="w-4 h-4 relative z-10" />
+            <span class="text-[11px] font-black uppercase relative z-10">{{ cat.name }}</span>
           </button>
         </nav>
 

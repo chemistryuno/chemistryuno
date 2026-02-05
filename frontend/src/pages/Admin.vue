@@ -43,6 +43,17 @@ const editingDeck = ref(false)
 const deckCardsEdit = ref<{ key: string, value: number, id: string }[]>([])
 const activeTab = ref('users')
 const loading = ref(false)
+
+const tabs = [
+  { id: 'users', label: '研究员', icon: Users },
+  { id: 'deck', label: '核心库存', icon: Layers },
+  { id: 'special', label: '稀有元素', icon: Star },
+  { id: 'announcements', label: '播音指挥', icon: Bell },
+  { id: 'feedbacks', label: '通讯报告', icon: MessageSquare },
+  { id: 'configs', label: '系统参量', icon: Terminal },
+  { id: 'history', label: '实验日志', icon: History }
+]
+
 const searchTerm = ref('')
 const showCreateUserModal = ref(false)
 const newUser = ref({ username: '', password: '' })
@@ -472,29 +483,29 @@ const filteredHistory = computed(() => {
       <main class="bg-white dark:bg-[#0c0c0e] border border-slate-200 dark:border-white/5 rounded-[3rem] shadow-[0_40px_100px_-20px_rgba(0,0,0,0.3)] overflow-hidden min-h-[600px] flex flex-col relative">
         <div class="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-500/50 to-transparent" />
         
-        <nav class="flex border-b border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-black/40 p-3 overflow-x-auto custom-scrollbar">
+        <nav class="flex border-b border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-black/40 p-3 overflow-x-auto custom-scrollbar relative">
           <button
-            v-for="tab in [
-              { id: 'users', label: '研究员', icon: Users },
-              { id: 'deck', label: '核心库存', icon: Layers },
-              { id: 'special', label: '稀有元素', icon: Star },
-              { id: 'announcements', label: '播音指挥', icon: Bell },
-              { id: 'feedbacks', label: '通讯报告', icon: MessageSquare },
-              { id: 'configs', label: '系统参量', icon: Terminal },
-              { id: 'history', label: '实验日志', icon: History }
-            ]"
+            v-for="tab in tabs"
             :key="tab.id"
             @click="activeTab = tab.id"
             :class="cn(
-              'flex items-center gap-3 px-8 py-4 text-[10px] font-black uppercase tracking-[0.1em] transition-all rounded-2xl relative whitespace-nowrap group/tab',
+              'flex items-center gap-3 px-8 py-4 text-[10px] font-black uppercase tracking-[0.1em] transition-all rounded-2xl relative whitespace-nowrap group/tab z-10',
               activeTab === tab.id 
-                ? 'text-cyan-600 dark:text-cyan-400 bg-white dark:bg-white/5 shadow-sm' 
+                ? 'text-cyan-600 dark:text-cyan-400' 
                 : 'text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-slate-300'
             )"
           >
-            <component :is="tab.icon" :class="cn('w-4 h-4 transition-transform group-hover/tab:scale-110', activeTab === tab.id ? 'text-cyan-500 animate-pulse' : '')" />
-            {{ tab.label }}
-            <div v-if="activeTab === tab.id" class="absolute inset-x-0 bottom-1 px-8">
+            <LiquidGlass
+              v-if="activeTab === tab.id"
+              :corner-radius="16"
+              mode="shader"
+              effect="liquidGlass"
+              :displacement-scale="30"
+              class="absolute inset-0 pointer-events-none"
+            />
+            <component :is="tab.icon" :class="cn('w-4 h-4 transition-transform group-hover/tab:scale-110 relative z-10', activeTab === tab.id ? 'text-cyan-500 animate-pulse' : '')" />
+            <span class="relative z-10">{{ tab.label }}</span>
+            <div v-if="activeTab === tab.id" class="absolute inset-x-0 bottom-1 px-8 z-10">
               <div class="h-0.5 bg-cyan-500 shadow-[0_0_15px_rgba(6,182,212,0.8)] rounded-full" />
             </div>
           </button>

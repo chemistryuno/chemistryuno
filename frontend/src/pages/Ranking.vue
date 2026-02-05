@@ -30,20 +30,40 @@
           <button 
             @click="rankingMode = 'total'"
             :class="cn(
-              'px-6 py-2.5 rounded-[15px] text-[10px] font-black uppercase tracking-widest transition-all',
-              rankingMode === 'total' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+              'px-6 py-2.5 rounded-[15px] text-[10px] font-black uppercase tracking-widest transition-all relative overflow-hidden group',
+              rankingMode === 'total' 
+                ? 'text-blue-600 dark:text-blue-400' 
+                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
             )"
           >
-            全量积分
+            <LiquidGlass
+              v-if="rankingMode === 'total'"
+              :corner-radius="12"
+              mode="shader"
+              effect="liquidGlass"
+              :displacement-scale="30"
+              class="absolute inset-0 pointer-events-none"
+            />
+            <span class="relative z-10">全量积分</span>
           </button>
           <button 
             @click="rankingMode = 'monthly'"
             :class="cn(
-              'px-6 py-2.5 rounded-[15px] text-[10px] font-black uppercase tracking-widest transition-all',
-              rankingMode === 'monthly' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+              'px-6 py-2.5 rounded-[15px] text-[10px] font-black uppercase tracking-widest transition-all relative overflow-hidden group',
+              rankingMode === 'monthly' 
+                ? 'text-indigo-600 dark:text-indigo-400' 
+                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
             )"
           >
-            本月活跃 (月榜)
+            <LiquidGlass
+              v-if="rankingMode === 'monthly'"
+              :corner-radius="12"
+              mode="shader"
+              effect="liquidGlass"
+              :displacement-scale="30"
+              class="absolute inset-0 pointer-events-none"
+            />
+            <span class="relative z-10">本月活跃 (月榜)</span>
           </button>
         </div>
 

@@ -53,9 +53,11 @@ func (j *JSON) UnmarshalJSON(b []byte) error {
 // User GORM模型 - 用户表
 type User struct {
 	UID                uint           `gorm:"primaryKey;autoIncrement" json:"uid"`
-	Username           string         `gorm:"unique;not null;size:50" json:"username"`
-	Password           string         `gorm:"not null" json:"-"`
-	Avatar             string         `gorm:"type:text" json:"avatar"`
+	Username           string         `gorm:"size:50;index;default:''" json:"username"` // 旧系统保留字段，邮箱模式下可为空
+	Email              string         `gorm:"unique;size:100;index;default:null" json:"email"`
+	Nickname           string         `gorm:"not null;size:50;default:''" json:"nickname"`
+	Password           string         `gorm:"not null;default:''" json:"-"`
+	Avatar             string         `gorm:"type:text;default:'🧪'" json:"avatar"`
 	IsAdmin            bool           `gorm:"default:false" json:"is_admin"`
 	Role               string         `gorm:"default:user;size:20" json:"role"`
 	TwoFactorEnabled   bool           `gorm:"default:false" json:"two_factor_enabled"`
@@ -76,9 +78,23 @@ type User struct {
 	DeletedAt          gorm.DeletedAt `gorm:"index" json:"-"`
 }
 
+// VerificationCode 邮箱验证码
+type VerificationCode struct {
+	ID        uint      `gorm:"primaryKey;autoIncrement"`
+	Email     string    `gorm:"index;size:100;not null"`
+	Code      string    `gorm:"size:10;not null"`
+	Type      string    `gorm:"size:20;not null"` // "register" or "reset"
+	ExpiresAt time.Time `gorm:"not null"`
+	CreatedAt time.Time `gorm:"autoCreateTime"`
+}
+
 // TableName 指定表名
 func (User) TableName() string {
 	return "users"
+}
+
+func (VerificationCode) TableName() string {
+	return "verification_codes"
 }
 
 // UserSession GORM模型 - 用户会话表

@@ -9,6 +9,8 @@ import (
 type User struct {
 	UID                int                   `json:"uid" db:"uid"`
 	Username           string                `json:"username" db:"username"`
+	Email              string                `json:"email" db:"email"`
+	Nickname           string                `json:"nickname" db:"nickname"`
 	PasswordHash       string                `json:"-" db:"password"` // 不返回给前端
 	Avatar             string                `json:"avatar" db:"avatar"`
 	IsAdmin            bool                  `json:"is_admin" db:"is_admin"`
@@ -65,13 +67,28 @@ type UserCredential struct {
 }
 
 type RegisterRequest struct {
-	Username string `json:"username" binding:"required,min=3,max=20"`
+	Username string `json:"username"`
+	Email    string `json:"email"`
+	Nickname string `json:"nickname" binding:"required,min=1,max=20"`
 	Password string `json:"password" binding:"required,min=6"`
+	Code     string `json:"code"`
 }
 
 type LoginRequest struct {
-	Username string `json:"username" binding:"required"`
+	Username string `json:"username"`
+	Email    string `json:"email"`
 	Password string `json:"password" binding:"required"`
+}
+
+type SendCodeRequest struct {
+	Email string `json:"email" binding:"required,email"`
+	Type  string `json:"type"` // "register" or "reset"
+}
+
+type ResetPasswordByEmailRequest struct {
+	Email       string `json:"email" binding:"required,email"`
+	Code        string `json:"code" binding:"required"`
+	NewPassword string `json:"new_password" binding:"required,min=6"`
 }
 
 type ChangePasswordRequest struct {
@@ -129,4 +146,14 @@ type ReactionRequest struct {
 
 type UpdateAvatarRequest struct {
 	Avatar string `json:"avatar" binding:"required"`
+}
+
+type UpdateProfileRequest struct {
+	Nickname string `json:"nickname" binding:"required,min=1,max=20"`
+}
+
+type ChangeEmailRequest struct {
+	OldCode  string `json:"old_code" binding:"required"`
+	NewEmail string `json:"new_email" binding:"required,email"`
+	NewCode  string `json:"new_code" binding:"required"`
 }

@@ -27,7 +27,14 @@ import { LayoutDashboard, ShieldCheck, FlaskConical, History, Sliders, Menu, X a
 
 const router = useRouter()
 const { showAlert, showConfirm, showPrompt } = useDialog()
-const user = ref<any>(JSON.parse(localStorage.getItem('user') || '{}'))
+
+let initialUser = {}
+try {
+  initialUser = JSON.parse(localStorage.getItem('user') || '{}')
+} catch (e) {
+  console.error('Failed to parse user in Profile:', e)
+}
+const user = ref<any>(initialUser)
 
 const currentCategory = ref('overview')
 const isSidebarOpen = ref(false)
@@ -69,6 +76,32 @@ const fetchLatestUserInfo = async () => {
 }
 
 onMounted(fetchLatestUserInfo)
+
+const handleUpdateAvatar = async (avatar: string) => {
+  try {
+    await authAPI.updateAvatar(avatar)
+    user.value.avatar = avatar
+    localStorage.setItem('user', JSON.stringify(user.value))
+    showChangeAvatar.value = false
+    showAlert('研究员标识已更新。', '变更成功')
+  } catch (error: any) {
+    showAlert(error.response?.data?.error || '更新标识失败', '错误')
+  }
+}
+
+const handleUpdateNickname = async () => {
+  const newNickname = await showPrompt('请输入新的研究员昵称:', user.value.nickname, '修改昵称')
+  if (newNickname === null || newNickname === user.value.nickname) return
+
+  try {
+    await authAPI.updateNickname(newNickname)
+    user.value.nickname = newNickname
+    localStorage.setItem('user', JSON.stringify(user.value))
+    showAlert('研究员昵称已成功同步。', '变更成功')
+  } catch (error: any) {
+    showAlert(error.response?.data?.error || '更新昵称失败', '错误')
+  }
+}
 
 const handleLogout = () => {
   localStorage.removeItem('token')
@@ -257,6 +290,7 @@ const handleDeleteAccount = async () => {
           <ProfileHeader 
             :user="user" 
             @change-avatar="showChangeAvatar = true" 
+            @change-nickname="handleUpdateNickname"
           />
           <StatsGrid :stats="userStats" />
         </div>

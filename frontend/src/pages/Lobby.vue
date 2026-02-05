@@ -14,7 +14,13 @@ const props = defineProps<{
 
 const router = useRouter()
 const { showAlert, showConfirm, showPrompt } = useDialog()
-const user = ref(JSON.parse(localStorage.getItem('user') || '{}'))
+const userStr = localStorage.getItem('user')
+const user = ref<any>({})
+try {
+  user.value = JSON.parse(userStr || '{}')
+} catch (e) {
+  console.error('Failed to parse user in Lobby:', e)
+}
 
 const friendsList = ref<any[]>([])
 
@@ -225,7 +231,7 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
                  </template>
                </div>
                <div class="flex flex-col">
-                 <span class="text-xs font-black text-slate-900 dark:text-white">{{ user.username }}</span>
+                 <span class="text-xs font-black text-slate-900 dark:text-white">{{ user.nickname || user.username }}</span>
                  <span class="text-[9px] text-slate-500 font-mono flex items-center gap-1 uppercase">
                    <template v-if="user.is_admin">
                      <Shield class="w-2.5 h-2.5 text-yellow-500" /> Research_Lead

@@ -14,7 +14,14 @@ import { useDialog } from '../utils/dialog'
 const router = useRouter()
 const route = useRoute()
 const { showAlert, showConfirm, showPrompt } = useDialog()
-const currentUser = ref(JSON.parse(localStorage.getItem('user') || '{}'))
+
+let initialUser = {}
+try {
+  initialUser = JSON.parse(localStorage.getItem('user') || '{}')
+} catch (e) {
+  console.error('Failed to parse user in Chat:', e)
+}
+const currentUser = ref(initialUser)
 
 // 状态管理
 const friends = ref<any[]>([])
@@ -334,7 +341,7 @@ const formatTime = (date: Date) => {
             </div>
             <div class="flex-1 min-w-0 text-left">
               <div class="font-black text-sm tracking-tight flex items-center gap-2">
-                <span class="truncate">{{ friend.username }}</span>
+                <span class="truncate">{{ friend.nickname || friend.username }}</span>
                 <span class="text-[9px] font-mono text-slate-400 group-hover:text-white/60 transition-colors">ID:{{ friend.uid }}</span>
               </div>
               <div :class="cn(
@@ -544,11 +551,11 @@ const formatTime = (date: Date) => {
                   </div>
                   <div>
                     <div class="text-base font-bold text-slate-700 dark:text-white flex items-center gap-2">
-                      {{ result.username }}
+                      {{ result.nickname || result.username }}
                       <span v-if="result.is_online" class="px-2 py-0.5 bg-emerald-500/10 text-emerald-500 text-[8px] font-black rounded uppercase tracking-widest">Active</span>
                     </div>
                     <div class="flex items-center gap-3 mt-1.5 grayscale opacity-60">
-                      <span class="text-[9px] text-slate-400 font-mono tracking-tight uppercase">ID: {{ result.uid }}</span>
+                      <span class="text-[9px] text-slate-400 font-mono tracking-tight uppercase">ID: {{ result.uid }} | {{ result.username }}</span>
                       <span class="text-[9px] text-blue-500 font-black uppercase tracking-widest">{{ result.points }}PT</span>
                       <span v-if="result.bounty > 0" class="text-[9px] text-rose-500 font-black uppercase tracking-widest">赏: {{ result.bounty }}</span>
                     </div>
@@ -616,7 +623,7 @@ const formatTime = (date: Date) => {
                   {{ req.avatar || '🧪' }}
                 </div>
                 <div>
-                  <div class="text-base font-bold text-slate-700 dark:text-white">{{ req.username }}</div>
+                  <div class="text-base font-bold text-slate-700 dark:text-white">{{ req.nickname || req.username }}</div>
                   <div v-if="req.hello_message" class="text-xs text-amber-600/80 font-medium italic mt-1 bg-amber-500/10 px-3 py-1 rounded-lg line-clamp-2 italic">
                     "{{ req.hello_message }}"
                   </div>

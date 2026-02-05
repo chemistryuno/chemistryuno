@@ -6,8 +6,7 @@ replace chemistryuno => ../backend
 
 require (
 	chemistryuno v0.0.0
-	gorm.io/driver/sqlite v1.6.0
-	gorm.io/gorm v1.31.1
+	github.com/joho/godotenv v1.5.1
 )
 
 require (
@@ -28,6 +27,8 @@ require (
 	golang.org/x/sys v0.37.0 // indirect
 	golang.org/x/text v0.33.0 // indirect
 	gorm.io/driver/mysql v1.6.0 // indirect
+	gorm.io/driver/sqlite v1.6.0 // indirect
+	gorm.io/gorm v1.31.1 // indirect
 	modernc.org/libc v1.67.6 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect

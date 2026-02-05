@@ -44,11 +44,50 @@ func (r *UserRepository) FindByUsername(username string) (*database.User, error)
 	return &user, nil
 }
 
-// Exists 检查用户名是否存在
+// FindByEmail 根据邮箱查找用户
+func (r *UserRepository) FindByEmail(email string) (*database.User, error) {
+	var user database.User
+	err := r.db.Where("email = ?", email).First(&user).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("用户不存在")
+		}
+		return nil, err
+	}
+	return &user, nil
+}
+
+// ExistsByUsername 检查用户名是否存在
 func (r *UserRepository) ExistsByUsername(username string) (bool, error) {
+	if username == "" {
+		return false, nil
+	}
 	var count int64
 	err := r.db.Model(&database.User{}).Where("username = ?", username).Count(&count).Error
 	return count > 0, err
+}
+
+// ExistsByEmail 检查邮箱是否存在
+func (r *UserRepository) ExistsByEmail(email string) (bool, error) {
+	if email == "" {
+		return false, nil
+	}
+	var count int64
+	err := r.db.Model(&database.User{}).Where("email = ?", email).Count(&count).Error
+	return count > 0, err
+}
+
+// FindByEmailOrUsername 按邮箱或用户名查找用户
+func (r *UserRepository) FindByEmailOrUsername(identifier string) (*database.User, error) {
+	var user database.User
+	err := r.db.Where("email = ? OR username = ?", identifier, identifier).First(&user).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("用户不存在")
+		}
+		return nil, err
+	}
+	return &user, nil
 }
 
 // Create 创建新用户
@@ -69,6 +108,11 @@ func (r *UserRepository) UpdatePassword(uid uint, newPasswordHash string) error 
 // UpdateAvatar 更新头像
 func (r *UserRepository) UpdateAvatar(uid uint, avatar string) error {
 	return r.db.Model(&database.User{}).Where("uid = ?", uid).Update("avatar", avatar).Error
+}
+
+// UpdateNickname 更新昵称
+func (r *UserRepository) UpdateNickname(uid uint, nickname string) error {
+	return r.db.Model(&database.User{}).Where("uid = ?", uid).Update("nickname", nickname).Error
 }
 
 // Delete 删除用户（软删除）
@@ -358,13 +402,13 @@ func (r *UserRepository) SearchUsers(query string) ([]database.User, error) {
 	}
 
 	if isNumeric && uid > 0 {
-		// 如果是数字且大于0，则优先精准匹配 UID，同时模糊匹配用户名
-		err = dbQuery.Where("uid = ? OR username LIKE ?", uid, "%"+query+"%").
+		// 如果是数字且大于0，则优先精准匹配 UID，同时模糊匹配用户名和昵称
+		err = dbQuery.Where("uid = ? OR username LIKE ? OR nickname LIKE ?", uid, "%"+query+"%", "%"+query+"%").
 			Order(fmt.Sprintf("CASE WHEN uid = %d THEN 0 ELSE 1 END", uid)).
 			Limit(20).Find(&users).Error
 	} else {
-		// 否则仅模糊搜索用户名
-		err = dbQuery.Where("username LIKE ?", "%"+query+"%").Limit(20).Find(&users).Error
+		// 否则模糊搜索用户名和昵称
+		err = dbQuery.Where("username LIKE ? OR nickname LIKE ?", "%"+query+"%", "%"+query+"%").Limit(20).Find(&users).Error
 	}
 
 	return users, err

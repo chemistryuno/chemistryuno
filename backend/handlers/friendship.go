@@ -50,21 +50,25 @@ func GetPendingRequests(c *gin.Context) {
 		ID           uint   `json:"id"`
 		UserID       uint   `json:"user_id"`
 		Username     string `json:"username"`
+		Nickname     string `json:"nickname"`
 		Avatar       string `json:"avatar"`
 		HelloMessage string `json:"hello_message"`
 	}
 	var res []Response
 	for _, r := range requests {
 		username := "已注销的用户"
+		nickname := ""
 		avatar := "🧪"
 		if r.User.Username != "" {
 			username = r.User.Username
+			nickname = r.User.Nickname
 			avatar = r.User.Avatar
 		}
 		res = append(res, Response{
 			ID:           r.ID,
 			UserID:       r.UserID,
 			Username:     username,
+			Nickname:     nickname,
 			Avatar:       avatar,
 			HelloMessage: r.HelloMessage,
 		})
@@ -125,6 +129,7 @@ func GetFriendsList(c *gin.Context) {
 		res = append(res, map[string]interface{}{
 			"uid":       f.UID,
 			"username":  f.Username,
+			"nickname":  f.Nickname,
 			"avatar":    f.Avatar,
 			"is_online": isOnline,
 		})

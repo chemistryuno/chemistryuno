@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Shield, Fingerprint, Calendar, Award, User as UserIcon, RefreshCw, Zap } from 'lucide-vue-next'
+import { Shield, Fingerprint, Calendar, Award, User as UserIcon, RefreshCw, Zap, Edit2 } from 'lucide-vue-next'
 
 defineProps<{
   user: any
@@ -7,6 +7,7 @@ defineProps<{
 
 defineEmits<{
   (e: 'changeAvatar'): void
+  (e: 'changeNickname'): void
 }>()
 </script>
 
@@ -36,14 +37,23 @@ defineEmits<{
         </button>
       </div>
 
-      <div class="text-center space-y-1 w-full">
+      <div class="text-center space-y-1 w-full relative">
         <div class="flex items-center justify-center gap-1.5 mb-0.5">
           <UserIcon class="w-3.5 h-3.5 text-blue-500 opacity-50" />
-          <span class="text-[9px] font-mono text-slate-400 dark:text-slate-500 uppercase tracking-widest">ID: {{ user.uid }}</span>
+          <span class="text-[9px] font-mono text-slate-400 dark:text-slate-500 uppercase tracking-widest">ID: {{ user.uid }} | {{ user.username }}</span>
         </div>
-        <h2 class="text-2xl font-black tracking-tight text-slate-900 dark:text-white group-hover:text-blue-500 transition-colors uppercase italic truncate px-2">
-          {{ user.username }}
-        </h2>
+        <div class="flex items-center justify-center gap-2 group/nick">
+          <h2 class="text-2xl font-black tracking-tight text-slate-900 dark:text-white group-hover:text-blue-500 transition-colors uppercase italic truncate px-2">
+            {{ user.nickname || user.username }}
+          </h2>
+          <button 
+            @click="$emit('changeNickname')"
+            class="p-1.5 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 rounded-lg opacity-0 group-hover/avatar:opacity-100 group-hover/nick:opacity-100 transition-all text-slate-400 hover:text-blue-500"
+            title="修改昵称"
+          >
+            <Edit2 class="w-3 h-3" />
+          </button>
+        </div>
         <div class="flex items-center justify-center gap-2 pt-1">
           <span v-if="user.is_admin" class="bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[9px] font-black px-3 py-1 rounded-full border border-blue-500/20 flex items-center gap-1.5 uppercase tracking-[0.15em]">
             <Shield class="w-2.5 h-2.5" /> CORE ADMIN 

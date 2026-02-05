@@ -22,19 +22,60 @@ func Register(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	fmt.Printf("注册尝试 - 用户: %s, 来源IP: %s\n", req.Username, c.ClientIP())
 
+	smtpConfigured := utils.IsSMTPConfigured()
 	userRepo := repository.NewUserRepository()
 
-	// 1. 检查用户名是否已存在
-	exists, err := userRepo.ExistsByUsername(req.Username)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误"})
-		return
-	}
-	if exists {
-		c.JSON(http.StatusConflict, gin.H{"error": "用户名已存在"})
-		return
+	// 1. 系统模式判断与参数验证
+	if smtpConfigured {
+		if req.Email == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "邮箱验证模式下邮箱不能为空"})
+			return
+		}
+		if req.Code == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "请提供验证码"})
+			return
+		}
+		fmt.Printf("注册尝试 - 邮箱: %s, 来源IP: %s\n", req.Email, c.ClientIP())
+
+		// 检查邮箱是否存在
+		exists, err := userRepo.ExistsByEmail(req.Email)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误"})
+			return
+		}
+		if exists {
+			c.JSON(http.StatusConflict, gin.H{"error": "该邮箱已被注册"})
+			return
+		}
+
+		// 验证码校验
+		var code database.VerificationCode
+		err = database.DB.Where("email = ? AND code = ? AND type = ? AND expires_at > ?",
+			req.Email, req.Code, "register", time.Now()).First(&code).Error
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "验证码错误或已过期"})
+			return
+		}
+		// 校验成功后删除验证码
+		database.DB.Delete(&code)
+	} else {
+		if req.Username == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "用户名不能为空"})
+			return
+		}
+		fmt.Printf("注册尝试 - 用户: %s, 来源IP: %s\n", req.Username, c.ClientIP())
+
+		// 1. 检查用户名是否已存在
+		exists, err := userRepo.ExistsByUsername(req.Username)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误"})
+			return
+		}
+		if exists {
+			c.JSON(http.StatusConflict, gin.H{"error": "用户名已存在"})
+			return
+		}
 	}
 
 	// 2. 加密密码
@@ -47,11 +88,18 @@ func Register(c *gin.Context) {
 	// 3. 创建用户
 	user := &database.User{
 		Username:      req.Username,
+		Email:         req.Email,
+		Nickname:      req.Nickname,
 		Password:      hashedPassword,
 		Avatar:        "🧪",
 		Role:          "user",
 		Points:        1000,
 		MonthlyPoints: 1000,
+	}
+
+	// 如果没有设置 username (邮箱模式)，可以将 email 的 prefix 作为其内部 username 或保持为空
+	if user.Username == "" && user.Email != "" {
+		user.Username = strings.Split(user.Email, "@")[0]
 	}
 
 	err = userRepo.Create(user)
@@ -73,12 +121,18 @@ func Login(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	fmt.Printf("登录尝试 - 用户: %s, 来源IP: %s\n", req.Username, c.ClientIP())
+
+	identifier := req.Username
+	if identifier == "" {
+		identifier = req.Email
+	}
+
+	fmt.Printf("登录尝试 - 用户: %s, 来源IP: %s\n", identifier, c.ClientIP())
 
 	userRepo := repository.NewUserRepository()
-	dbUser, err := userRepo.FindByUsername(req.Username)
+	dbUser, err := userRepo.FindByEmailOrUsername(identifier)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "用户不存在"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "用户不存在或密码错误"})
 		return
 	}
 
@@ -86,6 +140,8 @@ func Login(c *gin.Context) {
 	user := models.User{
 		UID:              int(dbUser.UID),
 		Username:         dbUser.Username,
+		Email:            dbUser.Email,
+		Nickname:         dbUser.Nickname,
 		PasswordHash:     dbUser.Password,
 		Avatar:           dbUser.Avatar,
 		IsAdmin:          dbUser.IsAdmin,
@@ -164,6 +220,7 @@ func Login(c *gin.Context) {
 		"user": gin.H{
 			"uid":                user.UID,
 			"username":           user.Username,
+			"nickname":           user.Nickname,
 			"avatar":             user.Avatar,
 			"is_admin":           user.IsAdmin,
 			"role":               user.Role,
@@ -250,7 +307,7 @@ func ResetPasswordBy2FA(c *gin.Context) {
 	}
 
 	userRepo := repository.NewUserRepository()
-	dbUser, err := userRepo.FindByUsername(req.Username)
+	dbUser, err := userRepo.FindByEmailOrUsername(req.Username)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "账户不存在"})
 		return
@@ -308,6 +365,166 @@ func UpdateAvatar(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "头像更新成功", "avatar": req.Avatar})
+}
+
+// 更新昵称
+func UpdateNickname(c *gin.Context) {
+	uid := c.GetInt("uid")
+
+	var req models.UpdateProfileRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	userRepo := repository.NewUserRepository()
+	err := userRepo.UpdateNickname(uint(uid), req.Nickname)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新昵称失败"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "昵称更新成功", "nickname": req.Nickname})
+}
+
+// GetAuthConfig 获取鉴权配置模式
+func GetAuthConfig(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"smtp_enabled": utils.IsSMTPConfigured(),
+	})
+}
+
+// SendVerificationCode 发送邮箱验证码
+func SendVerificationCode(c *gin.Context) {
+	var req models.SendCodeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的参数"})
+		return
+	}
+
+	if !utils.IsSMTPConfigured() {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "系统未启用邮件服务"})
+		return
+	}
+
+	codeType := req.Type
+	if codeType == "" {
+		codeType = "register"
+	}
+
+	// 限制发送频率
+	var latestCode database.VerificationCode
+	err := database.DB.Where("email = ? AND created_at > ?", req.Email, time.Now().Add(-1*time.Minute)).Order("created_at desc").First(&latestCode).Error
+	if err == nil {
+		c.JSON(http.StatusTooManyRequests, gin.H{"error": "请求过快，请稍后再试"})
+		return
+	}
+
+	// 如果是重置密码，检查用户是否存在
+	if codeType == "reset" {
+		userRepo := repository.NewUserRepository()
+		exists, err := userRepo.ExistsByEmail(req.Email)
+		if err != nil || !exists {
+			c.JSON(http.StatusNotFound, gin.H{"error": "该邮箱未注册"})
+			return
+		}
+	}
+
+	code := utils.GenerateVerificationCode()
+	expiresAt := time.Now().Add(10 * time.Minute)
+
+	// 保存到数据库
+	vCode := database.VerificationCode{
+		Email:     req.Email,
+		Code:      code,
+		Type:      codeType,
+		ExpiresAt: expiresAt,
+	}
+
+	if err := database.DB.Create(&vCode).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "发送失败，请重试"})
+		return
+	}
+
+	// 发送邮件
+	subject := "研究所联络验证码"
+	var body string
+	if codeType == "reset" {
+		subject = "研究所凭证找回"
+		body = fmt.Sprintf(`
+			<div style="padding: 20px; font-family: sans-serif;">
+				<h2>重置您的研究员档案</h2>
+				<p>您正在申请重置化学研究所账号的访问凭证，验证码为：</p>
+				<h1 style="color: #e11d48; letter-spacing: 5px;">%s</h1>
+				<p>该验证码将在 10 分钟后过期。如非本人操作，请立刻检查账号安全。</p>
+			</div>
+		`, code)
+	} else {
+		body = fmt.Sprintf(`
+			<div style="padding: 20px; font-family: sans-serif;">
+				<h2>欢迎加入化学研究所</h2>
+				<p>您正在申请建立新的研究员档案，验证码为：</p>
+				<h1 style="color: #2563eb; letter-spacing: 5px;">%s</h1>
+				<p>该验证码将在 10 分钟后过期。如果这不是您的操作，请忽略此邮件。</p>
+			</div>
+		`, code)
+	}
+
+	go func() {
+		if err := utils.SendEmail(req.Email, subject, body); err != nil {
+			fmt.Printf("邮件发送失败: %v\n", err)
+		}
+	}()
+
+	c.JSON(http.StatusOK, gin.H{"message": "验证码已发送至您的电子邮箱"})
+}
+
+// ResetPasswordByEmail 通过邮箱验证码重置密码
+func ResetPasswordByEmail(c *gin.Context) {
+	var req models.ResetPasswordByEmailRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的参数"})
+		return
+	}
+
+	// 验证验证码
+	var code database.VerificationCode
+	err := database.DB.Where("email = ? AND code = ? AND type = ? AND expires_at > ?",
+		req.Email, req.Code, "reset", time.Now()).First(&code).Error
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "验证码错误或已过期"})
+		return
+	}
+
+	// 加密新密码
+	hashedPassword, err := utils.HashPassword(req.NewPassword)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "密码加密失败"})
+		return
+	}
+
+	userRepo := repository.NewUserRepository()
+	dbUser, err := userRepo.FindByEmail(req.Email)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
+		return
+	}
+
+	// 更新密码
+	err = userRepo.UpdatePassword(dbUser.UID, hashedPassword)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "密码更新失败"})
+		return
+	}
+
+	// 成功后删除验证码
+	database.DB.Delete(&code)
+
+	// 强制登出所有会话
+	sessionRepo := repository.NewSessionRepository()
+	_ = sessionRepo.DeleteByUserID(dbUser.UID)
+
+	c.JSON(http.StatusOK, gin.H{"message": "密码重置成功，请重新登录"})
 }
 
 // 注销账号
@@ -449,6 +666,7 @@ func SearchUsers(c *gin.Context) {
 		result = append(result, map[string]interface{}{
 			"uid":            user.UID,
 			"username":       user.Username,
+			"nickname":       user.Nickname,
 			"avatar":         user.Avatar,
 			"points":         user.Points,
 			"monthly_points": user.MonthlyPoints,

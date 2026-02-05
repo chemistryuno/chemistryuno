@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { User, Lock, Fingerprint, Loader2, Eye, EyeOff, Cpu } from 'lucide-vue-next'
+import { ref, onMounted } from 'vue'
+import { User, Lock, Fingerprint, Loader2, Eye, EyeOff, Cpu, Mail, Shield } from 'lucide-vue-next'
 import { authAPI } from '../utils/api'
 import { get } from '@github/webauthn-json'
 import { useDialog } from '../utils/dialog'
@@ -16,19 +16,84 @@ const emit = defineEmits<{
 }>()
 
 const dialog = useDialog()
+const smtpEnabled = ref(false)
 const username = ref('')
+
+onMounted(async () => {
+  try {
+    const res = await authAPI.getAuthConfig()
+    smtpEnabled.value = res.data.smtp_enabled
+  } catch (err) {
+    console.error('获取配置失败', err)
+  }
+})
+
 const code = ref('')
 const newPassword = ref('')
 const confirmPassword = ref('')
 const showPassword = ref(false)
-const recoveryMode = ref<'2fa' | 'webauthn'>('2fa')
+const recoveryMode = ref<'2fa' | 'webauthn' | 'email'>('2fa')
 const webauthnLoading = ref(false)
+const emailLoading = ref(false)
+const countdown = ref(0)
 
-const handleReset = () => {
+onMounted(async () => {
+  try {
+    const res = await authAPI.getAuthConfig()
+    smtpEnabled.value = res.data.smtp_enabled
+    if (smtpEnabled.value) {
+      recoveryMode.value = 'email'
+    }
+  } catch (err) {
+    console.error('获取配置失败', err)
+  }
+})
+
+const handleSendCode = async () => {
+  if (!username.value) {
+    alert('请输入您的注册邮箱')
+    return
+  }
+  emailLoading.value = true
+  try {
+    await authAPI.sendCode(username.value, 'reset')
+    dialog.showAlert('验证码已发送至您的电子邮箱，请在10分钟内完成重置。', '发送成功')
+    countdown.value = 60
+    const timer = setInterval(() => {
+      countdown.value--
+      if (countdown.value <= 0) clearInterval(timer)
+    }, 1000)
+  } catch (err: any) {
+    alert(err.response?.data?.error || '发送失败')
+  } finally {
+    emailLoading.value = false
+  }
+}
+
+const handleReset = async () => {
   if (newPassword.value !== confirmPassword.value) {
     alert('两次输入的密码不一致')
     return
   }
+
+  if (recoveryMode.value === 'email') {
+    emailLoading.value = true
+    try {
+      await authAPI.resetPasswordByEmail({
+        email: username.value,
+        code: code.value,
+        new_password: newPassword.value
+      })
+      emit('close')
+      dialog.showAlert('访问凭证已重置，请尝试使用新密码重新登录。', '协议同步成功')
+    } catch (err: any) {
+      alert(err.response?.data?.error || '重置失败')
+    } finally {
+      emailLoading.value = false
+    }
+    return
+  }
+  
   emit('submit', username.value, code.value, newPassword.value)
 }
 
@@ -64,11 +129,12 @@ const handleWebAuthnRecovery = async () => {
     <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 rounded-[3rem] p-10 max-w-md w-full shadow-2xl relative animate-in fade-in zoom-in duration-300">
       <div class="flex flex-col items-center mb-6">
         <div class="w-16 h-16 bg-blue-600/10 rounded-2xl flex items-center justify-center mb-4">
-          <Cpu v-if="recoveryMode === 'webauthn'" class="w-8 h-8 text-blue-600 dark:text-blue-500" />
+          <Mail v-if="recoveryMode === 'email'" class="w-8 h-8 text-blue-600 dark:text-blue-500" />
+          <Cpu v-else-if="recoveryMode === 'webauthn'" class="w-8 h-8 text-blue-600 dark:text-blue-500" />
           <Fingerprint v-else class="w-8 h-8 text-blue-600 dark:text-blue-500" />
         </div>
         <h3 class="text-2xl font-black italic uppercase text-slate-900 dark:text-white tracking-tight text-center">
-          {{ recoveryMode === 'webauthn' ? '硬件凭证回放' : '2FA 凭证授权' }}
+          {{ recoveryMode === 'email' ? '电子邮箱凭证回收' : recoveryMode === 'webauthn' ? '硬件凭证回放' : '2FA 凭证授权' }}
         </h3>
         <p class="text-slate-500 text-[10px] font-black mt-2 uppercase tracking-[0.2em] font-mono">AUTHORIZED RECOVERY PROTOCOL</p>
       </div>
@@ -76,13 +142,23 @@ const handleWebAuthnRecovery = async () => {
       <!-- Mode Selector -->
       <div class="flex bg-slate-100 dark:bg-white/5 p-1 rounded-xl mb-6">
         <button 
+          v-if="smtpEnabled"
+          @click="recoveryMode = 'email'"
+          :class="[
+            'flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all',
+            recoveryMode === 'email' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+          ]"
+        >
+          邮箱验证
+        </button>
+        <button 
           @click="recoveryMode = '2fa'"
           :class="[
             'flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all',
             recoveryMode === '2fa' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
           ]"
         >
-          TOTP 验证
+          2FA 验证
         </button>
         <button 
           @click="recoveryMode = 'webauthn'"
@@ -98,14 +174,36 @@ const handleWebAuthnRecovery = async () => {
       <form @submit.prevent="handleReset" class="space-y-4">
         <div class="space-y-4">
           <div class="relative group">
-            <User class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500 group-focus-within:text-blue-600 dark:group-focus-within:text-blue-500 transition-colors" />
+            <component :is="recoveryMode === 'email' || smtpEnabled ? Mail : User" class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500 group-focus-within:text-blue-600 dark:group-focus-within:text-blue-500 transition-colors" />
             <input
               v-model="username"
               type="text"
-              placeholder="确认用户名 / Entry Username"
+              :placeholder="recoveryMode === 'email' || smtpEnabled ? '确认注册邮箱 / Entry Email' : '确认用户名 / Entry Username'"
               class="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 focus:border-blue-500/50 rounded-2xl py-4 pl-12 pr-4 outline-none transition-all text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 font-bold text-sm"
               required
             />
+          </div>
+
+          <div v-if="recoveryMode === 'email'" class="relative group flex gap-2">
+            <div class="relative flex-1">
+              <Shield class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500 group-focus-within:text-blue-600 dark:group-focus-within:text-blue-500 transition-colors" />
+              <input
+                v-model="code"
+                type="text"
+                placeholder="验证码"
+                maxlength="6"
+                class="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 focus:border-blue-500/50 rounded-2xl py-4 pl-12 pr-4 outline-none transition-all text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 font-bold text-sm"
+                required
+              />
+            </div>
+            <button 
+              type="button"
+              @click="handleSendCode"
+              :disabled="countdown > 0 || emailLoading"
+              class="px-4 rounded-2xl bg-slate-100 dark:bg-white/10 text-[10px] font-black uppercase text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/20 transition-all disabled:opacity-50 min-w-[80px]"
+            >
+              {{ countdown > 0 ? `${countdown}s` : (emailLoading ? '...' : '发送') }}
+            </button>
           </div>
 
           <div class="relative group">

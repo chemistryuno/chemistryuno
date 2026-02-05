@@ -22,6 +22,7 @@ type Client struct {
 	send     chan []byte
 	uid      int
 	username string
+	nickname string
 	avatar   string
 	roomID   string
 }
@@ -35,13 +36,14 @@ type Message struct {
 	Message   string      `json:"message,omitempty"`
 }
 
-func NewClient(hub *Hub, conn *websocket.Conn, uid int, username string, avatar string) *Client {
+func NewClient(hub *Hub, conn *websocket.Conn, uid int, username string, nickname string, avatar string) *Client {
 	return &Client{
 		hub:      hub,
 		conn:     conn,
 		send:     make(chan []byte, 256),
 		uid:      uid,
 		username: username,
+		nickname: nickname,
 		avatar:   avatar,
 	}
 }
@@ -160,6 +162,7 @@ func (c *Client) handleMessage(msg *Message) {
 			Message: msg.Message,
 			Data: map[string]string{
 				"username": c.username,
+				"nickname": c.nickname,
 				"avatar":   c.avatar,
 			},
 		})
@@ -184,8 +187,7 @@ func (c *Client) handleMessage(msg *Message) {
 				TargetUID: msg.TargetUID,
 				Message:   msg.Message,
 				Data: map[string]string{
-					"username": c.username,
-					"avatar":   c.avatar,
+					"username": c.username, "nickname": c.nickname, "avatar": c.avatar,
 				},
 			}
 			c.hub.SendToUID(msg.TargetUID, payload)

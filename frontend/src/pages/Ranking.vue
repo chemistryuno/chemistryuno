@@ -161,11 +161,11 @@
                        </div>
                        <div class="flex flex-col">
                           <span class="text-sm font-black text-slate-900 dark:text-white group-hover:text-blue-500 transition-colors flex items-center gap-2">
-                            {{ player.username }}
+                            {{ player.nickname || player.username }}
                             <span v-if="player.is_online" class="text-[7px] text-emerald-500 font-black uppercase tracking-tighter">Online</span>
                             <span v-if="player.uid === user.uid" class="text-[8px] bg-blue-600 px-1.5 py-0.5 rounded uppercase font-black tracking-widest text-white">You</span>
                           </span>
-                          <span class="text-[8px] font-mono text-slate-400 dark:text-slate-500 uppercase tracking-tighter mt-0.5">ID: {{ player.uid }}</span>
+                          <span class="text-[8px] font-mono text-slate-400 dark:text-slate-500 uppercase tracking-tighter mt-0.5">ID: {{ player.uid }} | {{ player.username }}</span>
                        </div>
                     </div>
                   </td>
@@ -341,7 +341,14 @@ import websocket from '../utils/websocket'
 
 const router = useRouter()
 const { showAlert, showPrompt } = useDialog()
-const user = ref(JSON.parse(localStorage.getItem('user') || '{}'))
+
+let initialUser = {}
+try {
+  initialUser = JSON.parse(localStorage.getItem('user') || '{}')
+} catch (e) {
+  console.error('Failed to parse user in Ranking:', e)
+}
+const user = ref(initialUser)
 
 const leaderboard = ref<any[]>([])
 const friendsList = ref<any[]>([])

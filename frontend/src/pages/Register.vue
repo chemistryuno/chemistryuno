@@ -1,17 +1,56 @@
 ﻿<script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { authAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
-import { Lock, User, FlaskConical, ShieldCheck, Zap, Loader2, Key } from 'lucide-vue-next'
+import { Lock, User, FlaskConical, ShieldCheck, Zap, Loader2, Key, Mail, Send } from 'lucide-vue-next'
 
 const username = ref('')
+const email = ref('')
+const nickname = ref('')
 const password = ref('')
 const confirmPassword = ref('')
+const code = ref('')
 const error = ref('')
 const loading = ref(false)
+const codeLoading = ref(false)
+const smtpEnabled = ref(false)
+const countdown = ref(0)
 const router = useRouter()
 const { showAlert } = useDialog()
+
+onMounted(async () => {
+  try {
+    const res = await authAPI.getAuthConfig()
+    smtpEnabled.value = res.data.smtp_enabled
+  } catch (err) {
+    console.error('获取配置失败', err)
+  }
+})
+
+const handleSendCode = async () => {
+  if (!email.value || !email.value.includes('@')) {
+    error.value = '请输入有效的邮箱地址'
+    return
+  }
+
+  codeLoading.value = true
+  try {
+    await authAPI.sendCode(email.value)
+    showAlert('验证码已发送至您的邮箱，请查收。', '发送成功')
+    
+    // 倒计时
+    countdown.value = 60
+    const timer = setInterval(() => {
+      countdown.value--
+      if (countdown.value <= 0) clearInterval(timer)
+    }, 1000)
+  } catch (err: any) {
+    error.value = err.response?.data?.error || '验证码发送失败'
+  } finally {
+    codeLoading.value = false
+  }
+}
 
 const handleSubmit = async () => {
   error.value = ''
@@ -21,17 +60,25 @@ const handleSubmit = async () => {
     return
   }
 
+  if (smtpEnabled.value && !code.value) {
+    error.value = '请输入邮箱验证码'
+    return
+  }
+
   loading.value = true
 
   try {
     await authAPI.register({
-      username: username.value,
+      username: smtpEnabled.value ? undefined : username.value,
+      email: smtpEnabled.value ? email.value : undefined,
+      code: smtpEnabled.value ? code.value : undefined,
+      nickname: nickname.value,
       password: password.value
     })
     await showAlert('注册成功，请使用新凭据登录。', '研究员注册成功')
     router.push('/login')
   } catch (err: any) {
-    error.value = err.response?.data?.error || '注册失败，用户名可能已存在'
+    error.value = err.response?.data?.error || '注册失败'
   } finally {
     loading.value = false
   }
@@ -62,7 +109,7 @@ const handleSubmit = async () => {
               {{ error }}
             </div>
 
-            <div class="relative group">
+            <div v-if="!smtpEnabled" class="relative group">
               <div class="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-blue-500 transition-colors">
                 <User :size="18" :stroke-width="2.5" />
               </div>
@@ -71,7 +118,60 @@ const handleSubmit = async () => {
                 type="text"
                 required
                 class="w-full pl-12 pr-4 py-4 bg-slate-100/50 dark:bg-black/40 border-2 border-transparent focus:border-blue-500 focus:bg-white dark:focus:bg-black/60 rounded-2xl text-slate-900 dark:text-slate-100 placeholder:text-slate-500/70 font-bold outline-none transition-all text-sm"
-                placeholder="用户名"
+                placeholder="用户名 (登录账号)"
+              />
+            </div>
+
+            <div v-else class="space-y-4">
+              <div class="relative group">
+                <div class="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-blue-500 transition-colors">
+                  <Mail :size="18" :stroke-width="2.5" />
+                </div>
+                <input
+                  v-model="email"
+                  type="email"
+                  required
+                  class="w-full pl-12 pr-4 py-4 bg-slate-100/50 dark:bg-black/40 border-2 border-transparent focus:border-blue-500 focus:bg-white dark:focus:bg-black/60 rounded-2xl text-slate-900 dark:text-slate-100 placeholder:text-slate-500/70 font-bold outline-none transition-all text-sm"
+                  placeholder="电子邮箱 (登录凭据)"
+                />
+              </div>
+
+              <div class="relative group flex gap-3">
+                <div class="relative flex-1 group">
+                  <div class="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-blue-500 transition-colors">
+                    <ShieldCheck :size="18" :stroke-width="2.5" />
+                  </div>
+                  <input
+                    v-model="code"
+                    type="text"
+                    required
+                    class="w-full pl-12 pr-4 py-4 bg-slate-100/50 dark:bg-black/40 border-2 border-transparent focus:border-blue-500 focus:bg-white dark:focus:bg-black/60 rounded-2xl text-slate-900 dark:text-slate-100 placeholder:text-slate-500/70 font-bold outline-none transition-all text-sm"
+                    placeholder="验证码"
+                  />
+                </div>
+                <button
+                  type="button"
+                  @click="handleSendCode"
+                  :disabled="codeLoading || countdown > 0"
+                  class="px-6 rounded-2xl font-black text-xs uppercase tracking-widest transition-all bg-slate-200 dark:bg-white/5 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  <Send v-if="!codeLoading" class="w-4 h-4" />
+                  <Loader2 v-else class="w-4 h-4 animate-spin" />
+                  {{ countdown > 0 ? `${countdown}s` : '获取验证码' }}
+                </button>
+              </div>
+            </div>
+
+            <div class="relative group">
+              <div class="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-blue-500 transition-colors">
+                <FlaskConical :size="18" :stroke-width="2.5" />
+              </div>
+              <input
+                v-model="nickname"
+                type="text"
+                required
+                class="w-full pl-12 pr-4 py-4 bg-slate-100/50 dark:bg-black/40 border-2 border-transparent focus:border-blue-500 focus:bg-white dark:focus:bg-black/60 rounded-2xl text-slate-900 dark:text-slate-100 placeholder:text-slate-500/70 font-bold outline-none transition-all text-sm"
+                placeholder="研究员昵称 (公开展示)"
               />
             </div>
 

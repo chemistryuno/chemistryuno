@@ -12,8 +12,9 @@
     "install:frontend": "pnpm -C frontend install",
     "frontend": "pnpm -C frontend dev",
     "backend": "node -e \"const {execSync} = require('child_process'); process.env.CGO_ENABLED='0'; execSync('go run main.go', {cwd:'backend', stdio:'inherit'})\"",
-    "tools:init-db": "go run tools/init_db.go",
-    "tools:migrate-creds": "go run tools/migrate_credential_ids.go",
+    "db:init": "node -e \"const {execSync} = require('child_process'); execSync('go run scripts/init_db.go', {cwd:'backend', stdio:'inherit'})\"",
+    "tools:init-db": "node -e \"const {execSync} = require('child_process'); execSync('go run init_db.go', {cwd:'tools', stdio:'inherit'})\"",
+    "tools:migrate-creds": "node -e \"const {execSync} = require('child_process'); execSync('go run migrate_credential_ids.go', {cwd:'tools', stdio:'inherit'})\"",
     "clean": "node -e \"const fs = require('fs'); ['backend/chemistryuno.db', 'backend/chemistryuno.exe', 'backend/chemistryuno', 'dist'].forEach(f => { try { if (fs.existsSync(f)) { if (fs.statSync(f).isDirectory()) { fs.rmSync(f, {recursive: true}); } else { fs.unlinkSync(f); } } } catch(e) {} })\"",
     "clean:all": "pnpm clean && node -e \"const fs = require('fs'); ['frontend/node_modules', 'frontend/dist', 'frontend/.vite'].forEach(f => { try { if (fs.existsSync(f)) { fs.rmSync(f, {recursive: true}); } } catch(e) {} })\""
   },

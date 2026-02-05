@@ -23,6 +23,7 @@ func autoMigrate() error {
 		&Bounty{},
 		&Announcement{},
 		&SystemConfig{},
+		&VerificationCode{},
 	)
 
 	if err != nil {
@@ -82,6 +83,8 @@ func createDefaultAdmin() error {
 
 	admin := User{
 		Username:      "admin",
+		Email:         "admin@chemistryuno.com",
+		Nickname:      "系统管理员",
 		Password:      hashedPassword,
 		Avatar:        "⚗️",
 		IsAdmin:       true,
@@ -94,7 +97,7 @@ func createDefaultAdmin() error {
 		return err
 	}
 
-	log.Println("✅ 管理员账户创建成功 (用户名: admin, 密码: admin123)")
+	log.Println("✅ 管理员账户创建成功 (用户名: admin, 邮箱: admin@chemistryuno.com, 密码: admin123)")
 	return nil
 }
 

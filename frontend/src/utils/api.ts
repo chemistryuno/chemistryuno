@@ -45,6 +45,12 @@ export const authAPI = {
     api.post('/auth/register', data),
   login: (data: any) => 
     api.post('/auth/login', data),
+  getAuthConfig: () =>
+    api.get('/auth/config'),
+  sendCode: (email: string, type: string = 'register') =>
+    api.post('/auth/send-code', { email, type }),
+  resetPasswordByEmail: (data: any) =>
+    api.post('/auth/reset-password', data),
   resetPasswordBy2FA: (data: any) =>
     api.post('/auth/2fa/reset-password', data),
   beginResetPasswordWebAuthn: (username: string) =>
@@ -61,6 +67,8 @@ export const authAPI = {
     api.post(`/user/webauthn/change-password/finish?newPassword=${newPassword}`, credential),
   updateAvatar: (avatar: string) => 
     api.put('/user/avatar', { avatar }),
+  updateNickname: (nickname: string) =>
+    api.put('/user/nickname', { nickname }),
   deleteAccount: () => 
     api.delete('/user/account'),
   searchUsers: (query: string) =>

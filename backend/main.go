@@ -130,6 +130,9 @@ func main() {
 		// 公开路由
 		api.POST("/auth/register", handlers.Register)
 		api.POST("/auth/login", handlers.Login)
+		api.GET("/auth/config", handlers.GetAuthConfig)
+		api.POST("/auth/send-code", handlers.SendVerificationCode)
+		api.POST("/auth/reset-password", handlers.ResetPasswordByEmail)
 		api.GET("/announcements", handlers.GetActiveAnnouncements)
 		api.POST("/auth/2fa/verify", handlers.Verify2FALogin)
 		api.POST("/auth/2fa/reset-password", handlers.ResetPasswordBy2FA)
@@ -147,6 +150,7 @@ func main() {
 			auth.GET("/user/game-history", handlers.GetMyGameHistory)
 			auth.PUT("/user/password", handlers.ChangePassword)
 			auth.PUT("/user/avatar", handlers.UpdateAvatar)
+			auth.PUT("/user/nickname", handlers.UpdateNickname)
 			auth.DELETE("/user/account", handlers.DeleteAccount)
 			auth.GET("/users/search", handlers.SearchUsers)
 
@@ -348,10 +352,12 @@ func handleWebSocket(c *gin.Context) {
 	uid := c.GetInt("uid")
 	username := c.GetString("username")
 
-	// 获取用户头像
+	// 获取用户头像和昵称
 	avatar := "🧪"
+	nickname := username
 	if user, err := repository.UserRepo.FindByID(uint(uid)); err == nil {
 		avatar = user.Avatar
+		nickname = user.Nickname
 	}
 
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
@@ -360,7 +366,7 @@ func handleWebSocket(c *gin.Context) {
 		return
 	}
 
-	client := websocket.NewClient(hub, conn, uid, username, avatar)
+	client := websocket.NewClient(hub, conn, uid, username, nickname, avatar)
 	hub.Register(client)
 
 	go client.WritePump()

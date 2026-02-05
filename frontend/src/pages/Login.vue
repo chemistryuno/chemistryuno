@@ -1,9 +1,9 @@
 ﻿<script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import api, { authAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
-import { Beaker, Lock, User, Loader2, Fingerprint, Shield, Cpu } from 'lucide-vue-next'
+import { Beaker, Lock, User, Loader2, Fingerprint, Shield, Cpu, Mail } from 'lucide-vue-next'
 import ResetPassword2FAModal from '../components/ResetPassword2FAModal.vue'
 import websocket from '../utils/websocket'
 import { get } from '@github/webauthn-json'
@@ -18,8 +18,18 @@ const resetLoading = ref(false)
 const tempUID = ref<number | null>(null)
 const error = ref('')
 const loading = ref(false)
+const smtpEnabled = ref(false)
 const router = useRouter()
 const dialog = useDialog()
+
+onMounted(async () => {
+  try {
+    const res = await authAPI.getAuthConfig()
+    smtpEnabled.value = res.data.smtp_enabled
+  } catch (err) {
+    console.error('获取配置失败', err)
+  }
+})
 
 const handleForgotPassword = () => {
   showResetModal.value = true
@@ -161,21 +171,21 @@ const handleWebAuthnLogin = async () => {
           <div v-if="!show2FA" class="space-y-6">
             <form @submit.prevent="handleSubmit" class="space-y-5">
               <div class="space-y-1.5">
-                <label class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">
-                  账号
-                </label>
-                <div class="relative group">
-                  <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 dark:text-slate-500 group-focus-within:text-blue-500 transition-colors">
-                    <User class="w-4 h-4" />
+                  <label class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">
+                    {{ smtpEnabled ? '电子邮箱' : '账号' }}
+                  </label>
+                  <div class="relative group">
+                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 dark:text-slate-500 group-focus-within:text-blue-500 transition-colors">
+                      <component :is="smtpEnabled ? Mail : User" class="w-4 h-4" />
+                    </div>
+                    <input
+                      v-model="identifier"
+                      type="text"
+                      required
+                      class="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-slate-100 pl-11 pr-4 py-4 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all placeholder:text-slate-500/50 text-sm font-bold"
+                      :placeholder="smtpEnabled ? '注册时的邮箱' : '请输入用户名'"
+                    />
                   </div>
-                  <input
-                    v-model="identifier"
-                    type="text"
-                    required
-                    class="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-slate-100 pl-11 pr-4 py-4 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all placeholder:text-slate-500/50 text-sm font-bold"
-                    placeholder="请输入用户名"
-                  />
-                </div>
               </div>
 
               <div class="space-y-1.5">

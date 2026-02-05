@@ -108,7 +108,12 @@ import { computed } from 'vue'
 import { Database, ArrowLeft, ArrowRight, FlaskConical, Beaker } from 'lucide-vue-next'
 
 const router = useRouter()
-const user = JSON.parse(localStorage.getItem('user') || '{}')
+let user: any = {}
+try {
+  user = JSON.parse(localStorage.getItem('user') || '{}')
+} catch (e) {
+  console.error('Failed to parse user in DataConfig:', e)
+}
 
 const userRole = computed(() => {
   const role = user.role?.toUpperCase() || 'USER'

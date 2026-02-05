@@ -32,6 +32,7 @@ func GetLeaderboard(c *gin.Context) {
 		leaderboard = append(leaderboard, map[string]interface{}{
 			"uid":            user.UID,
 			"username":       user.Username,
+			"nickname":       user.Nickname,
 			"avatar":         user.Avatar,
 			"points":         user.Points,
 			"monthly_points": user.MonthlyPoints,

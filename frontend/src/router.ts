@@ -98,7 +98,13 @@ const router = createRouter({
 
 router.beforeEach((to: RouteLocationNormalized, _from: RouteLocationNormalized, next: NavigationGuardNext) => {
   const token = localStorage.getItem('token')
-  const user = JSON.parse(localStorage.getItem('user') || 'null')
+  let user = null
+  try {
+    user = JSON.parse(localStorage.getItem('user') || 'null')
+  } catch (e) {
+    console.error('Failed to parse user from localStorage', e)
+    localStorage.removeItem('user')
+  }
 
   if (to.meta.requiresAuth && !token) {
     next('/login')

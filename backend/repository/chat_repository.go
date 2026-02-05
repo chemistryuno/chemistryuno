@@ -2,6 +2,7 @@ package repository
 
 import (
 	"chemistryuno/database"
+
 	"gorm.io/gorm"
 )
 
@@ -24,16 +25,16 @@ func (r *ChatRepository) SaveChatMessage(uid uint, username, avatar, message str
 }
 
 func (r *ChatRepository) GetRecentMessages(limit int) ([]database.GlobalChat, error) {
-	var messages []database.GlobalChat
+	messages := []database.GlobalChat{}
 	err := r.db.Order("created_at desc").Limit(limit).Find(&messages).Error
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// 反转顺序，让前端收到的顺序是时间递增
 	for i, j := 0, len(messages)-1; i < j; i, j = i+1, j-1 {
 		messages[i], messages[j] = messages[j], messages[i]
 	}
-	
+
 	return messages, nil
 }

@@ -186,10 +186,10 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
     </div>
 
     <!-- Main Layout Layer -->
-    <div class="relative z-10 flex flex-col min-h-screen">
+    <div class="relative z-10 flex flex-col xl:h-screen min-h-screen xl:overflow-hidden">
       
       <!-- Top Command Bar -->
-      <header class="h-20 border-b border-slate-200 dark:border-white/5 bg-white/60 dark:bg-black/40 backdrop-blur-xl sticky top-0 z-50">
+      <header class="h-20 border-b border-slate-200 dark:border-white/5 bg-white/60 dark:bg-black/40 backdrop-blur-xl sticky top-0 z-50 shrink-0">
         <div class="max-w-[1400px] mx-auto h-full px-6 flex items-center justify-between">
           <div class="flex items-center gap-6">
             <div class="flex items-center gap-3 group px-4 py-2 bg-gradient-to-br from-blue-500/10 to-blue-600/5 border border-blue-500/20 rounded-2xl">
@@ -270,9 +270,9 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
         </div>
       </header>
 
-      <main class="flex-1 max-w-[1400px] mx-auto w-full px-6 py-6">
+      <main class="flex-1 max-w-[1400px] mx-auto w-full px-6 py-6 flex flex-col min-h-0">
         <!-- Welcome & Global Actions -->
-        <div class="flex flex-col lg:flex-row lg:items-end justify-between mb-8 gap-8">
+        <div class="flex flex-col lg:flex-row lg:items-end justify-between mb-8 gap-8 shrink-0">
           <div class="space-y-3">
             <div class="inline-flex items-center gap-2 px-3 py-1 bg-blue-500/10 border border-blue-500/20 rounded-full">
               <span class="w-1.5 h-1.5 bg-blue-500 rounded-full animate-ping"></span>
@@ -326,9 +326,9 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
         </div>
 
         <!-- Main Layout Grid -->
-        <div class="grid grid-cols-1 xl:grid-cols-12 gap-8 items-stretch">
+        <div class="grid grid-cols-1 xl:grid-cols-12 gap-8 items-stretch flex-1 min-h-0">
           <!-- Left Column: Notifications & Room List -->
-          <div class="xl:col-span-9 space-y-8">
+          <div class="xl:col-span-9 space-y-8 xl:overflow-y-auto xl:pr-4 custom-scrollbar min-h-0">
             <!-- Persistent Announcements -->
             <div v-if="persistentAnnouncements.length > 0" class="space-y-4 animate-in fade-in duration-700">
                <div v-for="ann in persistentAnnouncements" :key="ann.id" 
@@ -493,16 +493,14 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
       </div>
 
       <!-- Right Column: World Chat -->
-      <div class="xl:col-span-3 h-full">
-        <div class="sticky top-28 h-[calc(100vh-160px)] xl:h-full">
-           <ChatBox title="全域通信频道" placeholder="向研究员们发送信息..." maxHeight="100%" />
-        </div>
+      <div class="xl:col-span-3 h-full min-h-0">
+         <ChatBox title="全域通信频道" placeholder="向研究员们发送信息..." maxHeight="100%" class="h-full" />
       </div>
     </div>
   </main>
 
       <!-- Global Footer Terminal -->
-      <footer class="mt-auto border-t border-white/5 bg-black/40 backdrop-blur-md p-4">
+      <footer class="mt-auto border-t border-white/5 bg-black/40 backdrop-blur-md p-4 shrink-0">
         <div class="max-w-[1400px] mx-auto flex flex-col md:flex-row justify-between items-center text-[10px] font-mono text-slate-500 uppercase tracking-[0.2em] gap-4">
           <div class="flex items-center gap-4">
             <span>System_Core_Ready</span>

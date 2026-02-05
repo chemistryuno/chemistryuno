@@ -55,7 +55,7 @@ type User struct {
 	UID                uint           `gorm:"primaryKey;autoIncrement" json:"uid"`
 	Username           string         `gorm:"unique;not null;size:50" json:"username"`
 	Password           string         `gorm:"not null" json:"-"`
-	Avatar             string         `gorm:"default:🧪;size:10" json:"avatar"`
+	Avatar             string         `gorm:"type:text" json:"avatar"`
 	IsAdmin            bool           `gorm:"default:false" json:"is_admin"`
 	Role               string         `gorm:"default:user;size:20" json:"role"`
 	TwoFactorEnabled   bool           `gorm:"default:false" json:"two_factor_enabled"`
@@ -100,7 +100,7 @@ type GlobalChat struct {
 	ID        uint      `gorm:"primaryKey;autoIncrement" json:"id"`
 	UserUID   uint      `gorm:"not null;index" json:"user_uid"`
 	Username  string    `gorm:"size:50" json:"username"`
-	Avatar    string    `gorm:"size:10" json:"avatar"`
+	Avatar    string    `gorm:"type:text" json:"avatar"`
 	Message   string    `gorm:"type:text;not null" json:"message"`
 	CreatedAt time.Time `gorm:"autoCreateTime;index" json:"created_at"`
 }

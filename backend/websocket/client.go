@@ -160,6 +160,7 @@ func (c *Client) handleMessage(msg *Message) {
 			Message: msg.Message,
 			Data: map[string]string{
 				"username": c.username,
+				"avatar":   c.avatar,
 			},
 		})
 
@@ -184,6 +185,7 @@ func (c *Client) handleMessage(msg *Message) {
 				Message:   msg.Message,
 				Data: map[string]string{
 					"username": c.username,
+					"avatar":   c.avatar,
 				},
 			}
 			c.hub.SendToUID(msg.TargetUID, payload)

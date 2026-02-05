@@ -33,6 +33,7 @@ const loadHistory = async () => {
     messages.value = (res.data || []).map((m: any) => ({
       uid: m.user_uid,
       username: m.username,
+      avatar: m.avatar,
       text: m.message,
       time: new Date(m.created_at),
       type: 'normal'
@@ -47,16 +48,23 @@ onMounted(() => {
   // 只有非房间内聊天才加载全服历史并加入大厅频道
   if (!props.roomId) {
     loadHistory()
-    // 延迟加入，确保连接已建立
-    setTimeout(() => {
-      websocket.send({ type: 'join_room', room_id: 'lobby' })
-    }, 1000)
+    // 确保连接建立后立即尝试加入
+    websocket.send({ type: 'join_room', room_id: 'lobby' })
   }
 
   const handleChatMessage = (msg: any) => {
+    // 检查是否已存在（避免重复显示历史记录中的消息）
+    const isDuplicate = messages.value.some(m => 
+      m.uid === msg.uid && 
+      m.text === msg.message && 
+      Math.abs(new Date(m.time).getTime() - new Date().getTime()) < 2000
+    )
+    if (isDuplicate) return
+
     messages.value.push({
       uid: msg.uid,
       username: msg.data?.username || '研究员',
+      avatar: msg.data?.avatar,
       text: msg.message,
       time: new Date(),
       type: 'normal'
@@ -69,6 +77,7 @@ onMounted(() => {
       uid: msg.uid,
       target_uid: msg.target_uid,
       username: msg.data?.username || '研究员',
+      avatar: msg.data?.avatar,
       text: msg.message,
       time: new Date(),
       type: 'private'
@@ -148,28 +157,45 @@ const formatTime = (date: Date) => {
         v-for="(msg, idx) in messages" 
         :key="idx"
         :class="cn(
-          'flex flex-col gap-0.5 max-w-[90%]',
-          msg.uid === currentUID ? 'ml-auto items-end' : 'mr-auto items-start'
+          'flex gap-2 max-w-[95%]',
+          msg.uid === currentUID ? 'ml-auto flex-row-reverse' : 'mr-auto flex-row'
         )"
       >
-        <div class="flex items-center gap-1.5 px-0.5">
-          <span v-if="msg.uid !== currentUID" class="text-[8px] font-black text-slate-400 uppercase tracking-tighter">
-            {{ msg.username }}
-            <span v-if="msg.type === 'private'" class="text-rose-500 ml-1">(私语)</span>
-          </span>
-          <span v-else-if="msg.type === 'private'" class="text-[8px] font-black text-rose-500 uppercase tracking-tighter">
-            对 {{ msg.target_uid === currentUID ? '自己' : '研究员' }} 说道
-          </span>
-          <span class="text-[7px] font-mono text-slate-300 dark:text-slate-600">{{ formatTime(msg.time) }}</span>
+        <!-- Avatar -->
+        <div class="shrink-0 mt-1">
+          <div class="w-7 h-7 rounded-lg bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-center justify-center text-xs overflow-hidden shadow-sm">
+            <template v-if="msg.avatar && msg.avatar.startsWith('data:')">
+              <img :src="msg.avatar" class="w-full h-full object-cover" />
+            </template>
+            <template v-else>
+              {{ msg.avatar || '🧪' }}
+            </template>
+          </div>
         </div>
+
         <div :class="cn(
-          'px-3 py-1.5 rounded-xl text-[11px] font-medium leading-relaxed break-words shadow-sm',
-          msg.type === 'private' ? 'border-2 border-rose-500/10' : '',
-          msg.uid === currentUID 
-            ? 'bg-blue-600 text-white rounded-tr-none' 
-            : 'bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-200 border border-slate-200/50 dark:border-white/5 rounded-tl-none'
+          'flex flex-col gap-0.5',
+          msg.uid === currentUID ? 'items-end' : 'items-start'
         )">
-          {{ msg.text }}
+          <div class="flex items-center gap-1.5 px-0.5">
+            <span v-if="msg.uid !== currentUID" class="text-[8px] font-black text-slate-400 uppercase tracking-tighter">
+              {{ msg.username }}
+              <span v-if="msg.type === 'private'" class="text-rose-500 ml-1">(私语)</span>
+            </span>
+            <span v-else-if="msg.type === 'private'" class="text-[8px] font-black text-rose-500 uppercase tracking-tighter">
+              对 {{ msg.target_uid === currentUID ? '自己' : '研究员' }} 说道
+            </span>
+            <span class="text-[7px] font-mono text-slate-300 dark:text-slate-600">{{ formatTime(msg.time) }}</span>
+          </div>
+          <div :class="cn(
+            'px-3 py-1.5 rounded-xl text-[11px] font-medium leading-relaxed break-words shadow-sm',
+            msg.type === 'private' ? 'border-2 border-rose-500/10' : '',
+            msg.uid === currentUID 
+              ? 'bg-blue-600 text-white rounded-tr-none' 
+              : 'bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-200 border border-slate-200/50 dark:border-white/5 rounded-tl-none'
+          )">
+            {{ msg.text }}
+          </div>
         </div>
       </div>
     </div>

@@ -55,11 +55,17 @@ func GetPendingRequests(c *gin.Context) {
 	}
 	var res []Response
 	for _, r := range requests {
+		username := "已注销的用户"
+		avatar := "🧪"
+		if r.User.Username != "" {
+			username = r.User.Username
+			avatar = r.User.Avatar
+		}
 		res = append(res, Response{
 			ID:           r.ID,
 			UserID:       r.UserID,
-			Username:     r.User.Username,
-			Avatar:       r.User.Avatar,
+			Username:     username,
+			Avatar:       avatar,
 			HelloMessage: r.HelloMessage,
 		})
 	}

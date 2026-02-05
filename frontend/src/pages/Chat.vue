@@ -176,6 +176,11 @@ const focusSearch = () => {
   showSearchModal.value = true
 }
 
+const openRequestsModal = () => {
+  fetchRequests()
+  showRequestsModal.value = true
+}
+
 // 选择聊天对象
 const selectChat = (friend: any) => {
   activeChat.value = friend
@@ -353,7 +358,7 @@ const formatTime = (date: Date) => {
         <!-- Footer Actions -->
         <div class="p-6 border-t border-slate-200 dark:border-white/5">
           <button 
-            @click="showRequestsModal = true"
+            @click="openRequestsModal"
             class="w-full flex items-center justify-between px-6 h-14 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 rounded-2xl text-sm font-black uppercase tracking-widest text-slate-600 dark:text-white transition-all group relative overflow-hidden"
           >
             <div class="flex items-center gap-3 relative z-10">
@@ -579,7 +584,7 @@ const formatTime = (date: Date) => {
     </div>
 
     <!-- 好友请求模态框 -->
-    <div v-if="showRequestsModal" class="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+    <div v-if="showRequestsModal" @click="showRequestsModal = false" class="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
       <div @click.stop class="w-full max-w-xl bg-white dark:bg-[#0f0f12] rounded-[40px] border border-slate-200 dark:border-white/10 shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
         <div class="p-8 border-b border-slate-100 dark:border-white/5 flex items-center justify-between">
           <div>

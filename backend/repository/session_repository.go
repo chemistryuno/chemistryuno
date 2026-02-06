@@ -30,8 +30,8 @@ func (r *SessionRepository) FindByID(id string) (*database.UserSession, error) {
 	return &session, nil
 }
 
-// FindByUserID 查找用户的所有会话
-func (r *SessionRepository) FindByUserID(uid uint) ([]database.UserSession, error) {
+// FindByUserUID 查找用户的所有会话
+func (r *SessionRepository) FindByUserUID(uid uint) ([]database.UserSession, error) {
 	var sessions []database.UserSession
 	err := r.db.Where("user_uid = ?", uid).
 		Order("last_active DESC").
@@ -54,13 +54,13 @@ func (r *SessionRepository) Delete(id string) error {
 	return r.db.Where("id = ?", id).Delete(&database.UserSession{}).Error
 }
 
-// DeleteByUserID 删除用户的所有会话
-func (r *SessionRepository) DeleteByUserID(uid uint) error {
+// DeleteByUserUID 删除用户的所有会话
+func (r *SessionRepository) DeleteByUserUID(uid uint) error {
 	return r.db.Where("user_uid = ?", uid).Delete(&database.UserSession{}).Error
 }
 
-// DeleteByIDAndUserID 删除指定用户的指定会话
-func (r *SessionRepository) DeleteByIDAndUserID(id string, uid uint) error {
+// DeleteByIDAndUserUID 删除指定用户的指定会话
+func (r *SessionRepository) DeleteByIDAndUserUID(id string, uid uint) error {
 	return r.db.Where("id = ? AND user_uid = ?", id, uid).Delete(&database.UserSession{}).Error
 }
 

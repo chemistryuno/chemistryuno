@@ -17,10 +17,10 @@ func NewFriendshipRepository() *FriendshipRepository {
 	}
 }
 
-func (r *FriendshipRepository) CreateRequest(userID, friendID uint, message string) error {
+func (r *FriendshipRepository) CreateRequest(userUID, friendUID uint, message string) error {
 	// 如果已经存在（无论是 pending 还是 accepted），不再创建
 	var existing database.Friendship
-	err := r.db.Where("(user_id = ? AND friend_id = ?) OR (user_id = ? AND friend_id = ?)", userID, friendID, friendID, userID).First(&existing).Error
+	err := r.db.Where("(user_uid = ? AND friend_uid = ?) OR (user_uid = ? AND friend_uid = ?)", userUID, friendUID, friendUID, userUID).First(&existing).Error
 	if err == nil {
 		// 如果是已经接受了，或者过期的 pending，可能需要不同处理，但这里先按用户逻辑：已有记录就不再创建
 		// 如果是 pending 状态，更新 hello_message 和 CreatedAt 也是一种思路，但先保持简单
@@ -28,8 +28,8 @@ func (r *FriendshipRepository) CreateRequest(userID, friendID uint, message stri
 	}
 
 	f := database.Friendship{
-		UserID:       userID,
-		FriendID:     friendID,
+		UserUID:      userUID,
+		FriendUID:    friendUID,
 		Status:       "pending",
 		HelloMessage: message,
 	}
@@ -44,7 +44,7 @@ func (r *FriendshipRepository) GetPendingRequests(uid uint) ([]database.Friendsh
 	var requests []database.Friendship
 	sevenDaysAgo := time.Now().AddDate(0, 0, -7)
 	err := r.db.Preload("Friend").Preload("User").
-		Where("friend_id = ? AND status = ? AND created_at > ?", uid, "pending", sevenDaysAgo).
+		Where("friend_uid = ? AND status = ? AND created_at > ?", uid, "pending", sevenDaysAgo).
 		Order("created_at DESC").
 		Find(&requests).Error
 	return requests, err
@@ -53,39 +53,39 @@ func (r *FriendshipRepository) GetPendingRequests(uid uint) ([]database.Friendsh
 func (r *FriendshipRepository) GetFriends(uid uint) ([]database.User, error) {
 	var friendships []database.Friendship
 	// 查找所有 status 为 accepted 且涉及到 uid 的记录
-	err := r.db.Where("status = ? AND (user_id = ? OR friend_id = ?)", "accepted", uid, uid).Find(&friendships).Error
+	err := r.db.Where("status = ? AND (user_uid = ? OR friend_uid = ?)", "accepted", uid, uid).Find(&friendships).Error
 	if err != nil {
 		return nil, err
 	}
 
-	friendIDs := make([]uint, 0)
+	friendUIDs := make([]uint, 0)
 	for _, f := range friendships {
-		if f.UserID == uid {
-			friendIDs = append(friendIDs, f.FriendID)
+		if f.UserUID == uid {
+			friendUIDs = append(friendUIDs, f.FriendUID)
 		} else {
-			friendIDs = append(friendIDs, f.UserID)
+			friendUIDs = append(friendUIDs, f.UserUID)
 		}
 	}
 
-	if len(friendIDs) == 0 {
+	if len(friendUIDs) == 0 {
 		return []database.User{}, nil
 	}
 
 	var friends []database.User
-	err = r.db.Where("uid IN ?", friendIDs).Find(&friends).Error
+	err = r.db.Where("uid IN ?", friendUIDs).Find(&friends).Error
 	return friends, err
 }
 
 func (r *FriendshipRepository) IsFriend(uid1, uid2 uint) (bool, error) {
 	var count int64
 	err := r.db.Model(&database.Friendship{}).
-		Where("status = ? AND ((user_id = ? AND friend_id = ?) OR (user_id = ? AND friend_id = ?))", "accepted", uid1, uid2, uid2, uid1).
+		Where("status = ? AND ((user_uid = ? AND friend_uid = ?) OR (user_uid = ? AND friend_uid = ?))", "accepted", uid1, uid2, uid2, uid1).
 		Count(&count).Error
 	return count > 0, err
 }
 
 func (r *FriendshipRepository) DeleteFriendship(uid1, uid2 uint) error {
-	return r.db.Where("((user_id = ? AND friend_id = ?) OR (user_id = ? AND friend_id = ?))", uid1, uid2, uid2, uid1).Delete(&database.Friendship{}).Error
+	return r.db.Where("((user_uid = ? AND friend_uid = ?) OR (user_uid = ? AND friend_uid = ?))", uid1, uid2, uid2, uid1).Delete(&database.Friendship{}).Error
 }
 
 func (r *FriendshipRepository) GetFriendshipByID(id uint) (*database.Friendship, error) {

@@ -21,7 +21,7 @@ try {
 } catch (e) {
   console.error('Failed to parse user in Chat:', e)
 }
-const currentUser = ref(initialUser)
+const currentUser = ref<any>(initialUser)
 
 // 状态管理
 const friends = ref<any[]>([])
@@ -97,15 +97,6 @@ const triggerSearch = async () => {
 
 const isFriend = (uid: number) => {
   return friends.value.some(f => Number(f.uid) === Number(uid))
-}
-
-const handleSearchClick = (user: any) => {
-  if (isFriend(user.uid)) {
-    const friend = friends.value.find(f => Number(f.uid) === Number(user.uid))
-    if (friend) selectChat(friend)
-  } else {
-    sendRequest(user.uid)
-  }
 }
 
 const fetchFriends = async () => {
@@ -356,7 +347,7 @@ const formatTime = (date: Date) => {
             <div class="flex-1 min-w-0 text-left">
               <div class="font-black text-sm tracking-tight flex items-center gap-2">
                 <span class="truncate">{{ friend.nickname || friend.username }}</span>
-                <span class="text-[9px] font-mono text-slate-400 group-hover:text-white/60 transition-colors">ID:{{ friend.uid }}</span>
+                <span class="text-[9px] font-mono text-slate-400 group-hover:text-white/60 transition-colors">UID:{{ friend.uid }}</span>
               </div>
               <div :class="cn(
                 'text-[10px] font-mono mt-0.5 truncate uppercase tracking-tighter opacity-60',
@@ -406,7 +397,7 @@ const formatTime = (date: Date) => {
               <div>
                 <h2 class="text-sm font-black text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2">
                   {{ activeChat.username }}
-                  <span class="text-[9px] font-mono text-slate-400 bg-slate-100 dark:bg-white/5 px-1.5 py-0.5 rounded">ID:{{ activeChat.uid }}</span>
+                  <span class="text-[9px] font-mono text-slate-400 bg-slate-100 dark:bg-white/5 px-1.5 py-0.5 rounded">UID:{{ activeChat.uid }}</span>
                 </h2>
                 <div class="flex items-center gap-1.5 mt-0.5">
                   <div :class="cn('w-1.5 h-1.5 rounded-full', activeChat.is_online ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400')"></div>
@@ -533,7 +524,7 @@ const formatTime = (date: Date) => {
               v-model="searchQuery"
               @keyup.enter="triggerSearch"
               autoFocus
-              placeholder="输入 ID 或称号进行扫描..."
+              placeholder="输入 UID 或称号进行扫描..."
               class="relative w-full h-16 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl pl-14 pr-16 text-lg text-slate-700 dark:text-white focus:outline-none focus:border-blue-500/50 transition-all font-medium"
             />
             <button 
@@ -569,7 +560,7 @@ const formatTime = (date: Date) => {
                       <span v-if="result.is_online" class="px-2 py-0.5 bg-emerald-500/10 text-emerald-500 text-[8px] font-black rounded uppercase tracking-widest">Active</span>
                     </div>
                     <div class="flex items-center gap-3 mt-1.5 grayscale opacity-60">
-                      <span class="text-[9px] text-slate-400 font-mono tracking-tight uppercase">ID: {{ result.uid }} | {{ result.username }}</span>
+                      <span class="text-[9px] text-slate-400 font-mono tracking-tight uppercase">UID: {{ result.uid }} | {{ result.username }}</span>
                       <span class="text-[9px] text-blue-500 font-black uppercase tracking-widest">{{ result.points }}PT</span>
                       <span v-if="result.bounty > 0" class="text-[9px] text-rose-500 font-black uppercase tracking-widest">赏: {{ result.bounty }}</span>
                     </div>

@@ -31,10 +31,10 @@ func (r *DeckRepository) FindGlobalDeck() (*database.DeckConfig, error) {
 	return &deck, nil
 }
 
-// FindByUserID 查找用户的所有牌组
-func (r *DeckRepository) FindByUserID(uid uint) ([]database.DeckConfig, error) {
+// FindByUserUID 查找用户的所有牌组
+func (r *DeckRepository) FindByUserUID(uid uint) ([]database.DeckConfig, error) {
 	var decks []database.DeckConfig
-	err := r.db.Where("created_by = ? AND is_global = ?", uid, false).
+	err := r.db.Where("created_by_uid = ? AND is_global = ?", uid, false).
 		Order("created_at DESC").
 		Find(&decks).Error
 	return decks, err

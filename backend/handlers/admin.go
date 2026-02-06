@@ -158,7 +158,7 @@ func BanUser(c *gin.Context) {
 
 	// 封禁后强制登出
 	sessionRepo := repository.NewSessionRepository()
-	_ = sessionRepo.DeleteByUserID(uint(req.TargetUID))
+	_ = sessionRepo.DeleteByUserUID(uint(req.TargetUID))
 
 	msg := "用户已被永久封禁"
 	if req.Hours > 0 {
@@ -186,7 +186,7 @@ func GetGlobalDeckConfig(c *gin.Context) {
 		IsGlobal:     deck.IsGlobal,
 		Cards:        cards,
 		InitialCards: deck.InitialCards,
-		CreatedBy:    int(deck.CreatedBy),
+		CreatedBy:    int(deck.CreatedByUID),
 		CreatedAt:    deck.CreatedAt,
 	}
 
@@ -234,10 +234,10 @@ func UpdateGlobalDeckConfig(c *gin.Context) {
 
 // 删除用户（管理员）
 func DeleteUser(c *gin.Context) {
-	userID := c.Param("id")
-	uid, err := strconv.ParseUint(userID, 10, 32)
+	userUIDStr := c.Param("uid")
+	uid, err := strconv.ParseUint(userUIDStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的用户ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的用户UID"})
 		return
 	}
 
@@ -252,10 +252,10 @@ func DeleteUser(c *gin.Context) {
 
 // 管理员修改用户密码
 func AdminChangePassword(c *gin.Context) {
-	userID := c.Param("id")
-	uid, err := strconv.ParseUint(userID, 10, 32)
+	userUIDStr := c.Param("uid")
+	uid, err := strconv.ParseUint(userUIDStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的用户ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的用户UID"})
 		return
 	}
 
@@ -266,7 +266,7 @@ func AdminChangePassword(c *gin.Context) {
 	}
 
 	// 检查用户是否存在且不是管理员
-	isAdmin, err := userRepo.FindIsAdminByID(uint(uid))
+	isAdmin, err := userRepo.FindIsAdminByUID(uint(uid))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
 		return
@@ -295,10 +295,10 @@ func AdminChangePassword(c *gin.Context) {
 
 // 提升用户权限
 func PromoteUser(c *gin.Context) {
-	userID := c.Param("id")
-	uid, err := strconv.ParseUint(userID, 10, 32)
+	userUIDStr := c.Param("uid")
+	uid, err := strconv.ParseUint(userUIDStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的用户ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的用户UID"})
 		return
 	}
 
@@ -366,7 +366,7 @@ func GetReactions(c *gin.Context) {
 			"display":      r.Display,
 			"status":       r.Status,
 			"group_id":     r.GroupID,
-			"created_by":   r.CreatedBy,
+			"created_by":   r.CreatedByUID,
 			"creator_name": r.CreatorName,
 			"created_at":   r.CreatedAt,
 		})
@@ -488,7 +488,7 @@ func ApproveReaction(c *gin.Context) {
 			}
 
 			// 创建新反应记录
-			if err := saveReactionToDBGorm(tx, rlist, req.Display, newStatus, &groupID, reaction.CreatedBy); err != nil {
+			if err := saveReactionToDBGorm(tx, rlist, req.Display, newStatus, &groupID, reaction.CreatedByUID); err != nil {
 				return err
 			}
 
@@ -648,12 +648,12 @@ func saveReactionToDBGorm(tx *gorm.DB, reactants []string, display, status strin
 				continue
 			}
 			reactions = append(reactions, database.Reaction{
-				Reactants: uniqueReactants[i],
-				Products:  uniqueReactants[j],
-				Display:   display,
-				Status:    status,
-				GroupID:   groupID,
-				CreatedBy: creatorID,
+				Reactants:    uniqueReactants[i],
+				Products:     uniqueReactants[j],
+				Display:      display,
+				Status:       status,
+				GroupID:      groupID,
+				CreatedByUID: creatorID,
 			})
 		}
 	}
@@ -1024,7 +1024,7 @@ func GetSubstances(c *gin.Context) {
 			"name":         s.Name,
 			"elements":     s.Elements,
 			"status":       s.Status,
-			"created_by":   s.CreatedBy,
+			"created_by":   s.CreatedByUID,
 			"creator_name": s.CreatorName,
 			"created_at":   s.CreatedAt,
 		})
@@ -1060,12 +1060,12 @@ func AddSubstance(c *gin.Context) {
 	}
 
 	substance := &database.Substance{
-		Name:        req.Name,
-		Formula:     req.Formula,
-		Elements:    elementsStr,
-		Description: req.Formula,
-		Status:      status,
-		CreatedBy:   uint(uid),
+		Name:         req.Name,
+		Formula:      req.Formula,
+		Elements:     elementsStr,
+		Description:  req.Formula,
+		Status:       status,
+		CreatedByUID: uint(uid),
 	}
 
 	err := substanceRepo.Create(substance)

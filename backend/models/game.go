@@ -22,20 +22,20 @@ type DeckConfig struct {
 
 // 游戏房间
 type Room struct {
-	ID           string      `json:"id"`
-	Name         string      `json:"name"`
-	HostUID      int         `json:"host_uid"`
-	HostUsername string      `json:"host_username"`
-	Players      []int       `json:"players"`
-	Spectators   []int       `json:"spectators"`
-	MaxPlayers   int         `json:"max_players"`
-	DeckConfig   *DeckConfig `json:"deck_config"`
-	Status       string      `json:"status"` // "waiting", "playing", "finished"
-	IsPointsMode bool        `json:"is_points_mode"`
-	IsDuel       bool        `json:"is_duel"`       // 是否是单挑模式
-	ChallengerID int         `json:"challenger_id"` // 发起者 UID
-	TargetID     int         `json:"target_id"`     // 被挑战者 UID
-	CreatedAt    time.Time   `json:"created_at"`
+	ID            string      `json:"id"`
+	Name          string      `json:"name"`
+	HostUID       int         `json:"host_uid"`
+	HostUsername  string      `json:"host_username"`
+	Players       []int       `json:"players"`
+	Spectators    []int       `json:"spectators"`
+	MaxPlayers    int         `json:"max_players"`
+	DeckConfig    *DeckConfig `json:"deck_config"`
+	Status        string      `json:"status"` // "waiting", "playing", "finished"
+	IsPointsMode  bool        `json:"is_points_mode"`
+	IsDuel        bool        `json:"is_duel"`        // 是否是单挑模式
+	ChallengerUID int         `json:"challenger_uid"` // 发起者 UID
+	TargetUID     int         `json:"target_uid"`     // 被挑战者 UID
+	CreatedAt     time.Time   `json:"created_at"`
 }
 
 // 游戏状态

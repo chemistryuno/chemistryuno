@@ -13,8 +13,8 @@ import (
 func SendFriendRequest(c *gin.Context) {
 	uid := c.GetInt("uid")
 	var req struct {
-		FriendID uint   `json:"friend_id" binding:"required"`
-		Message  string `json:"message"`
+		FriendUID uint   `json:"friend_uid" binding:"required"`
+		Message   string `json:"message"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -22,12 +22,12 @@ func SendFriendRequest(c *gin.Context) {
 		return
 	}
 
-	if uint(uid) == req.FriendID {
+	if uint(uid) == req.FriendUID {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "不能添加自己为好友"})
 		return
 	}
 
-	err := repository.FriendshipRepo.CreateRequest(uint(uid), req.FriendID, req.Message)
+	err := repository.FriendshipRepo.CreateRequest(uint(uid), req.FriendUID, req.Message)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "发送请求失败"})
 		return
@@ -35,7 +35,7 @@ func SendFriendRequest(c *gin.Context) {
 
 	// 尝试通知目标用户有新的好友请求
 	if websocket.GlobalHub != nil {
-		websocket.GlobalHub.SendToUser(int(req.FriendID), websocket.Message{
+		websocket.GlobalHub.SendToUser(int(req.FriendUID), websocket.Message{
 			Type: "friend_request",
 			Data: map[string]interface{}{
 				"from_uid": uid,
@@ -58,7 +58,7 @@ func GetPendingRequests(c *gin.Context) {
 	// 统一返回格式，方便前端展示是谁发来的
 	type Response struct {
 		ID           uint   `json:"id"`
-		UserID       uint   `json:"user_id"`
+		UserUID      uint   `json:"user_uid"`
 		Username     string `json:"username"`
 		Nickname     string `json:"nickname"`
 		Avatar       string `json:"avatar"`
@@ -76,7 +76,7 @@ func GetPendingRequests(c *gin.Context) {
 		}
 		res = append(res, Response{
 			ID:           r.ID,
-			UserID:       r.UserID,
+			UserUID:      r.UserUID,
 			Username:     username,
 			Nickname:     nickname,
 			Avatar:       avatar,
@@ -102,7 +102,7 @@ func HandleFriendRequest(c *gin.Context) {
 
 	// 验证请求是否属于该用户
 	f, err := repository.FriendshipRepo.GetFriendshipByID(req.RequestID)
-	if err != nil || f.FriendID != uint(uid) {
+	if err != nil || f.FriendUID != uint(uid) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "无权操作此请求"})
 		return
 	}
@@ -120,7 +120,7 @@ func HandleFriendRequest(c *gin.Context) {
 
 	// 尝试通过 WebSocket 通知对方
 	if websocket.GlobalHub != nil {
-		websocket.GlobalHub.SendToUser(int(f.UserID), websocket.Message{
+		websocket.GlobalHub.SendToUser(int(f.UserUID), websocket.Message{
 			Type: "friend_request_handled",
 			Data: map[string]interface{}{
 				"id":     req.RequestID,
@@ -163,14 +163,14 @@ func GetFriendsList(c *gin.Context) {
 // DeleteFriend 删除好友
 func DeleteFriend(c *gin.Context) {
 	uid := c.GetInt("uid")
-	friendIDStr := c.Param("id")
-	friendID, err := strconv.ParseUint(friendIDStr, 10, 32)
+	friendUIDStr := c.Param("id")
+	friendUID, err := strconv.ParseUint(friendUIDStr, 10, 32)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的好友ID"})
 		return
 	}
 
-	err = repository.FriendshipRepo.DeleteFriendship(uint(uid), uint(friendID))
+	err = repository.FriendshipRepo.DeleteFriendship(uint(uid), uint(friendUID))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "删除好友失败"})
 		return

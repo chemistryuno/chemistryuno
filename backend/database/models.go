@@ -144,15 +144,15 @@ func (WebAuthnCredential) TableName() string {
 // Friendship GORM模型 - 好友关系表
 type Friendship struct {
 	ID           uint      `gorm:"primaryKey;autoIncrement" json:"id"`
-	UserID       uint      `gorm:"not null;index:idx_friendship" json:"user_id"`   // 发起方
-	FriendID     uint      `gorm:"not null;index:idx_friendship" json:"friend_id"` // 接收方
-	Status       string    `gorm:"default:pending;size:20" json:"status"`          // pending, accepted, declined
-	HelloMessage string    `gorm:"size:255" json:"hello_message"`                  // 发时附带的消息
+	UserUID      uint      `gorm:"not null;index:idx_friendship" json:"user_uid"`   // 发起方
+	FriendUID    uint      `gorm:"not null;index:idx_friendship" json:"friend_uid"` // 接收方
+	Status       string    `gorm:"default:pending;size:20" json:"status"`           // pending, accepted, declined
+	HelloMessage string    `gorm:"size:255" json:"hello_message"`                   // 发时附带的消息
 	CreatedAt    time.Time `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt    time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 
-	User   User `gorm:"foreignKey:UserID" json:"-"`
-	Friend User `gorm:"foreignKey:FriendID" json:"friend"`
+	User   User `gorm:"foreignKey:UserUID" json:"-"`
+	Friend User `gorm:"foreignKey:FriendUID" json:"friend"`
 }
 
 func (Friendship) TableName() string {
@@ -161,17 +161,17 @@ func (Friendship) TableName() string {
 
 // Reaction GORM模型 - 化学反应表
 type Reaction struct {
-	ID          uint       `gorm:"primaryKey;autoIncrement" json:"id"`
-	Reactants   string     `gorm:"not null;size:500" json:"reactants"`
-	Products    string     `gorm:"not null;size:500" json:"products"`
-	Display     string     `gorm:"size:1000" json:"display"`
-	CreatedBy   uint       `gorm:"not null" json:"created_by"`
-	Status      string     `gorm:"default:pending;size:20" json:"status"`
-	Bidirection bool       `gorm:"default:false" json:"bidirection"`
-	GroupID     *uint      `gorm:"index" json:"group_id"`
-	SubmittedAt time.Time  `gorm:"autoCreateTime" json:"submitted_at"`
-	ApprovedAt  *time.Time `json:"approved_at"`
-	CreatedAt   time.Time  `gorm:"autoCreateTime" json:"created_at"`
+	ID           uint       `gorm:"primaryKey;autoIncrement" json:"id"`
+	Reactants    string     `gorm:"not null;size:500" json:"reactants"`
+	Products     string     `gorm:"not null;size:500" json:"products"`
+	Display      string     `gorm:"size:1000" json:"display"`
+	CreatedByUID uint       `gorm:"not null" json:"created_by_uid"`
+	Status       string     `gorm:"default:pending;size:20" json:"status"`
+	Bidirection  bool       `gorm:"default:false" json:"bidirection"`
+	GroupID      *uint      `gorm:"index" json:"group_id"`
+	SubmittedAt  time.Time  `gorm:"autoCreateTime" json:"submitted_at"`
+	ApprovedAt   *time.Time `json:"approved_at"`
+	CreatedAt    time.Time  `gorm:"autoCreateTime" json:"created_at"`
 }
 
 func (Reaction) TableName() string {
@@ -180,16 +180,16 @@ func (Reaction) TableName() string {
 
 // Substance GORM模型 - 化学物质表
 type Substance struct {
-	ID          uint       `gorm:"primaryKey;autoIncrement" json:"id"`
-	Name        string     `gorm:"not null;unique;size:255" json:"name"`
-	Description string     `gorm:"type:text" json:"description"`
-	Formula     string     `gorm:"size:255" json:"formula"`
-	Elements    string     `gorm:"size:500" json:"elements"`
-	CreatedBy   uint       `gorm:"not null" json:"created_by"`
-	Status      string     `gorm:"default:pending;size:20" json:"status"`
-	SubmittedAt time.Time  `gorm:"autoCreateTime" json:"submitted_at"`
-	ApprovedAt  *time.Time `json:"approved_at"`
-	CreatedAt   time.Time  `gorm:"autoCreateTime" json:"created_at"`
+	ID           uint       `gorm:"primaryKey;autoIncrement" json:"id"`
+	Name         string     `gorm:"not null;unique;size:255" json:"name"`
+	Description  string     `gorm:"type:text" json:"description"`
+	Formula      string     `gorm:"size:255" json:"formula"`
+	Elements     string     `gorm:"size:500" json:"elements"`
+	CreatedByUID uint       `gorm:"not null" json:"created_by_uid"`
+	Status       string     `gorm:"default:pending;size:20" json:"status"`
+	SubmittedAt  time.Time  `gorm:"autoCreateTime" json:"submitted_at"`
+	ApprovedAt   *time.Time `json:"approved_at"`
+	CreatedAt    time.Time  `gorm:"autoCreateTime" json:"created_at"`
 }
 
 func (Substance) TableName() string {
@@ -203,7 +203,7 @@ type Feedback struct {
 	Type           string     `gorm:"not null;size:20" json:"type"`
 	Content        string     `gorm:"not null;type:text" json:"content"`
 	Status         string     `gorm:"default:pending;size:20" json:"status"`
-	ProcessedBy    *uint      `json:"processed_by"`
+	ProcessedByUID *uint      `json:"processed_by_uid"`
 	ProcessedAt    *time.Time `json:"processed_at"`
 	LastUrgedAt    *time.Time `json:"last_urged_at"`
 	UrgeCount      int        `gorm:"default:0" json:"urge_count"`
@@ -222,7 +222,7 @@ type DeckConfig struct {
 	Name         string    `gorm:"not null;size:100" json:"name"`
 	Cards        JSON      `gorm:"not null;type:text" json:"cards"`
 	InitialCards int       `gorm:"default:10" json:"initial_cards"`
-	CreatedBy    uint      `gorm:"not null;index" json:"created_by"`
+	CreatedByUID uint      `gorm:"not null;index" json:"created_by_uid"`
 	IsGlobal     bool      `gorm:"default:false" json:"is_global"`
 	CreatedAt    time.Time `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt    time.Time `gorm:"autoUpdateTime" json:"updated_at"`

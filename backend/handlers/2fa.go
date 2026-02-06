@@ -69,7 +69,7 @@ func Enable2FA(c *gin.Context) {
 	}
 
 	userRepo := repository.NewUserRepository()
-	user, err := userRepo.FindByID(uint(uid))
+	user, err := userRepo.FindByUID(uint(uid))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取用户信息失败"})
 		return
@@ -121,7 +121,7 @@ func Disable2FA(c *gin.Context) {
 	}
 
 	userRepo := repository.NewUserRepository()
-	user, err := userRepo.FindByID(uint(uid))
+	user, err := userRepo.FindByUID(uint(uid))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取2FA密钥失败"})
 		return
@@ -160,7 +160,7 @@ func Verify2FALogin(c *gin.Context) {
 	}
 
 	userRepo := repository.NewUserRepository()
-	dbUser, err := userRepo.FindByID(uint(req.UID))
+	dbUser, err := userRepo.FindByUID(uint(req.UID))
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "用户不存在"})
 		return

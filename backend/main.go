@@ -202,7 +202,7 @@ func main() {
 			auth.GET("/friends/pending", handlers.GetPendingRequests)
 			auth.POST("/friends/handle", handlers.HandleFriendRequest)
 			auth.GET("/friends", handlers.GetFriendsList)
-			auth.DELETE("/friends/:id", handlers.DeleteFriend)
+			auth.DELETE("/friends/:uid", handlers.DeleteFriend)
 
 			// 游戏相关
 			auth.GET("/rooms", handlers.GetRooms)
@@ -249,9 +249,9 @@ func main() {
 		{
 			admin.GET("/users", handlers.GetAllUsers)
 			admin.POST("/users", handlers.CreateUser)
-			admin.DELETE("/users/:id", handlers.DeleteUser)
-			admin.PUT("/users/:id/password", handlers.AdminChangePassword)
-			admin.PUT("/users/:id/role", handlers.PromoteUser)
+			admin.DELETE("/users/:uid", handlers.DeleteUser)
+			admin.PUT("/users/:uid/password", handlers.AdminChangePassword)
+			admin.PUT("/users/:uid/role", handlers.PromoteUser)
 			admin.POST("/users/ban", handlers.BanUser)
 			admin.POST("/rooms/kick", handlers.KickPlayer)
 			admin.GET("/deck-config", handlers.GetGlobalDeckConfig)
@@ -362,7 +362,7 @@ func handleWebSocket(c *gin.Context) {
 	// 获取用户头像和昵称
 	avatar := "🧪"
 	nickname := username
-	if user, err := repository.UserRepo.FindByID(uint(uid)); err == nil {
+	if user, err := repository.UserRepo.FindByUID(uint(uid)); err == nil {
 		avatar = user.Avatar
 		nickname = user.Nickname
 	}

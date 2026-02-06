@@ -108,7 +108,7 @@ func GetMyGameHistory(c *gin.Context) {
 		return
 	}
 
-	history, err := repository.GameRepo.FindByUserID(uint(uid))
+	history, err := repository.GameRepo.FindByUserUID(uint(uid))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误: " + err.Error()})
 		return
@@ -297,7 +297,7 @@ func InitiateDuel(c *gin.Context) {
 	}
 
 	// 获取目标用户名
-	user, err := repository.UserRepo.FindByID(uint(req.TargetUID))
+	user, err := repository.UserRepo.FindByUID(uint(req.TargetUID))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "目标用户不存在"})
 		return
@@ -370,7 +370,7 @@ func RespondToDuel(c *gin.Context) {
 
 	// 获取挑战者名称
 	var challengerName string
-	if user, err := repository.UserRepo.FindByID(uint(challengerUID)); err == nil {
+	if user, err := repository.UserRepo.FindByUID(uint(challengerUID)); err == nil {
 		challengerName = user.Username
 	}
 

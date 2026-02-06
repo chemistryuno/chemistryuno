@@ -91,7 +91,7 @@ func UpdateFeedbackStatus(c *gin.Context) {
 // GetMyFeedbacks 返回当前用户的反馈列表
 func GetMyFeedbacks(c *gin.Context) {
 	uid := c.GetInt("uid")
-	feedbacks, err := repository.FeedbackRepo.FindByUserID(uint(uid))
+	feedbacks, err := repository.FeedbackRepo.FindByUserUID(uint(uid))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取反馈失败"})
 		return

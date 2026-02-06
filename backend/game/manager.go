@@ -185,20 +185,20 @@ func StartDuel(challengerUID int, challengerName string, targetUID int, targetNa
 
 	roomID := fmt.Sprintf("duel_%d_%d", time.Now().Unix(), rand.Intn(1000))
 	room := &models.Room{
-		ID:           roomID,
-		Name:         fmt.Sprintf("Duel: %s VS %s", challengerName, targetName),
-		HostUID:      challengerUID,
-		HostUsername: challengerName,
-		Players:      []int{challengerUID, targetUID},
-		Spectators:   []int{},
-		MaxPlayers:   2,
-		DeckConfig:   &deckConfig,
-		Status:       "waiting",
-		IsPointsMode: true, // 单挑默认积分模式
-		IsDuel:       true,
-		ChallengerID: challengerUID,
-		TargetID:     targetUID,
-		CreatedAt:    time.Now(),
+		ID:            roomID,
+		Name:          fmt.Sprintf("Duel: %s VS %s", challengerName, targetName),
+		HostUID:       challengerUID,
+		HostUsername:  challengerName,
+		Players:       []int{challengerUID, targetUID},
+		Spectators:    []int{},
+		MaxPlayers:    2,
+		DeckConfig:    &deckConfig,
+		Status:        "waiting",
+		IsPointsMode:  true, // 单挑默认积分模式
+		IsDuel:        true,
+		ChallengerUID: challengerUID,
+		TargetUID:     targetUID,
+		CreatedAt:     time.Now(),
 	}
 
 	gameRoom := &GameRoom{
@@ -284,13 +284,13 @@ func handlePointsCalculation(gr *GameRoom) {
 			continue
 		}
 		for _, bounty := range bounties {
-			if gr.Room.IsDuel && targetUID == gr.Room.TargetID {
+			if gr.Room.IsDuel && targetUID == gr.Room.TargetUID {
 				// 单挑模式特别处理
-				if winnerUID == gr.Room.ChallengerID {
+				if winnerUID == gr.Room.ChallengerUID {
 					// 发起者赢：获得全部悬赏
 					totalBountyForWinner += bounty.Amount
 					repository.BountyRepo.UpdateStatus(bounty.ID, "claimed")
-				} else if winnerUID == gr.Room.TargetID {
+				} else if winnerUID == gr.Room.TargetUID {
 					// 被挑战者赢：获得一半悬赏
 					reward := bounty.Amount / 2
 					totalBountyForWinner += reward
@@ -736,7 +736,7 @@ func StartGame(roomID string, uid int) error {
 
 	// 初始化玩家
 	for _, pid := range shuffledPlayers {
-		user, _ := repository.UserRepo.FindByID(uint(pid))
+		user, _ := repository.UserRepo.FindByUID(uint(pid))
 		username := user.Username
 		avatar := user.Avatar
 
@@ -802,7 +802,7 @@ func GetRoomState(roomID string, uid int) (map[string]interface{}, error) {
 	// 获取玩家详细信息（用于准备页面）
 	playersInfo := []map[string]interface{}{}
 	for _, pid := range gameRoom.Room.Players {
-		user, err := repository.UserRepo.FindByID(uint(pid))
+		user, err := repository.UserRepo.FindByUID(uint(pid))
 		username := fmt.Sprintf("研究员_%d", pid)
 		avatar := "🧪"
 		if err == nil {

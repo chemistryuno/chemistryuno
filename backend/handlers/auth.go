@@ -259,7 +259,7 @@ func ChangePassword(c *gin.Context) {
 	userRepo := repository.NewUserRepository()
 
 	// 获取用户信息
-	user, err := userRepo.FindByID(uint(uid))
+	user, err := userRepo.FindByUID(uint(uid))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误"})
 		return
@@ -484,7 +484,7 @@ func SendVerificationCode(c *gin.Context) {
 	}
 
 	// 发送邮件
-	subject := "研究所联络验证码"
+	subject := "ChemistryUNO研究所联络验证码"
 	var body string
 	if codeType == "reset" {
 		subject = "研究所凭证找回"
@@ -581,7 +581,7 @@ func ResetPasswordByEmail(c *gin.Context) {
 
 	// 强制登出所有会话
 	sessionRepo := repository.NewSessionRepository()
-	_ = sessionRepo.DeleteByUserID(dbUser.UID)
+	_ = sessionRepo.DeleteByUserUID(dbUser.UID)
 
 	c.JSON(http.StatusOK, gin.H{"message": "密码重置成功，请重新登录"})
 }
@@ -603,7 +603,7 @@ func ChangeEmail(c *gin.Context) {
 	req.NewEmail = strings.ToLower(strings.TrimSpace(req.NewEmail))
 
 	userRepo := repository.NewUserRepository()
-	dbUser, err := userRepo.FindByID(uint(uid))
+	dbUser, err := userRepo.FindByUID(uint(uid))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "账户不存在"})
 		return
@@ -683,7 +683,7 @@ func GetSessions(c *gin.Context) {
 	}
 
 	sessionRepo := repository.NewSessionRepository()
-	sessions, err := sessionRepo.FindByUserID(uint(uid.(int)))
+	sessions, err := sessionRepo.FindByUserUID(uint(uid.(int)))
 	if err != nil {
 		fmt.Printf("查询数据库失败: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "无法加载设备列表"})
@@ -717,7 +717,7 @@ func RevokeSession(c *gin.Context) {
 	}
 
 	sessionRepo := repository.NewSessionRepository()
-	err := sessionRepo.DeleteByIDAndUserID(req.ID, uint(uid))
+	err := sessionRepo.DeleteByIDAndUserUID(req.ID, uint(uid))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "登出失败"})
 		return
@@ -748,7 +748,7 @@ func FreezeAccount(c *gin.Context) {
 
 	// 冻结后强制登出所有当前会话
 	sessionRepo := repository.NewSessionRepository()
-	_ = sessionRepo.DeleteByUserID(uint(uid))
+	_ = sessionRepo.DeleteByUserUID(uint(uid))
 
 	c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("账号已冻结，直到 %s", frozenUntil.Format("2006-01-02 15:04:05"))})
 }
@@ -758,7 +758,7 @@ func GetUserInfo(c *gin.Context) {
 	uid := c.GetInt("uid")
 
 	userRepo := repository.NewUserRepository()
-	user, err := userRepo.FindByID(uint(uid))
+	user, err := userRepo.FindByUID(uint(uid))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
 		return

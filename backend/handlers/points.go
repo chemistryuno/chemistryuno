@@ -1,6 +1,7 @@
 ﻿package handlers
 
 import (
+	"chemistryuno/database"
 	"chemistryuno/repository"
 	"chemistryuno/websocket"
 	"net/http"
@@ -61,7 +62,7 @@ func CreateBounty(c *gin.Context) {
 		return
 	}
 
-	user, err := repository.UserRepo.FindByID(uint(uid))
+	user, err := repository.UserRepo.FindByUID(uint(uid))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
 		return
@@ -80,10 +81,10 @@ func CreateBounty(c *gin.Context) {
 	}
 
 	// 创建悬赏
-	bounty := &repository.Bounty{
+	bounty := &database.Bounty{
 		TargetUID: uint(req.TargetUID),
 		Amount:    req.Amount,
-		CreatedBy: uint(uid),
+		IssuerUID: uint(uid),
 		Status:    "active",
 	}
 	err = repository.BountyRepo.Create(bounty)

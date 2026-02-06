@@ -82,7 +82,7 @@ func InitWebAuthn() {
 // BeginRegistration 开始注册 (需要认证)
 func BeginRegistration(c *gin.Context) {
 	uid := c.GetInt("uid")
-	user, err := repository.UserRepo.FindByID(uint(uid))
+	user, err := repository.UserRepo.FindByUID(uint(uid))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
 		return
@@ -94,7 +94,7 @@ func BeginRegistration(c *gin.Context) {
 		repository.UserRepo.UpdateWebAuthnID(uint(uid), newID)
 	}
 
-	credentials, _ := repository.WebAuthnRepo.FindByUserID(uint(uid))
+	credentials, _ := repository.WebAuthnRepo.FindByUserUID(uint(uid))
 	waUser := &WebAuthnUser{User: user, Credentials: credentials}
 
 	if webAuthn == nil {
@@ -120,7 +120,7 @@ func BeginRegistration(c *gin.Context) {
 // FinishRegistration 完成注册 (需要认证)
 func FinishRegistration(c *gin.Context) {
 	uid := c.GetInt("uid")
-	user, err := repository.UserRepo.FindByID(uint(uid))
+	user, err := repository.UserRepo.FindByUID(uint(uid))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
 		return
@@ -149,7 +149,7 @@ func FinishRegistration(c *gin.Context) {
 		return
 	}
 
-	credentials, _ := repository.WebAuthnRepo.FindByUserID(uint(uid))
+	credentials, _ := repository.WebAuthnRepo.FindByUserUID(uint(uid))
 	waUser := &WebAuthnUser{User: user, Credentials: credentials}
 
 	credential, err := webAuthn.FinishRegistration(waUser, *sessionData, c.Request)
@@ -193,7 +193,7 @@ func BeginLogin(c *gin.Context) {
 	if username != "" {
 		user, err2 := repository.UserRepo.FindByUsername(username)
 		if err2 == nil {
-			credentials, _ := repository.WebAuthnRepo.FindByUserID(uint(user.UID))
+			credentials, _ := repository.WebAuthnRepo.FindByUserUID(uint(user.UID))
 			waUser := &WebAuthnUser{User: user, Credentials: credentials}
 			options, sessionData, err = webAuthn.BeginLogin(waUser)
 		} else {
@@ -274,7 +274,7 @@ func FinishLogin(c *gin.Context) {
 		}
 
 		uid := binary.LittleEndian.Uint64(userHandle)
-		user, err = repository.UserRepo.FindByID(uint(uid))
+		user, err = repository.UserRepo.FindByUID(uint(uid))
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
 			return
@@ -284,7 +284,7 @@ func FinishLogin(c *gin.Context) {
 	// 恢复请求体，供下一次 FinishLogin 使用
 	c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
-	credentials, _ := repository.WebAuthnRepo.FindByUserID(uint(user.UID))
+	credentials, _ := repository.WebAuthnRepo.FindByUserUID(uint(user.UID))
 	if len(credentials) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "该用户未绑定硬件密钥"})
 		return
@@ -365,7 +365,7 @@ func FinishLogin(c *gin.Context) {
 // ListCredentials 列出凭证
 func ListCredentials(c *gin.Context) {
 	uid := c.GetInt("uid")
-	credentials, err := repository.WebAuthnRepo.FindByUserID(uint(uid))
+	credentials, err := repository.WebAuthnRepo.FindByUserUID(uint(uid))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "查询失败"})
 		return

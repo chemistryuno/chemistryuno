@@ -30,8 +30,8 @@ func (r *GameRepository) FindByRoomID(roomID string) ([]database.GameHistory, er
 	return histories, err
 }
 
-// FindByUserID 查找用户的游戏历史
-func (r *GameRepository) FindByUserID(uid uint) ([]database.GameHistory, error) {
+// FindByUserUID 查找用户的游戏历史
+func (r *GameRepository) FindByUserUID(uid uint) ([]database.GameHistory, error) {
 	var histories []database.GameHistory
 	query := r.db.Order("created_at DESC").Limit(50)
 
@@ -58,8 +58,8 @@ func (r *GameRepository) FindAll(limit int) ([]database.GameHistory, error) {
 	return histories, err
 }
 
-// FindRecentByUserID 查找用户最近的游戏历史
-func (r *GameRepository) FindRecentByUserID(uid uint, limit int) ([]database.GameHistory, error) {
+// FindRecentByUserUID 查找用户最近的游戏历史
+func (r *GameRepository) FindRecentByUserUID(uid uint, limit int) ([]database.GameHistory, error) {
 	var histories []database.GameHistory
 	query := r.db.Order("created_at DESC")
 	if limit > 0 {

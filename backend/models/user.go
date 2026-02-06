@@ -108,25 +108,25 @@ type Bounty struct {
 	ID        int       `json:"id" db:"id"`
 	TargetUID int       `json:"target_uid" db:"target_uid"`
 	Amount    int       `json:"amount" db:"amount"`
-	CreatedBy int       `json:"created_by" db:"created_by"`
+	IssuerUID int       `json:"issuer_uid" db:"issuer_uid"`
 	Status    string    `json:"status" db:"status"`
 	CreatedAt time.Time `json:"created_at" db:"created_at"`
 }
 
 type Reaction struct {
-	ID        int       `json:"id" db:"id"`
-	R1        string    `json:"r1" db:"r1"`
-	R2        string    `json:"r2" db:"r2"`
-	Display   string    `json:"display" db:"display"`
-	Status    string    `json:"status" db:"status"`
-	GroupID   string    `json:"group_id" db:"group_id"`
-	CreatedBy int       `json:"created_by" db:"created_by"`
-	CreatedAt time.Time `json:"created_at" db:"created_at"`
+	ID           int       `json:"id" db:"id"`
+	R1           string    `json:"r1" db:"r1"`
+	R2           string    `json:"r2" db:"r2"`
+	Display      string    `json:"display" db:"display"`
+	Status       string    `json:"status" db:"status"`
+	GroupID      string    `json:"group_id" db:"group_id"`
+	CreatedByUID int       `json:"created_by_uid" db:"created_by_uid"`
+	CreatedAt    time.Time `json:"created_at" db:"created_at"`
 }
 
 type Feedback struct {
 	ID             int     `json:"id" db:"id"`
-	UserID         int     `json:"user_id" db:"user_id"`
+	UserUID        int     `json:"user_uid" db:"user_uid"`
 	Username       string  `json:"username"`
 	Content        string  `json:"content" binding:"required"`
 	Type           string  `json:"type" db:"type"`

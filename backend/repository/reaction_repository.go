@@ -109,25 +109,25 @@ func (r *ReactionRepository) CheckDuplicateByR1R2(r1, r2, excludeGroupID string)
 // GetGroupIDAndCreatorByID 根据ID获取group_id和创建者
 func (r *ReactionRepository) GetGroupIDAndCreatorByID(id uint) (*uint, uint, error) {
 	var result struct {
-		GroupID   *uint
-		CreatedBy uint
+		GroupID      *uint
+		CreatedByUID uint
 	}
 	err := r.db.Model(&database.Reaction{}).
-		Select("group_id, created_by").
+		Select("group_id, created_by_uid").
 		Where("id = ?", id).
 		Scan(&result).Error
-	return result.GroupID, result.CreatedBy, err
+	return result.GroupID, result.CreatedByUID, err
 }
 
 // ReactionWithCreator 带创建者信息的反应
 type ReactionWithCreator struct {
-	ID          uint   `json:"id"`
-	Display     string `json:"display"`
-	Status      string `json:"status"`
-	GroupID     *uint  `json:"group_id"`
-	CreatedBy   uint   `json:"created_by"`
-	CreatorName string `json:"creator_name"`
-	CreatedAt   string `json:"created_at"`
+	ID           uint   `json:"id"`
+	Display      string `json:"display"`
+	Status       string `json:"status"`
+	GroupID      *uint  `json:"group_id"`
+	CreatedByUID uint   `json:"created_by_uid"`
+	CreatorName  string `json:"creator_name"`
+	CreatedAt    string `json:"created_at"`
 }
 
 // FindAllGroupedWithCreator 获取所有反应（按组分组，带创建者信息）
@@ -138,8 +138,8 @@ func (r *ReactionRepository) FindAllGroupedWithCreator() ([]ReactionWithCreator,
 	subQuery := r.db.Table("reactions").Select("MIN(id)").Group("group_id")
 
 	err := r.db.Table("reactions").
-		Select("reactions.id, reactions.display, reactions.status, reactions.group_id, reactions.created_by, users.username as creator_name, reactions.created_at").
-		Joins("LEFT JOIN users ON reactions.created_by = users.uid").
+		Select("reactions.id, reactions.display, reactions.status, reactions.group_id, reactions.created_by_uid, users.username as creator_name, reactions.created_at").
+		Joins("LEFT JOIN users ON reactions.created_by_uid = users.uid").
 		Where("reactions.id IN (?)", subQuery).
 		Order("reactions.created_at DESC").
 		Scan(&results).Error
@@ -173,12 +173,12 @@ func (r *ReactionRepository) FindMyReactions(uid uint) ([]ReactionWithCreator, e
 	// 子查询找到该用户每个组的第一条记录
 	subQuery := r.db.Table("reactions").
 		Select("MIN(id)").
-		Where("created_by = ?", uid).
+		Where("created_by_uid = ?", uid).
 		Group("group_id")
 
 	err := r.db.Table("reactions").
 		Select("reactions.id, reactions.display, reactions.status, reactions.created_at").
-		Where("reactions.created_by = ? AND reactions.id IN (?)", uid, subQuery).
+		Where("reactions.created_by_uid = ? AND reactions.id IN (?)", uid, subQuery).
 		Order("reactions.created_at DESC").
 		Scan(&results).Error
 

@@ -19,8 +19,8 @@ func (r *WebAuthnRepository) Create(credential *database.WebAuthnCredential) err
 	return r.db.Create(credential).Error
 }
 
-// FindByUserID 查找用户的所有凭证
-func (r *WebAuthnRepository) FindByUserID(uid uint) ([]database.WebAuthnCredential, error) {
+// FindByUserUID 查找用户的所有凭证
+func (r *WebAuthnRepository) FindByUserUID(uid uint) ([]database.WebAuthnCredential, error) {
 	var credentials []database.WebAuthnCredential
 	err := r.db.Where("user_uid = ?", uid).Find(&credentials).Error
 	return credentials, err
@@ -48,7 +48,7 @@ func (r *WebAuthnRepository) Delete(id string) error {
 	return r.db.Where("id = ?", id).Delete(&database.WebAuthnCredential{}).Error
 }
 
-// DeleteByUserID 删除用户的所有凭证
-func (r *WebAuthnRepository) DeleteByUserID(uid uint) error {
+// DeleteByUserUID 删除用户的所有凭证
+func (r *WebAuthnRepository) DeleteByUserUID(uid uint) error {
 	return r.db.Where("user_uid = ?", uid).Delete(&database.WebAuthnCredential{}).Error
 }

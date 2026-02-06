@@ -61,7 +61,7 @@
                 <Search class="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
                 <input 
                   v-model="searchTerm"
-                  placeholder="搜索研究员 ID 或称号..."
+                  placeholder="搜索研究员 UID 或称号..."
                   class="relative w-full h-12 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-[20px] pl-12 pr-6 text-xs text-slate-700 dark:text-white focus:outline-none focus:border-blue-500/50 transition-all font-medium"
                 />
                 <div v-if="isSearching" class="absolute right-4 top-1/2 -translate-y-1/2">
@@ -165,7 +165,7 @@
                             <span v-if="player.is_online" class="text-[7px] text-emerald-500 font-black uppercase tracking-tighter">Online</span>
                             <span v-if="player.uid === user.uid" class="text-[8px] bg-blue-600 px-1.5 py-0.5 rounded uppercase font-black tracking-widest text-white">You</span>
                           </span>
-                          <span class="text-[8px] font-mono text-slate-400 dark:text-slate-500 uppercase tracking-tighter mt-0.5">ID: {{ player.uid }} | {{ player.username }}</span>
+                          <span class="text-[8px] font-mono text-slate-400 dark:text-slate-500 uppercase tracking-tighter mt-0.5">UID: {{ player.uid }} | {{ player.username }}</span>
                        </div>
                     </div>
                   </td>

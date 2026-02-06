@@ -150,12 +150,12 @@ export const adminAPI = {
     api.get('/admin/users'),
   createUser: (username: string, password: string) =>
     api.post('/admin/users', { username, password }),
-  deleteUser: (userId: string) => 
-    api.delete(`/admin/users/${userId}`),
-  changeUserPassword: (userId: string, newPassword: string) => 
-    api.put(`/admin/users/${userId}/password`, { new_password: newPassword }),
-  promoteUser: (userId: string, role: string) => 
-    api.put(`/admin/users/${userId}/role`, { role }),
+  deleteUser: (uid: string) => 
+    api.delete(`/admin/users/${uid}`),
+  changeUserPassword: (uid: string, newPassword: string) => 
+    api.put(`/admin/users/${uid}/password`, { new_password: newPassword }),
+  promoteUser: (uid: string, role: string) => 
+    api.put(`/admin/users/${uid}/role`, { role }),
   banUser: (targetUID: number, hours: number, reason: string) =>
     api.post('/admin/users/ban', { target_uid: targetUID, hours, reason }),
   kickPlayer: (roomID: string, targetUID: number, reason: string) =>
@@ -227,16 +227,16 @@ export const substanceAPI = {
 
 // 好友系统API
 export const friendAPI = {
-  sendRequest: (friendId: number, message: string = '') =>
-    api.post('/friends/request', { friend_id: friendId, message }),
+  sendRequest: (friendUID: number, message: string = '') =>
+    api.post('/friends/request', { friend_uid: friendUID, message }),
   getPendingRequests: () =>
     api.get('/friends/pending'),
   handleRequest: (requestId: number, action: 'accept' | 'decline') =>
     api.post('/friends/handle', { request_id: requestId, action }),
   getFriends: () =>
     api.get('/friends'),
-  deleteFriend: (friendId: number) =>
-    api.delete(`/friends/${friendId}`),
+  deleteFriend: (friendUID: number) =>
+    api.delete(`/friends/${friendUID}`),
 }
 
 export default api

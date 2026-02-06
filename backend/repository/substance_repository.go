@@ -81,14 +81,14 @@ func (r *SubstanceRepository) FindPending() ([]database.Substance, error) {
 
 // SubstanceWithCreator 物质及创建者信息
 type SubstanceWithCreator struct {
-	ID          uint   `json:"id"`
-	Formula     string `json:"formula"`
-	Name        string `json:"name"`
-	Elements    string `json:"elements"`
-	Status      string `json:"status"`
-	CreatedBy   uint   `json:"created_by"`
-	CreatorName string `json:"creator_name"`
-	CreatedAt   string `json:"created_at"`
+	ID           uint   `json:"id"`
+	Formula      string `json:"formula"`
+	Name         string `json:"name"`
+	Elements     string `json:"elements"`
+	Status       string `json:"status"`
+	CreatedByUID uint   `json:"created_by_uid"`
+	CreatorName  string `json:"creator_name"`
+	CreatedAt    string `json:"created_at"`
 }
 
 // FindAllWithCreator 查找所有物质及创建者信息
@@ -96,8 +96,8 @@ func (r *SubstanceRepository) FindAllWithCreator() ([]SubstanceWithCreator, erro
 	var results []SubstanceWithCreator
 
 	err := r.db.Table("substances").
-		Select("substances.id, substances.formula, substances.name, substances.elements, substances.status, substances.created_by, users.username as creator_name, substances.created_at").
-		Joins("LEFT JOIN users ON substances.created_by = users.uid").
+		Select("substances.id, substances.formula, substances.name, substances.elements, substances.status, substances.created_by_uid, users.username as creator_name, substances.created_at").
+		Joins("LEFT JOIN users ON substances.created_by_uid = users.uid").
 		Order("substances.created_at DESC").
 		Scan(&results).Error
 

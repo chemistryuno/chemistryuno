@@ -333,7 +333,7 @@ const canApprove = (reaction: any) => {
 const canDelete = (reaction: any) => {
   if (user.value.role === 'admin') return true
   if (reaction.status === 'approved') return false // Once approved, only admin can delete
-  return reaction.created_by === user.value.uid
+  return reaction.created_by_uid === user.value.uid
 }
 
 const triggerFileInput = () => {

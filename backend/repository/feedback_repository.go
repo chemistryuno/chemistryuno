@@ -30,8 +30,8 @@ func (r *FeedbackRepository) FindByID(id uint) (*database.Feedback, error) {
 	return &feedback, nil
 }
 
-// FindByUserID 查找用户的所有反馈
-func (r *FeedbackRepository) FindByUserID(uid uint) ([]database.Feedback, error) {
+// FindByUserUID 查找用户的所有反馈
+func (r *FeedbackRepository) FindByUserUID(uid uint) ([]database.Feedback, error) {
 	var feedbacks []database.Feedback
 	err := r.db.Where("user_uid = ?", uid).
 		Order("created_at DESC").
@@ -51,10 +51,10 @@ func (r *FeedbackRepository) UpdateStatus(id uint, status string, processedBy ui
 	now := time.Now()
 	return r.db.Model(&database.Feedback{}).Where("id = ?", id).
 		Updates(map[string]interface{}{
-			"status":          status,
-			"processed_by":    processedBy,
-			"processed_at":    now,
-			"resolution_note": note,
+			"status":           status,
+			"processed_by_uid": processedBy,
+			"processed_at":     now,
+			"resolution_note":  note,
 		}).Error
 }
 

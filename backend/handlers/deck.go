@@ -13,7 +13,7 @@ import (
 func GetMyDecks(c *gin.Context) {
 	uid := c.GetInt("uid")
 	// 获取用户的自定义牌组和全局牌组
-	userDecks, _ := repository.DeckRepo.FindByUserID(uint(uid))
+	userDecks, _ := repository.DeckRepo.FindByUserUID(uint(uid))
 	globalDecks, _ := repository.DeckRepo.FindGlobalDecks()
 
 	var decks []interface{}
@@ -57,7 +57,7 @@ func CreateMyDeck(c *gin.Context) {
 		Name:         req.Name,
 		Cards:        cardsJSON,
 		InitialCards: req.InitialCards,
-		CreatedBy:    uint(uid),
+		CreatedByUID: uint(uid),
 		IsGlobal:     false,
 	}
 
@@ -103,7 +103,7 @@ func UpdateMyDeck(c *gin.Context) {
 	}
 
 	// 检查权限
-	if deck.CreatedBy != uint(uid) {
+	if deck.CreatedByUID != uint(uid) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "无权修改此卡组"})
 		return
 	}
@@ -132,7 +132,7 @@ func DeleteMyDeck(c *gin.Context) {
 	}
 
 	// 检查权限
-	if deck.CreatedBy != uint(uid) {
+	if deck.CreatedByUID != uint(uid) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "无权删除此卡组"})
 		return
 	}

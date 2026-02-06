@@ -166,12 +166,12 @@ const handleDismissFeedback = async (id: number) => {
   }
 }
 
-const handleDeleteUser = async (userId: string) => {
+const handleDeleteUser = async (uid: string) => {
   const confirmed = await showConfirm('确定要永久删除该研究员吗？此操作不可逆！', '⚠️ 危险操作')
   if (!confirmed) return
   
   try {
-    await adminAPI.deleteUser(userId)
+    await adminAPI.deleteUser(uid)
     await showAlert('用户已从实验室数据库抹除', '删除完成')
     loadData()
   } catch (error: any) {
@@ -179,7 +179,7 @@ const handleDeleteUser = async (userId: string) => {
   }
 }
 
-const handleChangePassword = async (userId: string) => {
+const handleChangePassword = async (uid: string) => {
   const newPassword = await showPrompt('请输入新密码（至少6位）:', '输入新密码...', '🔐 修改密码')
   if (!newPassword || newPassword.length < 6) {
     if (newPassword !== null) {
@@ -189,14 +189,14 @@ const handleChangePassword = async (userId: string) => {
   }
   
   try {
-    await adminAPI.changeUserPassword(userId, newPassword)
+    await adminAPI.changeUserPassword(uid, newPassword)
     await showAlert('密码修改成功', '成功')
   } catch (error: any) {
     await showAlert(error.response?.data?.error || '修改密码失败', '错误')
   }
 }
 
-const handlePromoteUser = async (userId: string, currentRole: string) => {
+const handlePromoteUser = async (uid: string, currentRole: string) => {
   const roles = ['user', 'co-worker', 'admin']
   const roleLabels = {
     'user': 'LV.01 STAFF (普通用户)',
@@ -226,7 +226,7 @@ const handlePromoteUser = async (userId: string, currentRole: string) => {
   }
   
   try {
-    await adminAPI.promoteUser(userId, newRole)
+    await adminAPI.promoteUser(uid, newRole)
     await showAlert('用户权限修改成功', '成功')
     loadData()
   } catch (error: any) {

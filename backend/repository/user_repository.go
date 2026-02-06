@@ -18,8 +18,8 @@ func NewUserRepository() *UserRepository {
 	return &UserRepository{db: database.DB}
 }
 
-// FindByID 根据UID查找用户
-func (r *UserRepository) FindByID(uid uint) (*database.User, error) {
+// FindByUID 根据UID查找用户
+func (r *UserRepository) FindByUID(uid uint) (*database.User, error) {
 	var user database.User
 	err := r.db.First(&user, uid).Error
 	if err != nil {
@@ -375,8 +375,8 @@ func (r *UserRepository) UpdateRole(uid uint, role string, isAdmin bool) error {
 		}).Error
 }
 
-// FindIsAdminByID 根据UID查找是否是管理员
-func (r *UserRepository) FindIsAdminByID(uid uint) (bool, error) {
+// FindIsAdminByUID 根据UID查找是否是管理员
+func (r *UserRepository) FindIsAdminByUID(uid uint) (bool, error) {
 	var isAdmin bool
 	err := r.db.Model(&database.User{}).
 		Select("is_admin").

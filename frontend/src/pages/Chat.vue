@@ -15,9 +15,13 @@ const router = useRouter()
 const route = useRoute()
 const { showAlert, showConfirm, showPrompt } = useDialog()
 
-let initialUser = {}
+let initialUser: any = {}
 try {
   initialUser = JSON.parse(localStorage.getItem('user') || '{}')
+  // 兼容旧版本的 id 字段
+  if (initialUser.id && !initialUser.uid) {
+    initialUser.uid = initialUser.id
+  }
 } catch (e) {
   console.error('Failed to parse user in Chat:', e)
 }
@@ -102,27 +106,29 @@ const isFriend = (uid: number) => {
 const fetchFriends = async () => {
   try {
     const res = await friendAPI.getFriends()
-    friends.value = res.data
+    friends.value = res.data || []
     
     // 如果 URL 中有 uid 参数，自动选择该好友
     const targetUid = route.query.uid
     if (targetUid) {
-      const friend = friends.value.find(f => Number(f.uid) === Number(targetUid))
+      const friend = friends.value.find((f: any) => Number(f.uid) === Number(targetUid))
       if (friend) {
         selectChat(friend)
       }
     }
   } catch (err) {
     console.error('获取好友失败', err)
+    friends.value = []
   }
 }
 
 const fetchRequests = async () => {
   try {
     const res = await friendAPI.getPendingRequests()
-    pendingRequests.value = res.data
+    pendingRequests.value = res.data || []
   } catch (err) {
     console.error('获取请求失败', err)
+    pendingRequests.value = []
   }
 }
 
@@ -171,10 +177,12 @@ const scrollToBottom = () => {
 }
 
 const focusSearch = () => {
+  console.log('Chat: Opening search modal')
   showSearchModal.value = true
 }
 
 const openRequestsModal = () => {
+  console.log('Chat: Opening requests modal')
   fetchRequests()
   showRequestsModal.value = true
 }
@@ -501,8 +509,8 @@ const formatTime = (date: Date) => {
     </main>
 
     <!-- 搜索研究员模态框 -->
-    <div v-if="showSearchModal" class="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
-      <div @click.stop class="w-full max-w-xl bg-white dark:bg-[#0f0f12] rounded-[40px] border border-slate-200 dark:border-white/10 shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
+    <div v-if="showSearchModal" @click="showSearchModal = false" class="fixed inset-0 z-[140] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm">
+      <div @click.stop class="w-full max-w-xl bg-white dark:bg-[#0f0f12] rounded-[40px] border border-slate-200 dark:border-white/10 shadow-2xl flex flex-col overflow-hidden">
         <div class="p-8 border-b border-slate-100 dark:border-white/5 flex items-center justify-between">
           <div>
             <h3 class="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tighter flex items-center gap-2">
@@ -596,8 +604,8 @@ const formatTime = (date: Date) => {
     </div>
 
     <!-- 好友请求模态框 -->
-    <div v-if="showRequestsModal" @click="showRequestsModal = false" class="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
-      <div @click.stop class="w-full max-w-xl bg-white dark:bg-[#0f0f12] rounded-[40px] border border-slate-200 dark:border-white/10 shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
+    <div v-if="showRequestsModal" @click="showRequestsModal = false" class="fixed inset-0 z-[150] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm">
+      <div @click.stop class="w-full max-w-xl bg-white dark:bg-[#0f0f12] rounded-[40px] border border-slate-200 dark:border-white/10 shadow-2xl flex flex-col overflow-hidden">
         <div class="p-8 border-b border-slate-100 dark:border-white/5 flex items-center justify-between">
           <div>
             <h3 class="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tighter flex items-center gap-2">

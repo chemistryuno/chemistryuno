@@ -247,9 +247,10 @@ func ChangePassword(c *gin.Context) {
 	uid := c.GetInt("uid")
 
 	var req struct {
-		Code        string `json:"code"` // Changed from OldPassword to Code (optional if 2FA not enabled)
-		OldPassword string `json:"old_password"`
+		Code        string `json:"code"`         // 2FA 或 邮箱验证码
+		OldPassword string `json:"old_password"` // 旧密码 (当没配置2FA且没使用邮箱验证时使用，作为备选)
 		NewPassword string `json:"new_password" binding:"required,min=6"`
+		UseEmail    bool   `json:"use_email"` // 是否使用邮箱验证模式
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -265,9 +266,23 @@ func ChangePassword(c *gin.Context) {
 		return
 	}
 
-	// 验证逻辑
-	if user.TwoFactorEnabled {
-		// 如果开启了2FA，强制使用2FA验证码重置密码，不校验旧密码
+	// 验证逻辑优先顺序: 邮箱验证码 > 2FA > 旧密码
+	if req.UseEmail {
+		if req.Code == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "请提供邮箱验证码"})
+			return
+		}
+		// 验证邮箱码
+		var vCode database.VerificationCode
+		err := database.DB.Where("email = ? AND code = ? AND type = ? AND expires_at > ?", user.Email, req.Code, "change_password", time.Now()).Order("created_at desc").First(&vCode).Error
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "验证码错误或已过期"})
+			return
+		}
+		// 验证成功，删除验证码
+		database.DB.Delete(&vCode)
+	} else if user.TwoFactorEnabled {
+		// 如果开启了2FA且没选择邮箱验证，强制使用2FA
 		if req.Code == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "请提供 2FA 验证码以授权密码修改"})
 			return
@@ -282,7 +297,11 @@ func ChangePassword(c *gin.Context) {
 			return
 		}
 	} else {
-		// 如果未开启2FA，仍然使用旧密码验证（作为兜底）
+		// 传统模式：要求旧密码
+		if req.OldPassword == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "请提供当前密码或选择邮箱验证"})
+			return
+		}
 		if !utils.CheckPassword(req.OldPassword, user.Password) {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "当前密码错误"})
 			return
@@ -434,8 +453,8 @@ func SendVerificationCode(c *gin.Context) {
 		return
 	}
 
-	// 如果是重置密码，检查用户是否存在
-	if codeType == "reset" {
+	// 如果是重置密码或修改密码，检查用户是否存在
+	if codeType == "reset" || codeType == "change_password" {
 		userRepo := repository.NewUserRepository()
 		exists, err := userRepo.ExistsByEmail(req.Email)
 		if err != nil || !exists {
@@ -494,6 +513,16 @@ func SendVerificationCode(c *gin.Context) {
 				<p>您正在申请重置化学研究所账号的访问凭证，验证码为：</p>
 				<h1 style="color: #e11d48; letter-spacing: 5px;">%s</h1>
 				<p>该验证码将在 10 分钟后过期。如非本人操作，请立刻检查账号安全。</p>
+			</div>
+		`, code)
+	} else if codeType == "change_password" {
+		subject = "研究所安全验证码"
+		body = fmt.Sprintf(`
+			<div style="padding: 20px; font-family: sans-serif;">
+				<h2>安全变更授权</h2>
+				<p>您正在尝试修改化学研究所账号的通行密钥，验证码为：</p>
+				<h1 style="color: #2563eb; letter-spacing: 5px;">%s</h1>
+				<p>为了保障您的数据安全，请在 10 分钟内完成操作。如非本人操作，请忽略此邮件。</p>
 			</div>
 		`, code)
 	} else if codeType == "change_email_old" {

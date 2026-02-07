@@ -116,6 +116,32 @@ func (r *UserRepository) FindByMicrosoftID(microsoftID string) (*database.User, 
 	return &user, nil
 }
 
+// FindByGoogleID 根据 Google ID 查找用户
+func (r *UserRepository) FindByGoogleID(googleID string) (*database.User, error) {
+	var user database.User
+	err := r.db.Where("google_id = ?", googleID).First(&user).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &user, nil
+}
+
+// FindByAppleID 根据 Apple ID 查找用户
+func (r *UserRepository) FindByAppleID(appleID string) (*database.User, error) {
+	var user database.User
+	err := r.db.Where("apple_id = ?", appleID).First(&user).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &user, nil
+}
+
 // Create 创建新用户
 func (r *UserRepository) Create(user *database.User) error {
 	return r.db.Create(user).Error

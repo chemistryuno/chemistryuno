@@ -152,6 +152,11 @@ func main() {
 			authGroup.GET("/github/callback", handlers.GitHubCallback)
 			authGroup.GET("/ms/login", handlers.MicrosoftLogin)
 			authGroup.GET("/ms/callback", handlers.MicrosoftCallback)
+			authGroup.GET("/google/login", handlers.GoogleLogin)
+			authGroup.GET("/google/callback", handlers.GoogleCallback)
+			authGroup.GET("/apple/login", handlers.AppleLogin)
+			authGroup.POST("/apple/callback", handlers.AppleCallback)
+			authGroup.GET("/apple/callback", handlers.AppleCallback)
 		}
 
 		api.GET("/announcements", handlers.GetActiveAnnouncements)
@@ -163,6 +168,8 @@ func main() {
 			// OAuth 绑定
 			auth.GET("/auth/github/bind", handlers.GitHubLogin)
 			auth.GET("/auth/ms/bind", handlers.MicrosoftLogin)
+			auth.GET("/auth/google/bind", handlers.GoogleLogin)
+			auth.GET("/auth/apple/bind", handlers.AppleLogin)
 			auth.POST("/auth/oauth/unbind", handlers.UnbindOAuth)
 
 			// 用户相关

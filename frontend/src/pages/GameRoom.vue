@@ -63,6 +63,7 @@ const handleToggleReady = async () => {
   try {
     await gameAPI.ready(id)
     // 状态也会通过 WebSocket 更新，但手动标记一下提高体验
+    await loadGameState(true)
   } catch (error: any) {
     // 恢复状态
     if (isCurrentlyReady) {
@@ -302,7 +303,7 @@ const handleGameUpdate = (message: any) => {
     }
   } else {
     // 如果收到的是房间ID字符串，则重新拉取完整状态
-    loadGameState().then(() => {
+    loadGameState(true).then(() => {
       if (isMyTurn.value) {
         fetchTurnSubstances()
       }
@@ -333,10 +334,12 @@ const handleChatNotify = () => {
   }
 }
 
-const loadGameState = async () => {
+const loadGameState = async (silent = false) => {
   if (isRedirecting.value) return
   try {
-    loading.value = true
+    if (!silent && !roomInfo.value) {
+      loading.value = true
+    }
     const response = await gameAPI.getRoomState(id)
     const data = response.data
     
@@ -389,8 +392,8 @@ onMounted(() => {
   loadGameState().then(() => {
     websocket.joinRoom(id)
     websocket.on('game_update', handleGameUpdate)
-    websocket.on('player_joined', loadGameState)
-    websocket.on('player_left', loadGameState)
+    websocket.on('player_joined', () => loadGameState(true))
+    websocket.on('player_left', () => loadGameState(true))
     websocket.on('action_toast', handleActionToast)
     websocket.on('room_terminated', handleRoomTerminated)
     websocket.on('player_kicked', handlePlayerKicked)
@@ -1026,7 +1029,13 @@ onMounted(() => {
                 <div class="w-24 h-24 sm:w-32 sm:h-32 rounded-[32px] sm:rounded-[40px] border-4 border-dashed border-blue-500/30 flex items-center justify-center rotate-45 group hover:rotate-0 transition-all duration-700">
                    <FlaskConical class="w-10 h-10 sm:w-14 sm:h-14 text-blue-500/40 -rotate-45 group-hover:rotate-0 transition-all" />
                 </div>
-                <div v-if="roomInfo?.countdown > 0" class="absolute -top-3 -right-3 bg-red-500 text-white px-4 py-1.5 rounded-xl text-lg font-black shadow-lg animate-bounce">
+                <div v-if="roomInfo?.countdown > 0" class="absolute inset-0 flex items-center justify-center z-50 pointer-events-none">
+                   <div class="scale-[3] sm:scale-[5] opacity-20 font-black italic select-none animate-ping text-blue-500">
+                      {{ roomInfo.countdown }}
+                   </div>
+                </div>
+
+                <div v-if="roomInfo?.countdown > 0" class="absolute -top-3 -right-3 bg-red-500 text-white px-4 py-1.5 rounded-xl text-lg font-black shadow-lg animate-bounce z-10">
                    {{ roomInfo.countdown }}
                 </div>
                 <div v-else class="absolute -top-3 -right-3 bg-amber-500 text-white px-3 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest shadow-lg animate-pulse">
@@ -1054,9 +1063,14 @@ onMounted(() => {
                   </button>
 
                   <!-- Countdown Tip -->
-                  <p v-if="roomInfo?.countdown > 0" class="text-[8px] font-black uppercase tracking-[0.2em] text-blue-500 animate-pulse mt-2">
-                    实验室压力充盈中，即将开启研究循环...
-                  </p>
+                  <div v-if="roomInfo?.countdown > 0" class="flex flex-col items-center gap-1 mt-2">
+                    <p class="text-[10px] font-black uppercase tracking-[0.2em] text-blue-500 animate-pulse">
+                      实验即将开始: <span class="text-lg">{{ roomInfo.countdown }}</span>S
+                    </p>
+                    <p class="text-[7px] font-bold text-slate-400 dark:text-slate-600 uppercase tracking-tighter italic">
+                      实验室压力充盈中，即将开启研究循环...
+                    </p>
+                  </div>
                 </div>
 
                 <div class="flex flex-col items-center gap-3 bg-white/50 dark:bg-white/5 backdrop-blur-xl p-4 sm:p-5 rounded-[24px] border border-slate-200 dark:border-white/10 shadow-sm w-full max-w-sm">

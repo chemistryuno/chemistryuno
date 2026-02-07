@@ -51,14 +51,15 @@ func EnsureJWTSecret() error {
 		contentExists = true
 	}
 
-	contentStr := string(content)
+	contentStr := strings.ReplaceAll(string(content), "\r\n", "\n")
 	lines := strings.Split(contentStr, "\n")
 	found := false
 	hasValidSecret := false
 
 	// 查找JWT_SECRET行
-	for _, line := range lines {
+	for i, line := range lines {
 		trimmed := strings.TrimSpace(line)
+		lines[i] = trimmed // 顺便清理所有行的首尾空格
 		if strings.HasPrefix(trimmed, "JWT_SECRET=") {
 			// 检查是否有有效的密钥值
 			parts := strings.SplitN(trimmed, "=", 2)

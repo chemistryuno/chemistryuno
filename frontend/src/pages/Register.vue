@@ -3,7 +3,8 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { authAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
-import { Lock, User, FlaskConical, ShieldCheck, Zap, Loader2, Key, Mail, Send } from 'lucide-vue-next'
+import { Lock, User, FlaskConical, ShieldCheck, Zap, Loader2, Key, Mail, Send, Github, Globe, Chrome, Apple } from 'lucide-vue-next'
+import websocket from '../utils/websocket'
 
 const username = ref('')
 const email = ref('')
@@ -17,7 +18,8 @@ const codeLoading = ref(false)
 const smtpEnabled = ref(false)
 const countdown = ref(0)
 const router = useRouter()
-const { showAlert } = useDialog()
+const dialog = useDialog()
+const { showAlert } = dialog
 
 onMounted(async () => {
   try {
@@ -27,6 +29,47 @@ onMounted(async () => {
     console.error('获取配置失败', err)
   }
 })
+
+const handleLoginSuccess = (token: string, user: any) => {
+  localStorage.setItem('token', token)
+  localStorage.setItem('user', JSON.stringify(user))
+  websocket.connect()
+  router.push('/')
+}
+
+const handleOAuthLogin = (provider: 'github' | 'ms' | 'google' | 'apple') => {
+  loading.value = true
+  error.value = ''
+  
+  const width = 600
+  const height = 700
+  const left = window.screen.width / 2 - width / 2
+  const top = window.screen.height / 2 - height / 2
+  
+  const url = `${import.meta.env.VITE_API_BASE_URL || '/api'}/auth/${provider}/login`
+  const popup = window.open(url, 'OAuth Login', `width=${width},height=${height},left=${left},top=${top}`)
+  
+  if (!popup) {
+    loading.value = false
+    showAlert('弹出窗口被拦截，请允许弹出窗口后重试。', '拦截提示')
+    return
+  }
+
+  const messageHandler = (event: MessageEvent) => {
+    if (event.data.type === 'oauth-success') {
+      window.removeEventListener('message', messageHandler)
+      const { token, user } = event.data
+      handleLoginSuccess(token, user)
+      loading.value = false
+    } else if (event.data.type === 'oauth-error') {
+      window.removeEventListener('message', messageHandler)
+      error.value = event.data.error || '授权失败'
+      loading.value = false
+    }
+  }
+  
+  window.addEventListener('message', messageHandler)
+}
 
 const handleSendCode = async () => {
   if (!email.value || !email.value.includes('@')) {
@@ -216,6 +259,51 @@ const handleSubmit = async () => {
                 注册研究员凭证
               </template>
             </button>
+
+            <div class="relative flex items-center py-2">
+              <div class="flex-grow border-t border-slate-100 dark:border-white/5"></div>
+              <span class="flex-shrink mx-4 text-[10px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-widest">或者使用第三方快速注册</span>
+              <div class="flex-grow border-t border-slate-100 dark:border-white/5"></div>
+            </div>
+
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <button
+                type="button"
+                @click="handleOAuthLogin('github')"
+                :disabled="loading"
+                class="h-10 bg-slate-100 dark:bg-black/20 hover:bg-slate-200 dark:hover:bg-black/40 text-slate-600 dark:text-slate-300 font-bold rounded-xl active:scale-95 transition-all text-[9px] uppercase tracking-widest flex items-center justify-center gap-2 border border-slate-200 dark:border-white/5"
+              >
+                <Github class="w-3.5 h-3.5" />
+                GitHub
+              </button>
+              <button
+                type="button"
+                @click="handleOAuthLogin('ms')"
+                :disabled="loading"
+                class="h-10 bg-slate-100 dark:bg-black/20 hover:bg-slate-200 dark:hover:bg-black/40 text-slate-600 dark:text-slate-300 font-bold rounded-xl active:scale-95 transition-all text-[9px] uppercase tracking-widest flex items-center justify-center gap-2 border border-slate-200 dark:border-white/5"
+              >
+                <Globe class="w-3.5 h-3.5 text-blue-400" />
+                Microsoft
+              </button>
+              <button
+                type="button"
+                @click="handleOAuthLogin('google')"
+                :disabled="loading"
+                class="h-10 bg-slate-100 dark:bg-black/20 hover:bg-slate-200 dark:hover:bg-black/40 text-slate-600 dark:text-slate-300 font-bold rounded-xl active:scale-95 transition-all text-[9px] uppercase tracking-widest flex items-center justify-center gap-2 border border-slate-200 dark:border-white/5"
+              >
+                <Chrome class="w-3.5 h-3.5 text-red-500" />
+                Google
+              </button>
+              <button
+                type="button"
+                @click="handleOAuthLogin('apple')"
+                :disabled="loading"
+                class="h-10 bg-slate-100 dark:bg-black/20 hover:bg-slate-200 dark:hover:bg-black/40 text-slate-600 dark:text-slate-300 font-bold rounded-xl active:scale-95 transition-all text-[9px] uppercase tracking-widest flex items-center justify-center gap-2 border border-slate-200 dark:border-white/5"
+              >
+                <Apple class="w-3.5 h-3.5" />
+                Apple
+              </button>
+            </div>
           </form>
 
           <div class="mt-8 text-center pt-8 border-t border-slate-100 dark:border-white/5">

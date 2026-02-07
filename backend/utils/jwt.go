@@ -106,10 +106,12 @@ func VerifyOAuthState(state string) (*StateClaims, error) {
 		return jwtSecret, nil
 	})
 	if err != nil {
+		log.Printf("[OAuthState校验失败] %v", err)
 		return nil, err
 	}
 	if claims, ok := token.Claims.(*StateClaims); ok && token.Valid {
 		return claims, nil
 	}
+	log.Printf("[OAuthState无效] Valid=%v", token.Valid)
 	return nil, errors.New("invalid state")
 }

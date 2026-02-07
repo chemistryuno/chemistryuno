@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Lock, Shield, UserX, Loader2, Cpu, Smartphone, Mail, Github, Globe } from 'lucide-vue-next'
+import { Lock, Shield, UserX, Loader2, Cpu, Smartphone, Mail, Github, Globe, Chrome, Apple } from 'lucide-vue-next'
 
 defineProps<{
   twoFactorEnabled: boolean
@@ -7,6 +7,8 @@ defineProps<{
   smtpEnabled: boolean
   githubId?: string
   microsoftId?: string
+  googleId?: string
+  appleId?: string
 }>()
 
 defineEmits<{
@@ -19,8 +21,12 @@ defineEmits<{
   (e: 'deleteAccount'): void
   (e: 'bindGithub'): void
   (e: 'bindMicrosoft'): void
+  (e: 'bindGoogle'): void
+  (e: 'bindApple'): void
   (e: 'unbindGithub'): void
   (e: 'unbindMicrosoft'): void
+  (e: 'unbindGoogle'): void
+  (e: 'unbindApple'): void
 }>()
 </script>
 
@@ -194,6 +200,62 @@ defineEmits<{
           <button 
             v-else
             @click="$emit('unbindMicrosoft')"
+            class="px-3 py-1.5 bg-slate-200 dark:bg-white/10 hover:bg-red-500 hover:text-white text-slate-500 dark:text-slate-400 text-[10px] font-black rounded-lg transition-all uppercase tracking-widest active:scale-95"
+          >
+            解绑
+          </button>
+        </div>
+
+        <div 
+          class="group relative flex items-center justify-between p-4 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-xl transition-all"
+        >
+          <div class="flex items-center gap-3.5">
+            <div class="bg-red-500/10 dark:bg-red-500/20 p-2 rounded-lg shrink-0">
+              <Chrome class="w-4 h-4 text-red-500" />
+            </div>
+            <div>
+              <span class="text-xs font-black text-slate-800 dark:text-white block uppercase tracking-tight">Google</span>
+              <span class="text-slate-400 text-[9px] font-mono">{{ googleId ? '已同步' : '未绑定' }}</span>
+            </div>
+          </div>
+          <button 
+            v-if="!googleId"
+            @click="$emit('bindGoogle')"
+            class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black rounded-lg transition-all uppercase tracking-widest active:scale-95"
+          >
+            绑定
+          </button>
+          <button 
+            v-else
+            @click="$emit('unbindGoogle')"
+            class="px-3 py-1.5 bg-slate-200 dark:bg-white/10 hover:bg-red-500 hover:text-white text-slate-500 dark:text-slate-400 text-[10px] font-black rounded-lg transition-all uppercase tracking-widest active:scale-95"
+          >
+            解绑
+          </button>
+        </div>
+
+        <div 
+          class="group relative flex items-center justify-between p-4 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-xl transition-all"
+        >
+          <div class="flex items-center gap-3.5">
+            <div class="bg-slate-900 dark:bg-black p-2 rounded-lg shrink-0">
+              <Apple class="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <span class="text-xs font-black text-slate-800 dark:text-white block uppercase tracking-tight">Apple</span>
+              <span class="text-slate-400 text-[9px] font-mono">{{ appleId ? '已同步' : '未绑定' }}</span>
+            </div>
+          </div>
+          <button 
+            v-if="!appleId"
+            @click="$emit('bindApple')"
+            class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black rounded-lg transition-all uppercase tracking-widest active:scale-95"
+          >
+            绑定
+          </button>
+          <button 
+            v-else
+            @click="$emit('unbindApple')"
             class="px-3 py-1.5 bg-slate-200 dark:bg-white/10 hover:bg-red-500 hover:text-white text-slate-500 dark:text-slate-400 text-[10px] font-black rounded-lg transition-all uppercase tracking-widest active:scale-95"
           >
             解绑

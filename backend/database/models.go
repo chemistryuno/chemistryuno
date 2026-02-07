@@ -78,6 +78,8 @@ type User struct {
 	WebAuthnID         string         `gorm:"size:100" json:"-"`
 	GithubID           string         `gorm:"size:100;index" json:"github_id,omitempty"`
 	MicrosoftID        string         `gorm:"size:100;index" json:"microsoft_id,omitempty"`
+	GoogleID           string         `gorm:"size:100;index" json:"google_id,omitempty"`
+	AppleID            string         `gorm:"size:100;index" json:"apple_id,omitempty"`
 	OAuthProvider      string         `gorm:"size:20" json:"oauth_provider,omitempty"`
 	CreatedAt          time.Time      `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt          time.Time      `gorm:"autoUpdateTime" json:"updated_at"`

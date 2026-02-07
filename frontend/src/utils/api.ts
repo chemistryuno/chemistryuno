@@ -61,8 +61,8 @@ export const authAPI = {
     api.post(`/auth/webauthn/reset-password/finish?username=${username}&new_password=${newPassword}`, credential),
   getUserInfo: () => 
     api.get('/user/info'),
-  changePassword: (oldPassword: string, newPassword: string, code: string = '') => 
-    api.put('/user/password', { old_password: oldPassword, new_password: newPassword, code }),
+  changePassword: (oldPassword: string, newPassword: string, code: string = '', useEmail: boolean = false) => 
+    api.put('/user/password', { old_password: oldPassword, new_password: newPassword, code, use_email: useEmail }),
   beginChangePasswordWebAuthn: () =>
     api.post('/user/webauthn/change-password/begin'),
   finishChangePasswordWebAuthn: (newPassword: string, credential: any) =>

@@ -359,7 +359,9 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
                      <Beaker class="w-6 h-6 text-white" />
                   </div>
                   <div class="flex flex-col">
-                     <span class="text-[9px] font-black uppercase text-blue-200 tracking-widest leading-none mb-1">活跃实验中</span>
+                     <span class="text-[9px] font-black uppercase text-blue-200 tracking-widest leading-none mb-1">
+                        {{ activeRoom.status === 'waiting' && activeRoom.countdown > 0 ? `实验启动中: ${activeRoom.countdown}S` : '活跃实验中' }}
+                     </span>
                      <h3 class="text-lg font-black text-white uppercase tracking-wider">{{ activeRoom.name }}</h3>
                   </div>
                </div>
@@ -402,17 +404,17 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
                     <div class="flex items-center gap-2">
                       <div :class="cn(
                         'w-1.5 h-1.5 rounded-full',
-                        room.status === 'waiting' ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]' : 
+                        room.status === 'waiting' ? (room.countdown > 0 ? 'bg-blue-500 animate-ping' : 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]') : 
                         room.status === 'playing' ? 'bg-amber-500 shadow-[0_0_6px_rgba(245,158,11,0.5)] animate-pulse' : 
                         'bg-slate-500'
                       )"></div>
                       <span :class="cn(
                         'text-[9px] font-black uppercase tracking-widest',
-                        room.status === 'waiting' ? 'text-emerald-500' : 
+                        room.status === 'waiting' ? (room.countdown > 0 ? 'text-blue-500' : 'text-emerald-500') : 
                         room.status === 'playing' ? 'text-amber-500' : 
                         'text-slate-500'
                       )">
-                        {{ room.status === 'waiting' ? 'Ready' : room.status === 'playing' ? 'Active' : 'Closed' }}
+                        {{ room.status === 'waiting' ? (room.countdown > 0 ? room.countdown + 'S' : 'Ready') : room.status === 'playing' ? 'Active' : 'Closed' }}
                       </span>
                     </div>
                   </td>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { Key, Lock, Eye, EyeOff, Loader2, Fingerprint, Cpu, AlertTriangle } from 'lucide-vue-next'
+import { Key, Lock, Eye, EyeOff, Loader2, Fingerprint, Cpu, AlertTriangle, Mail } from 'lucide-vue-next'
 import api, { authAPI } from '../../utils/api'
 import { get } from '@github/webauthn-json'
 import { onMounted, watch } from 'vue'
@@ -9,11 +9,12 @@ const props = defineProps<{
   show: boolean
   loading: boolean
   is2faEnabled: boolean
+  userEmail?: string
 }>()
 
 const emit = defineEmits<{
   (e: 'close'): void
-  (e: 'save', oldPw: string, newPw: string, code: string): void
+  (e: 'save', oldPw: string, newPw: string, code: string, useEmail: boolean): void
   (e: 'success'): void
 }>()
 
@@ -24,6 +25,37 @@ const confirmPassword = ref('')
 const showPasswords = ref(false)
 const localLoading = ref(false)
 const hasWebauthnKeys = ref(false)
+const useEmailMode = ref(false)
+const sendingCode = ref(false)
+const countdown = ref(0)
+const timer = ref<any>(null)
+
+const startCountdown = () => {
+  countdown.value = 60
+  timer.value = setInterval(() => {
+    countdown.value--
+    if (countdown.value <= 0) {
+      clearInterval(timer.value)
+    }
+  }, 1000)
+}
+
+const handleSendCode = async () => {
+  if (!props.userEmail) {
+    alert('未获取到您的邮箱，无法发送')
+    return
+  }
+  
+  sendingCode.value = true
+  try {
+    await authAPI.sendCode(props.userEmail, 'change_password')
+    startCountdown()
+  } catch (err: any) {
+    alert(err.response?.data?.error || '发送失败')
+  } finally {
+    sendingCode.value = false
+  }
+}
 
 // Check if user has hardware keys
 const checkKeys = async () => {
@@ -46,11 +78,15 @@ watch(() => props.show, (val) => {
     newPassword.value = ''
     confirmPassword.value = ''
     code.value = ''
+    useEmailMode.value = false
+    if (timer.value) clearInterval(timer.value)
+    countdown.value = 0
   }
 })
 
 const mode = computed(() => {
   if (hasWebauthnKeys.value) return 'webauthn'
+  if (useEmailMode.value) return 'email'
   if (props.is2faEnabled) return '2fa'
   return 'classic'
 })
@@ -60,7 +96,11 @@ const handleSave = () => {
     alert('两次输入的密码不一致')
     return
   }
-  emit('save', oldPassword.value, newPassword.value, code.value)
+  if (newPassword.value.length < 6) {
+    alert('新密码长度至少为 6 位')
+    return
+  }
+  emit('save', oldPassword.value, newPassword.value, code.value, useEmailMode.value)
 }
 
 const handleWebauthnReset = async () => {
@@ -96,11 +136,12 @@ const handleWebauthnReset = async () => {
           <div class="w-16 h-16 bg-blue-600/10 rounded-2xl flex items-center justify-center mb-4">
             <Cpu v-if="mode === 'webauthn'" class="w-8 h-8 text-blue-600 dark:text-blue-500" />
             <Fingerprint v-else-if="mode === '2fa'" class="w-8 h-8 text-blue-600 dark:text-blue-500" />
+            <Mail v-else-if="mode === 'email'" class="w-8 h-8 text-blue-600 dark:text-blue-500" />
             <Key v-else class="w-8 h-8 text-blue-600 dark:text-blue-500" />
           </div>
           <h3 class="text-2xl font-black italic uppercase text-slate-900 dark:text-white tracking-tight">重置实验凭证</h3>
           <p class="text-slate-500 text-[10px] font-black mt-2 uppercase tracking-[0.2em] font-mono">
-            {{ mode === 'webauthn' ? 'BY HARDWARE TOKEN' : mode === '2fa' ? 'BY AUTHENTICATOR APP' : 'BY CLASSIC SECRET' }}
+            {{ mode === 'webauthn' ? 'BY HARDWARE TOKEN' : mode === '2fa' ? 'BY AUTHENTICATOR APP' : mode === 'email' ? 'BY EMAIL CODE' : 'BY CLASSIC SECRET' }}
           </p>
       </div>
 
@@ -127,6 +168,30 @@ const handleWebauthnReset = async () => {
               required
             />
           </div>
+
+          <!-- Email Code view -->
+          <div v-else-if="mode === 'email'" class="space-y-3">
+             <div class="relative group">
+                <Mail class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 dark:text-slate-500 group-focus-within:text-blue-600 dark:group-focus-within:text-blue-500 transition-colors" />
+                <input
+                  v-model="code"
+                  type="text"
+                  maxlength="6"
+                  placeholder="请输入邮箱验证码"
+                  class="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 focus:border-blue-500/50 rounded-2xl py-4 pl-12 pr-32 outline-none transition-all text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 font-mono"
+                  required
+                />
+                <button 
+                  type="button"
+                  @click="handleSendCode"
+                  :disabled="sendingCode || countdown > 0"
+                  class="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-300 dark:disabled:bg-white/10 text-white text-[10px] font-black rounded-xl transition-all uppercase tracking-widest disabled:text-slate-500"
+                >
+                  {{ countdown > 0 ? `${countdown}S` : sendingCode ? '发送中...' : '发送验证码' }}
+                </button>
+             </div>
+             <p class="text-[10px] text-slate-400 px-2">验证码将发送至：{{ props.userEmail }}</p>
+          </div>
           
           <!-- Webauthn Info -->
           <div v-else-if="mode === 'webauthn'" class="bg-blue-600/5 dark:bg-blue-500/5 border border-blue-600/10 dark:border-blue-500/20 rounded-2xl p-4 mb-2 text-center">
@@ -136,15 +201,20 @@ const handleWebauthnReset = async () => {
           </div>
 
           <!-- Classic view if NO 2FA and NO Webauthn -->
-          <div v-else class="relative group">
-            <Key class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 dark:text-slate-500 group-focus-within:text-blue-600 dark:group-focus-within:text-blue-500 transition-colors" />
-            <input
-              v-model="oldPassword"
-              :type="showPasswords ? 'text' : 'password'"
-              placeholder="当前密码 / Current Secret"
-              class="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 focus:border-blue-500/50 rounded-2xl py-4 pl-12 pr-4 outline-none transition-all text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 font-mono"
-              required
-            />
+          <div v-else class="space-y-3">
+            <div class="relative group">
+              <Key class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 dark:text-slate-500 group-focus-within:text-blue-600 dark:group-focus-within:text-blue-500 transition-colors" />
+              <input
+                v-model="oldPassword"
+                :type="showPasswords ? 'text' : 'password'"
+                placeholder="当前密码 / Current Secret"
+                class="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 focus:border-blue-500/50 rounded-2xl py-4 pl-12 pr-4 outline-none transition-all text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 font-mono"
+                required
+              />
+            </div>
+            <div v-if="props.userEmail" @click="useEmailMode = true" class="text-right px-2">
+               <button type="button" class="text-[10px] font-black text-blue-600 dark:text-blue-400 hover:underline uppercase tracking-widest">忘记密码？使用邮箱验证码</button>
+            </div>
           </div>
 
           <div class="relative group">

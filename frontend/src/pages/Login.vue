@@ -3,7 +3,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import api, { authAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
-import { Beaker, Lock, User, Loader2, Fingerprint, Shield, Cpu, Mail, Github, Globe } from 'lucide-vue-next'
+import { Beaker, Lock, User, Loader2, Fingerprint, Shield, Cpu, Mail, Github, Globe, Chrome, Apple } from 'lucide-vue-next'
 import ResetPassword2FAModal from '../components/ResetPassword2FAModal.vue'
 import websocket from '../utils/websocket'
 import { get } from '@github/webauthn-json'
@@ -122,7 +122,7 @@ const handleWebAuthnLogin = async () => {
   // ... existing code ...
 }
 
-const handleOAuthLogin = (provider: 'github' | 'ms') => {
+const handleOAuthLogin = (provider: 'github' | 'ms' | 'google' | 'apple') => {
   loading.value = true
   error.value = ''
   
@@ -145,6 +145,10 @@ const handleOAuthLogin = (provider: 'github' | 'ms') => {
       window.removeEventListener('message', messageHandler)
       const { token, user } = event.data
       handleLoginSuccess(token, user)
+      loading.value = false
+    } else if (event.data.type === 'oauth-error') {
+      window.removeEventListener('message', messageHandler)
+      error.value = event.data.error || '授权失败'
       loading.value = false
     }
   }
@@ -259,24 +263,42 @@ const handleOAuthLogin = (provider: 'github' | 'ms') => {
                 使用物理研究密钥登录
               </button>
 
-              <div class="grid grid-cols-2 gap-4">
+              <div class="grid grid-cols-2 gap-3">
                 <button
                   type="button"
                   @click="handleOAuthLogin('github')"
                   :disabled="loading"
-                  class="h-12 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300 font-bold rounded-2xl active:scale-95 transition-all text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 border border-slate-200 dark:border-white/5"
+                  class="h-10 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300 font-bold rounded-xl active:scale-95 transition-all text-[9px] uppercase tracking-widest flex items-center justify-center gap-2 border border-slate-200 dark:border-white/5"
                 >
-                  <Github class="w-4 h-4" />
-                  GitHub 授权
+                  <Github class="w-3.5 h-3.5" />
+                  GitHub
                 </button>
                 <button
                   type="button"
                   @click="handleOAuthLogin('ms')"
                   :disabled="loading"
-                  class="h-12 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300 font-bold rounded-2xl active:scale-95 transition-all text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 border border-slate-200 dark:border-white/5"
+                  class="h-10 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300 font-bold rounded-xl active:scale-95 transition-all text-[9px] uppercase tracking-widest flex items-center justify-center gap-2 border border-slate-200 dark:border-white/5"
                 >
-                  <Globe class="w-4 h-4 text-blue-400" />
-                  Microsoft 授权
+                  <Globe class="w-3.5 h-3.5 text-blue-400" />
+                  Microsoft
+                </button>
+                <button
+                  type="button"
+                  @click="handleOAuthLogin('google')"
+                  :disabled="loading"
+                  class="h-10 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300 font-bold rounded-xl active:scale-95 transition-all text-[9px] uppercase tracking-widest flex items-center justify-center gap-2 border border-slate-200 dark:border-white/5"
+                >
+                  <Chrome class="w-3.5 h-3.5 text-red-500" />
+                  Google
+                </button>
+                <button
+                  type="button"
+                  @click="handleOAuthLogin('apple')"
+                  :disabled="loading"
+                  class="h-10 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300 font-bold rounded-xl active:scale-95 transition-all text-[9px] uppercase tracking-widest flex items-center justify-center gap-2 border border-slate-200 dark:border-white/5"
+                >
+                  <Apple class="w-3.5 h-3.5" />
+                  Apple ID
                 </button>
               </div>
             </form>

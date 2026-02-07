@@ -5,6 +5,7 @@ import (
 	"chemistryuno/repository"
 	"chemistryuno/utils"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -14,44 +15,89 @@ import (
 	"github.com/gin-gonic/gin"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/github"
+	"golang.org/x/oauth2/google"
 	"golang.org/x/oauth2/microsoft"
 )
 
 var (
 	githubOauthConfig *oauth2.Config
 	msOauthConfig     *oauth2.Config
+	googleOauthConfig *oauth2.Config
+	appleOauthConfig  *oauth2.Config
 )
 
 // InitOauth 初始化 OAuth 配置
 func InitOauth() {
 	githubOauthConfig = &oauth2.Config{
-		ClientID:     os.Getenv("GITHUB_CLIENT_ID"),
-		ClientSecret: os.Getenv("GITHUB_CLIENT_SECRET"),
-		RedirectURL:  os.Getenv("GITHUB_REDIRECT_URI"),
+		ClientID:     strings.TrimSpace(os.Getenv("GITHUB_CLIENT_ID")),
+		ClientSecret: strings.TrimSpace(os.Getenv("GITHUB_CLIENT_SECRET")),
+		RedirectURL:  strings.TrimSpace(os.Getenv("GITHUB_REDIRECT_URI")),
 		Scopes:       []string{"user:email", "read:user"},
 		Endpoint:     github.Endpoint,
 	}
 
 	msOauthConfig = &oauth2.Config{
-		ClientID:     os.Getenv("MS_CLIENT_ID"),
-		ClientSecret: os.Getenv("MS_CLIENT_SECRET"),
-		RedirectURL:  os.Getenv("MS_REDIRECT_URI"),
+		ClientID:     strings.TrimSpace(os.Getenv("MS_CLIENT_ID")),
+		ClientSecret: strings.TrimSpace(os.Getenv("MS_CLIENT_SECRET")),
+		RedirectURL:  strings.TrimSpace(os.Getenv("MS_REDIRECT_URI")),
 		Scopes:       []string{"User.Read"},
-		Endpoint:     microsoft.AzureADEndpoint(os.Getenv("MS_TENANT_ID")),
+		Endpoint:     microsoft.AzureADEndpoint(strings.TrimSpace(os.Getenv("MS_TENANT_ID"))),
+	}
+
+	googleOauthConfig = &oauth2.Config{
+		ClientID:     strings.TrimSpace(os.Getenv("GOOGLE_CLIENT_ID")),
+		ClientSecret: strings.TrimSpace(os.Getenv("GOOGLE_CLIENT_SECRET")),
+		RedirectURL:  strings.TrimSpace(os.Getenv("GOOGLE_REDIRECT_URI")),
+		Scopes: []string{
+			"https://www.googleapis.com/auth/userinfo.email",
+			"https://www.googleapis.com/auth/userinfo.profile",
+		},
+		Endpoint: google.Endpoint,
+	}
+
+	appleOauthConfig = &oauth2.Config{
+		ClientID:    strings.TrimSpace(os.Getenv("APPLE_CLIENT_ID")),
+		RedirectURL: strings.TrimSpace(os.Getenv("APPLE_REDIRECT_URI")),
+		Scopes:      []string{"name", "email"},
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  "https://appleid.apple.com/auth/authorize",
+			TokenURL: "https://appleid.apple.com/auth/token",
+		},
+	}
+
+	if githubOauthConfig.ClientID != "" {
+		fmt.Println("✓ GitHub OAuth 已加载")
+	} else {
+		fmt.Println("⚠ GitHub OAuth 未配置 (GITHUB_CLIENT_ID 为空)")
+	}
+
+	if msOauthConfig.ClientID != "" {
+		fmt.Println("✓ Microsoft OAuth 已加载")
+	} else {
+		fmt.Println("⚠ Microsoft OAuth 未配置 (MS_CLIENT_ID 为空)")
+	}
+
+	if googleOauthConfig.ClientID != "" {
+		fmt.Println("✓ Google OAuth 已加载")
+	}
+
+	if appleOauthConfig.ClientID != "" {
+		fmt.Println("✓ Apple OAuth 已加载")
 	}
 }
 
 // generateStateToken 生成加密的 state 令牌，支持绑定模式
-func generateStateToken(c *gin.Context, intent string) string {
+func generateStateToken(c *gin.Context, intent string) (string, error) {
 	uid := 0
 	if intent == "bind" {
-		// 尝试从 context 中获取 uid (如果已经通过 AuthMiddleware)
+		// 从 context 中获取 uid (由 AuthMiddleware 设置)
 		if val, exists := c.Get("uid"); exists {
 			uid = val.(int)
+		} else {
+			return "", fmt.Errorf("未授权的绑定请求")
 		}
 	}
-	state, _ := utils.GenerateOAuthState(intent, uid)
-	return state
+	return utils.GenerateOAuthState(intent, uid)
 }
 
 // GitHubLogin 重定向到 GitHub 登录
@@ -70,7 +116,11 @@ func GitHubLogin(c *gin.Context) {
 		}
 	}
 
-	state := generateStateToken(c, intent)
+	state, err := generateStateToken(c, intent)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
 	url := githubOauthConfig.AuthCodeURL(state)
 	c.Redirect(http.StatusTemporaryRedirect, url)
 }
@@ -91,8 +141,62 @@ func MicrosoftLogin(c *gin.Context) {
 		}
 	}
 
-	state := generateStateToken(c, intent)
+	state, err := generateStateToken(c, intent)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
 	url := msOauthConfig.AuthCodeURL(state)
+	c.Redirect(http.StatusTemporaryRedirect, url)
+}
+
+// GoogleLogin 重定向到 Google 登录
+func GoogleLogin(c *gin.Context) {
+	if googleOauthConfig.ClientID == "" {
+		c.JSON(http.StatusNotImplemented, gin.H{"error": "Google OAuth 未配置"})
+		return
+	}
+
+	intent := c.Query("intent")
+	if intent == "" {
+		if strings.Contains(c.Request.URL.Path, "/bind") {
+			intent = "bind"
+		} else {
+			intent = "login"
+		}
+	}
+
+	state, err := generateStateToken(c, intent)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+	url := googleOauthConfig.AuthCodeURL(state)
+	c.Redirect(http.StatusTemporaryRedirect, url)
+}
+
+// AppleLogin 重定向到 Apple 登录
+func AppleLogin(c *gin.Context) {
+	if appleOauthConfig.ClientID == "" {
+		c.JSON(http.StatusNotImplemented, gin.H{"error": "Apple OAuth 未配置"})
+		return
+	}
+
+	intent := c.Query("intent")
+	if intent == "" {
+		if strings.Contains(c.Request.URL.Path, "/bind") {
+			intent = "bind"
+		} else {
+			intent = "login"
+		}
+	}
+
+	state, err := generateStateToken(c, intent)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+	url := appleOauthConfig.AuthCodeURL(state)
 	c.Redirect(http.StatusTemporaryRedirect, url)
 }
 
@@ -101,21 +205,21 @@ func GitHubCallback(c *gin.Context) {
 	stateToken := c.Query("state")
 	stateClaims, err := utils.VerifyOAuthState(stateToken)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的状态参数"})
+		sendOAuthError(c, http.StatusBadRequest, "无效的状态参数或会话已超时")
 		return
 	}
 
 	code := c.Query("code")
 	token, err := githubOauthConfig.Exchange(context.Background(), code)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "无法换取 Token"})
+		sendOAuthError(c, http.StatusInternalServerError, "无法换取 GitHub 访问令牌")
 		return
 	}
 
 	client := githubOauthConfig.Client(context.Background(), token)
 	resp, err := client.Get("https://api.github.com/user")
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "无法获取用户信息"})
+		sendOAuthError(c, http.StatusInternalServerError, "获取 GitHub 用户信息失败")
 		return
 	}
 	defer resp.Body.Close()
@@ -128,7 +232,7 @@ func GitHubCallback(c *gin.Context) {
 		Nickname string `json:"name"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&ghUser); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "反序列化用户信息失败"})
+		sendOAuthError(c, http.StatusInternalServerError, "反序列化 GitHub 用户数据失败")
 		return
 	}
 
@@ -160,21 +264,21 @@ func MicrosoftCallback(c *gin.Context) {
 	stateToken := c.Query("state")
 	stateClaims, err := utils.VerifyOAuthState(stateToken)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的状态参数"})
+		sendOAuthError(c, http.StatusBadRequest, "无效的状态参数或会话已超时")
 		return
 	}
 
 	code := c.Query("code")
 	token, err := msOauthConfig.Exchange(context.Background(), code)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "无法换取 Token"})
+		sendOAuthError(c, http.StatusInternalServerError, "无法换取 Microsoft 访问令牌")
 		return
 	}
 
 	client := msOauthConfig.Client(context.Background(), token)
 	resp, err := client.Get("https://graph.microsoft.com/v1.0/me")
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "无法获取用户信息"})
+		sendOAuthError(c, http.StatusInternalServerError, "获取 Microsoft 用户信息失败")
 		return
 	}
 	defer resp.Body.Close()
@@ -186,7 +290,7 @@ func MicrosoftCallback(c *gin.Context) {
 		UserPrincipalName string `json:"userPrincipalName"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&msUser); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "反序列化用户信息失败"})
+		sendOAuthError(c, http.StatusInternalServerError, "反序列化 Microsoft 用户数据失败")
 		return
 	}
 
@@ -196,6 +300,125 @@ func MicrosoftCallback(c *gin.Context) {
 	}
 
 	handleOAuthUser(c, "microsoft", msUser.ID, msUser.UserPrincipalName, email, msUser.DisplayName, stateClaims)
+}
+
+// GoogleCallback 处理 Google 回调
+func GoogleCallback(c *gin.Context) {
+	stateToken := c.Query("state")
+	stateClaims, err := utils.VerifyOAuthState(stateToken)
+	if err != nil {
+		sendOAuthError(c, http.StatusBadRequest, "无效的状态参数或会话已超时")
+		return
+	}
+
+	code := c.Query("code")
+	token, err := googleOauthConfig.Exchange(context.Background(), code)
+	if err != nil {
+		sendOAuthError(c, http.StatusInternalServerError, "无法换取 Google 访问令牌")
+		return
+	}
+
+	client := googleOauthConfig.Client(context.Background(), token)
+	resp, err := client.Get("https://www.googleapis.com/oauth2/v2/userinfo")
+	if err != nil {
+		sendOAuthError(c, http.StatusInternalServerError, "获取 Google 用户信息失败")
+		return
+	}
+	defer resp.Body.Close()
+
+	var googleUser struct {
+		ID      string `json:"id"`
+		Email   string `json:"email"`
+		Name    string `json:"name"`
+		Picture string `json:"picture"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&googleUser); err != nil {
+		sendOAuthError(c, http.StatusInternalServerError, "反序列化 Google 用户数据失败")
+		return
+	}
+
+	handleOAuthUser(c, "google", googleUser.ID, googleUser.Email, googleUser.Email, googleUser.Name, stateClaims)
+}
+
+// AppleCallback 处理 Apple 回调
+func AppleCallback(c *gin.Context) {
+	// Apple 默认可能使用 POST，但如果配置正确可以使用 GET
+	stateToken := c.DefaultPostForm("state", c.Query("state"))
+	code := c.DefaultPostForm("code", c.Query("code"))
+
+	stateClaims, err := utils.VerifyOAuthState(stateToken)
+	if err != nil {
+		sendOAuthError(c, http.StatusBadRequest, "无效的状态参数或会话已超时")
+		return
+	}
+
+	// 注意：Apple 换取 Token 需要 ClientSecret (JWT 签名)
+	// 这里简化处理，假设在 InitOauth 中生成了或有辅助函数
+	appleClientSecret, err := getAppleClientSecret()
+	if err != nil {
+		sendOAuthError(c, http.StatusInternalServerError, "无法生成 Apple 认证密钥: "+err.Error())
+		return
+	}
+
+	conf := *appleOauthConfig
+	conf.ClientSecret = appleClientSecret
+
+	token, err := conf.Exchange(context.Background(), code)
+	if err != nil {
+		sendOAuthError(c, http.StatusInternalServerError, "无法换取 Apple 访问令牌: "+err.Error())
+		return
+	}
+
+	// Apple 的用户信息主要在 id_token 中
+	idToken, ok := token.Extra("id_token").(string)
+	if !ok {
+		sendOAuthError(c, http.StatusInternalServerError, "Apple 响应中缺失 id_token")
+		return
+	}
+
+	// 解析 ID Token 获取 email 和 sub
+	claims := strings.Split(idToken, ".")
+	if len(claims) < 2 {
+		sendOAuthError(c, http.StatusInternalServerError, "无效的 Apple ID Token")
+		return
+	}
+
+	payload, _ := base64.RawURLEncoding.DecodeString(claims[1])
+	var appleClaims struct {
+		Sub   string `json:"sub"`
+		Email string `json:"email"`
+	}
+	json.Unmarshal(payload, &appleClaims)
+
+	// Apple 第一次授权时可能会提供 user 字段 (包含姓名)
+	var nickname string
+	userJSON := c.DefaultPostForm("user", "")
+	if userJSON != "" {
+		var u struct {
+			Name struct {
+				FirstName string `json:"firstName"`
+				LastName  string `json:"lastName"`
+			} `json:"name"`
+		}
+		json.Unmarshal([]byte(userJSON), &u)
+		nickname = u.Name.FirstName + " " + u.Name.LastName
+	}
+
+	handleOAuthUser(c, "apple", appleClaims.Sub, appleClaims.Email, appleClaims.Email, nickname, stateClaims)
+}
+
+// getAppleClientSecret 生成 Apple Client Secret (根据环境变量中的私钥)
+// 这是一个简化的实现框架
+func getAppleClientSecret() (string, error) {
+	// 如果已经在 .env 中配置了静态的 CLIENT_SECRET (虽然不推荐但可以)，直接返回
+	staticSecret := os.Getenv("APPLE_CLIENT_SECRET")
+	if staticSecret != "" {
+		return staticSecret, nil
+	}
+
+	// 实际生产中应使用 jwt.NewWithClaims 和私钥文件生成
+	// 这里返回空并提示配置，直到用户提供私钥
+	return "", fmt.Errorf("未配置 Apple 私钥，无法动态生成 ClientSecret")
 }
 
 func handleOAuthUser(c *gin.Context, provider, providerID, username, email, nickname string, state *utils.StateClaims) {
@@ -209,53 +432,63 @@ func handleOAuthUser(c *gin.Context, provider, providerID, username, email, nick
 		user, err = userRepo.FindByGithubID(providerID)
 	} else if provider == "microsoft" {
 		user, err = userRepo.FindByMicrosoftID(providerID)
+	} else if provider == "google" {
+		user, err = userRepo.FindByGoogleID(providerID)
+	} else if provider == "apple" {
+		user, err = userRepo.FindByAppleID(providerID)
 	}
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库查询失败"})
+		sendOAuthError(c, http.StatusInternalServerError, "研究员数据库索引故障: "+err.Error())
 		return
 	}
 
 	// 处理绑定逻辑
-	if state != nil && state.Intent == "bind" && state.UID > 0 {
+	if state != nil && state.Intent == "bind" {
+		if state.UID <= 0 {
+			sendOAuthError(c, http.StatusBadRequest, "身份令牌解析异常，请尝试重新登录后绑定")
+			return
+		}
+
 		if user != nil && int(user.UID) != state.UID {
 			// 该 OAuth 账号已绑定到其他用户
-			c.Header("Content-Type", "text/html")
-			c.String(http.StatusBadRequest, `
-				<script>
-					window.opener.postMessage({ type: 'oauth-error', error: '此第三方账号已被其他研究员占用' }, '*');
-					window.close();
-				</script>
-			`)
+			sendOAuthError(c, http.StatusBadRequest, "此第三方账号已被其他研究员档案占用，无法重复关联")
 			return
 		}
 
 		// 执行绑定
 		targetUser, err := userRepo.FindByUID(uint(state.UID))
 		if err != nil {
-			c.String(http.StatusInternalServerError, "获取用户失败")
+			sendOAuthError(c, http.StatusInternalServerError, "获取当前研究员档案失败，同步中断")
 			return
 		}
 
 		if provider == "github" {
 			targetUser.GithubID = providerID
-		} else {
+		} else if provider == "microsoft" {
 			targetUser.MicrosoftID = providerID
+		} else if provider == "google" {
+			targetUser.GoogleID = providerID
+		} else if provider == "apple" {
+			targetUser.AppleID = providerID
 		}
 		database.DB.Save(targetUser)
 
-		c.Header("Content-Type", "text/html")
+		c.Header("Content-Type", "text/html; charset=utf-8")
 		c.String(http.StatusOK, `
 			<script>
-				window.opener.postMessage({ type: 'oauth-bind-success' }, '*');
+				if (window.opener) window.opener.postMessage({ type: 'oauth-bind-success' }, '*');
 				window.close();
 			</script>
-			绑定成功，正在关闭窗口...
+			<div style="font-family:sans-serif;text-align:center;padding-top:100px;color:#059669;">
+				<h3>同步成功</h3>
+				<p>档案已成功关联，正在返回实验室...</p>
+			</div>
 		`)
 		return
 	}
 
-	// 登录逻辑 (intent == "login")
+	// 登录逻辑 (intent == "login" 或默认)
 	if user == nil {
 		// 尝试通过邮箱关联
 		if email != "" {
@@ -266,8 +499,12 @@ func handleOAuthUser(c *gin.Context, provider, providerID, username, email, nick
 			// 关联现有用户
 			if provider == "github" {
 				user.GithubID = providerID
-			} else {
+			} else if provider == "microsoft" {
 				user.MicrosoftID = providerID
+			} else if provider == "google" {
+				user.GoogleID = providerID
+			} else if provider == "apple" {
+				user.AppleID = providerID
 			}
 			database.DB.Save(user)
 		} else {
@@ -292,18 +529,23 @@ func handleOAuthUser(c *gin.Context, provider, providerID, username, email, nick
 				Nickname:      nickname,
 				Avatar:        "🔬", // OAuth 用户默认头像
 				Role:          "user",
-				Points:        100, // 初始积分
+				Points:        1000, // 初始积分
+				MonthlyPoints: 1000, // 初始月积分
 				OAuthProvider: provider,
 			}
 
 			if provider == "github" {
 				user.GithubID = providerID
-			} else {
+			} else if provider == "microsoft" {
 				user.MicrosoftID = providerID
+			} else if provider == "google" {
+				user.GoogleID = providerID
+			} else if provider == "apple" {
+				user.AppleID = providerID
 			}
 
 			if err := userRepo.Create(user); err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "创建用户失败"})
+				sendOAuthError(c, http.StatusInternalServerError, "创建新研究员档案失败")
 				return
 			}
 		}
@@ -312,32 +554,34 @@ func handleOAuthUser(c *gin.Context, provider, providerID, username, email, nick
 	// 登录成功，生成会话 (Fix: generating SID for OAuth login)
 	sid, err := utils.CreateSession(int(user.UID), c.GetHeader("User-Agent"), c.ClientIP())
 	if err != nil || sid == "" {
-		// 如果创建会话失败，至少尝试生成一个无会话的 Token，或者报错
-		// 这里选择报错以保证一致性
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建会话失败"})
+		sendOAuthError(c, http.StatusInternalServerError, "实验室会话创建失败，请稍后重试")
 		return
 	}
 
 	// 生成 Token，现在包含有效的 sid
 	token, err := utils.GenerateToken(int(user.UID), user.Username, user.IsAdmin, user.Role, sid)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成令牌失败"})
+		sendOAuthError(c, http.StatusInternalServerError, "实验室访问令牌签署失败")
 		return
 	}
 
-	// 这里通常会重定向回前端，并带上 Token
-	// 或者通过 HTML 模板发送 postMessage 给父窗口
-	c.Header("Content-Type", "text/html")
+	// 通信与跳转
+	c.Header("Content-Type", "text/html; charset=utf-8")
 	c.String(http.StatusOK, fmt.Sprintf(`
 		<script>
-			window.opener.postMessage({
-				type: 'oauth-success',
-				token: '%s',
-				user: %s
-			}, '*');
+			if (window.opener) {
+				window.opener.postMessage({
+					type: 'oauth-success',
+					token: '%s',
+					user: %s
+				}, '*');
+			}
 			window.close();
 		</script>
-		正在跳转...
+		<div style="font-family:sans-serif;text-align:center;padding-top:100px;color:#2563eb;">
+			<h3>访问批准</h3>
+			<p>欢迎回来，正在同步进入实验室...</p>
+		</div>
 	`, token, ToJSON(user)))
 }
 
@@ -355,8 +599,12 @@ func UnbindOAuth(c *gin.Context) {
 
 	if provider == "github" {
 		user.GithubID = ""
-	} else if provider == "microsoft" {
+	} else if provider == "microsoft" || provider == "ms" {
 		user.MicrosoftID = ""
+	} else if provider == "google" {
+		user.GoogleID = ""
+	} else if provider == "apple" {
+		user.AppleID = ""
 	} else {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的服务商"})
 		return
@@ -374,4 +622,38 @@ func UnbindOAuth(c *gin.Context) {
 func ToJSON(v interface{}) string {
 	b, _ := json.Marshal(v)
 	return string(b)
+}
+
+// sendOAuthError 向父窗口发送错误消息并显示友好的错误页面
+func sendOAuthError(c *gin.Context, status int, msg string) {
+	c.Header("Content-Type", "text/html; charset=utf-8")
+	c.String(status, fmt.Sprintf(`
+		<!DOCTYPE html>
+		<html>
+		<head>
+			<meta charset="UTF-8">
+			<title>认证错误</title>
+			<style>
+				body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f8fafc; color: #1e293b; }
+				.card { background: white; padding: 2rem; border-radius: 1rem; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); text-align: center; max-width: 400px; width: 90%%; }
+				h2 { color: #ef4444; margin-top: 0; }
+				p { line-height: 1.5; color: #64748b; }
+				.timer { font-size: 0.875rem; color: #94a3b8; margin-top: 1.5rem; }
+			</style>
+		</head>
+		<body>
+			<div class="card">
+				<h2>认证失败 / AUTH_ERROR</h2>
+				<p>%s</p>
+				<div class="timer">此窗口将在 3 秒后尝试自动关闭...</div>
+			</div>
+			<script>
+				if (window.opener) {
+					window.opener.postMessage({ type: 'oauth-error', error: '%s' }, '*');
+				}
+				setTimeout(() => window.close(), 3000);
+			</script>
+		</body>
+		</html>
+	`, msg, msg))
 }

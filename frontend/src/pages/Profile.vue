@@ -168,10 +168,10 @@ const handleDisable2FA = async () => {
   }
 }
 
-const handleChangePassword = async (oldPassword: string, newPassword: string, code: string) => {
+const handleChangePassword = async (oldPassword: string, newPassword: string, code: string, useEmail: boolean = false) => {
   loading.value = true
   try {
-    await authAPI.changePassword(oldPassword, newPassword, code)
+    await authAPI.changePassword(oldPassword, newPassword, code, useEmail)
     await showAlert('密码修改成功，请重新登录', '重置成功')
     handleLogout()
   } catch (error: any) {
@@ -213,7 +213,7 @@ const handleDeleteAccount = async () => {
 }
 
 // OAuth 绑定与解绑逻辑
-const handleOAuthBind = (provider: 'github' | 'ms') => {
+const handleOAuthBind = (provider: 'github' | 'ms' | 'google' | 'apple') => {
   const width = 600
   const height = 700
   const left = window.screen.width / 2 - width / 2
@@ -244,8 +244,9 @@ const handleOAuthBind = (provider: 'github' | 'ms') => {
   window.addEventListener('message', messageHandler)
 }
 
-const handleOAuthUnbind = async (provider: 'github' | 'ms') => {
-  const confirmed = await showConfirm(`确定要解除 ${provider === 'github' ? 'GitHub' : 'Microsoft'} 的账号绑定吗？`, '解绑确认')
+const handleOAuthUnbind = async (provider: 'github' | 'ms' | 'google' | 'apple') => {
+  const providerNames = { github: 'GitHub', ms: 'Microsoft', google: 'Google', apple: 'Apple' }
+  const confirmed = await showConfirm(`确定要解除 ${providerNames[provider]} 的账号绑定吗？`, '解绑确认')
   if (!confirmed) return
 
   try {
@@ -379,6 +380,8 @@ const handleOAuthUnbind = async (provider: 'github' | 'ms') => {
               :smtp-enabled="smtpEnabled"
               :github-id="user.github_id"
               :microsoft-id="user.microsoft_id"
+              :google-id="user.google_id"
+              :apple-id="user.apple_id"
               @change-password="showChangePassword = true"
               @change-email="showChangeEmail = true"
               @setup2fa="handleSetup2FA"
@@ -388,8 +391,12 @@ const handleOAuthUnbind = async (provider: 'github' | 'ms') => {
               @delete-account="handleDeleteAccount"
               @bind-github="handleOAuthBind('github')"
               @bind-microsoft="handleOAuthBind('ms')"
+              @bind-google="handleOAuthBind('google')"
+              @bind-apple="handleOAuthBind('apple')"
               @unbind-github="handleOAuthUnbind('github')"
               @unbind-microsoft="handleOAuthUnbind('ms')"
+              @unbind-google="handleOAuthUnbind('google')"
+              @unbind-apple="handleOAuthUnbind('apple')"
             />
           </div>
 
@@ -446,6 +453,7 @@ const handleOAuthUnbind = async (provider: 'github' | 'ms') => {
       :show="showChangePassword"
       :loading="loading"
       :is2fa-enabled="user.two_factor_enabled"
+      :user-email="user.email"
       @close="showChangePassword = false"
       @save="handleChangePassword"
       @success="showAlert('凭证已通过硬件加密协议更新，请重新登录。', '同步完成'); handleLogout()"

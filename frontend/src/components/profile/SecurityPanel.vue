@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { Lock, Shield, UserX, Loader2, Cpu, Smartphone, Mail } from 'lucide-vue-next'
+import { Lock, Shield, UserX, Loader2, Cpu, Smartphone, Mail, Github, Globe } from 'lucide-vue-next'
 
 defineProps<{
   twoFactorEnabled: boolean
   twoFactorLoading: boolean
   smtpEnabled: boolean
+  githubId?: string
+  microsoftId?: string
 }>()
 
 defineEmits<{
@@ -15,6 +17,10 @@ defineEmits<{
   (e: 'manageHardwareKeys'): void
   (e: 'manageDevices'): void
   (e: 'deleteAccount'): void
+  (e: 'bindGithub'): void
+  (e: 'bindMicrosoft'): void
+  (e: 'unbindGithub'): void
+  (e: 'unbindMicrosoft'): void
 }>()
 </script>
 
@@ -30,7 +36,7 @@ defineEmits<{
       </div>
     </div>
 
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
       <button 
         @click="$emit('changePassword')"
         class="group relative flex items-center gap-3.5 p-3.5 bg-slate-50 dark:bg-white/5 hover:bg-blue-50 dark:hover:bg-blue-500/10 border border-slate-200 dark:border-white/5 hover:border-blue-300 dark:hover:border-blue-500/30 rounded-xl transition-all text-left"
@@ -128,6 +134,72 @@ defineEmits<{
           <span class="text-[9px] text-slate-400 font-mono tracking-tighter">RESET_ALL_DATA</span>
         </div>
       </button>
+    </div>
+
+    <!-- 第三方账号绑定 -->
+    <div class="border-t border-slate-100 dark:border-white/5 pt-6 mt-3">
+      <div class="flex items-center gap-2 mb-4">
+        <h4 class="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">第三方同步 / OAUTH_LINKAGE</h4>
+        <div class="flex-1 h-[1px] bg-slate-100 dark:bg-white/5"></div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div 
+          class="group relative flex items-center justify-between p-4 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-xl transition-all"
+        >
+          <div class="flex items-center gap-3.5">
+            <div class="bg-slate-900 dark:bg-white/10 p-2 rounded-lg shrink-0">
+              <Github class="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <span class="text-xs font-black text-slate-800 dark:text-white block uppercase tracking-tight">GitHub</span>
+              <span class="text-slate-400 text-[9px] font-mono">{{ githubId ? 'ID: ' + githubId : '未绑定' }}</span>
+            </div>
+          </div>
+          <button 
+            v-if="!githubId"
+            @click="$emit('bindGithub')"
+            class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black rounded-lg transition-all uppercase tracking-widest active:scale-95"
+          >
+            绑定
+          </button>
+          <button 
+            v-else
+            @click="$emit('unbindGithub')"
+            class="px-3 py-1.5 bg-slate-200 dark:bg-white/10 hover:bg-red-500 hover:text-white text-slate-500 dark:text-slate-400 text-[10px] font-black rounded-lg transition-all uppercase tracking-widest active:scale-95"
+          >
+            解绑
+          </button>
+        </div>
+
+        <div 
+          class="group relative flex items-center justify-between p-4 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-xl transition-all"
+        >
+          <div class="flex items-center gap-3.5">
+            <div class="bg-blue-600 dark:bg-blue-600/20 p-2 rounded-lg shrink-0">
+              <Globe class="w-4 h-4 text-white dark:text-blue-400" />
+            </div>
+            <div>
+              <span class="text-xs font-black text-slate-800 dark:text-white block uppercase tracking-tight">Microsoft</span>
+              <span class="text-slate-400 text-[9px] font-mono">{{ microsoftId ? '已同步' : '未绑定' }}</span>
+            </div>
+          </div>
+          <button 
+            v-if="!microsoftId"
+            @click="$emit('bindMicrosoft')"
+            class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black rounded-lg transition-all uppercase tracking-widest active:scale-95"
+          >
+            绑定
+          </button>
+          <button 
+            v-else
+            @click="$emit('unbindMicrosoft')"
+            class="px-3 py-1.5 bg-slate-200 dark:bg-white/10 hover:bg-red-500 hover:text-white text-slate-500 dark:text-slate-400 text-[10px] font-black rounded-lg transition-all uppercase tracking-widest active:scale-95"
+          >
+            解绑
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 </template>

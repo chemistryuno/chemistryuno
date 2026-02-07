@@ -47,6 +47,8 @@ export const authAPI = {
     api.post('/auth/login', data),
   getAuthConfig: () =>
     api.get('/auth/config'),
+  unbindOAuth: (provider: string) =>
+    api.post(`/auth/oauth/unbind?provider=${provider}`),
   sendCode: (email: string, type: string = 'register') =>
     api.post('/auth/send-code', { email, type }),
   resetPasswordByEmail: (data: any) =>

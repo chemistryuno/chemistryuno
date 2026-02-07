@@ -76,6 +76,9 @@ func main() {
 	// 初始化 WebAuthn
 	handlers.InitWebAuthn()
 
+	// 初始化 OAuth
+	handlers.InitOauth()
+
 	// 创建Gin路由
 	// 创建Gin引擎（不使用默认中间件）
 	r := gin.New()
@@ -143,6 +146,12 @@ func main() {
 			// WebAuthn 登录 (公开)
 			authGroup.GET("/webauthn/login/begin", handlers.BeginLogin)
 			authGroup.POST("/webauthn/login/finish", handlers.FinishLogin)
+
+			// OAuth 登录
+			authGroup.GET("/github/login", handlers.GitHubLogin)
+			authGroup.GET("/github/callback", handlers.GitHubCallback)
+			authGroup.GET("/ms/login", handlers.MicrosoftLogin)
+			authGroup.GET("/ms/callback", handlers.MicrosoftCallback)
 		}
 
 		api.GET("/announcements", handlers.GetActiveAnnouncements)
@@ -151,6 +160,11 @@ func main() {
 		auth := api.Group("/")
 		auth.Use(middleware.AuthMiddleware())
 		{
+			// OAuth 绑定
+			auth.GET("/auth/github/bind", handlers.GitHubLogin)
+			auth.GET("/auth/ms/bind", handlers.MicrosoftLogin)
+			auth.POST("/auth/oauth/unbind", handlers.UnbindOAuth)
+
 			// 用户相关
 			auth.GET("/user/info", handlers.GetUserInfo)
 			auth.POST("/user/change-email", handlers.ChangeEmail)

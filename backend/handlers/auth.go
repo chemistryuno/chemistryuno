@@ -771,7 +771,11 @@ func GetUserInfo(c *gin.Context) {
 func SearchUsers(c *gin.Context) {
 	query := strings.TrimSpace(c.Query("q"))
 	if query == "" {
-		c.JSON(http.StatusOK, []interface{}{}) // 搜索内容为空返回空数组而不是错误
+		query = strings.TrimSpace(c.Query("query"))
+	}
+
+	if query == "" {
+		c.JSON(http.StatusOK, []interface{}{})
 		return
 	}
 

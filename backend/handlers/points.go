@@ -5,25 +5,36 @@ import (
 	"chemistryuno/repository"
 	"chemistryuno/websocket"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
 
 func GetLeaderboard(c *gin.Context) {
+	uid := c.GetInt("uid")
 	mode := c.Query("mode")
 	orderBy := "points"
 	if mode == "monthly" {
 		orderBy = "monthly_points"
 	}
 
-	users, err := repository.UserRepo.GetLeaderboard(orderBy, 100)
+	// 排除被禁封的用户
+	db := database.DB.Where("banned_until IS NULL OR banned_until < ?", time.Now())
+
+	var users []database.User
+	err := db.Order(orderBy + " DESC, uid ASC").Limit(100).Find(&users).Error
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取排行榜失败"})
 		return
 	}
 
 	var leaderboard []map[string]interface{}
+	foundSelf := false
 	for _, user := range users {
+		if int(user.UID) == uid {
+			foundSelf = true
+		}
+
 		totalBounty, _ := repository.BountyRepo.GetTotalBounty(user.UID)
 		isOnline := false
 		if websocket.GlobalHub != nil {
@@ -42,7 +53,43 @@ func GetLeaderboard(c *gin.Context) {
 		})
 	}
 
-	c.JSON(http.StatusOK, leaderboard)
+	// 如果自己不在前100名中，则单独获取并追加（或作为额外信息返回）
+	var selfInfo map[string]interface{}
+	if !foundSelf && uid > 0 {
+		var user database.User
+		if database.DB.Where("uid = ?", uid).First(&user).Error == nil {
+			// 计算排名
+			var rank int64
+			score := user.Points
+			if mode == "monthly" {
+				score = user.MonthlyPoints
+			}
+			database.DB.Model(&database.User{}).Where(orderBy+" > ? AND (banned_until IS NULL OR banned_until < ?)", score, time.Now()).Count(&rank)
+
+			totalBounty, _ := repository.BountyRepo.GetTotalBounty(user.UID)
+			isOnline := false
+			if websocket.GlobalHub != nil {
+				isOnline = websocket.GlobalHub.IsUIDOnline(int(user.UID))
+			}
+
+			selfInfo = map[string]interface{}{
+				"uid":            user.UID,
+				"username":       user.Username,
+				"nickname":       user.Nickname,
+				"avatar":         user.Avatar,
+				"points":         user.Points,
+				"monthly_points": user.MonthlyPoints,
+				"bounty":         totalBounty,
+				"is_online":      isOnline,
+				"rank":           rank + 1,
+			}
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"leaderboard": leaderboard,
+		"self":        selfInfo,
+	})
 }
 
 func CreateBounty(c *gin.Context) {

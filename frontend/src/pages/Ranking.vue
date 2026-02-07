@@ -125,7 +125,7 @@
                   :key="player.uid"
                   :class="cn(
                     'group transition-colors',
-                    player.uid === user.uid ? 'bg-blue-50/70 dark:bg-blue-500/[0.03]' : 'hover:bg-slate-50/50 dark:hover:bg-white/[0.02]'
+                    Number(player.uid) === Number(user.uid) ? 'bg-blue-50/70 dark:bg-blue-500/[0.03]' : 'hover:bg-slate-50/50 dark:hover:bg-white/[0.02]'
                   )"
                 >
                   <td class="px-6 py-3">
@@ -162,7 +162,7 @@
                        <div class="flex flex-col">
                           <span class="text-xs font-black text-slate-900 dark:text-white group-hover:text-blue-500 transition-colors flex items-center gap-1.5">
                             {{ player.nickname || player.username }}
-                            <span v-if="player.uid === user.uid" class="text-[7px] bg-blue-600 px-1 py-0.5 rounded uppercase font-black tracking-widest text-white">You</span>
+                            <span v-if="Number(player.uid) === Number(user.uid)" class="text-[7px] bg-blue-600 px-1 py-0.5 rounded uppercase font-black tracking-widest text-white">You</span>
                           </span>
                           <span class="text-[7px] font-mono text-slate-400 dark:text-slate-500 uppercase tracking-tighter mt-0.5">UID: {{ player.uid }}</span>
                        </div>
@@ -187,7 +187,7 @@
                     </div>
                   </td>
                   <td class="px-6 py-3 text-right">
-                    <div v-if="player.uid !== user.uid" class="flex items-center justify-end gap-1.5">
+                    <div v-if="Number(player.uid) !== Number(user.uid)" class="flex items-center justify-end gap-1.5">
                       <button 
                         v-if="player.is_online"
                         @click="handleDuel(player)"
@@ -223,6 +223,63 @@
                     <div v-else class="text-[8px] font-black text-blue-600 dark:text-blue-500 uppercase tracking-widest italic pr-1">
                       Master
                     </div>
+                  </td>
+                </tr>
+
+                <!-- 自我排名展示 (当不在前100名且未搜索时) -->
+                <tr 
+                  v-if="!searchTerm && myRankInfo && !leaderboard.find(p => Number(p.uid) === Number(user.uid))"
+                  class="bg-blue-50/50 dark:bg-blue-500/[0.05] border-t-2 border-dashed border-slate-200 dark:border-white/10"
+                >
+                  <td class="px-6 py-4">
+                    <div class="flex items-center gap-3">
+                        <span class="w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black italic bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400">
+                          {{ myRankInfo.rank }}
+                        </span>
+                    </div>
+                  </td>
+                  <td class="px-5 py-4">
+                    <div class="flex items-center gap-3">
+                       <div class="relative w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-500/20 border border-blue-200 dark:border-blue-500/30 flex items-center justify-center text-sm overflow-hidden shrink-0">
+                          <template v-if="myRankInfo.avatar && myRankInfo.avatar.startsWith('data:')">
+                            <img :src="myRankInfo.avatar" class="w-full h-full object-cover" />
+                          </template>
+                          <template v-else>
+                            {{ myRankInfo.avatar || '🧪' }}
+                          </template>
+                          <div v-if="myRankInfo.is_online" class="absolute bottom-0 right-0 w-2 h-2 bg-emerald-500 border-2 border-white dark:border-[#121216] rounded-full"></div>
+                       </div>
+                       <div class="flex flex-col">
+                          <span class="text-xs font-black text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
+                            {{ myRankInfo.nickname || myRankInfo.username }}
+                            <span class="text-[7px] bg-blue-600 px-1 py-0.5 rounded uppercase font-black tracking-widest text-white">You</span>
+                          </span>
+                          <span class="text-[7px] font-mono text-blue-400/60 uppercase tracking-tighter mt-0.5">UID: {{ myRankInfo.uid }} (Outside Top 100)</span>
+                       </div>
+                    </div>
+                  </td>
+                  <td class="px-5 py-4">
+                    <div class="flex flex-col">
+                       <span class="text-sm font-black text-blue-600 dark:text-blue-400 font-mono tracking-tighter">
+                         {{ rankingMode === 'monthly' ? myRankInfo.monthly_points : myRankInfo.points }}
+                       </span>
+                    </div>
+                  </td>
+                  <td class="px-5 py-4">
+                    <div v-if="myRankInfo.bounty > 0" class="flex flex-col">
+                       <div class="flex items-center gap-1 text-rose-500">
+                          <Flame class="w-2.5 h-2.5" />
+                          <span class="text-xs font-black font-mono tracking-tighter">{{ myRankInfo.bounty }}</span>
+                       </div>
+                    </div>
+                    <div v-else class="text-[7px] font-bold text-slate-400 dark:text-slate-600 uppercase italic opacity-40 leading-none">
+                      Std
+                    </div>
+                  </td>
+                  <td class="px-6 py-4 text-right">
+                    <span class="text-[8px] font-black text-blue-600 dark:text-blue-500 uppercase tracking-widest italic pr-1">
+                      Identity_Linked
+                    </span>
                   </td>
                 </tr>
               </tbody>
@@ -346,7 +403,14 @@ try {
 }
 const user = ref(initialUser)
 
+// Missing reactive variables
+const selectedTarget = ref<any>(null)
+const showBountyModal = ref(false)
+const bountyAmount = ref(0)
+const submitting = ref(false)
+
 const leaderboard = ref<any[]>([])
+const myRankInfo = ref<any>(null)
 const friendsList = ref<any[]>([])
 const loading = ref(true)
 const userPoints = ref(0)
@@ -381,7 +445,7 @@ watch(searchTerm, (newVal) => {
 })
 
 const isFriend = (uid: number) => {
-  return friendsList.value.some(f => f.uid === uid)
+  return friendsList.value.some(f => Number(f.uid) === Number(uid))
 }
 
 const handleAddFriend = async (player: any) => {
@@ -418,12 +482,19 @@ const loadLeaderboard = async () => {
       pointsAPI.getLeaderboard(rankingMode.value),
       friendAPI.getFriends()
     ])
-    leaderboard.value = leaderRes.data
-    friendsList.value = friendsRes.data
+    
+    console.log('Leaderboard Raw Response Data:', leaderRes.data)
+    
+    leaderboard.value = leaderRes.data.leaderboard || []
+    myRankInfo.value = leaderRes.data.self || null
+    friendsList.value = friendsRes.data || []
     
     // 同时也尝试更新一下本地的用户分数实时显示
-    const self = leaderboard.value.find(p => p.uid === user.value.uid)
-    if (self) userPoints.value = self.points
+    const currentUid = user.value.uid
+    const self = leaderboard.value.find(p => Number(p.uid) === Number(currentUid)) || myRankInfo.value
+    if (self) {
+      userPoints.value = rankingMode.value === 'monthly' ? self.monthly_points : self.points
+    }
   } catch (error) {
     console.error('Failed to load ranking data:', error)
   } finally {

@@ -3,7 +3,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import api, { authAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
-import { Beaker, Lock, User, Loader2, Fingerprint, Shield, Cpu, Mail } from 'lucide-vue-next'
+import { Beaker, Lock, User, Loader2, Fingerprint, Shield, Cpu, Mail, Github, Globe } from 'lucide-vue-next'
 import ResetPassword2FAModal from '../components/ResetPassword2FAModal.vue'
 import websocket from '../utils/websocket'
 import { get } from '@github/webauthn-json'
@@ -119,30 +119,46 @@ const handleLoginSuccess = (token: string, user: any, announcements: any[] = [])
 }
 
 const handleWebAuthnLogin = async () => {
-  if (!identifier.value) {
-    error.value = '请输入用户名以调起硬件密钥'
+  // ... existing code ...
+}
+
+const handleOAuthLogin = (provider: 'github' | 'ms') => {
+  loading.value = true
+  error.value = ''
+  
+  const width = 600
+  const height = 700
+  const left = window.screen.width / 2 - width / 2
+  const top = window.screen.height / 2 - height / 2
+  
+  const url = `${import.meta.env.VITE_API_BASE_URL || '/api'}/auth/${provider}/login`
+  const popup = window.open(url, 'OAuth Login', `width=${width},height=${height},left=${left},top=${top}`)
+  
+  if (!popup) {
+    loading.value = false
+    dialog.showAlert('弹出窗口被拦截，请允许弹出窗口后重试。', '拦截提示')
     return
   }
-  error.value = ''
-  loading.value = true
-  
-  // 保存用户名
-  localStorage.setItem('last_username', identifier.value)
 
-  try {
-    const res = await api.get(`/auth/webauthn/login/begin?username=${identifier.value}`)
-    const credential = await get(res.data)
-    const resFinish = await api.post(`/auth/webauthn/login/finish?username=${identifier.value}`, credential)
-    
-    // WebAuthn 登录返回的数据结构已统一
-    const { token, user, announcements } = resFinish.data
-    handleLoginSuccess(token, user, announcements)
-  } catch (err: any) {
-    console.error('WebAuthn login error:', err)
-    error.value = err.response?.data?.error || '硬件密钥验证取消或失败'
-  } finally {
-    loading.value = false
+  const messageHandler = (event: MessageEvent) => {
+    if (event.data.type === 'oauth-success') {
+      window.removeEventListener('message', messageHandler)
+      const { token, user } = event.data
+      handleLoginSuccess(token, user)
+      loading.value = false
+    }
   }
+
+  window.addEventListener('message', messageHandler)
+
+  // 轮询检查窗口是否关闭
+  const timer = setInterval(() => {
+    if (popup.closed) {
+      clearInterval(timer)
+      loading.value = false
+      window.removeEventListener('message', messageHandler)
+    }
+  }, 1000)
 }
 </script>
 
@@ -242,6 +258,27 @@ const handleWebAuthnLogin = async () => {
                 <Cpu class="w-4 h-4 text-blue-500" />
                 使用物理研究密钥登录
               </button>
+
+              <div class="grid grid-cols-2 gap-4">
+                <button
+                  type="button"
+                  @click="handleOAuthLogin('github')"
+                  :disabled="loading"
+                  class="h-12 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300 font-bold rounded-2xl active:scale-95 transition-all text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 border border-slate-200 dark:border-white/5"
+                >
+                  <Github class="w-4 h-4" />
+                  GitHub 授权
+                </button>
+                <button
+                  type="button"
+                  @click="handleOAuthLogin('ms')"
+                  :disabled="loading"
+                  class="h-12 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300 font-bold rounded-2xl active:scale-95 transition-all text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 border border-slate-200 dark:border-white/5"
+                >
+                  <Globe class="w-4 h-4 text-blue-400" />
+                  Microsoft 授权
+                </button>
+              </div>
             </form>
           </div>
 

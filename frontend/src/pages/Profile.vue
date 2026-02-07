@@ -211,6 +211,51 @@ const handleDeleteAccount = async () => {
     showAlert(error.response?.data?.error || '注销账号失败', '错误')
   }
 }
+
+// OAuth 绑定与解绑逻辑
+const handleOAuthBind = (provider: 'github' | 'ms') => {
+  const width = 600
+  const height = 700
+  const left = window.screen.width / 2 - width / 2
+  const top = window.screen.height / 2 - height / 2
+  
+  const token = localStorage.getItem('token') || ''
+  const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api'
+  const url = `${baseUrl}/auth/${provider}/bind?token=${token}`
+  
+  const popup = window.open(url, 'OAuth Bind', `width=${width},height=${height},left=${left},top=${top}`)
+  
+  if (!popup) {
+    showAlert('弹出窗口被拦截，请允许弹出窗口后重试。', '拦截提示')
+    return
+  }
+
+  const messageHandler = (event: MessageEvent) => {
+    if (event.data.type === 'oauth-bind-success') {
+      window.removeEventListener('message', messageHandler)
+      showAlert('同步账号绑定成功！', '绑定完成')
+      fetchLatestUserInfo()
+    } else if (event.data.type === 'oauth-error') {
+      window.removeEventListener('message', messageHandler)
+      showAlert(event.data.error || '绑定失败', '错误')
+    }
+  }
+  
+  window.addEventListener('message', messageHandler)
+}
+
+const handleOAuthUnbind = async (provider: 'github' | 'ms') => {
+  const confirmed = await showConfirm(`确定要解除 ${provider === 'github' ? 'GitHub' : 'Microsoft'} 的账号绑定吗？`, '解绑确认')
+  if (!confirmed) return
+
+  try {
+    await authAPI.unbindOAuth(provider)
+    showAlert('账号解绑成功', '提示')
+    fetchLatestUserInfo()
+  } catch (error: any) {
+    showAlert(error.response?.data?.error || '解绑失败', '错误')
+  }
+}
 </script>
 
 <template>
@@ -332,6 +377,8 @@ const handleDeleteAccount = async () => {
               :two-factor-enabled="user.two_factor_enabled"
               :two-factor-loading="twoFactorLoading"
               :smtp-enabled="smtpEnabled"
+              :github-id="user.github_id"
+              :microsoft-id="user.microsoft_id"
               @change-password="showChangePassword = true"
               @change-email="showChangeEmail = true"
               @setup2fa="handleSetup2FA"
@@ -339,6 +386,10 @@ const handleDeleteAccount = async () => {
               @manage-hardware-keys="showHardwareKeys = true"
               @manage-devices="showDeviceManagement = true"
               @delete-account="handleDeleteAccount"
+              @bind-github="handleOAuthBind('github')"
+              @bind-microsoft="handleOAuthBind('ms')"
+              @unbind-github="handleOAuthUnbind('github')"
+              @unbind-microsoft="handleOAuthUnbind('ms')"
             />
           </div>
 

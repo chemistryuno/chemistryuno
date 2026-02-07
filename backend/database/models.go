@@ -76,6 +76,9 @@ type User struct {
 	LastWeeklyDecayAt  time.Time      `json:"last_weekly_decay_at"`
 	LastMonthlyResetAt time.Time      `json:"last_monthly_reset_at"`
 	WebAuthnID         string         `gorm:"size:100" json:"-"`
+	GithubID           string         `gorm:"size:100;index" json:"github_id,omitempty"`
+	MicrosoftID        string         `gorm:"size:100;index" json:"microsoft_id,omitempty"`
+	OAuthProvider      string         `gorm:"size:20" json:"oauth_provider,omitempty"`
 	CreatedAt          time.Time      `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt          time.Time      `gorm:"autoUpdateTime" json:"updated_at"`
 	DeletedAt          gorm.DeletedAt `gorm:"index" json:"-"`

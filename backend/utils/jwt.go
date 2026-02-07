@@ -77,3 +77,39 @@ func ParseToken(tokenString string) (*Claims, error) {
 
 	return nil, errors.New("invalid token")
 }
+
+// StateClaims 用于 OAuth 状态校验
+type StateClaims struct {
+	Intent string `json:"intent"` // login or bind
+	UID    int    `json:"uid,omitempty"`
+	jwt.RegisteredClaims
+}
+
+// GenerateOAuthState 生成加密的状态字符串
+func GenerateOAuthState(intent string, uid int) (string, error) {
+	initJWTSecret()
+	claims := StateClaims{
+		Intent: intent,
+		UID:    uid,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(10 * time.Minute)), // 10分钟有效期
+		},
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString(jwtSecret)
+}
+
+// VerifyOAuthState 校验加密的状态字符串
+func VerifyOAuthState(state string) (*StateClaims, error) {
+	initJWTSecret()
+	token, err := jwt.ParseWithClaims(state, &StateClaims{}, func(token *jwt.Token) (interface{}, error) {
+		return jwtSecret, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if claims, ok := token.Claims.(*StateClaims); ok && token.Valid {
+		return claims, nil
+	}
+	return nil, errors.New("invalid state")
+}

@@ -77,13 +77,39 @@ func (r *UserRepository) ExistsByEmail(email string) (bool, error) {
 	return count > 0, err
 }
 
-// FindByEmailOrUsername 按邮箱或用户名查找用户
+// FindByEmail 按邮箱或用户名查找用户
 func (r *UserRepository) FindByEmailOrUsername(identifier string) (*database.User, error) {
 	var user database.User
 	err := r.db.Where("email = ? OR username = ?", identifier, identifier).First(&user).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("用户不存在")
+		}
+		return nil, err
+	}
+	return &user, nil
+}
+
+// FindByGithubID 根据 GitHub ID 查找用户
+func (r *UserRepository) FindByGithubID(githubID string) (*database.User, error) {
+	var user database.User
+	err := r.db.Where("github_id = ?", githubID).First(&user).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &user, nil
+}
+
+// FindByMicrosoftID 根据 Microsoft ID 查找用户
+func (r *UserRepository) FindByMicrosoftID(microsoftID string) (*database.User, error) {
+	var user database.User
+	err := r.db.Where("microsoft_id = ?", microsoftID).First(&user).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
 		}
 		return nil, err
 	}

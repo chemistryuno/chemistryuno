@@ -450,7 +450,3 @@ func (u *WebAuthnUser) WebAuthnCredentials() []webauthn.Credential {
 	}
 	return creds
 }
-
-func timeNow() time.Time {
-	return time.Now()
-}

@@ -1,0 +1,105 @@
+@theme {
+  --breakpoint-xs: 400px;
+  --color-primary-600: #3b82f6;
+  --color-primary-700: #1d4ed8;
+  --color-secondary: #64748b;
+  --color-danger: #ef4444;
+  --color-success: #10b981;
+
+  /* --- Custom Keyframes --- */
+  @keyframes scan {
+    from { top: 0; }
+    to { top: 100%; }
+  }
+  @keyframes shimmer {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(100%); }
+  }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+    20%, 40%, 60%, 80% { transform: translateX(4px); }
+  }
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes fade-out {
+    from { opacity: 1; }
+    to { opacity: 0; }
+  }
+  @keyframes zoom-in {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  @keyframes slide-in-bottom {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+  @keyframes slide-in-right {
+    from { transform: translateX(20px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+  }
+  @keyframes glow-pulse {
+    0%, 100% { box-shadow: 0 0 5px rgba(59, 130, 246, 0.2); }
+    50% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.5); }
+  }
+  @keyframes spin-slow {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+  @keyframes reverse-spin-slow {
+    from { transform: rotate(360deg); }
+    to { transform: rotate(0deg); }
+  }
+
+  /* --- Animation Utilities --- */
+  --animate-scan: scan 4s linear infinite;
+  --animate-shimmer: shimmer 2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  --animate-shake: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+  --animate-fade-in: fade-in 0.3s ease-out;
+  --animate-zoom-in: zoom-in 0.3s ease-out;
+  --animate-slide-in-bottom: slide-in-bottom 0.4s ease-out;
+  --animate-slide-in-right: slide-in-right 0.3s ease-out;
+  --animate-float: float 3s ease-in-out infinite;
+  --animate-glow: glow-pulse 2s infinite;
+  --animate-spin-slow: spin-slow 10s linear infinite;
+  --animate-reverse-spin-slow: reverse-spin-slow 10s linear infinite;
+
+  /* Custom Backgrounds */
+  --image-mesh: radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.05) 0, transparent 50%), 
+                radial-gradient(at 50% 0%, rgba(139, 92, 246, 0.05) 0, transparent 50%), 
+                radial-gradient(at 100% 0%, rgba(59, 130, 246, 0.05) 0, transparent 50%);
+
+  /* Custom Box Shadows */
+  --shadow-3xl: 0 35px 60px -15px rgba(0, 0, 0, 0.3);
+}
+
+@utility custom-scrollbar-hidden {
+  &::-webkit-scrollbar {
+    display: none;
+  }
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+@utility custom-scrollbar {
+  &::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, currentColor 10%, transparent);
+    border-radius: 9999px;
+  }
+  &::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, currentColor 20%, transparent);
+  }
+}

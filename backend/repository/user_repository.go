@@ -155,6 +155,11 @@ func (r *UserRepository) UpdateFreezeStatus(uid uint, frozenUntil *time.Time) er
 	return r.db.Model(&database.User{}).Where("uid = ?", uid).Update("frozen_until", frozenUntil).Error
 }
 
+// UpdateRoomReadyStatus 更新房间准备状态
+func (r *UserRepository) UpdateRoomReadyStatus(uid uint, ready bool) error {
+	return r.db.Model(&database.User{}).Where("uid = ?", uid).Update("room_ready", ready).Error
+}
+
 // IncrementPoints 增加积分
 func (r *UserRepository) IncrementPoints(uid uint, points int) error {
 	return r.db.Model(&database.User{}).Where("uid = ?", uid).
@@ -291,6 +296,26 @@ func (r *UserRepository) DeductPoints(uid uint, points int) error {
 			"points":         gorm.Expr("points - ?", points),
 			"monthly_points": gorm.Expr("monthly_points - ?", points),
 		}).Error
+}
+
+// UpdateLastOfflineAt 更新最后离线时间
+func (r *UserRepository) UpdateLastOfflineAt(uid uint, t time.Time) error {
+	return r.db.Model(&database.User{}).Where("uid = ?", uid).Update("last_offline_at", t).Error
+}
+
+// UpdateTurnStartedAt 更新回合开始时间
+func (r *UserRepository) UpdateTurnStartedAt(uid uint, t time.Time) error {
+	return r.db.Model(&database.User{}).Where("uid = ?", uid).Update("turn_started_at", t).Error
+}
+
+// GetUserReconnectionData 获取用于重连检查的数据
+func (r *UserRepository) GetUserReconnectionData(uid uint) (*time.Time, *time.Time, error) {
+	var user database.User
+	err := r.db.Select("turn_started_at, last_offline_at").First(&user, uid).Error
+	if err != nil {
+		return nil, nil, err
+	}
+	return user.TurnStartedAt, user.LastOfflineAt, nil
 }
 
 // DeductPointsPercentage 扣除积分百分比

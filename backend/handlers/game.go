@@ -42,6 +42,7 @@ func CreateRoom(c *gin.Context) {
 		MaxPlayers   int    `json:"max_players" binding:"required,min=2,max=8"`
 		DeckID       int    `json:"deck_id"`
 		IsPointsMode bool   `json:"is_points_mode"`
+		IsPrivate    bool   `json:"is_private"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -52,7 +53,7 @@ func CreateRoom(c *gin.Context) {
 	uid := c.GetInt("uid")
 	username := c.GetString("username")
 
-	room, err := game.CreateRoom(req.Name, uid, username, req.MaxPlayers, req.DeckID, req.IsPointsMode)
+	room, err := game.CreateRoom(req.Name, uid, username, req.MaxPlayers, req.DeckID, req.IsPointsMode, req.IsPrivate)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -98,6 +99,20 @@ func LeaveRoom(c *gin.Context) {
 
 	broadcastUpdate(roomID)
 	c.JSON(http.StatusOK, gin.H{"message": "离开房间成功"})
+}
+
+// ToggleReady 准备或取消准备
+func ToggleReady(c *gin.Context) {
+	roomID := c.Param("id")
+	uid := c.GetInt("uid")
+
+	err := game.ToggleReady(roomID, uid)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "开始游戏"})
 }
 
 // 获取当前玩家的游戏历史

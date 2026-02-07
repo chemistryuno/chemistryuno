@@ -84,15 +84,19 @@ func (h *Hub) Run() {
 
 		case message := <-h.broadcast:
 			h.mutex.RLock()
+			clients := make([]*Client, 0, len(h.clients))
 			for client := range h.clients {
+				clients = append(clients, client)
+			}
+			h.mutex.RUnlock()
+
+			for _, client := range clients {
 				select {
 				case client.send <- message:
 				default:
-					close(client.send)
-					delete(h.clients, client)
+					h.unregister <- client
 				}
 			}
-			h.mutex.RUnlock()
 		}
 	}
 }

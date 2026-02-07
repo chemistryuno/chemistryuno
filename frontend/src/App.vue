@@ -4,7 +4,6 @@ import { useRoute } from 'vue-router'
 import websocket from './utils/websocket'
 import { gameAPI } from './utils/api'
 import CustomDialog from './components/CustomDialog.vue'
-import FeedbackButton from './components/FeedbackButton.vue'
 import AnnouncementTicker from './components/AnnouncementTicker.vue'
 import DuelInviteModal from './components/DuelInviteModal.vue'
 import { useDialog } from './utils/dialog'
@@ -12,15 +11,44 @@ import { useDialog } from './utils/dialog'
 const loading = ref(true)
 const { showAlert, showConfirm, closeDialog } = useDialog()
 const route = useRoute()
-const feedbackBtnRef = ref<any>(null)
 
 const activeDuelInvite = ref<any>(null)
 
-watch(() => route.query.report, (val) => {
-  if (val) {
-    feedbackBtnRef.value?.prefill(String(val), 'equation')
+const handleFeedbackUpdate = (msg: any) => {
+  if (msg && msg.status) {
+    const statusLabel = msg.status === 'accepted' ? '已受理' : '不予受理'
+    showAlert(`您的反馈有新进展：状态更新为 [${statusLabel}]。\n回复：${msg.resolution_note || '无'}`, '反馈通知')
   }
-})
+}
+
+const handleDuelStart = (msg: any) => {
+  if (msg.room_id) {
+    showAlert('量子隧道已建立，正在进入单挑战场...', '单挑协议启动')
+    window.location.href = `/room/${msg.room_id}`
+  }
+}
+
+const handleDuelInvite = (msg: any) => {
+  activeDuelInvite.value = {
+    challenger_name: msg.data.challenger_name,
+    challenger_uid: msg.data.challenger_uid
+  }
+}
+
+const handleDuelDeclined = (msg: any) => {
+  showAlert(`研究员 ${msg.data.username} 拒绝了你的挑战邀请。`, '挑战被拒绝')
+}
+
+const handleSystemAnnouncement = (msg: any) => {
+  const ann = msg.data
+  // 如果不是跑马灯，则视为弹窗公告
+  if (ann && !ann.is_ticker) {
+    let title = ann.title || '系统公告'
+    if (ann.type === 'emergency' && !ann.title) title = '紧急通知'
+    if (ann.type === 'maintenance' && !ann.title) title = '维护通知'
+    showAlert(ann.content, title, '确定', ann.close_delay || 0)
+  }
+}
 
 const updateTheme = () => {
   const storedTheme = localStorage.getItem('theme') || 'system'
@@ -58,62 +86,26 @@ onMounted(() => {
       websocket.connect()
     }
 
-    const handleFeedbackUpdate = (msg: any) => {
-      if (msg && msg.status) {
-        const statusLabel = msg.status === 'accepted' ? '已受理' : '不予受理'
-        showAlert(`您的反馈有新进展：状态更新为 [${statusLabel}]。\n回复：${msg.resolution_note || '无'}`, '反馈通知')
-      }
-    }
-
-    const handleDuelStart = (msg: any) => {
-      if (msg.room_id) {
-        showAlert('量子隧道已建立，正在进入单挑战场...', '单挑协议启动')
-        window.location.href = `/room/${msg.room_id}`
-      }
-    }
-
-    const handleDuelInvite = (msg: any) => {
-      activeDuelInvite.value = {
-        challenger_name: msg.data.challenger_name,
-        challenger_uid: msg.data.challenger_uid
-      }
-    }
-
-    const handleDuelDeclined = (msg: any) => {
-      showAlert(`研究员 ${msg.data.username} 拒绝了你的挑战邀请。`, '挑战被拒绝')
-    }
-
-    const handleSystemAnnouncement = (msg: any) => {
-      const ann = msg.data
-      // 如果不是跑马灯，则视为弹窗公告
-      if (ann && !ann.is_ticker) {
-        let title = ann.title || '系统公告'
-        if (ann.type === 'emergency' && !ann.title) title = '紧急通知'
-        if (ann.type === 'maintenance' && !ann.title) title = '维护通知'
-        showAlert(ann.content, title, '确定', ann.close_delay || 0)
-      }
-    }
-
     websocket.on('feedback_update', handleFeedbackUpdate)
     websocket.on('duel_start', handleDuelStart)
     websocket.on('duel_invite', handleDuelInvite)
     websocket.on('duel_declined', handleDuelDeclined)
     websocket.on('system_announcement', handleSystemAnnouncement)
-
-    onUnmounted(() => {
-      const mq = window.matchMedia('(prefers-color-scheme: dark)')
-      mq.removeEventListener('change', updateTheme)
-      websocket.off('feedback_update', handleFeedbackUpdate)
-      websocket.off('duel_start', handleDuelStart)
-      websocket.off('duel_invite', handleDuelInvite)
-      websocket.off('duel_declined', handleDuelDeclined)
-      websocket.off('system_announcement', handleSystemAnnouncement)
-    })
   } catch (err) {
     console.error('App initialization failed:', err)
   } finally {
     loading.value = false
   }
+})
+
+onUnmounted(() => {
+  const mq = window.matchMedia('(prefers-color-scheme: dark)')
+  mq.removeEventListener('change', updateTheme)
+  websocket.off('feedback_update', handleFeedbackUpdate)
+  websocket.off('duel_start', handleDuelStart)
+  websocket.off('duel_invite', handleDuelInvite)
+  websocket.off('duel_declined', handleDuelDeclined)
+  websocket.off('system_announcement', handleSystemAnnouncement)
 })
 </script>
 
@@ -132,7 +124,6 @@ onMounted(() => {
       <AnnouncementTicker />
       <router-view></router-view>
       <CustomDialog />
-      <FeedbackButton ref="feedbackBtnRef" />
       <DuelInviteModal v-if="activeDuelInvite" :invite="activeDuelInvite" @close="activeDuelInvite = null" />
     </div>
   </template>

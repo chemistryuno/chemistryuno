@@ -63,10 +63,10 @@ const closeTicker = () => {
 <template>
   <div v-if="isVisible && announcements.length > 0" 
        class="relative w-full bg-blue-600/90 dark:bg-blue-900/40 backdrop-blur-md border-b border-blue-400/30 text-white overflow-hidden transition-all duration-500 ease-in-out">
-    <div class="container mx-auto px-4 py-2 flex items-center gap-3">
-      <Bell class="w-4 h-4 animate-bounce flex-shrink-0" />
+    <div class="container mx-auto px-4 py-1 flex items-center gap-2">
+      <Bell class="w-3.5 h-3.5 animate-bounce flex-shrink-0" />
       
-      <div class="flex-grow overflow-hidden relative h-6">
+      <div class="flex-grow overflow-hidden relative h-5">
         <TransitionGroup 
           name="ticker" 
           tag="div"
@@ -78,16 +78,16 @@ const closeTicker = () => {
             v-show="index === currentIndex"
             class="flex items-center gap-2 whitespace-nowrap"
           >
-            <span v-if="ann.type === 'emergency'" class="bg-red-500 text-[10px] px-1.5 py-0.5 rounded font-bold animate-pulse uppercase">紧急</span>
-            <span v-else-if="ann.type === 'maintenance'" class="bg-amber-500 text-[10px] px-1.5 py-0.5 rounded font-bold uppercase">维护</span>
-            <span v-else class="bg-emerald-500 text-[10px] px-1.5 py-0.5 rounded font-bold uppercase">公告</span>
-            <span class="text-sm font-medium tracking-wide">{{ ann.content }}</span>
+            <span v-if="ann.type === 'emergency'" class="bg-red-500 text-[8px] px-1 py-0.5 rounded font-bold animate-pulse uppercase">紧急</span>
+            <span v-else-if="ann.type === 'maintenance'" class="bg-amber-500 text-[8px] px-1 py-0.5 rounded font-bold uppercase">维护</span>
+            <span v-else class="bg-emerald-500 text-[8px] px-1 py-0.5 rounded font-bold uppercase">公告</span>
+            <span class="text-xs font-black italic tracking-wide truncate max-w-[80vw]">{{ ann.content }}</span>
           </div>
         </TransitionGroup>
       </div>
 
       <button @click="closeTicker" class="hover:bg-white/10 p-1 rounded-full transition-colors">
-        <X class="w-4 h-4" />
+        <X class="w-3.5 h-3.5" />
       </button>
     </div>
   </div>

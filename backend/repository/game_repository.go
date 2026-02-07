@@ -89,13 +89,15 @@ func (r *GameRepository) GetGameStatsByDateRange(startDate, endDate time.Time) (
 
 // GameHistoryWithWinner 带胜者信息的游戏历史
 type GameHistoryWithWinner struct {
-	ID         uint          `json:"id"`
-	RoomID     string        `json:"room_id"`
-	WinnerUID  *uint         `json:"winner_uid"`
-	WinnerName string        `json:"winner_name"`
-	Players    database.JSON `json:"players"`
-	StartedAt  string        `json:"started_at"`
-	FinishedAt string        `json:"finished_at"`
+	ID                  uint          `json:"id"`
+	RoomID              string        `json:"room_id"`
+	WinnerUID           *uint         `json:"winner_uid"`
+	WinnerName          string        `json:"winner_name"`
+	Players             database.JSON `json:"players"`
+	OriginalPlayerCount int           `json:"original_player_count"`
+	QuittedCount        int           `json:"quitted_count"`
+	StartedAt           string        `json:"started_at"`
+	FinishedAt          string        `json:"finished_at"`
 }
 
 // FindAllWithWinner 获取游戏历史（带胜者名称）
@@ -103,7 +105,7 @@ func (r *GameRepository) FindAllWithWinner(limit int) ([]GameHistoryWithWinner, 
 	var results []GameHistoryWithWinner
 
 	query := r.db.Table("game_history").
-		Select("game_history.id, game_history.room_id, game_history.winner_uid, users.username as winner_name, game_history.players, game_history.started_at, game_history.finished_at").
+		Select("game_history.id, game_history.room_id, game_history.winner_uid, users.username as winner_name, game_history.players, game_history.original_player_count, game_history.quitted_count, game_history.started_at, game_history.finished_at").
 		Joins("LEFT JOIN users ON game_history.winner_uid = users.uid").
 		Order("game_history.created_at DESC")
 

@@ -70,6 +70,9 @@ type User struct {
 	FrozenUntil        *time.Time     `json:"frozen_until"`
 	TotalGames         int            `gorm:"default:0" json:"total_games"`
 	WinCount           int            `gorm:"default:0" json:"win_count"`
+	TurnStartedAt      *time.Time     `json:"turn_started_at"`
+	RoomReady          bool           `gorm:"default:false" json:"room_ready"`
+	LastOfflineAt      *time.Time     `json:"last_offline_at"`
 	LastWeeklyDecayAt  time.Time      `json:"last_weekly_decay_at"`
 	LastMonthlyResetAt time.Time      `json:"last_monthly_reset_at"`
 	WebAuthnID         string         `gorm:"size:100" json:"-"`
@@ -234,13 +237,15 @@ func (DeckConfig) TableName() string {
 
 // GameHistory GORM模型 - 游戏历史表
 type GameHistory struct {
-	ID         uint      `gorm:"primaryKey;autoIncrement" json:"id"`
-	RoomID     string    `gorm:"not null;size:50;index" json:"room_id"`
-	WinnerUID  *uint     `json:"winner_uid"`
-	Players    JSON      `gorm:"not null;type:json" json:"players"`
-	StartedAt  time.Time `json:"started_at"`
-	FinishedAt time.Time `json:"finished_at"`
-	CreatedAt  time.Time `gorm:"autoCreateTime" json:"created_at"`
+	ID                  uint      `gorm:"primaryKey;autoIncrement" json:"id"`
+	RoomID              string    `gorm:"not null;size:50;index" json:"room_id"`
+	WinnerUID           *uint     `json:"winner_uid"`
+	Players             JSON      `gorm:"not null;type:json" json:"players"`
+	OriginalPlayerCount int       `json:"original_player_count"`
+	QuittedCount        int       `json:"quitted_count"`
+	StartedAt           time.Time `json:"started_at"`
+	FinishedAt          time.Time `json:"finished_at"`
+	CreatedAt           time.Time `gorm:"autoCreateTime" json:"created_at"`
 }
 
 func (GameHistory) TableName() string {

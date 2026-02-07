@@ -29,9 +29,13 @@ import { LayoutDashboard, ShieldCheck, FlaskConical, History, Sliders, Menu, X a
 const router = useRouter()
 const { showAlert, showConfirm, showPrompt } = useDialog()
 
-let initialUser = {}
+let initialUser: any = {}
 try {
   initialUser = JSON.parse(localStorage.getItem('user') || '{}')
+  // 兼容旧版本的 id 字段
+  if (initialUser.id && !initialUser.uid) {
+    initialUser.uid = initialUser.id
+  }
 } catch (e) {
   console.error('Failed to parse user in Profile:', e)
 }
@@ -251,53 +255,53 @@ const handleDeleteAccount = async () => {
       </nav>
     </aside>
 
-    <div class="max-w-[1400px] mx-auto relative z-10 px-4 pt-10 pb-20 md:px-8">
+    <div class="max-w-[1400px] mx-auto relative z-10 px-4 pt-6 pb-12 md:px-6">
       <!-- Desktop Header & Mobile Control -->
-      <div class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div class="flex items-center gap-4">
-          <button @click="router.push('/')" class="p-3 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl hover:scale-105 transition-all text-slate-400 hover:text-slate-900 dark:hover:text-white">
-            <ArrowLeft class="w-5 h-5" />
+      <div class="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+          <button @click="router.push('/')" class="p-2.5 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl hover:scale-105 transition-all text-slate-400 hover:text-slate-900 dark:hover:text-white">
+            <ArrowLeft class="w-4 h-4" />
           </button>
           <div class="lg:hidden">
-            <button @click="isSidebarOpen = true" class="flex items-center gap-2 px-4 py-3 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl font-black text-xs uppercase tracking-widest">
-              <Menu class="w-4 h-4" /> 导航
+            <button @click="isSidebarOpen = true" class="flex items-center gap-2 px-3 py-2 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl font-black text-[10px] uppercase tracking-widest text-slate-500">
+              <Menu class="w-3.5 h-3.5" /> NAV
             </button>
           </div>
           <div class="hidden md:block">
-            <h1 class="text-3xl font-black tracking-tighter uppercase italic">实验室档案 <span class="text-blue-500 font-mono text-sm not-italic ml-2">/ RESH_PROFILE_V2</span></h1>
+            <h1 class="text-2xl font-black tracking-tighter uppercase italic text-slate-800 dark:text-white">实验室档案 <span class="text-blue-500 font-mono text-[10px] not-italic ml-2 opacity-50">/ RESH_PROFILE_V2</span></h1>
           </div>
         </div>
 
         <!-- PC Top Navigation -->
-        <nav class="hidden lg:flex items-center gap-1 p-1 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-[1.5rem] backdrop-blur-xl shrink-0 overflow-hidden">
+        <nav class="hidden lg:flex items-center gap-1 p-1 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl backdrop-blur-xl shrink-0 overflow-hidden">
           <button 
             v-for="cat in categories" 
             :key="cat.id" 
             @click="currentCategory = cat.id"
-            class="flex flex-col items-center justify-center min-w-[110px] py-3 px-6 rounded-2xl transition-all"
+            class="flex flex-col items-center justify-center min-w-[90px] py-2 px-4 rounded-xl transition-all"
             :class="[
               currentCategory === cat.id 
                 ? 'bg-blue-600/10 text-blue-600 dark:text-blue-400 font-bold' 
                 : 'text-slate-400 hover:text-slate-600 dark:hover:text-white'
             ]"
           >
-            <component :is="cat.icon" class="w-4 h-4" />
-            <span class="text-[11px] font-black uppercase tracking-tight">{{ cat.name }}</span>
+            <component :is="cat.icon" class="w-3.5 h-3.5" />
+            <span class="text-[9px] font-black uppercase tracking-tight mt-0.5">{{ cat.name }}</span>
           </button>
         </nav>
 
         <router-link 
           to="/ranking" 
-          class="flex items-center gap-2 px-6 py-3 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-amber-500 hover:bg-amber-500/20 transition-all font-black text-xs uppercase tracking-widest"
+          class="flex items-center gap-2 px-4 py-2 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-500 hover:bg-amber-500/20 transition-all font-black text-[10px] uppercase tracking-widest"
         >
-          <Trophy class="w-4 h-4" />
-          全球排名
+          <Trophy class="w-3.5 h-3.5" />
+          排名中心
         </router-link>
       </div>
 
-      <div class="flex flex-col lg:flex-row gap-8 items-start">
+      <div class="flex flex-col lg:flex-row gap-6 items-start">
         <!-- Persistent Profile Sidebar (Stats & Header) -->
-        <div class="w-full lg:w-[360px] space-y-6 shrink-0 lg:sticky lg:top-8">
+        <div class="w-full lg:w-[320px] space-y-5 shrink-0 lg:sticky lg:top-6">
           <ProfileHeader 
             :user="user" 
             @change-avatar="showChangeAvatar = true" 
@@ -307,18 +311,18 @@ const handleDeleteAccount = async () => {
         </div>
 
         <!-- Dynamic Content Area -->
-        <div class="flex-1 w-full space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div class="flex-1 w-full space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
           
-          <div v-if="currentCategory === 'overview'" class="space-y-8">
+          <div v-if="currentCategory === 'overview'" class="space-y-6">
             <!-- Achievements Section -->
-            <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 rounded-[2.5rem] p-10 shadow-sm">
-              <h3 class="text-xl font-bold uppercase tracking-widest mb-6 flex items-center gap-3 text-slate-400">
-                <Award class="w-5 h-5 transition-colors group-hover:text-blue-500" />
-                实验室成就 / Achievements
+            <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 rounded-2xl p-8 shadow-sm">
+              <h3 class="text-base font-black uppercase tracking-widest mb-5 flex items-center gap-2 text-slate-400">
+                <Award class="w-4 h-4 transition-colors group-hover:text-blue-500" />
+                实验室成就 <span class="text-[10px] font-mono opacity-30">/ ACHIEVEMENTS</span>
               </h3>
-              <div class="flex flex-col items-center justify-center py-20 border-2 border-dashed border-slate-200 dark:border-white/5 rounded-[2rem] bg-slate-50 dark:bg-white/[0.02]">
-                <Shield class="w-12 h-12 text-slate-300 dark:text-slate-700 mb-4 opacity-30" />
-                <p class="text-slate-400 font-medium italic text-sm">尚未获得勋章记录。去开启一场化学反应吧！</p>
+              <div class="flex flex-col items-center justify-center py-16 border-2 border-dashed border-slate-200 dark:border-white/5 rounded-2xl bg-slate-50 dark:bg-white/[0.02]">
+                <Shield class="w-10 h-10 text-slate-300 dark:text-slate-700 mb-3 opacity-30" />
+                <p class="text-slate-400 font-medium italic text-xs uppercase tracking-widest">No_Archive_Found</p>
               </div>
             </div>
           </div>
@@ -339,13 +343,13 @@ const handleDeleteAccount = async () => {
           </div>
 
           <div v-if="currentCategory === 'research'">
-            <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 rounded-[2.5rem] p-10 shadow-sm">
+            <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 rounded-2xl p-8 shadow-sm">
               <CustomDecks />
             </div>
           </div>
 
           <div v-if="currentCategory === 'history'" class="space-y-6">
-            <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 rounded-[2.5rem] p-10 shadow-sm">
+            <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 rounded-2xl p-8 shadow-sm">
               <MatchHistory />
             </div>
           </div>
@@ -357,19 +361,19 @@ const handleDeleteAccount = async () => {
             <!-- Feedback Section -->
             <router-link 
               to="/feedbacks/my"
-              class="group flex items-center justify-between p-8 bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 rounded-[2.5rem] shadow-sm hover:shadow-lg transition-all"
+              class="group flex items-center justify-between p-6 bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 rounded-2xl shadow-sm hover:shadow-lg transition-all"
             >
-              <div class="flex items-center gap-6">
-                <div class="w-14 h-14 bg-blue-500/10 rounded-2xl flex items-center justify-center text-blue-500 group-hover:bg-blue-500 group-hover:text-white transition-all duration-300 group-hover:rotate-6">
-                  <MessageSquare class="w-6 h-6" />
+              <div class="flex items-center gap-5">
+                <div class="w-12 h-12 bg-blue-500/10 rounded-xl flex items-center justify-center text-blue-500 group-hover:bg-blue-500 group-hover:text-white transition-all duration-300">
+                  <MessageSquare class="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 class="text-lg font-bold uppercase tracking-widest text-slate-800 dark:text-white">反馈与消息 / Feedback</h3>
-                  <p class="text-slate-500 dark:text-slate-400 mt-1 font-medium text-xs">查看提交的建议、错误报告及管理员回复</p>
+                  <h3 class="text-base font-black uppercase tracking-widest text-slate-800 dark:text-white leading-none">反馈与消息 / Feedback</h3>
+                  <p class="text-slate-500 dark:text-slate-400 mt-1.5 font-medium text-[11px]">查看提交的建议、错误报告及管理员回复</p>
                 </div>
               </div>
-              <div class="w-10 h-10 rounded-full border border-slate-200 dark:border-white/5 flex items-center justify-center text-slate-400 group-hover:bg-blue-500 group-hover:text-white group-hover:translate-x-1 transition-all">
-                <ArrowLeft class="w-4 h-4 rotate-180" />
+              <div class="w-8 h-8 rounded-full border border-slate-200 dark:border-white/5 flex items-center justify-center text-slate-400 group-hover:bg-blue-500 group-hover:text-white group-hover:translate-x-1 transition-all">
+                <ArrowLeft class="w-3.5 h-3.5 rotate-180" />
               </div>
             </router-link>
           </div>

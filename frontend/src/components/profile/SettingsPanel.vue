@@ -29,38 +29,38 @@ watch(currentTheme, (newTheme) => {
 </script>
 
 <template>
-  <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 rounded-[2.5rem] p-8 shadow-sm dark:shadow-none transition-all hover:shadow-lg">
-    <h3 class="text-xl font-bold uppercase tracking-widest mb-6 flex items-center gap-3 text-slate-800 dark:text-white">
-      <Palette class="w-5 h-5 text-blue-500" />
-      外观设置 / Theme
+  <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 rounded-2xl p-6 shadow-sm dark:shadow-none transition-all">
+    <h3 class="text-base font-black uppercase tracking-widest mb-5 flex items-center gap-2.5 text-slate-800 dark:text-white">
+      <Palette class="w-4 h-4 text-blue-500" />
+      外观控制 <span class="text-[10px] font-mono opacity-30">/ THEME</span>
     </h3>
 
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-2.5">
       <button
         v-for="theme in themes"
         :key="theme.id"
         @click="currentTheme = theme.id"
         :class="[
-          'flex items-center gap-3 p-4 rounded-2xl border-2 transition-all group backdrop-blur-md',
+          'flex items-center gap-2.5 p-3 rounded-xl border transition-all group backdrop-blur-md',
           currentTheme === theme.id 
-            ? 'border-blue-500/50 bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 shadow-[0_4px_15px_rgba(59,130,246,0.1)]' 
+            ? 'border-blue-500/50 bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 shadow-[0_4px_12px_rgba(59,130,246,0.1)]' 
             : 'border-slate-100 dark:border-white/5 bg-slate-50 dark:bg-white/[0.02] text-slate-400 hover:border-slate-200 dark:hover:border-white/10'
         ]"
       >
         <component 
           :is="theme.icon" 
           :class="[
-            'w-5 h-5 transition-transform duration-500',
-            currentTheme === theme.id ? 'scale-110' : 'group-hover:rotate-12'
+            'w-4 h-4 transition-transform duration-500',
+            currentTheme === theme.id ? 'scale-110 shadow-[0_0_8px_currentColor]' : 'group-hover:rotate-12'
           ]" 
         />
-        <span class="text-[11px] font-black uppercase tracking-widest text-left leading-tight">{{ theme.name }}</span>
+        <span class="text-[10px] font-black uppercase tracking-tight text-left leading-none">{{ theme.name.split('/')[0].trim() }}</span>
       </button>
     </div>
 
-    <div class="mt-6 p-4 bg-slate-50 dark:bg-white/[0.02] rounded-2xl border border-slate-100 dark:border-white/5">
-      <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-center leading-relaxed">
-        系统同步将根据您的操作系统设置自动切换明亮与深色风格。
+    <div class="mt-4 p-3 bg-slate-50 dark:bg-white/[0.02] rounded-xl border border-slate-100 dark:border-white/5">
+      <p class="text-[9px] text-slate-400 font-black uppercase tracking-widest text-center leading-relaxed opacity-50">
+        Adaptive protocol: system_sync_active
       </p>
     </div>
   </div>

@@ -30,5 +30,6 @@ func main() {
 	log.Println("✅ 数据库初始化成功！")
 	log.Println("👤 默认管理员: admin@chemistryuno.com / admin123")
 	log.Println("🧪 基础物质与化学反应数据已加载")
+	log.Println("⚙️  系统参数 (重连宽限、回合时间) 已初始化")
 	log.Println("------------------------------------")
 }

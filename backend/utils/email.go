@@ -6,7 +6,6 @@ import (
 	"math/rand"
 	"net/smtp"
 	"os"
-	"time"
 )
 
 // IsSMTPConfigured 检查SMTP是否已配置
@@ -92,6 +91,5 @@ func SendEmail(to, subject, body string) error {
 
 // GenerateVerificationCode 生成6位数字验证码
 func GenerateVerificationCode() string {
-	rand.Seed(time.Now().UnixNano())
 	return fmt.Sprintf("%06d", rand.Intn(1000000))
 }

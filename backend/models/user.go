@@ -24,6 +24,8 @@ type User struct {
 	FrozenUntil        *time.Time            `json:"frozen_until" db:"frozen_until"`
 	TotalGames         int                   `json:"total_games" db:"total_games"`
 	WinCount           int                   `json:"win_count" db:"win_count"`
+	TurnStartedAt      *time.Time            `json:"turn_started_at" db:"turn_started_at"`
+	LastOfflineAt      *time.Time            `json:"last_offline_at" db:"last_offline_at"`
 	LastWeeklyDecayAt  time.Time             `json:"last_weekly_decay_at" db:"last_weekly_decay_at"`
 	LastMonthlyResetAt time.Time             `json:"last_monthly_reset_at" db:"last_monthly_reset_at"`
 	WebAuthnIDRaw      string                `json:"-" db:"webauthn_id"`

@@ -337,14 +337,16 @@ func GetGameHistory(c *gin.Context) {
 		}
 
 		history = append(history, map[string]interface{}{
-			"id":          h.ID,
-			"room_id":     h.RoomID,
-			"winner_uid":  h.WinnerUID,
-			"winner_name": h.WinnerName,
-			"players":     players,
-			"started_at":  h.StartedAt,
-			"finished_at": h.FinishedAt,
-			"created_at":  h.FinishedAt, // 兼容前端字段名
+			"id":                    h.ID,
+			"room_id":               h.RoomID,
+			"winner_uid":            h.WinnerUID,
+			"winner_name":           h.WinnerName,
+			"players":               players,
+			"original_player_count": h.OriginalPlayerCount,
+			"quitted_count":         h.QuittedCount,
+			"started_at":            h.StartedAt,
+			"finished_at":           h.FinishedAt,
+			"created_at":            h.FinishedAt, // 兼容前端字段名
 		})
 	}
 

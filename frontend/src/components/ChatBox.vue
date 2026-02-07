@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { Send, MessageSquare, User, X } from 'lucide-vue-next'
 import websocket from '../utils/websocket'
 import { authAPI } from '../utils/api'
@@ -88,11 +88,19 @@ onMounted(() => {
   websocket.on('chat', handleChatMessage)
   websocket.on('private_chat', handlePrivateMessage)
 
-  // 监听外部私聊请求
-  window.addEventListener('start-private-chat', ((e: CustomEvent) => {
-    privateTarget.value = e.detail
+  const handleStartPrivateChat = (e: CustomEvent) => {
+    privateTarget.value = (e as any).detail
     chatMode.value = 'private'
-  }) as any)
+  }
+
+  // 监听外部私聊请求
+  window.addEventListener('start-private-chat', handleStartPrivateChat as any)
+
+  onUnmounted(() => {
+    websocket.off('chat', handleChatMessage)
+    websocket.off('private_chat', handlePrivateMessage)
+    window.removeEventListener('start-private-chat', handleStartPrivateChat as any)
+  })
 })
 
 const handleSend = () => {
@@ -146,10 +154,10 @@ const formatTime = (date: Date) => {
     <!-- Messages -->
     <div 
       ref="scrollContainer"
-      class="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar"
+      class="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar"
     >
       <div v-if="messages.length === 0" class="flex flex-col items-center justify-center h-full py-10 opacity-20">
-        <MessageSquare class="w-12 h-12 mb-2" />
+        <MessageSquare class="w-10 h-10 mb-2" />
         <p class="text-[10px] font-black uppercase tracking-widest">等待信号传输...</p>
       </div>
       
@@ -163,7 +171,7 @@ const formatTime = (date: Date) => {
       >
         <!-- Avatar -->
         <div class="shrink-0 mt-1">
-          <div class="w-7 h-7 rounded-lg bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-center justify-center text-xs overflow-hidden shadow-sm">
+          <div class="w-6 h-6 rounded-lg bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-center justify-center text-[10px] overflow-hidden shadow-sm">
             <template v-if="msg.avatar && msg.avatar.startsWith('data:')">
               <img :src="msg.avatar" class="w-full h-full object-cover" />
             </template>
@@ -177,7 +185,7 @@ const formatTime = (date: Date) => {
           'flex flex-col gap-0.5',
           msg.uid === currentUID ? 'items-end' : 'items-start'
         )">
-          <div class="flex items-center gap-1.5 px-0.5">
+          <div class="flex items-center gap-1 px-0.5">
             <span v-if="msg.uid !== currentUID" class="text-[8px] font-black text-slate-400 uppercase tracking-tighter">
               {{ msg.username }}
               <span v-if="msg.type === 'private'" class="text-rose-500 ml-1">(私语)</span>
@@ -188,7 +196,7 @@ const formatTime = (date: Date) => {
             <span class="text-[7px] font-mono text-slate-300 dark:text-slate-600">{{ formatTime(msg.time) }}</span>
           </div>
           <div :class="cn(
-            'px-3 py-1.5 rounded-xl text-[11px] font-medium leading-relaxed break-words shadow-sm',
+            'px-2 py-1 rounded-xl text-[10px] font-medium leading-relaxed break-words shadow-sm',
             msg.type === 'private' ? 'border-2 border-rose-500/10' : '',
             msg.uid === currentUID 
               ? 'bg-blue-600 text-white rounded-tr-none' 
@@ -201,7 +209,7 @@ const formatTime = (date: Date) => {
     </div>
 
     <!-- Input -->
-    <div class="p-4 border-t border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.01] space-y-3 shrink-0">
+    <div class="p-3 border-t border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.01] space-y-2 shrink-0">
       <!-- Mode Selector -->
       <div v-if="chatMode === 'private'" class="flex items-center gap-2 animate-in slide-in-from-bottom-1">
         <div class="flex items-center gap-2 px-2 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all bg-rose-500 text-white">
@@ -220,16 +228,16 @@ const formatTime = (date: Date) => {
             v-model="newMessage"
             type="text" 
             :placeholder="placeholder || '向各研究员发送讯息...'"
-            class="relative w-full h-10 bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 text-[11px] font-medium focus:outline-none focus:border-blue-500/50 transition-all dark:text-white"
+            class="relative w-full h-9 bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-3 text-[10px] font-medium focus:outline-none focus:border-blue-500/50 transition-all dark:text-white"
             @keydown.enter="handleSend"
           />
         </div>
         <button 
           @click="handleSend"
           :disabled="!newMessage.trim()"
-          class="w-10 h-10 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:grayscale text-white rounded-xl flex items-center justify-center transition-all shadow-lg shadow-blue-500/20 active:scale-95 shrink-0"
+          class="w-9 h-9 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:grayscale text-white rounded-xl flex items-center justify-center transition-all shadow-lg shadow-blue-500/20 active:scale-95 shrink-0"
         >
-          <Send class="w-4 h-4" />
+          <Send class="w-3.5 h-3.5" />
         </button>
       </div>
     </div>

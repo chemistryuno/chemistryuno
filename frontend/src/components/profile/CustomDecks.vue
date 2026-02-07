@@ -106,31 +106,31 @@ onMounted(loadDecks)
 </script>
 
 <template>
-  <div class="space-y-6">
+  <div class="space-y-5">
     <div class="flex items-center justify-between">
-       <h3 class="text-xl font-black italic tracking-tighter uppercase text-slate-900 dark:text-white">Deck Library <span class="text-slate-400 dark:text-white/20 text-[10px] lowercase font-mono not-italic ml-2">/ default + custom</span></h3>
+       <h3 class="text-base font-black italic tracking-tighter uppercase text-slate-900 dark:text-white">Deck Library <span class="text-slate-400 dark:text-white/20 text-[10px] lowercase font-mono not-italic ml-2">/ default + custom</span></h3>
        <button 
         @click="openCreate"
-        class="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all"
+        class="flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-black uppercase tracking-widest transition-all"
        >
          <Plus class="w-4 h-4" /> New Sequence
        </button>
     </div>
 
     <div v-if="isLoading" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-      <div v-for="i in 2" :key="i" class="h-32 bg-slate-100 dark:bg-white/5 rounded-3xl animate-pulse"></div>
+      <div v-for="i in 2" :key="i" class="h-28 bg-slate-100 dark:bg-white/5 rounded-2xl animate-pulse"></div>
     </div>
 
     <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-4">
       <div v-for="deck in decks" :key="deck.id" 
-        class="p-6 bg-white dark:bg-black/40 border border-slate-200 dark:border-white/5 rounded-3xl group relative overflow-hidden"
+        class="p-4 bg-white dark:bg-black/40 border border-slate-200 dark:border-white/5 rounded-2xl group relative overflow-hidden"
       >
         <div class="absolute top-0 left-0 w-1 h-full bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
         
-        <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center justify-between mb-3">
           <div class="flex items-center gap-3">
-            <div class="w-10 h-10 bg-blue-500/10 rounded-xl flex items-center justify-center">
-              <Hexagon class="w-5 h-5 text-blue-500" />
+            <div class="w-8 h-8 bg-blue-500/10 rounded-lg flex items-center justify-center">
+              <Hexagon class="w-4 h-4 text-blue-500" />
             </div>
             <div>
               <div class="flex items-center gap-2">
@@ -141,14 +141,14 @@ onMounted(loadDecks)
             </div>
           </div>
           
-          <div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button v-if="!deck.is_global" @click="openEdit(deck)" class="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-500/10 rounded-lg transition-all" title="编辑序列">
+          <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button v-if="!deck.is_global" @click="openEdit(deck)" class="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-500/10 rounded-lg transition-all" title="编辑序列">
               <Edit2 class="w-4 h-4" />
             </button>
-            <button @click="copyDeck(deck)" class="p-2 text-slate-400 hover:text-emerald-500 hover:bg-emerald-500/10 rounded-lg transition-all" title="克隆为模板">
+            <button @click="copyDeck(deck)" class="p-1.5 text-slate-400 hover:text-emerald-500 hover:bg-emerald-500/10 rounded-lg transition-all" title="克隆为模板">
               <Plus class="w-4 h-4" />
             </button>
-            <button v-if="!deck.is_global" @click="deleteDeck(deck.id)" class="p-2 text-slate-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all">
+            <button v-if="!deck.is_global" @click="deleteDeck(deck.id)" class="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all">
               <Trash2 class="w-4 h-4" />
             </button>
           </div>
@@ -170,29 +170,29 @@ onMounted(loadDecks)
     <div v-if="editingDeck" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
        <div class="absolute inset-0 bg-black/80 backdrop-blur-md" @click="editingDeck = null"></div>
        
-       <div class="relative w-full max-w-2xl bg-white dark:bg-slate-900 rounded-[2.5rem] border border-white/10 shadow-3xl overflow-hidden flex flex-col max-h-[90vh]">
-          <div class="p-8 border-b border-white/5">
+       <div class="relative w-full max-w-2xl bg-white dark:bg-slate-900 rounded-2xl border border-white/10 shadow-3xl overflow-hidden flex flex-col max-h-[90vh]">
+          <div class="p-5 border-b border-white/5">
              <div class="flex items-center justify-between">
-                <h3 class="text-2xl font-black italic tracking-tighter uppercase">Deck Configuration</h3>
-                <button @click="editingDeck = null" class="p-2 hover:bg-white/5 rounded-full"><X class="w-6 h-6" /></button>
+                <h3 class="text-lg font-black italic tracking-tighter uppercase">Deck Configuration</h3>
+                <button @click="editingDeck = null" class="p-2 hover:bg-white/5 rounded-full"><X class="w-5 h-5" /></button>
              </div>
           </div>
 
-          <div class="p-8 overflow-y-auto space-y-8">
+          <div class="p-5 overflow-y-auto space-y-5">
              <div>
                 <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Sequence Name</label>
                 <input 
                   v-model="newDeckName"
                   type="text" 
                   placeholder="EXPERIMENTAL DECK LEGACY"
-                  class="w-full bg-slate-100 dark:bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-lg font-black uppercase tracking-tight focus:border-blue-500 transition-all outline-none"
+                  class="w-full bg-slate-100 dark:bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-base font-black uppercase tracking-tight focus:border-blue-500 transition-all outline-none"
                 />
              </div>
 
              <div>
                 <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Initial Hand Size (Default 10)</label>
                 <div class="flex items-center gap-4">
-                  <div class="flex-1 flex items-center bg-slate-100 dark:bg-white/5 border border-white/10 rounded-2xl overflow-hidden px-4">
+                  <div class="flex-1 flex items-center bg-slate-100 dark:bg-white/5 border border-white/10 rounded-xl overflow-hidden px-4">
                     <button 
                       @click="initialHandSize = Math.max(1, initialHandSize - 1)"
                       class="p-2 text-blue-500 hover:bg-white/5 transition-colors"
@@ -204,7 +204,7 @@ onMounted(loadDecks)
                       type="number"
                       min="1"
                       max="40"
-                      class="w-full bg-transparent border-none text-center py-4 text-lg font-black focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      class="w-full bg-transparent border-none text-center py-2 text-base font-black focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     />
                     <button 
                       @click="initialHandSize = Math.min(40, initialHandSize + 1)"
@@ -225,13 +225,13 @@ onMounted(loadDecks)
                    <span class="text-[10px] font-black text-blue-500 uppercase tracking-widest">{{ Object.keys(selectedElements).length }} Active Nodes</span>
                 </div>
                 
-                <div class="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-3">
+                <div class="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-2">
                    <button 
                     v-for="el in ALL_ELEMENTS" 
                     :key="el"
                     @click="toggleElement(el)"
                     :class="[
-                      'h-12 rounded-xl font-mono font-black text-sm flex items-center justify-center transition-all border-2',
+                      'h-10 rounded-lg font-mono font-black text-xs flex items-center justify-center transition-all border-2',
                       selectedElements[el] 
                         ? 'bg-blue-600 border-blue-400 text-white shadow-lg shadow-blue-500/40' 
                         : 'bg-white/5 border-white/5 text-slate-500 grayscale hover:grayscale-0 hover:bg-white/10'
@@ -245,7 +245,7 @@ onMounted(loadDecks)
                     :key="spec"
                     @click="toggleElement(spec)"
                     :class="[
-                      'h-12 rounded-xl font-mono font-black text-sm flex items-center justify-center transition-all border-2',
+                      'h-10 rounded-lg font-mono font-black text-xs flex items-center justify-center transition-all border-2',
                       selectedElements[spec] 
                         ? 'bg-rose-600 border-rose-400 text-white shadow-lg shadow-rose-500/40' 
                         : 'bg-white/5 border-white/5 text-slate-500 grayscale hover:grayscale-0 hover:bg-white/10'
@@ -256,8 +256,8 @@ onMounted(loadDecks)
                 </div>
              </div>
 
-             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div v-for="(count, el) in selectedElements" :key="el" class="flex items-center justify-between p-3 bg-white/5 rounded-2xl border border-white/5">
+             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div v-for="(count, el) in selectedElements" :key="el" class="flex items-center justify-between p-2 bg-white/5 rounded-xl border border-white/5">
                    <span class="font-mono font-black text-blue-400 uppercase tracking-widest text-xs">{{ el }}</span>
                    <div class="flex items-center gap-3">
                       <button @click="selectedElements[el] = Math.max(1, count - 1)" class="w-6 h-6 flex items-center justify-center rounded bg-white/10 hover:bg-white/20">-</button>
@@ -268,11 +268,11 @@ onMounted(loadDecks)
              </div>
           </div>
 
-          <div class="p-8 bg-black/20 border-t border-white/5">
+          <div class="p-5 bg-black/20 border-t border-white/5">
              <button 
               @click="saveDeck"
               :disabled="!newDeckName.trim()"
-              class="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white py-4 rounded-2xl font-black uppercase tracking-widest transition-all flex items-center justify-center gap-3"
+              class="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white py-3 rounded-xl font-black uppercase tracking-widest transition-all flex items-center justify-center gap-3"
              >
                <Save class="w-5 h-5" /> Save Configuration
              </button>

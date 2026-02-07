@@ -31,21 +31,21 @@ const formatDate = (dateStr: string) => {
 </script>
 
 <template>
-  <div class="space-y-6">
+  <div class="space-y-5">
     <div class="flex items-center justify-between">
-      <h3 class="text-xl font-black italic uppercase text-slate-800 dark:text-white flex items-center gap-4">
-        <History class="w-6 h-6 text-cyan-500" />
+      <h3 class="text-base font-black italic uppercase text-slate-800 dark:text-white flex items-center gap-4">
+        <History class="w-5 h-5 text-cyan-500" />
         对局历史记录 <span class="text-slate-400 dark:text-slate-600 font-mono not-italic text-[10px] tracking-normal">/ MATCH@HISTORY</span>
       </h3>
     </div>
 
-    <div v-if="loading" class="py-20 flex flex-col items-center justify-center gap-4">
-      <div class="w-12 h-12 border-4 border-cyan-500/10 border-t-cyan-500 rounded-full animate-spin"></div>
+    <div v-if="loading" class="py-10 flex flex-col items-center justify-center gap-4">
+      <div class="w-8 h-8 border-4 border-cyan-500/10 border-t-cyan-500 rounded-full animate-spin"></div>
       <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 animate-pulse">Retrieving combat logs...</p>
     </div>
 
-    <div v-else-if="history.length === 0" class="py-20 flex flex-col items-center justify-center border-2 border-dashed border-slate-200 dark:border-white/5 rounded-[2.5rem] bg-slate-50 dark:bg-white/[0.02]">
-      <Activity class="w-12 h-12 text-slate-300 dark:text-slate-700 mb-4 opacity-40" />
+    <div v-else-if="history.length === 0" class="py-10 flex flex-col items-center justify-center border-2 border-dashed border-slate-200 dark:border-white/5 rounded-2xl bg-slate-50 dark:bg-white/[0.02]">
+      <Activity class="w-8 h-8 text-slate-300 dark:text-slate-700 mb-4 opacity-40" />
       <p class="text-slate-400 font-black italic uppercase tracking-widest text-xs">/ NO_GAME_DATA_FOUND</p>
     </div>
 
@@ -53,18 +53,18 @@ const formatDate = (dateStr: string) => {
       <div 
         v-for="game in history" 
         :key="game.id"
-        class="group relative overflow-hidden p-6 bg-white dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-3xl hover:border-cyan-500/50 transition-all hover:shadow-xl hover:shadow-cyan-500/5"
+        class="group relative overflow-hidden p-4 bg-white dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl hover:border-cyan-500/50 transition-all hover:shadow-xl hover:shadow-cyan-500/5"
       >
         <div class="absolute top-0 right-0 w-32 h-32 bg-cyan-500/[0.03] blur-3xl -mr-16 -mt-16 group-hover:bg-cyan-500/[0.08] transition-all" />
         
-        <div class="flex items-center justify-between relative z-10 mb-4">
+        <div class="flex items-center justify-between relative z-10 mb-3">
           <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-2xl bg-cyan-500/10 flex items-center justify-center text-cyan-600 dark:text-cyan-400">
-               <span class="font-mono text-xs font-black">#{{ String(game.id).padStart(4, '0') }}</span>
+            <div class="w-8 h-8 rounded-xl bg-cyan-500/10 flex items-center justify-center text-cyan-600 dark:text-cyan-400">
+               <span class="font-mono text-[10px] font-black">#{{ String(game.id).padStart(4, '0') }}</span>
             </div>
             <div>
               <p class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Protocol ID</p>
-              <p class="text-xs font-black text-slate-900 dark:text-white truncate max-w-[120px]">{{ game.room_id }}</p>
+              <p class="text-[10px] font-black text-slate-900 dark:text-white truncate max-w-[120px]">{{ game.room_id }}</p>
             </div>
           </div>
           <div class="text-right">
@@ -73,14 +73,14 @@ const formatDate = (dateStr: string) => {
           </div>
         </div>
 
-        <div class="bg-slate-50 dark:bg-white/5 rounded-2xl p-4 relative z-10 border border-slate-100 dark:border-white/5">
+        <div class="bg-slate-50 dark:bg-white/5 rounded-xl p-3 relative z-10 border border-slate-100 dark:border-white/5">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-3">
                <Trophy class="w-4 h-4 text-amber-500" v-if="game.winner_name !== '未结算'" />
                <div>
                   <p class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Winner / 优胜者</p>
                   <p :class="[
-                    'text-sm font-black italic uppercase tracking-tighter',
+                    'text-xs font-black italic uppercase tracking-tighter',
                     game.winner_name === '未结算' ? 'text-slate-400' : 'text-amber-500'
                   ]">
                     {{ game.winner_name }}

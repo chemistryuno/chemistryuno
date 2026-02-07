@@ -212,6 +212,7 @@ func main() {
 			auth.GET("/rooms/:id", handlers.GetRoomState)
 			auth.POST("/rooms/:id/join", handlers.JoinRoom)
 			auth.POST("/rooms/:id/leave", handlers.LeaveRoom)
+			auth.POST("/rooms/:id/ready", handlers.ToggleReady)
 			auth.POST("/rooms/:id/start", handlers.StartGame)
 			auth.POST("/rooms/:id/play", handlers.PlayCard)
 			auth.POST("/rooms/:id/play-double", handlers.DoublePlay)

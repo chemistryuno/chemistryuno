@@ -20,10 +20,142 @@ var (
 )
 
 type GameRoom struct {
-	Room      *models.Room
-	GameState *models.GameState
-	mutex     sync.RWMutex
-	OfflineAt map[int]time.Time // UID -> 离线起始时间
+	Room       *models.Room
+	GameState  *models.GameState
+	mutex      sync.RWMutex
+	OfflineAt  map[int]time.Time // UID -> 离线起始时间
+	StartTimer *time.Timer       // 游戏开始倒计时器
+}
+
+func (gr *GameRoom) cancelStartTimer() {
+	if gr.StartTimer != nil {
+		gr.StartTimer.Stop()
+		gr.StartTimer = nil
+	}
+	gr.Room.Countdown = 0
+}
+
+func (gr *GameRoom) checkAutoStart() {
+	roomID := gr.Room.ID
+	numPlayers := len(gr.Room.Players)
+	maxPlayers := gr.Room.MaxPlayers
+
+	// 统计准备的玩家（只要还在房间内就计数，不检查实时在线状态以防刷新导致的频繁重置）
+	numReady := len(gr.Room.ReadyUIDs)
+
+	// 确定目标倒计时
+	targetCountdown := 0
+	if numPlayers == maxPlayers && numReady == maxPlayers {
+		targetCountdown = 10
+	} else if numPlayers >= 2 && numReady >= (maxPlayers+1)/2 {
+		targetCountdown = 60
+	}
+
+	// 如果不再满足任何倒计时条件
+	if targetCountdown == 0 {
+		if gr.StartTimer != nil {
+			gr.cancelStartTimer()
+			gr.broadcastRoomUpdate()
+		}
+		return
+	}
+
+	// 如果没有定时器，或者当前倒计时比目标倒计时长（例如从60s变10s），则更新
+	if gr.StartTimer == nil || (targetCountdown < gr.Room.Countdown) {
+		if gr.StartTimer != nil {
+			gr.StartTimer.Stop()
+		}
+
+		gr.Room.Countdown = targetCountdown
+		gr.broadcastRoomUpdate()
+
+		gr.StartTimer = time.AfterFunc(time.Duration(targetCountdown)*time.Second, func() {
+			gr.mutex.Lock()
+			// 二次检查，防止竞争
+			if gr.Room.Status != "waiting" || gr.StartTimer == nil {
+				gr.mutex.Unlock()
+				return
+			}
+
+			// 踢出未准备的玩家
+			readyMap := make(map[int]bool)
+			for _, uid := range gr.Room.ReadyUIDs {
+				readyMap[uid] = true
+			}
+
+			var playersToKeep []int
+			var playersToKick []int
+			for _, uid := range gr.Room.Players {
+				if readyMap[uid] {
+					playersToKeep = append(playersToKeep, uid)
+				} else {
+					playersToKick = append(playersToKick, uid)
+				}
+			}
+
+			gr.Room.Players = playersToKeep
+			gr.Room.ReadyUIDs = []int{} // 清空准备状态
+			gr.Room.Countdown = 0
+			gr.StartTimer = nil
+
+			// 如果剩下的人还够，就开始游戏
+			if len(gr.Room.Players) >= 2 {
+				gr.mutex.Unlock()
+
+				// 执行踢出
+				for _, uid := range playersToKick {
+					gr.kickPlayer(uid, "由于未准备，您已被移出游戏")
+				}
+
+				StartGame(roomID, 0)
+			} else {
+				gr.mutex.Unlock()
+				for _, uid := range playersToKick {
+					gr.kickPlayer(uid, "由于未准备，您已被移出游戏")
+				}
+				gr.broadcastRoomUpdate()
+			}
+		})
+
+		// 倒计时显示逻辑（每秒减少）
+		go func(roomID string, startVal int) {
+			for i := startVal - 1; i > 0; i-- {
+				time.Sleep(1 * time.Second)
+				roomMutex.RLock()
+				g, exists := rooms[roomID]
+				roomMutex.RUnlock()
+				if !exists {
+					return
+				}
+				g.mutex.Lock()
+				// 如果定时器被取消，或者被重置为不同的值（说明有新的倒计时开始了），则退出当前协程
+				if g.StartTimer == nil || g.Room.Status != "waiting" || g.Room.Countdown != i+1 {
+					g.mutex.Unlock()
+					return
+				}
+				g.Room.Countdown = i
+				g.broadcastRoomUpdate()
+				g.mutex.Unlock()
+			}
+		}(roomID, targetCountdown)
+	}
+}
+
+func (gr *GameRoom) broadcastRoomUpdate() {
+	if websocket.GlobalHub != nil {
+		websocket.GlobalHub.BroadcastToRoom(gr.Room.ID, websocket.Message{
+			Type: "game_update",
+			Data: gr.Room.ID, // 前端通常收到房间ID后会调用 GetRoomState
+		})
+	}
+}
+
+// 记录当前玩家回合开始时间到数据库
+func (gr *GameRoom) recordTurnStart() {
+	if gr.GameState != nil && len(gr.GameState.Players) > 0 {
+		uid := gr.GameState.Players[gr.GameState.CurrentPlayer].UID
+		repository.UserRepo.UpdateTurnStartedAt(uint(uid), time.Now())
+	}
 }
 
 func isBanned(uid int) (bool, time.Time, string, error) {
@@ -85,8 +217,8 @@ func getGlobalDeckConfigFromDB() (map[string]int, string, int) {
 }
 
 // 创建房间
-func CreateRoom(name string, hostUID int, hostName string, maxPlayers int, deckID int, isPointsMode bool) (*models.Room, error) {
-	banned, until, reason, _ := isBanned(hostUID)
+func CreateRoom(name string, creatorUID int, creatorName string, maxPlayers int, deckID int, isPointsMode bool, isPrivate bool) (*models.Room, error) {
+	banned, until, reason, _ := isBanned(creatorUID)
 	if banned {
 		if reason == "" {
 			reason = "您的账号由于多次消极游戏已被封禁"
@@ -148,14 +280,15 @@ func CreateRoom(name string, hostUID int, hostName string, maxPlayers int, deckI
 	room := &models.Room{
 		ID:           roomID,
 		Name:         name,
-		HostUID:      hostUID,
-		HostUsername: hostName,
-		Players:      []int{hostUID},
+		Players:      []int{creatorUID},
+		ReadyUIDs:    []int{},
+		Countdown:    0,
 		Spectators:   []int{},
 		MaxPlayers:   maxPlayers,
 		DeckConfig:   &deckConfig,
 		Status:       "waiting",
 		IsPointsMode: isPointsMode,
+		IsPrivate:    isPrivate,
 		CreatedAt:    time.Now(),
 	}
 
@@ -187,9 +320,9 @@ func StartDuel(challengerUID int, challengerName string, targetUID int, targetNa
 	room := &models.Room{
 		ID:            roomID,
 		Name:          fmt.Sprintf("Duel: %s VS %s", challengerName, targetName),
-		HostUID:       challengerUID,
-		HostUsername:  challengerName,
 		Players:       []int{challengerUID, targetUID},
+		ReadyUIDs:     []int{},
+		Countdown:     0,
 		Spectators:    []int{},
 		MaxPlayers:    2,
 		DeckConfig:    &deckConfig,
@@ -220,8 +353,8 @@ func GetAllRooms() []*models.Room {
 
 	result := []*models.Room{}
 	for _, gr := range rooms {
-		// 消除已结束的房间，只展示等待中或进行中的房间
-		if gr.Room.Status != "finished" {
+		// 消除已结束的房间，且只展示非私有的房间在大厅
+		if gr.Room.Status != "finished" && !gr.Room.IsPrivate {
 			result = append(result, gr.Room)
 		}
 	}
@@ -250,6 +383,15 @@ func handlePointsCalculation(gr *GameRoom) {
 		return
 	}
 
+	// 计算积分倍率：每有一个未完成玩家离开，结算减少 1/总人数
+	multiplier := 1.0
+	if gr.GameState.OriginalPlayerCount > 0 {
+		multiplier = 1.0 - (float64(gr.GameState.QuittedCount) / float64(gr.GameState.OriginalPlayerCount))
+		if multiplier < 0 {
+			multiplier = 0
+		}
+	}
+
 	changes := make(map[int]int)
 
 	for i, uid := range finished {
@@ -262,6 +404,9 @@ func handlePointsCalculation(gr *GameRoom) {
 			rank := i + 1
 			points = 100 / rank
 		}
+
+		// 应用倍率
+		points = int(float64(points) * multiplier)
 
 		changes[uid] = points
 		repository.UserRepo.IncrementPoints(uint(uid), points)
@@ -313,14 +458,6 @@ func handlePointsCalculation(gr *GameRoom) {
 	}
 }
 
-func (gr *GameRoom) broadcastRoomUpdate() {
-	if websocket.GlobalHub != nil {
-		websocket.GlobalHub.BroadcastToRoom(gr.Room.ID, websocket.Message{
-			Type: "game_update",
-		})
-	}
-}
-
 // StartRoomMonitor 启动房间监控协程
 func StartRoomMonitor() {
 	go func() {
@@ -367,34 +504,55 @@ func checkAllRooms() {
 
 func (gr *GameRoom) checkInactivity() {
 	gr.mutex.Lock()
-	// 1. 匹配超时检测 (5分钟)
-	if gr.Room.Status == "waiting" {
-		if time.Since(gr.Room.CreatedAt) > 5*time.Minute {
-			gr.mutex.Unlock()
-			gr.terminateRoom("匹配超时，房间已自动关闭")
-			return
-		}
-		gr.mutex.Unlock()
-		return
-	}
-
-	if gr.Room.Status != "playing" {
-		gr.mutex.Unlock()
-		return
-	}
-
 	roomID := gr.Room.ID
 	now := time.Now()
 	playersToKick := []int{}
 
-	// 2. 检测离线超过2分钟的玩家
+	// 1. 匹配超时检测 (5分钟，针对空闲长久的房间)
+	if gr.Room.Status == "waiting" {
+		if time.Since(gr.Room.CreatedAt) > 5*time.Minute && len(gr.Room.Players) == 0 {
+			gr.mutex.Unlock()
+			gr.terminateRoom("匹配超时，房间已自动关闭")
+			return
+		}
+	}
+
+	// 2. 检测离线超过30秒的玩家
 	for _, uid := range gr.Room.Players {
-		isOnline := websocket.GlobalHub.IsUIDInRoom(roomID, uid)
+		isOnline := false
+		if websocket.GlobalHub != nil {
+			isOnline = websocket.GlobalHub.IsUIDInRoom(roomID, uid)
+		}
+
 		if !isOnline {
-			if _, exists := gr.OfflineAt[uid]; !exists {
+			// 如果玩家刚被检测到离线，先记录离线时间，暂不踢出
+			offlineTime, exists := gr.OfflineAt[uid]
+			if !exists {
 				gr.OfflineAt[uid] = now
-			} else if now.Sub(gr.OfflineAt[uid]) > 2*time.Minute {
-				playersToKick = append(playersToKick, uid)
+				repository.UserRepo.UpdateLastOfflineAt(uint(uid), now)
+				continue // 下一次检查再来判断
+			}
+
+			// 计算 SQL 中的到期时间进行判断
+			turnStart, lastOffline, err := repository.UserRepo.GetUserReconnectionData(uint(uid))
+			if err == nil {
+				// 判定离线超时：离线时间、回合开始时间、DB中的最后离线时间，三者中最新的那个作为起点
+				expiryBase := offlineTime
+				if turnStart != nil && turnStart.After(expiryBase) {
+					expiryBase = *turnStart
+				}
+				if lastOffline != nil && lastOffline.After(expiryBase) {
+					expiryBase = *lastOffline
+				}
+
+				if now.Sub(expiryBase) > 30*time.Second {
+					playersToKick = append(playersToKick, uid)
+				}
+			} else {
+				// 回退逻辑
+				if now.Sub(offlineTime) > 30*time.Second {
+					playersToKick = append(playersToKick, uid)
+				}
 			}
 		} else {
 			delete(gr.OfflineAt, uid)
@@ -402,14 +560,20 @@ func (gr *GameRoom) checkInactivity() {
 	}
 	gr.mutex.Unlock()
 
-	// 2. 执行踢出操作
+	// 3. 执行踢出操作
 	for _, uid := range playersToKick {
-		gr.kickPlayer(uid, "由于消极游戏，您已被踢出")
+		reason := "由于断开连接超时，您已被移出房间"
+		if gr.Room.Status == "playing" {
+			reason = "由于消极游戏，您已被踢出"
+		}
+		gr.kickPlayer(uid, reason)
 	}
 
-	// 3. 检测玩家人数是否不足
+	// 4. 检测后续状态
 	gr.mutex.Lock()
-	if gr.Room.Status == "playing" && len(gr.Room.Players) < 2 {
+	if gr.Room.Status == "waiting" {
+		gr.checkAutoStart()
+	} else if gr.Room.Status == "playing" && len(gr.Room.Players) < 2 {
 		gr.mutex.Unlock()
 		gr.terminateRoom("由于玩家人数不足，房间已被关闭")
 		return
@@ -420,7 +584,6 @@ func (gr *GameRoom) checkInactivity() {
 func (gr *GameRoom) kickPlayer(uid int, reason string) {
 	gr.mutex.Lock()
 	roomID := gr.Room.ID
-	isHost := gr.Room.HostUID == uid
 
 	// 通知被踢出的玩家
 	if websocket.GlobalHub != nil {
@@ -430,59 +593,14 @@ func (gr *GameRoom) kickPlayer(uid int, reason string) {
 		})
 	}
 
-	if isHost {
-		// 记录消极游戏行为并处理封禁（仅在游戏开始后计入）
-		if reason == "由于消极游戏，您已被踢出" && gr.Room.Status == "playing" {
-			count, _ := repository.UserRepo.GetNegativePlayCount(uint(uid))
-			count++
-			if count >= 3 {
-				bannedUntil := time.Now().Add(30 * time.Minute)
-				repository.UserRepo.UpdateBanStatus(uint(uid), &bannedUntil)
-				repository.UserRepo.UpdateNegativePlayCount(uint(uid), 0)
-				if websocket.GlobalHub != nil {
-					websocket.GlobalHub.SendToUID(uid, websocket.Message{
-						Type:    "player_banned",
-						Message: "由于多次消极游戏，您的账号已被封禁 30 分钟。请健康游戏。",
-					})
-				}
-			} else {
-				repository.UserRepo.UpdateNegativePlayCount(uint(uid), count)
-			}
-		}
-
-		// 房主被踢，如果是竞技模式，惩罚房主并由于连带责任惩罚其他玩家（仅在游戏开始后计入）
-		if gr.Room.IsPointsMode && gr.Room.Status == "playing" {
-			repository.UserRepo.DeductPoints(uint(uid), 50)
-			for _, pid := range gr.Room.Players {
-				if pid != uid {
-					repository.UserRepo.DeductPointsPercentage(uint(pid), 20) // 80% = 100 - 20
-				}
-			}
-		}
-		gr.mutex.Unlock()
-		gr.terminateRoom("由于房主消极游戏，房间已被关闭")
-		return
-	}
-
-	// 移除玩家
-	newPlayers := []int{}
-	for _, pid := range gr.Room.Players {
-		if pid != uid {
-			newPlayers = append(newPlayers, pid)
-		}
-	}
-
 	// 记录消极游戏行为并处理封禁（仅在游戏开始后计入）
 	if reason == "由于消极游戏，您已被踢出" && gr.Room.Status == "playing" {
 		count, _ := repository.UserRepo.GetNegativePlayCount(uint(uid))
 		count++
-
 		if count >= 3 {
-			// 封禁30分钟
 			bannedUntil := time.Now().Add(30 * time.Minute)
 			repository.UserRepo.UpdateBanStatus(uint(uid), &bannedUntil)
 			repository.UserRepo.UpdateNegativePlayCount(uint(uid), 0)
-
 			if websocket.GlobalHub != nil {
 				websocket.GlobalHub.SendToUID(uid, websocket.Message{
 					Type:    "player_banned",
@@ -494,18 +612,40 @@ func (gr *GameRoom) kickPlayer(uid int, reason string) {
 		}
 	}
 
-	// 如果是竞技模式，对被踢出的玩家和房间内其他玩家进行积分惩罚
+	// 如果是竞技模式，对被踢出的玩家进行积分惩罚
 	if gr.Room.IsPointsMode && gr.Room.Status == "playing" {
 		// 被踢出者扣除 30 积分作为惩罚
 		repository.UserRepo.DeductPoints(uint(uid), 30)
 	}
 
+	// 移除玩家
+	newPlayers := []int{}
+	for _, pid := range gr.Room.Players {
+		if pid != uid {
+			newPlayers = append(newPlayers, pid)
+		}
+	}
 	gr.Room.Players = newPlayers
+
+	// 如果所有玩家都离开了，关闭房间
+	if len(gr.Room.Players) == 0 {
+		gr.mutex.Unlock()
+		gr.terminateRoom("由于没有研究员留守，实验室已自动关闭")
+		return
+	}
 
 	// 如果游戏正在进行，也从 GameState 中移除
 	if gr.GameState != nil {
 		newPS := []*models.PlayerState{}
 		kickedIndex := -1
+		isFinished := false
+		for _, fuid := range gr.GameState.FinishedPlayers {
+			if fuid == uid {
+				isFinished = true
+				break
+			}
+		}
+
 		for i, ps := range gr.GameState.Players {
 			if ps.UID != uid {
 				newPS = append(newPS, ps)
@@ -513,6 +653,11 @@ func (gr *GameRoom) kickPlayer(uid int, reason string) {
 				kickedIndex = i
 			}
 		}
+
+		if !isFinished && kickedIndex != -1 {
+			gr.GameState.QuittedCount++
+		}
+
 		gr.GameState.Players = newPS
 
 		// 调整当前玩家索引
@@ -525,6 +670,14 @@ func (gr *GameRoom) kickPlayer(uid int, reason string) {
 			}
 		}
 	}
+
+	// 如果是正在游戏中且玩家少于2个，则解散
+	if gr.Room.Status == "playing" && len(gr.Room.Players) < 2 {
+		gr.mutex.Unlock()
+		gr.terminateRoom("由于实验样本不足（少于2人），本次反应宣告失败，实验室已关闭")
+		return
+	}
+
 	gr.mutex.Unlock()
 
 	// 广播玩家离开消息
@@ -532,7 +685,7 @@ func (gr *GameRoom) kickPlayer(uid int, reason string) {
 		websocket.GlobalHub.BroadcastToRoom(roomID, websocket.Message{
 			Type: "player_left",
 			UID:  uid,
-			Data: fmt.Sprintf("玩家 %d 已被系统踢出", uid),
+			Data: fmt.Sprintf("研究员 %d 已离开实验室", uid),
 		})
 	}
 }
@@ -549,6 +702,58 @@ func (gr *GameRoom) terminateRoom(reason string) {
 			Message: reason,
 		})
 	}
+}
+
+// ToggleReady 切换玩家准备状态
+func ToggleReady(roomID string, uid int) error {
+	roomMutex.RLock()
+	gr, exists := rooms[roomID]
+	roomMutex.RUnlock()
+
+	if !exists {
+		return errors.New("房间不存在")
+	}
+
+	gr.mutex.Lock()
+	defer gr.mutex.Unlock()
+
+	if gr.Room.Status != "waiting" {
+		return errors.New("游戏已开始，无法更改准备状态")
+	}
+
+	// 检查玩家是否在房间中
+	isInRoom := false
+	for _, pid := range gr.Room.Players {
+		if pid == uid {
+			isInRoom = true
+			break
+		}
+	}
+	if !isInRoom {
+		return errors.New("您不在该房间中")
+	}
+
+	foundIdx := -1
+	for i, ruid := range gr.Room.ReadyUIDs {
+		if ruid == uid {
+			foundIdx = i
+			break
+		}
+	}
+
+	if foundIdx >= 0 {
+		// 取消准备
+		gr.Room.ReadyUIDs = append(gr.Room.ReadyUIDs[:foundIdx], gr.Room.ReadyUIDs[foundIdx+1:]...)
+		repository.UserRepo.UpdateRoomReadyStatus(uint(uid), false)
+	} else {
+		// 准备
+		gr.Room.ReadyUIDs = append(gr.Room.ReadyUIDs, uid)
+		repository.UserRepo.UpdateRoomReadyStatus(uint(uid), true)
+	}
+
+	gr.checkAutoStart()
+	gr.broadcastRoomUpdate()
+	return nil
 }
 
 // 加入房间
@@ -572,9 +777,13 @@ func JoinRoom(roomID string, uid int, username string) error {
 	gameRoom.mutex.Lock()
 	defer gameRoom.mutex.Unlock()
 
-	// 已经在房间里
+	// 已经在房间里或试图重新加入
 	for _, pid := range gameRoom.Room.Players {
 		if pid == uid {
+			// 如果在离线列表中，移除它
+			delete(gameRoom.OfflineAt, uid)
+			gameRoom.checkAutoStart()
+			gameRoom.broadcastRoomUpdate()
 			return nil
 		}
 	}
@@ -606,6 +815,8 @@ func JoinRoom(roomID string, uid int, username string) error {
 	}
 
 	gameRoom.Room.Players = append(gameRoom.Room.Players, uid)
+	repository.UserRepo.UpdateRoomReadyStatus(uint(uid), false)
+	gameRoom.checkAutoStart()
 	return nil
 }
 
@@ -631,6 +842,16 @@ func LeaveRoom(roomID string, uid int) error {
 	}
 	gameRoom.Room.Players = newPlayers
 
+	// 移除准备状态
+	newReady := []int{}
+	for _, rid := range gameRoom.Room.ReadyUIDs {
+		if rid != uid {
+			newReady = append(newReady, rid)
+		}
+	}
+	gameRoom.Room.ReadyUIDs = newReady
+	repository.UserRepo.UpdateRoomReadyStatus(uint(uid), false)
+
 	// 移除观战者
 	newSpectators := []int{}
 	for _, sid := range gameRoom.Room.Spectators {
@@ -640,20 +861,59 @@ func LeaveRoom(roomID string, uid int) error {
 	}
 	gameRoom.Room.Spectators = newSpectators
 
-	// 如果房主离开，不管有没有其他玩家，直接解散房间（游戏终止）
-	if gameRoom.Room.HostUID == uid {
+	// 检查自动开始状态
+	if gameRoom.Room.Status == "waiting" {
+		gameRoom.checkAutoStart()
+	}
+
+	// 如果游戏正在进行，也从 GameState 中移除
+	if gameRoom.GameState != nil {
+		newPS := []*models.PlayerState{}
+		leftIndex := -1
+		isFinished := false
+		for _, fuid := range gameRoom.GameState.FinishedPlayers {
+			if fuid == uid {
+				isFinished = true
+				break
+			}
+		}
+
+		for i, ps := range gameRoom.GameState.Players {
+			if ps.UID != uid {
+				newPS = append(newPS, ps)
+			} else {
+				leftIndex = i
+			}
+		}
+
+		if !isFinished && leftIndex != -1 {
+			gameRoom.GameState.QuittedCount++
+		}
+
+		gameRoom.GameState.Players = newPS
+
+		// 调整当前玩家索引
+		if leftIndex != -1 {
+			if gameRoom.GameState.CurrentPlayer > leftIndex {
+				gameRoom.GameState.CurrentPlayer--
+			}
+			if gameRoom.GameState.CurrentPlayer >= len(gameRoom.GameState.Players) {
+				gameRoom.GameState.CurrentPlayer = 0
+			}
+		}
+	}
+
+	// 如果是正在游戏中且玩家少于2个，则解散
+	if gameRoom.Room.Status == "playing" && len(gameRoom.Room.Players) < 2 {
+		gameRoom.terminateRoom("由于实验样本不足（少于2人），本次反应宣告失败，实验室已关闭")
+		return nil
+	}
+
+	// 如果所有玩家均已离开，销毁房间
+	if len(gameRoom.Room.Players) == 0 && len(gameRoom.Room.Spectators) == 0 {
 		roomMutex.Lock()
 		delete(rooms, roomID)
 		roomMutex.Unlock()
-
-		// 通知房间内所有玩家游戏已终止
-		if websocket.GlobalHub != nil {
-			websocket.GlobalHub.BroadcastToRoom(roomID, websocket.Message{
-				Type: "room_terminated",
-				Data: "房主已离开房间，游戏终止",
-			})
-		}
-		return nil
 	}
 
 	return nil
@@ -672,8 +932,8 @@ func StartGame(roomID string, uid int) error {
 	gameRoom.mutex.Lock()
 	defer gameRoom.mutex.Unlock()
 
-	if gameRoom.Room.HostUID != uid {
-		return errors.New("只有房主可以开始游戏")
+	if gameRoom.Room.Status != "waiting" {
+		return errors.New("游戏已在进行中")
 	}
 
 	if len(gameRoom.Room.Players) < 2 {
@@ -686,17 +946,19 @@ func StartGame(roomID string, uid int) error {
 
 	// 初始化游戏状态
 	gameRoom.GameState = &models.GameState{
-		RoomID:           roomID,
-		Players:          []*models.PlayerState{},
-		CurrentPlayer:    0,
-		Direction:        1,
-		DrawPile:         []models.Card{},
-		DiscardPile:      []models.PlayedCard{},
-		Status:           "playing",
-		TurnEndTime:      time.Now().Add(30*time.Second).UnixNano() / int64(time.Millisecond),
-		PendingDrawCount: 0,
-		PendingDrawTypes: nil,
-		AllowedAnyPlayer: -1,
+		RoomID:              roomID,
+		Players:             []*models.PlayerState{},
+		OriginalPlayerCount: len(gameRoom.Room.Players),
+		QuittedCount:        0,
+		CurrentPlayer:       0,
+		Direction:           1,
+		DrawPile:            []models.Card{},
+		DiscardPile:         []models.PlayedCard{},
+		Status:              "playing",
+		TurnEndTime:         time.Now().Add(30*time.Second).UnixNano() / int64(time.Millisecond),
+		PendingDrawCount:    0,
+		PendingDrawTypes:    nil,
+		AllowedAnyPlayer:    -1,
 	}
 
 	// 创建牌堆
@@ -736,9 +998,16 @@ func StartGame(roomID string, uid int) error {
 
 	// 初始化玩家
 	for _, pid := range shuffledPlayers {
-		user, _ := repository.UserRepo.FindByUID(uint(pid))
-		username := user.Username
-		avatar := user.Avatar
+		user, err := repository.UserRepo.FindByUID(uint(pid))
+		username := ""
+		avatar := ""
+		if err != nil {
+			username = fmt.Sprintf("研究员_%d", pid)
+			avatar = "🧪"
+		} else {
+			username = user.Username
+			avatar = user.Avatar
+		}
 
 		player := &models.PlayerState{
 			UID:                   pid,
@@ -762,7 +1031,44 @@ func StartGame(roomID string, uid int) error {
 		gameRoom.GameState.Players = append(gameRoom.GameState.Players, player)
 	}
 
+	// 抽出第一张牌作为起始排放堆
+	for len(gameRoom.GameState.DrawPile) > 0 {
+		firstCard := gameRoom.GameState.DrawPile[0]
+		gameRoom.GameState.DrawPile = gameRoom.GameState.DrawPile[1:]
+
+		// 第一张牌不能是功能牌 (+2, +4, 换向, 稀有气体, 金)
+		specialTypes := []string{"+2", "+4", "reverse", "Au", "He", "Ne", "Ar", "Kr"}
+		isSpecial := false
+		for _, st := range specialTypes {
+			if firstCard.Type == st || firstCard.Effect == st {
+				isSpecial = true
+				break
+			}
+		}
+
+		if !isSpecial {
+			playedCard := models.PlayedCard{
+				Card:      firstCard,
+				Substance: firstCard.Type,
+				PlayerUID: 0, // 表示系统出牌
+			}
+			gameRoom.GameState.DiscardPile = append(gameRoom.GameState.DiscardPile, playedCard)
+			gameRoom.GameState.LastCard = &gameRoom.GameState.DiscardPile[0]
+			break
+		} else {
+			// 如果是功能牌，放回牌堆底部
+			gameRoom.GameState.DrawPile = append(gameRoom.GameState.DrawPile, firstCard)
+		}
+	}
+
 	gameRoom.Room.Status = "playing"
+
+	// 记录首个玩家的回合开始时间
+	if len(gameRoom.GameState.Players) > 0 {
+		firstUID := gameRoom.GameState.Players[0].UID
+		repository.UserRepo.UpdateTurnStartedAt(uint(firstUID), time.Now())
+	}
+
 	return nil
 }
 
@@ -809,23 +1115,29 @@ func GetRoomState(roomID string, uid int) (map[string]interface{}, error) {
 			username = user.Username
 			avatar = user.Avatar
 		}
+		offline := false
+		if _, exists := gameRoom.OfflineAt[pid]; exists {
+			offline = true
+		}
 		playersInfo = append(playersInfo, map[string]interface{}{
-			"uid":      pid,
-			"username": username,
-			"avatar":   avatar,
-			"is_host":  pid == gameRoom.Room.HostUID,
+			"uid":        pid,
+			"username":   username,
+			"avatar":     avatar,
+			"is_offline": offline,
 		})
 	}
 
 	result := map[string]interface{}{
 		"id":             gameRoom.Room.ID,
 		"name":           gameRoom.Room.Name,
-		"host_uid":       gameRoom.Room.HostUID,
 		"players":        gameRoom.Room.Players,
+		"ready_uids":     gameRoom.Room.ReadyUIDs,
+		"countdown":      gameRoom.Room.Countdown,
 		"players_info":   playersInfo,
 		"max_players":    gameRoom.Room.MaxPlayers,
 		"status":         gameRoom.Room.Status,
 		"is_points_mode": gameRoom.Room.IsPointsMode,
+		"deck_config":    gameRoom.Room.DeckConfig,
 	}
 
 	if gameRoom.GameState != nil {
@@ -945,12 +1257,6 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 		next1 = playersLen - 1
 	} else if next1 >= playersLen {
 		next1 = 0
-	}
-	next2 := next1 + dir
-	if next2 < 0 {
-		next2 = playersLen - 1
-	} else if next2 >= playersLen {
-		next2 = 0
 	}
 	if currentPlayer.UID != uid {
 		return errors.New("还没轮到你")
@@ -1080,26 +1386,6 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 		// 进入完成状态
 		gameRoom.GameState.FinishedPlayers = append(gameRoom.GameState.FinishedPlayers, uid)
 
-		// 如果是房主胜利，将房主身份随机分配给一个未完成比赛的玩家
-		if gameRoom.Room.HostUID == uid {
-			unfinishedPlayers := []int{}
-			for _, p := range gameRoom.GameState.Players {
-				isFinished := false
-				for _, fuid := range gameRoom.GameState.FinishedPlayers {
-					if p.UID == fuid {
-						isFinished = true
-						break
-					}
-				}
-				if !isFinished {
-					unfinishedPlayers = append(unfinishedPlayers, p.UID)
-				}
-			}
-			if len(unfinishedPlayers) > 0 {
-				gameRoom.Room.HostUID = unfinishedPlayers[rand.Intn(len(unfinishedPlayers))]
-			}
-		}
-
 		// 检查是否场上只剩一人（或更少）未完成
 		activeCount := 0
 		var lastPlayerUID int
@@ -1126,7 +1412,7 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 			gameRoom.GameState.Status = "finished"
 			gameRoom.Room.Status = "finished"
 			winnerUID := gameRoom.GameState.FinishedPlayers[0]
-			saveGameHistory(roomID, winnerUID, gameRoom.Room.Players)
+			saveGameHistory(roomID, winnerUID, gameRoom.Room.Players, gameRoom.GameState.OriginalPlayerCount, gameRoom.GameState.QuittedCount)
 
 			if gameRoom.Room.IsPointsMode {
 				handlePointsCalculation(gameRoom)
@@ -1135,6 +1421,7 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 		}
 
 		gameRoom.GameState.CurrentPlayer = getNextPlayer(gameRoom.GameState)
+		gameRoom.recordTurnStart()
 		gameRoom.GameState.TurnEndTime = time.Now().Add(30*time.Second).UnixNano() / int64(time.Millisecond)
 		return nil
 	}
@@ -1146,6 +1433,7 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 		gameRoom.GameState.PendingDrawTypes = append(gameRoom.GameState.PendingDrawTypes, activeEffect)
 		// 传递到下家
 		gameRoom.GameState.CurrentPlayer = getNextPlayer(gameRoom.GameState)
+		gameRoom.recordTurnStart()
 		gameRoom.GameState.TurnEndTime = time.Now().Add(30*time.Second).UnixNano() / int64(time.Millisecond)
 		// 如果之前允许任意出牌的标记被消费（且未产生新转移），清除
 		if gameRoom.GameState.AllowedAnyPlayer == curIdx {
@@ -1159,6 +1447,7 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 		gameRoom.GameState.PendingDrawTypes = nil
 		// 回合传递
 		gameRoom.GameState.CurrentPlayer = getNextPlayer(gameRoom.GameState)
+		gameRoom.recordTurnStart()
 		gameRoom.GameState.TurnEndTime = time.Now().Add(30*time.Second).UnixNano() / int64(time.Millisecond)
 
 		// 结算罚牌后清空场面并允许下家随意出牌
@@ -1200,6 +1489,7 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 
 	// 下一位玩家（大多数情况均走到这里）
 	gameRoom.GameState.CurrentPlayer = getNextPlayer(gameRoom.GameState)
+	gameRoom.recordTurnStart()
 	// 如果之前允许任意出牌的标记被消费（且未在此处产生新的转移，如 Au 效果），清除
 	if gameRoom.GameState.AllowedAnyPlayer == curIdx {
 		gameRoom.GameState.AllowedAnyPlayer = -1
@@ -1327,6 +1617,7 @@ func DrawCard(roomID string, uid int, count int) error {
 
 	// 摸牌后跳过回合
 	gameRoom.GameState.CurrentPlayer = getNextPlayer(gameRoom.GameState)
+	gameRoom.recordTurnStart()
 	gameRoom.GameState.TurnEndTime = time.Now().Add(30*time.Second).UnixNano() / int64(time.Millisecond)
 
 	// 如果结算了罚牌，清空场面并允许下家随意出牌
@@ -1423,13 +1714,15 @@ func GetAvailableSubstances(roomID string, uid int) ([]string, error) {
 	return substances, nil
 }
 
-func saveGameHistory(roomID string, winnerUID int, players []int) {
+func saveGameHistory(roomID string, winnerUID int, players []int, originalPlayerCount int, quittedCount int) {
 	// 创建游戏历史记录
 	playersJSON, _ := json.Marshal(players)
 	history := &database.GameHistory{
-		RoomID:     roomID,
-		Players:    playersJSON,
-		FinishedAt: time.Now(),
+		RoomID:              roomID,
+		Players:             playersJSON,
+		OriginalPlayerCount: originalPlayerCount,
+		QuittedCount:        quittedCount,
+		FinishedAt:          time.Now(),
 	}
 
 	if winnerUID > 0 {
@@ -1649,7 +1942,7 @@ func DoublePlay(roomID string, uid int, sub1 string, sub2 string) error {
 		gameRoom.GameState.Status = "finished"
 		gameRoom.Room.Status = "finished"
 		// 记录游戏历史
-		saveGameHistory(roomID, uid, gameRoom.Room.Players)
+		saveGameHistory(roomID, uid, gameRoom.Room.Players, gameRoom.GameState.OriginalPlayerCount, gameRoom.GameState.QuittedCount)
 		return nil
 	}
 
@@ -1659,6 +1952,7 @@ func DoublePlay(roomID string, uid int, sub1 string, sub2 string) error {
 
 	// 下一位玩家
 	gameRoom.GameState.CurrentPlayer = getNextPlayer(gameRoom.GameState)
+	gameRoom.recordTurnStart()
 	// 如果之前允许任意出牌的标记被消费（且未在此处产生新的转移，如 Au 效果），清除
 	if gameRoom.GameState.AllowedAnyPlayer == curIdx {
 		gameRoom.GameState.AllowedAnyPlayer = -1
@@ -1693,6 +1987,7 @@ func processRoomTimeout(roomID string) {
 		}
 		drawCardsForPlayer(gameRoom, gameRoom.GameState.CurrentPlayer, drawCount)
 		gameRoom.GameState.CurrentPlayer = getNextPlayer(gameRoom.GameState)
+		gameRoom.recordTurnStart()
 		gameRoom.GameState.TurnEndTime = time.Now().Add(30*time.Second).UnixNano() / int64(time.Millisecond)
 
 		// 如果结算了罚牌，清空场面并允许下家随意出牌
@@ -1741,6 +2036,7 @@ func AdminKickPlayer(roomID string, targetUID int, reason string) error {
 		reason = "由于管理员操作，您已被踢出实验"
 	}
 
+	gr.mutex.Unlock()
 	gr.kickPlayer(targetUID, reason)
 	return nil
 }

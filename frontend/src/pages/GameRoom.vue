@@ -48,23 +48,43 @@ const isReady = computed(() => {
 })
 
 const handleToggleReady = async () => {
-  if (!roomInfo.value || !user.value.uid) return
-  
+  console.log('handleToggleReady called')
+  console.log('roomInfo:', roomInfo.value)
+  console.log('user.uid:', user.value?.uid)
+
+  if (!roomInfo.value || !user.value.uid) {
+    console.error('Cannot toggle ready - missing roomInfo or user.uid')
+    if (!roomInfo.value) {
+      showAlert('房间信息未加载，请刷新页面', '错误')
+    } else if (!user.value.uid) {
+      showAlert('用户信息异常，请重新登录', '错误')
+    }
+    return
+  }
+
   // 乐观更新：立即切换状态
   const uidNum = Number(user.value.uid)
   const isCurrentlyReady = roomInfo.value.ready_uids.includes(uidNum)
-  
+
+  console.log('uidNum:', uidNum)
+  console.log('isCurrentlyReady:', isCurrentlyReady)
+  console.log('ready_uids before:', roomInfo.value.ready_uids)
+
   if (isCurrentlyReady) {
     roomInfo.value.ready_uids = roomInfo.value.ready_uids.filter((id: number) => id !== uidNum)
   } else {
     roomInfo.value.ready_uids = [...roomInfo.value.ready_uids, uidNum]
   }
 
+  console.log('ready_uids after:', roomInfo.value.ready_uids)
+
   try {
-    await gameAPI.ready(id)
+    const response = await gameAPI.ready(id)
+    console.log('Ready API response:', response)
     // 状态也会通过 WebSocket 更新，但手动标记一下提高体验
     await loadGameState(true)
   } catch (error: any) {
+    console.error('Ready API error:', error)
     // 恢复状态
     if (isCurrentlyReady) {
       if (!roomInfo.value.ready_uids.includes(uidNum)) {
@@ -78,7 +98,7 @@ const handleToggleReady = async () => {
 }
 
 const isFriend = (uid: number) => {
-  return friendsList.value.some(f => Number(f.uid) === Number(uid))
+  return friendsList.value?.some(f => Number(f.uid) === Number(uid)) ?? false
 }
 
 const handleAddFriend = async (player: any) => {
@@ -202,16 +222,22 @@ const ELEMENTS_DATA: Record<string, { name: string, class: string }> = {
   'C': { name: '碳', class: 'element-C' },
   'N': { name: '氮', class: 'element-N' },
   'S': { name: '硫', class: 'element-S' },
+  'F': { name: '氟', class: 'element-F' },
+  'P': { name: '磷', class: 'element-P' },
   'Cl': { name: '氯', class: 'element-Cl' },
+  'Br': { name: '溴', class: 'element-Br' },
+  'I': { name: '碘', class: 'element-I' },
   'Na': { name: '钠', class: 'element-Na' },
+  'K': { name: '钾', class: 'element-K' },
   'Mg': { name: '镁', class: 'element-Mg' },
+  'Ca': { name: '钙', class: 'element-Ca' },
+  'Ba': { name: '钡', class: 'element-Ba' },
   'Al': { name: '铝', class: 'element-Al' },
-  'Cu': { name: '铜', class: 'element-Cu' },
   'Fe': { name: '铁', class: 'element-Fe' },
   'Zn': { name: '锌', class: 'element-Zn' },
   'Ag': { name: '银', class: 'element-Ag' },
-  'K': { name: '钾', class: 'element-K' },
-  'Ca': { name: '钙', class: 'element-Ca' },
+  'Hg': { name: '汞', class: 'element-Hg' },
+  'Cu': { name: '铜', class: 'element-Cu' },
 }
 
 const SUBSTANCE_NAMES: Record<string, string> = {
@@ -295,15 +321,19 @@ watch(() => isMyTurn.value, (val) => {
 })
 
 const handleGameUpdate = (message: any) => {
+  console.log('[GameRoom] handleGameUpdate called, message:', message)
   // 如果收到的是完整的游戏状态对象
   if (message.data && typeof message.data === 'object') {
+    console.log('[GameRoom] Received full game state object')
     gameState.value = message.data
     if (isMyTurn.value) {
       fetchTurnSubstances()
     }
   } else {
+    console.log('[GameRoom] Received game_update event, reloading state')
     // 如果收到的是房间ID字符串，则重新拉取完整状态
     loadGameState(true).then(() => {
+      console.log('[GameRoom] State reloaded after game_update')
       if (isMyTurn.value) {
         fetchTurnSubstances()
       }
@@ -334,15 +364,41 @@ const handleChatNotify = () => {
   }
 }
 
+// 为 WebSocket 事件创建包装函数，确保类型匹配
+const handlePlayerJoined = () => {
+  console.log('[GameRoom] Player joined event received, reloading game state')
+  loadGameState(true).then(() => {
+    console.log('[GameRoom] Game state reloaded after player joined, players:', playersInfo.value.length)
+  })
+}
+
+const handlePlayerLeft = () => {
+  console.log('[GameRoom] Player left event received, reloading game state')
+  loadGameState(true).then(() => {
+    console.log('[GameRoom] Game state reloaded after player left, players:', playersInfo.value.length)
+  })
+}
+
 const loadGameState = async (silent = false) => {
-  if (isRedirecting.value) return
+  if (isRedirecting.value) {
+    loading.value = false
+    return
+  }
   try {
     if (!silent && !roomInfo.value) {
       loading.value = true
     }
+    console.log('[GameRoom] Loading game state for room:', id)
     const response = await gameAPI.getRoomState(id)
     const data = response.data
-    
+    console.log('[GameRoom] Game state loaded:', {
+      status: data.status,
+      players: data.players,
+      players_info: data.players_info,
+      ready_uids: data.ready_uids,
+      has_game_state: !!data.game_state
+    })
+
     roomInfo.value = {
       id: data.id,
       name: data.name,
@@ -354,11 +410,21 @@ const loadGameState = async (silent = false) => {
       is_points_mode: data.is_points_mode,
       deck_config: data.deck_config
     }
-    
+
+    console.log('[GameRoom] roomInfo updated, status:', roomInfo.value.status)
+
     playersInfo.value = data.players_info || []
-    
+
     if (data.game_state) {
       gameState.value = data.game_state
+      console.log('[GameRoom] Game state updated:', {
+        current_player: gameState.value.current_player,
+        players_count: gameState.value.players?.length,
+        status: gameState.value.status,
+        deck_count: gameState.value.deck_count
+      })
+    } else {
+      console.log('[GameRoom] No game_state in response, room status:', data.status)
     }
     
     loading.value = false
@@ -388,26 +454,65 @@ const loadGameState = async (silent = false) => {
 }
 
 onMounted(() => {
-  friendAPI.getFriends().then(res => friendsList.value = res.data)
-  loadGameState().then(() => {
-    websocket.joinRoom(id)
-    websocket.on('game_update', handleGameUpdate)
-    websocket.on('player_joined', () => loadGameState(true))
-    websocket.on('player_left', () => loadGameState(true))
-    websocket.on('action_toast', handleActionToast)
-    websocket.on('room_terminated', handleRoomTerminated)
-    websocket.on('player_kicked', handlePlayerKicked)
-    websocket.on('chat', handleChatNotify)
-    websocket.on('private_chat', handleChatNotify)
-  })
+  // 重置状态，防止之前的错误状态影响
+  isRedirecting.value = false
+  loading.value = false
+
+  // 设置一个安全超时，如果15秒后还在loading状态，强制重置
+  const safetyTimeout = setTimeout(() => {
+    if (loading.value) {
+      console.error('Loading timeout - forcing reset')
+      loading.value = false
+      showAlert('实验室初始化超时，请检查网络连接后重试', '连接超时')
+      router.push('/')
+    }
+  }, 15000)
+
+  // 加载好友列表，添加错误处理
+  friendAPI.getFriends()
+    .then(res => {
+      friendsList.value = res.data || []
+      console.log('[GameRoom] Friends list loaded:', friendsList.value.length, 'friends')
+    })
+    .catch(err => {
+      console.error('Failed to load friends list:', err)
+      friendsList.value = [] // 确保失败时也初始化为空数组
+      // 继续加载游戏状态，即使好友列表加载失败
+    })
+
+  loadGameState()
+    .then(() => {
+      clearTimeout(safetyTimeout) // 成功加载后清除超时
+
+      // 确保WebSocket已连接
+      if (!websocket.isConnected()) {
+        websocket.connect()
+      }
+
+      websocket.joinRoom(id)
+      websocket.on('game_update', handleGameUpdate)
+      websocket.on('player_joined', handlePlayerJoined)
+      websocket.on('player_left', handlePlayerLeft)
+      websocket.on('action_toast', handleActionToast)
+      websocket.on('room_terminated', handleRoomTerminated)
+      websocket.on('player_kicked', handlePlayerKicked)
+      websocket.on('chat', handleChatNotify)
+      websocket.on('private_chat', handleChatNotify)
+    })
+    .catch(err => {
+      clearTimeout(safetyTimeout) // 捕获错误后也清除超时
+      // loadGameState 内部已经处理了错误，这里只是确保不会有未处理的promise rejection
+      console.error('Failed to initialize game room:', err)
+      loading.value = false
+    })
 })
 
 onUnmounted(() => {
   if (timerInterval) clearInterval(timerInterval)
   websocket.leaveRoom()
   websocket.off('game_update', handleGameUpdate)
-  websocket.off('player_joined', loadGameState)
-  websocket.off('player_left', loadGameState)
+  websocket.off('player_joined', handlePlayerJoined)
+  websocket.off('player_left', handlePlayerLeft)
   websocket.off('action_toast', handleActionToast)
   websocket.off('room_terminated', handleRoomTerminated)
   websocket.off('player_kicked', handlePlayerKicked)
@@ -452,14 +557,30 @@ const handleCardClick = async (card: any) => {
       return
     }
 
+    // 优先寻找由该元素单个原子组成的单质（即物质名等于元素符号）
+    const defaultSubstance = card.type
+    if (matchingSubs.includes(defaultSubstance)) {
+      await gameAPI.playCard(id, card, defaultSubstance)
+      selectedCard.value = null
+      selectedSubstance.value = null
+      availableSubstances.value = []
+      // 增加经验值
+      addExp(10)
+      checkAchievements(defaultSubstance)
+      return
+    }
+
     if (matchingSubs.length === 1) {
       // 只有一种可能，直接出
       await gameAPI.playCard(id, card, matchingSubs[0])
       selectedCard.value = null
       selectedSubstance.value = null
       availableSubstances.value = []
+      // 增加经验值
+      addExp(10)
+      checkAchievements(matchingSubs[0])
     } else {
-      // 多种可能，显示选择器
+      // 多种可能（且不含默认单质），显示选择器
       selectedCard.value = card
       availableSubstances.value = matchingSubs
     }
@@ -601,25 +722,33 @@ const handleCopyLink = async () => {
   }
 }
 
-const getCardStyle = (card: any) => {
-  if (!card) return ''
-  const nobleGases = ['He', 'Ne', 'Ar', 'Kr']
-  if (nobleGases.includes(card.type)) return 'noble'
-  if (card.effect === 'Au' || card.type === 'Au') return 'gold' // Au 特效
-  if (card.effect === '+2' || card.effect === '+4') return 'special'
-  
-  // 如果在 ELEMENTS_DATA 中有，返回对应的颜色类
-  if (ELEMENTS_DATA[card.type]) return '' 
-  
-  return 'element'
-}
+const getDynamicCardClass = (card: any, formula?: string) => {
+  if (!card) {
+    if (formula) {
+      const elements = formula.match(/[A-Z][a-z]?/g) || []
+      if (elements.length > 1) return 'card-reaction'
+      if (elements.length === 1 && ELEMENTS_DATA[elements[0]]) return ELEMENTS_DATA[elements[0]].class
+    }
+    return ''
+  }
 
-const getDynamicCardClass = (card: any) => {
+  // 特殊性质卡牌优先
+  const nobleGases = ['He', 'Ne', 'Ar', 'Kr']
+  if (nobleGases.includes(card.type)) return 'card-noble'
+  if (card.effect || card.type === 'Au') return 'card-func'
+
+  // 如果提供了分子式（通常是反应结果）
+  if (formula) {
+    const elements = formula.match(/[A-Z][a-z]?/g) || []
+    // 判读是否为化合物（包含多种元素）
+    if (elements.length > 1) return 'card-reaction'
+    // 单质则使用该元素的颜色
+    if (elements.length === 1 && ELEMENTS_DATA[elements[0]]) return ELEMENTS_DATA[elements[0]].class
+  }
+
+  // 基础元素颜色
   if (ELEMENTS_DATA[card.type]) return ELEMENTS_DATA[card.type].class
-  const style = getCardStyle(card)
-  if (style === 'noble') return 'card-noble'
-  if (style === 'gold') return 'card-gold'
-  if (style === 'special') return 'card-special'
+  
   return ''
 }
 
@@ -966,8 +1095,8 @@ onMounted(() => {
              <div v-if="gameState?.last_card?.reactants?.length > 0" class="flex items-center gap-6 sm:gap-10 relative z-10">
                 <div v-for="(sub, idx) in gameState.last_card.reactants" :key="idx" class="relative group/card">
                    <div :class="cn(
-                      'w-28 h-40 sm:w-32 h-48 rounded-[32px] border-4 border-white/30 flex flex-col items-center justify-center gap-4 shadow-2xl transition-all hover:scale-105',
-                      getDynamicCardClass(gameState?.last_card?.card)
+                      'uno-card w-28 h-40 sm:w-32 h-48 rounded-[32px] flex flex-col items-center justify-center gap-4 hover:scale-105',
+                      getDynamicCardClass(gameState?.last_card?.card, sub)
                    )">
                       <span class="text-[28px] sm:text-[36px] font-black font-mono italic drop-shadow-lg" v-html="formatFormula(sub)"></span>
                       <div class="px-3 py-1 bg-white/10 backdrop-blur-md rounded-lg border border-white/20 max-w-[85%]">
@@ -983,9 +1112,9 @@ onMounted(() => {
 
              <!-- Single Play Display -->
              <div v-else :class="cn(
-               'w-40 h-56 sm:w-48 h-64 rounded-[32px] border-4 border-white/30 flex flex-col items-center justify-center gap-4 sm:gap-6 shadow-2xl transition-all hover:scale-105 relative overflow-hidden',
-               getDynamicCardClass(gameState?.last_card?.card)
-             )">
+                'uno-card w-40 h-56 sm:w-48 h-64 rounded-[32px] flex flex-col items-center justify-center gap-4 sm:gap-6 hover:scale-105',
+                getDynamicCardClass(gameState?.last_card?.card, gameState?.last_card?.substance)
+              )">
                 <div class="absolute top-4 left-4 opacity-20 text-[8px] uppercase font-black tracking-widest leading-none">Result</div>
                 <span class="text-[32px] sm:text-[44px] font-black font-mono italic drop-shadow-lg leading-none" v-html="formatFormula(gameState?.last_card?.substance)"></span>
                 <div class="px-4 py-1.5 bg-white/10 backdrop-blur-md rounded-xl border border-white/20 max-w-[85%]">
@@ -1009,7 +1138,7 @@ onMounted(() => {
           <div v-else-if="gameState?.status === 'playing' && !gameState?.last_card" class="flex flex-col items-center gap-4 sm:gap-6 animate-in fade-in zoom-in duration-700">
              <div class="relative group">
                 <div class="absolute -inset-8 bg-emerald-500/10 rounded-full blur-[60px] group-hover:bg-emerald-500/20 transition-all animate-pulse"></div>
-                <div class="w-24 h-24 sm:w-32 sm:h-32 rounded-[32px] sm:rounded-[40px] border-4 border-emerald-500/30 flex items-center justify-center relative z-10">
+                <div class="w-24 h-24 sm:w-32 sm:h-32 rounded-[32px] sm:rounded-[40px] border-2 border-emerald-500/30 flex items-center justify-center relative z-10 backdrop-blur-md bg-emerald-500/5">
                    <Zap class="w-10 h-10 sm:w-14 sm:h-14 text-emerald-500/40" />
                 </div>
              </div>
@@ -1026,7 +1155,7 @@ onMounted(() => {
           <div v-else-if="roomInfo?.status === 'waiting'" class="flex flex-col items-center gap-6 sm:gap-10 animate-in fade-in zoom-in duration-1000">
              <div class="relative">
                 <div class="absolute inset-0 bg-blue-500/10 rounded-full blur-[60px] animate-pulse"></div>
-                <div class="w-24 h-24 sm:w-32 sm:h-32 rounded-[32px] sm:rounded-[40px] border-4 border-dashed border-blue-500/30 flex items-center justify-center rotate-45 group hover:rotate-0 transition-all duration-700">
+                <div class="w-24 h-24 sm:w-32 sm:h-32 rounded-[32px] sm:rounded-[40px] border-2 border-dashed border-blue-500/30 flex items-center justify-center rotate-45 group hover:rotate-0 transition-all duration-700 backdrop-blur-md bg-blue-500/5">
                    <FlaskConical class="w-10 h-10 sm:w-14 sm:h-14 text-blue-500/40 -rotate-45 group-hover:rotate-0 transition-all" />
                 </div>
                 <div v-if="roomInfo?.countdown > 0" class="absolute inset-0 flex items-center justify-center z-50 pointer-events-none">
@@ -1227,10 +1356,10 @@ onMounted(() => {
                 :key="index"
                 @click="isMyTurn && handleCardClick(card)"
                 :class="cn(
-                  'relative w-16 sm:w-24 h-22 sm:h-34 rounded-xl border-4 flex flex-col items-center justify-center cursor-pointer transition-all duration-300 shadow-lg overflow-hidden shrink-0',
+                  'uno-card w-16 sm:w-24 h-22 sm:h-34 rounded-2xl flex flex-col items-center justify-center cursor-pointer shrink-0',
                   getDynamicCardClass(card),
-                  selectedCard === card && 'selected',
-                  !isMyTurn && 'disabled'
+                  selectedCard === card && 'ring-2 ring-blue-500 scale-105 z-10',
+                  !isMyTurn && 'opacity-60 grayscale cursor-not-allowed'
                 )"
                 :style="{
                   transform: selectedCard === card ? (isMobile ? 'translateY(-12px)' : 'translateY(-20px)') : 'none'
@@ -1282,11 +1411,8 @@ onMounted(() => {
                
                <div class="relative group self-center md:self-auto hidden sm:block text-white">
                   <div class="absolute -inset-6 bg-blue-600/10 rounded-full blur-xl group-hover:bg-blue-600/20 transition-all"></div>
-                  <div :class="cn('relative w-px h-px flex items-center justify-center scale-110 !cursor-default', getDynamicCardClass(selectedCard))">
-                     <!-- Dummy container to hold getDynamicCardClass utility styles -->
-                     <div class="w-16 sm:w-24 h-22 sm:h-34 rounded-xl border-4 flex flex-col items-center justify-center">
-                        <div class="text-xl sm:text-2xl font-black tracking-tighter">{{ selectedCard.type }}</div>
-                     </div>
+                  <div :class="cn('uno-card w-16 sm:w-24 h-22 sm:h-34 rounded-xl flex flex-col items-center justify-center scale-110 !cursor-default', getDynamicCardClass(selectedCard))">
+                     <div class="text-xl sm:text-2xl font-black tracking-tighter">{{ selectedCard.type }}</div>
                   </div>
                </div>
              </div>

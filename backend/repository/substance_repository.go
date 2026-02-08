@@ -2,6 +2,7 @@ package repository
 
 import (
 	"chemistryuno/database"
+	"time"
 
 	"gorm.io/gorm"
 )
@@ -81,14 +82,14 @@ func (r *SubstanceRepository) FindPending() ([]database.Substance, error) {
 
 // SubstanceWithCreator 物质及创建者信息
 type SubstanceWithCreator struct {
-	ID           uint   `json:"id"`
-	Formula      string `json:"formula"`
-	Name         string `json:"name"`
-	Elements     string `json:"elements"`
-	Status       string `json:"status"`
-	CreatedByUID uint   `json:"created_by_uid"`
-	CreatorName  string `json:"creator_name"`
-	CreatedAt    string `json:"created_at"`
+	ID           uint      `json:"id"`
+	Formula      string    `json:"formula"`
+	Name         string    `json:"name"`
+	Elements     string    `json:"elements"`
+	Status       string    `json:"status"`
+	CreatedByUID uint      `json:"created_by_uid"`
+	CreatorName  string    `json:"creator_name"`
+	CreatedAt    time.Time `json:"created_at"`
 }
 
 // FindAllWithCreator 查找所有物质及创建者信息
@@ -109,11 +110,10 @@ func (r *SubstanceRepository) UpdateWithElements(id uint, formula, name, element
 	return r.db.Model(&database.Substance{}).
 		Where("id = ?", id).
 		Updates(map[string]interface{}{
-			"name":        name,
-			"formula":     formula,
-			"elements":    elements,
-			"description": formula,
-			"status":      status,
+			"name":     name,
+			"formula":  formula,
+			"elements": elements,
+			"status":   status,
 		}).Error
 }
 
@@ -122,9 +122,8 @@ func (r *SubstanceRepository) UpdateFormula(id uint, formula, name, elements str
 	return r.db.Model(&database.Substance{}).
 		Where("id = ?", id).
 		Updates(map[string]interface{}{
-			"name":        name,
-			"formula":     formula,
-			"elements":    elements,
-			"description": formula,
+			"name":     name,
+			"formula":  formula,
+			"elements": elements,
 		}).Error
 }

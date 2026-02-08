@@ -641,26 +641,23 @@ func saveReactionToDBGorm(tx *gorm.DB, reactants []string, display, status strin
 		return fmt.Errorf("当前系统仅支持\"双反应物\"组合（如 A + B = C），请确保反应物恰好为两种不同的物质")
 	}
 
-	// 存储双向排列组合 (r1, r2) 和 (r2, r1)
-	// 这样可以保证 A 上能接 B，B 上也能接 A
-	var reactions []database.Reaction
-	for i := 0; i < len(uniqueReactants); i++ {
-		for j := 0; j < len(uniqueReactants); j++ {
-			if i == j {
-				continue
-			}
-			reactions = append(reactions, database.Reaction{
-				Reactants:    uniqueReactants[i],
-				Products:     uniqueReactants[j],
-				Display:      display,
-				Status:       status,
-				GroupID:      groupID,
-				CreatedByUID: creatorID,
-			})
-		}
+	// Canonical ordering: R1 < R2 (字母序)
+	r1, r2 := uniqueReactants[0], uniqueReactants[1]
+	if r1 > r2 {
+		r1, r2 = r2, r1
 	}
 
-	return tx.Create(&reactions).Error
+	// 创建单条canonical反应（不再双向存储）
+	reaction := database.Reaction{
+		R1:           r1,
+		R2:           r2,
+		Display:      display,
+		Status:       status,
+		GroupID:      groupID,
+		CreatedByUID: creatorID,
+	}
+
+	return tx.Create(&reaction).Error
 }
 
 // 内部校验逻辑
@@ -772,10 +769,14 @@ func checkDuplicateReactants(display string, excludeGroupID *uint) (bool, string
 	sort.Strings(rList)
 	r1, r2 := rList[0], rList[1]
 
-	// 查询是否已存在相同的反应物组合
+	// Canonical ordering
+	if r1 > r2 {
+		r1, r2 = r2, r1
+	}
+
+	// 查询是否已存在相同的反应物组合（使用R1/R2字段）
 	query := database.DB.Model(&database.Reaction{}).
-		Where("((reactants = ? AND products = ?) OR (reactants = ? AND products = ?)) AND status = ?",
-			r1, r2, r2, r1, "approved")
+		Where("r1 = ? AND r2 = ? AND status = ?", r1, r2, "approved")
 
 	if excludeGroupID != nil {
 		query = query.Where("group_id != ?", *excludeGroupID)
@@ -1065,7 +1066,6 @@ func AddSubstance(c *gin.Context) {
 		Name:         req.Name,
 		Formula:      req.Formula,
 		Elements:     elementsStr,
-		Description:  req.Formula,
 		Status:       status,
 		CreatedByUID: uint(uid),
 	}

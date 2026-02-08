@@ -52,6 +52,11 @@ func main() {
 	}
 	defer database.Close()
 
+	// 迁移reactions表到R1/R2结构（如果需要）
+	if err := database.MigrateReactionsToR1R2(); err != nil {
+		log.Printf("警告: reactions表迁移失败: %v (如果是首次启动或已迁移过，可以忽略)", err)
+	}
+
 	// 初始化所有Repository（需要在数据库初始化后）
 	repository.InitRepositories()
 

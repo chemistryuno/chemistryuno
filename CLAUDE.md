@@ -98,8 +98,8 @@ pnpm run tools:migrate-creds
 **Key Modules**:
 
 1. **Game Engine** (`backend/game/`)
-   - `chemistry.go`: Chemical formula parser - handles complex formulas like `Fe(OH)3`, `Ca(HCO3)2`. Function `parseSubstance()` uses a stack-based parser to extract element composition
-   - `judge.go`: Chemistry reaction engine - implements acid-base neutralization, double displacement, metal activity series (K-Au sequence), solubility rules
+   - `chemistry.go`: Chemical formula parser - handles complex formulas like `Fe(OH)3`, `Ca(HCO3)2`. Function `parseSubstance()` uses a stack-based parser to extract element composition. **IMPORTANT**: Reaction validation via `CanReact()` now **completely relies on database queries** (reactions table), no longer uses hardcoded chemical rules
+   - `judge.go`: Chemistry reaction engine with hardcoded substance classification data (deprecated for reaction validation, kept for reference only). **NOTE**: This file's `JudgeReaction()` function is no longer used in production - all reaction validation is now database-driven
    - `manager.go`: Game room lifecycle management, turn-based game state, deck configuration
 
 2. **WebSocket System** (`backend/websocket/`)
@@ -156,12 +156,29 @@ pnpm run tools:migrate-creds
 
 ### Chemistry Logic Flow
 
+**IMPORTANT: Reaction Validation System Update (2026-02-08)**
+
+The system now uses **100% database-driven reaction validation**. All previous hardcoded chemical rules have been deprecated.
+
 1. **Card to Substance**: `GetSubstancesFromElements()` in `chemistry.go` takes player's hand cards and queries approved substances from DB to determine which can be formed
 2. **Reaction Validation**: When player attempts to play cards, backend checks:
    - Can the cards form a valid substance? (element composition check)
-   - Does the substance react with the current table state? (chemistry rules in `judge.go`)
-   - Is the reaction valid per solubility/activity rules?
-3. **Dynamic Reaction Database**: Unlike hardcoded reaction lists, the system uses chemical principles (acid + base → salt + water, metal activity displacement, etc.)
+   - **Does the substance react with the current table state? (queries `reactions` table in database)**
+   - Special cards (He/Ne/Ar/Kr/Xe/Rn/Au/+2/+4) can react with any substance (game rule exception)
+3. **Database-Driven Reactions**:
+   - All reaction rules stored in `reactions` table with status='approved'
+   - Currently contains 432 approved reactions covering all common chemical reactions
+   - Supports bidirectional queries: both (A+B) and (B+A) will find the same reaction
+   - Admins can approve user-submitted reactions, which take effect immediately
+   - No code changes needed to add new reactions - purely data-driven
+
+**Key Function**: `chemistry.go:CanReact(s1, s2)` → queries `ReactionRepo.CheckReactionExists(s1, s2)`
+
+**Database Query**:
+```sql
+SELECT COUNT(*) FROM reactions
+WHERE ((r1=? AND r2=?) OR (r1=? AND r2=?)) AND status='approved'
+```
 
 ### Authentication Flow
 

@@ -48,3 +48,6 @@ yarn-error.log*
 #敏感信息
 *.db
 .claude/
+# Temporary files
+tmpclaude-*
+*.go.txt

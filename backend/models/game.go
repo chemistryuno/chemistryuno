@@ -1,6 +1,9 @@
 ﻿package models
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // 卡牌类型
 type Card struct {
@@ -38,6 +41,37 @@ type Room struct {
 	TargetUID     int         `json:"target_uid"`     // 被挑战者 UID
 	CreatedAt     time.Time   `json:"created_at"`
 }
+
+// MarshalJSON 自定义 JSON 序列化，确保 ready_uids 和其他切片字段永远不为 null
+func (r *Room) MarshalJSON() ([]byte, error) {
+	type Alias Room
+	// 确保切片字段不为 nil，避免 JSON 序列化为 null
+	players := r.Players
+	if players == nil {
+		players = []int{}
+	}
+	readyUIDs := r.ReadyUIDs
+	if readyUIDs == nil {
+		readyUIDs = []int{}
+	}
+	spectators := r.Spectators
+	if spectators == nil {
+		spectators = []int{}
+	}
+
+	return json.Marshal(&struct {
+		Players    []int `json:"players"`
+		ReadyUIDs  []int `json:"ready_uids"`
+		Spectators []int `json:"spectators"`
+		*Alias
+	}{
+		Players:    players,
+		ReadyUIDs:  readyUIDs,
+		Spectators: spectators,
+		Alias:      (*Alias)(r),
+	})
+}
+
 
 // 游戏状态
 type GameState struct {

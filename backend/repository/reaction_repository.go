@@ -2,6 +2,7 @@ package repository
 
 import (
 	"chemistryuno/database"
+	"time"
 
 	"gorm.io/gorm"
 )
@@ -23,9 +24,11 @@ func (r *ReactionRepository) FindApprovedReactions() ([]database.Reaction, error
 
 // CheckReactionExists 检查反应是否存在
 func (r *ReactionRepository) CheckReactionExists(r1, r2 string) (bool, error) {
+	// 双向查询：同时检查 (r1,r2) 和 (r2,r1) 两种顺序
+	// 确保即使数据库存储顺序不一致也能查询到
 	var count int64
 	err := r.db.Model(&database.Reaction{}).
-		Where("((reactants = ? AND products = ?) OR (reactants = ? AND products = ?)) AND status = ?",
+		Where("((r1 = ? AND r2 = ?) OR (r1 = ? AND r2 = ?)) AND status = ?",
 			r1, r2, r2, r1, "approved").
 		Count(&count).Error
 	return count > 0, err
@@ -34,7 +37,7 @@ func (r *ReactionRepository) CheckReactionExists(r1, r2 string) (bool, error) {
 // FindReactionsBySubstance 查找包含指定物质的反应
 func (r *ReactionRepository) FindReactionsBySubstance(substance string) ([]database.Reaction, error) {
 	var reactions []database.Reaction
-	err := r.db.Where("(reactants = ? OR products = ?) AND status = ?",
+	err := r.db.Where("(r1 = ? OR r2 = ?) AND status = ?",
 		substance, substance, "approved").Find(&reactions).Error
 	return reactions, err
 }
@@ -81,6 +84,10 @@ func (r *ReactionRepository) DeleteByGroupID(groupID uint) error {
 
 // Create 创建反应
 func (r *ReactionRepository) Create(reaction *database.Reaction) error {
+	// Canonical ordering: 确保 r1 <= r2 (字母序)
+	if reaction.R1 > reaction.R2 {
+		reaction.R1, reaction.R2 = reaction.R2, reaction.R1
+	}
 	return r.db.Create(reaction).Error
 }
 
@@ -121,13 +128,15 @@ func (r *ReactionRepository) GetGroupIDAndCreatorByID(id uint) (*uint, uint, err
 
 // ReactionWithCreator 带创建者信息的反应
 type ReactionWithCreator struct {
-	ID           uint   `json:"id"`
-	Display      string `json:"display"`
-	Status       string `json:"status"`
-	GroupID      *uint  `json:"group_id"`
-	CreatedByUID uint   `json:"created_by_uid"`
-	CreatorName  string `json:"creator_name"`
-	CreatedAt    string `json:"created_at"`
+	ID           uint      `json:"id"`
+	Display      string    `json:"display"`
+	R1           string    `json:"r1"` // 反应物1
+	R2           string    `json:"r2"` // 反应物2
+	Status       string    `json:"status"`
+	GroupID      *uint     `json:"group_id"`
+	CreatedByUID uint      `json:"created_by_uid"`
+	CreatorName  string    `json:"creator_name"`
+	CreatedAt    time.Time `json:"created_at"`
 }
 
 // FindAllGroupedWithCreator 获取所有反应（按组分组，带创建者信息）
@@ -138,7 +147,7 @@ func (r *ReactionRepository) FindAllGroupedWithCreator() ([]ReactionWithCreator,
 	subQuery := r.db.Table("reactions").Select("MIN(id)").Group("group_id")
 
 	err := r.db.Table("reactions").
-		Select("reactions.id, reactions.display, reactions.status, reactions.group_id, reactions.created_by_uid, users.username as creator_name, reactions.created_at").
+		Select("reactions.id, reactions.display, reactions.r1, reactions.r2, reactions.status, reactions.group_id, reactions.created_by_uid, users.username as creator_name, reactions.created_at").
 		Joins("LEFT JOIN users ON reactions.created_by_uid = users.uid").
 		Where("reactions.id IN (?)", subQuery).
 		Order("reactions.created_at DESC").
@@ -158,7 +167,7 @@ func (r *ReactionRepository) FindApprovedGrouped() ([]ReactionWithCreator, error
 		Group("group_id")
 
 	err := r.db.Table("reactions").
-		Select("reactions.id, reactions.display, reactions.reactants as r1, reactions.products as r2, reactions.created_at").
+		Select("reactions.id, reactions.display, reactions.r1, reactions.r2, reactions.status, reactions.group_id, reactions.created_at").
 		Where("reactions.status = ? AND reactions.id IN (?)", "approved", subQuery).
 		Order("reactions.created_at DESC").
 		Scan(&results).Error
@@ -177,7 +186,7 @@ func (r *ReactionRepository) FindMyReactions(uid uint) ([]ReactionWithCreator, e
 		Group("group_id")
 
 	err := r.db.Table("reactions").
-		Select("reactions.id, reactions.display, reactions.status, reactions.created_at").
+		Select("reactions.id, reactions.display, reactions.r1, reactions.r2, reactions.status, reactions.created_at").
 		Where("reactions.created_by_uid = ? AND reactions.id IN (?)", uid, subQuery).
 		Order("reactions.created_at DESC").
 		Scan(&results).Error
@@ -187,5 +196,10 @@ func (r *ReactionRepository) FindMyReactions(uid uint) ([]ReactionWithCreator, e
 
 // CreateBatch 批量创建反应（用于事务）
 func (r *ReactionRepository) CreateBatch(reactions []database.Reaction) error {
+	for i := range reactions {
+		if reactions[i].R1 > reactions[i].R2 {
+			reactions[i].R1, reactions[i].R2 = reactions[i].R2, reactions[i].R1
+		}
+	}
 	return r.db.Create(&reactions).Error
 }

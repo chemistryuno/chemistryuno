@@ -69,12 +69,20 @@ func InitDB(dbPath string) error {
 		if sqlitePath == "" {
 			sqlitePath = "./chemistryuno.db"
 		}
+
+		// 添加SQLite并发优化参数
+		// WAL模式：支持并发读写，极大提升并发性能
+		// busy_timeout：数据库锁定时等待时间（毫秒）
+		// journal_mode=WAL：启用Write-Ahead Logging
+		// synchronous=NORMAL：在WAL模式下保证安全性的同时提升性能
+		sqlitePath = sqlitePath + "?_busy_timeout=5000&_journal_mode=WAL&_synchronous=NORMAL"
+
 		// 指定使用 modernc.org/sqlite 纯Go驱动（SQLite3 默认使用 UTF-8）
 		dialector = sqlite.Dialector{
 			DriverName: "sqlite",
 			DSN:        sqlitePath,
 		}
-		log.Printf("📊 使用 SQLite 数据库 (纯Go, UTF-8): %s\n", sqlitePath)
+		log.Printf("📊 使用 SQLite 数据库 (纯Go, UTF-8, WAL模式): %s\n", sqlitePath)
 
 	default:
 		return fmt.Errorf("不支持的数据库类型: %s（支持: mysql, sqlite）", dbType)
@@ -96,15 +104,26 @@ func InitDB(dbPath string) error {
 	// 配置连接池
 	sqlDB, err := DB.DB()
 	if err == nil {
-		maxIdle := getEnvInt("DB_MAX_IDLE_CONNS", 10)
-		maxOpen := getEnvInt("DB_MAX_OPEN_CONNS", 100)
+		var maxIdle, maxOpen int
 		maxLifetime := getEnvInt("DB_CONN_MAX_LIFETIME", 3600) // 秒
+
+		// 根据数据库类型设置不同的连接池参数
+		if dbType == "sqlite" {
+			// SQLite：限制并发连接数以避免SQLITE_BUSY错误
+			// 在WAL模式下，建议：1个写连接 + 多个读连接
+			maxIdle = getEnvInt("DB_MAX_IDLE_CONNS", 2)
+			maxOpen = getEnvInt("DB_MAX_OPEN_CONNS", 10) // SQLite单写多读，不宜过高
+			log.Printf("⚙️  SQLite连接池配置: MaxIdle=%d, MaxOpen=%d (WAL模式优化)", maxIdle, maxOpen)
+		} else {
+			// MySQL等其他数据库：可以使用更高的并发
+			maxIdle = getEnvInt("DB_MAX_IDLE_CONNS", 10)
+			maxOpen = getEnvInt("DB_MAX_OPEN_CONNS", 100)
+			log.Printf("⚙️  数据库连接池配置: MaxIdle=%d, MaxOpen=%d, MaxLifetime=%ds", maxIdle, maxOpen, maxLifetime)
+		}
 
 		sqlDB.SetMaxIdleConns(maxIdle)
 		sqlDB.SetMaxOpenConns(maxOpen)
 		sqlDB.SetConnMaxLifetime(time.Duration(maxLifetime) * time.Second)
-
-		log.Printf("⚙️  数据库连接池配置: MaxIdle=%d, MaxOpen=%d, MaxLifetime=%ds", maxIdle, maxOpen, maxLifetime)
 	}
 
 	// 初始化Redis

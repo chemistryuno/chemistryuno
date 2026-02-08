@@ -113,7 +113,10 @@ func UpdateSessionActivity(sid string, ip string) {
 func IsSessionValid(sid string) bool {
 	exists, err := getSessionRepo().Exists(sid)
 	if err != nil {
-		return false
+		// 数据库错误时，打印警告但暂时允许通过（避免因数据库暂时不可用而大量踢出用户）
+		log.Printf("[警告] Session验证时数据库错误，SID=%s: %v", sid, err)
+		// 返回true以避免误踢，但下次验证会重试
+		return true
 	}
 	return exists
 }
@@ -122,7 +125,9 @@ func IsSessionValid(sid string) bool {
 func ValidateSessionForUser(sid string, uid int) bool {
 	valid, err := getSessionRepo().ValidateSessionForUser(sid, uint(uid))
 	if err != nil {
-		return false
+		log.Printf("[警告] 验证用户会话时数据库错误，SID=%s, UID=%d: %v", sid, uid, err)
+		// 返回true以避免误踢，但下次验证会重试
+		return true
 	}
 	return valid
 }

@@ -137,6 +137,11 @@ func getSubstanceInfo(name string) SubstanceInfo {
 
 	// 处理简单的单质
 	if len(name) <= 2 {
+		// 识别常见的非金属单质原子形式
+		nonMetals := map[string]bool{"H": true, "O": true, "N": true, "Cl": true, "Br": true, "I": true, "F": true, "S": true, "P": true, "C": true}
+		if nonMetals[name] {
+			return SubstanceInfo{Name: name, Type: TypeNonMetal}
+		}
 		return SubstanceInfo{Name: name, Type: TypeMetal}
 	}
 

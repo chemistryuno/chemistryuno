@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"math/rand"
 	"sort"
 	"sync"
@@ -43,13 +44,20 @@ func (gr *GameRoom) checkAutoStart() {
 	// 统计准备的玩家（只要还在房间内就计数，不检查实时在线状态以防刷新导致的频繁重置）
 	numReady := len(gr.Room.ReadyUIDs)
 
-	// 确定目标倒计时
+	// 确定目标倒计时（必须至少有2名玩家才能开始倒计时）
 	targetCountdown := 0
-	if numPlayers == maxPlayers && numReady == maxPlayers {
-		targetCountdown = 10
-	} else if numPlayers >= 2 && numReady >= (maxPlayers+1)/2 {
-		targetCountdown = 60
+	if numPlayers >= 2 {
+		if numPlayers == maxPlayers && numReady == maxPlayers {
+			// 满员且全部准备 -> 10秒快速开始
+			targetCountdown = 10
+		} else if numReady >= (maxPlayers+1)/2 {
+			// 至少2人且准备人数过半 -> 60秒倒计时
+			targetCountdown = 60
+		}
 	}
+
+	log.Printf("[自动开始检查] 房间 %s: 玩家数=%d/%d, 准备数=%d, 倒计时=%d秒",
+		roomID, numPlayers, maxPlayers, numReady, targetCountdown)
 
 	// 如果不再满足任何倒计时条件
 	if targetCountdown == 0 {
@@ -100,14 +108,23 @@ func (gr *GameRoom) checkAutoStart() {
 
 			// 如果剩下的人还够，就开始游戏
 			if len(gr.Room.Players) >= 2 {
+				log.Printf("[自动开始] 房间 %s 倒计时结束，准备开始游戏，玩家数：%d", roomID, len(gr.Room.Players))
 				gr.mutex.Unlock()
 
 				// 执行踢出
 				for _, uid := range playersToKick {
+					log.Printf("[自动开始] 踢出未准备玩家：%d", uid)
 					gr.kickPlayer(uid, "由于未准备，您已被移出游戏")
 				}
 
-				StartGame(roomID, 0)
+				log.Printf("[自动开始] 调用StartGame for room %s", roomID)
+				err := StartGame(roomID, 0)
+				if err != nil {
+					log.Printf("[自动开始] StartGame失败：%v", err)
+				} else {
+					log.Printf("[自动开始] StartGame成功，广播更新")
+					gr.broadcastRoomUpdate()
+				}
 			} else {
 				gr.mutex.Unlock()
 				for _, uid := range playersToKick {
@@ -1069,6 +1086,15 @@ func StartGame(roomID string, uid int) error {
 		repository.UserRepo.UpdateTurnStartedAt(uint(firstUID), time.Now())
 	}
 
+	// 添加详细日志
+	log.Printf("[游戏开始] 房间 %s 游戏已开始，状态：%s，玩家数：%d",
+		roomID, gameRoom.Room.Status, len(gameRoom.GameState.Players))
+	for i, p := range gameRoom.GameState.Players {
+		log.Printf("[游戏开始] 玩家 %d: UID=%d, 手牌数=%d", i, p.UID, p.CardCount)
+	}
+	log.Printf("[游戏开始] 牌堆剩余：%d张，弃牌堆：%d张，当前玩家索引：%d",
+		len(gameRoom.GameState.DrawPile), len(gameRoom.GameState.DiscardPile), gameRoom.GameState.CurrentPlayer)
+
 	return nil
 }
 
@@ -1127,11 +1153,17 @@ func GetRoomState(roomID string, uid int) (map[string]interface{}, error) {
 		})
 	}
 
+	// 确保 ready_uids 永远不为 nil，避免 JSON 序列化为 null
+	readyUIDs := gameRoom.Room.ReadyUIDs
+	if readyUIDs == nil {
+		readyUIDs = []int{}
+	}
+
 	result := map[string]interface{}{
 		"id":             gameRoom.Room.ID,
 		"name":           gameRoom.Room.Name,
 		"players":        gameRoom.Room.Players,
-		"ready_uids":     gameRoom.Room.ReadyUIDs,
+		"ready_uids":     readyUIDs,
 		"countdown":      gameRoom.Room.Countdown,
 		"players_info":   playersInfo,
 		"max_players":    gameRoom.Room.MaxPlayers,

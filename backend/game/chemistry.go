@@ -4,6 +4,7 @@ import (
 	"chemistryuno/database"
 	"chemistryuno/models"
 	"chemistryuno/repository"
+	"strings"
 )
 
 // 根据手牌元素获取可以组成的物质
@@ -28,6 +29,13 @@ func GetSubstancesFromElements(cards []models.Card) []string {
 					substanceSet[sub.Name] = true
 				}
 			}
+		}
+	}
+
+	// 允许打出由单个原子组成的单质（直接使用手牌中的元素符号）
+	for elem, count := range elementMap {
+		if count > 0 {
+			substanceSet[elem] = true
 		}
 	}
 
@@ -122,25 +130,29 @@ func parseSubstance(substance string) map[string]int {
 
 // 检查两个物质是否能反应
 func CanReact(substance1, substance2 string) bool {
+	// 去除可能存在的空格
+	s1 := strings.ReplaceAll(substance1, " ", "")
+	s2 := strings.ReplaceAll(substance2, " ", "")
+
 	// 特殊卡牌逻辑：稀有气体和功能牌可以与任何物质反应（即可以接在任何牌后面）
 	specialSubstances := map[string]bool{
 		"He": true, "Ne": true, "Ar": true, "Kr": true, "Xe": true, "Rn": true,
 		"Au": true, "+2": true, "+4": true,
 	}
-	if specialSubstances[substance1] || specialSubstances[substance2] {
+	if specialSubstances[s1] || specialSubstances[s2] {
 		return true
 	}
 
-	// 优先查询数据库判定
+	// 完全依赖数据库查询验证反应是否存在
+	// 优势：规则统一存储，易于管理和扩展；支持用户自定义反应
 	if database.DB != nil {
-		exists, err := repository.ReactionRepo.CheckReactionExists(substance1, substance2)
+		exists, err := repository.ReactionRepo.CheckReactionExists(s1, s2)
 		if err == nil && exists {
 			return true
 		}
 	}
 
-	// 兜底使用 JudgeReaction 进行逻辑判定 (普通反应)
-	return JudgeReaction(substance1, substance2)
+	return false
 }
 
 // 获取能与指定物质反应的所有物质
@@ -152,16 +164,14 @@ func GetReactableSubstances(substance string) []string {
 		reactions, err := repository.ReactionRepo.FindReactionsBySubstance(substance)
 		if err == nil {
 			for _, reaction := range reactions {
-				// 解析reactants和products，找到另一个物质
-				if reaction.Reactants == substance {
-					target := reaction.Products
-					if !contains(results, target) {
-						results = append(results, target)
+				// 找到另一个反应物
+				if reaction.R1 == substance {
+					if !contains(results, reaction.R2) {
+						results = append(results, reaction.R2)
 					}
-				} else if reaction.Products == substance {
-					target := reaction.Reactants
-					if !contains(results, target) {
-						results = append(results, target)
+				} else if reaction.R2 == substance {
+					if !contains(results, reaction.R1) {
+						results = append(results, reaction.R1)
 					}
 				}
 			}

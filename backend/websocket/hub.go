@@ -133,7 +133,14 @@ func (h *Hub) JoinRoom(client *Client, roomID string) {
 	h.rooms[roomID][client] = true
 	client.roomID = roomID
 
-	log.Printf("用户 %d 加入房间 %s", client.uid, roomID)
+	log.Printf("用户 %d 加入房间 %s (房间内共 %d 人)", client.uid, roomID, len(h.rooms[roomID]))
+
+	// 打印房间内所有用户
+	var uids []int
+	for c := range h.rooms[roomID] {
+		uids = append(uids, c.uid)
+	}
+	log.Printf("房间 %s 当前成员 UIDs: %v", roomID, uids)
 }
 
 func (h *Hub) LeaveRoom(client *Client) {
@@ -141,13 +148,15 @@ func (h *Hub) LeaveRoom(client *Client) {
 	defer h.mutex.Unlock()
 
 	if client.roomID != "" {
+		roomID := client.roomID
 		if clients, ok := h.rooms[client.roomID]; ok {
 			delete(clients, client)
+			log.Printf("用户 %d 离开房间 %s (房间剩余 %d 人)", client.uid, roomID, len(clients))
 			if len(clients) == 0 {
 				delete(h.rooms, client.roomID)
+				log.Printf("房间 %s 已清空并删除", roomID)
 			}
 		}
-		log.Printf("用户 %d 离开房间 %s", client.uid, client.roomID)
 		client.roomID = ""
 	}
 }
@@ -164,13 +173,20 @@ func (h *Hub) BroadcastToRoom(roomID string, message interface{}) {
 	}
 
 	if clients, ok := h.rooms[roomID]; ok {
+		log.Printf("广播消息到房间 %s (共 %d 个客户端)", roomID, len(clients))
+		sentCount := 0
 		for client := range clients {
 			select {
 			case client.send <- data:
+				sentCount++
 			default:
+				log.Printf("发送失败，注销客户端 %d", client.uid)
 				h.unregister <- client
 			}
 		}
+		log.Printf("成功发送消息给 %d/%d 个客户端", sentCount, len(clients))
+	} else {
+		log.Printf("警告: 房间 %s 不存在，无法广播消息", roomID)
 	}
 }
 

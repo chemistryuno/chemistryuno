@@ -6,6 +6,7 @@ import (
 	"chemistryuno/repository"
 	"chemistryuno/websocket"
 	"fmt"
+	"log"
 	"math/rand"
 	"net/http"
 	"time"
@@ -15,9 +16,12 @@ import (
 
 func broadcastUpdate(roomID string) {
 	if websocket.GlobalHub != nil {
+		log.Printf("[Broadcast] Broadcasting game_update to room %s", roomID)
 		websocket.GlobalHub.BroadcastToRoom(roomID, websocket.Message{
 			Type: "game_update",
 		})
+	} else {
+		log.Printf("[Broadcast] Warning: GlobalHub is nil, cannot broadcast to room %s", roomID)
 	}
 }
 
@@ -112,7 +116,7 @@ func ToggleReady(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "开始游戏"})
+	c.JSON(http.StatusOK, gin.H{"message": "准备状态已更新"})
 }
 
 // 获取当前玩家的游戏历史
@@ -148,6 +152,7 @@ func StartGame(c *gin.Context) {
 	}
 
 	broadcastUpdate(roomID)
+	log.Printf("[HTTP] StartGame handler: game started for room %s, broadcasted update", roomID)
 	c.JSON(http.StatusOK, gin.H{"message": "游戏开始"})
 }
 

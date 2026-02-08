@@ -5,10 +5,245 @@
 @variant dark (&:where(.dark, .dark *));
 
 /* Base Body Style */
-/* Base Body Style */
 body {
   @apply bg-slate-50 text-slate-900 dark:bg-[#0a0a0c] dark:text-slate-200 antialiased selection:bg-blue-500/30;
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
+@layer utilities {
+
+  /* Generic Card Styles */
+  .uno-card {
+    @apply relative border-2 transition-all duration-300 shadow-lg overflow-hidden backdrop-blur-md;
+    background: var(--card-bg, linear-gradient(135deg, #ffffff 0%, #f1f5f9 100%));
+    border-color: var(--card-border, rgba(0, 0, 0, 0.05));
+    color: var(--card-text, #1e293b);
+  }
+
+  .dark .uno-card {
+    background: var(--card-bg-dark, linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.01) 100%));
+    border-color: var(--card-border-dark, rgba(255, 255, 255, 0.1));
+    color: var(--card-text-dark, #f1f5f9);
+  }
+
+  /* Element Specific Themes */
+  .element-H {
+    --card-bg: linear-gradient(135deg, #e0f2fe 0%, #7dd3fc 100%);
+    --card-text: #0369a1;
+    --card-border: #bae6fd;
+    --card-bg-dark: linear-gradient(135deg, #075985 0%, #0c4a6e 100%);
+    --card-text-dark: #e0f2fe;
+    --card-border-dark: #0ea5e9;
+  }
+
+  .element-O {
+    --card-bg: linear-gradient(135deg, #fee2e2 0%, #fca5a5 100%);
+    --card-text: #b91c1c;
+    --card-border: #fecaca;
+    --card-bg-dark: linear-gradient(135deg, #991b1b 0%, #7f1d1d 100%);
+    --card-text-dark: #fee2e2;
+    --card-border-dark: #ef4444;
+  }
+
+  .element-C {
+    --card-bg: linear-gradient(135deg, #4b5563 0%, #1f2937 100%);
+    --card-text: #f9fafb;
+    --card-border: #6b7280;
+    --card-bg-dark: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+    --card-text-dark: #f9fafb;
+    --card-border-dark: #374151;
+  }
+
+  .element-N {
+    --card-bg: linear-gradient(135deg, #dbeafe 0%, #93c5fd 100%);
+    --card-text: #1e40af;
+    --card-border: #bfdbfe;
+    --card-bg-dark: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+    --card-text-dark: #dbeafe;
+    --card-border-dark: #3b82f6;
+  }
+
+  .element-S {
+    --card-bg: linear-gradient(135deg, #fef9c3 0%, #fde047 100%);
+    --card-text: #854d0e;
+    --card-border: #fef08a;
+    --card-bg-dark: linear-gradient(135deg, #713f12 0%, #422006 100%);
+    --card-text-dark: #fef9c3;
+    --card-border-dark: #eab308;
+  }
+
+  .element-F {
+    --card-bg: linear-gradient(135deg, #ecfccb 0%, #bef264 100%);
+    --card-text: #3f6212;
+    --card-border: #d9f99d;
+    --card-bg-dark: linear-gradient(135deg, #365314 0%, #1a2e05 100%);
+    --card-text-dark: #ecfccb;
+    --card-border-dark: #84cc16;
+  }
+
+  .element-P {
+    --card-bg: linear-gradient(135deg, #ffedd5 0%, #fed7aa 100%);
+    --card-text: #9a3412;
+    --card-border: #ffdbb1;
+    --card-bg-dark: linear-gradient(135deg, #7c2d12 0%, #431407 100%);
+    --card-text-dark: #ffedd5;
+    --card-border-dark: #f97316;
+  }
+
+  .element-Cl {
+    --card-bg: linear-gradient(135deg, #dcfce7 0%, #86efac 100%);
+    --card-text: #166534;
+    --card-border: #bbf7d0;
+    --card-bg-dark: linear-gradient(135deg, #14532d 0%, #064e3b 100%);
+    --card-text-dark: #dcfce7;
+    --card-border-dark: #22c55e;
+  }
+
+  .element-Br {
+    --card-bg: linear-gradient(135deg, #fef2f2 0%, #fca5a5 100%);
+    --card-text: #991b1b;
+    --card-border: #fee2e2;
+    --card-bg-dark: linear-gradient(135deg, #7f1d1d 0%, #450a0a 100%);
+    --card-text-dark: #fef2f2;
+    --card-border-dark: #dc2626;
+  }
+
+  .element-I {
+    --card-bg: linear-gradient(135deg, #f5f3ff 0%, #ddd6fe 100%);
+    --card-text: #5b21b6;
+    --card-border: #ede9fe;
+    --card-bg-dark: linear-gradient(135deg, #4c1d95 0%, #2e1065 100%);
+    --card-text-dark: #f5f3ff;
+    --card-border-dark: #8b5cf6;
+  }
+
+  .element-Na,
+  .element-K {
+    --card-bg: linear-gradient(135deg, #f5f3ff 0%, #ddd6fe 100%);
+    --card-text: #5b21b6;
+    --card-border: #ede9fe;
+    --card-bg-dark: linear-gradient(135deg, #4c1d95 0%, #2e1065 100%);
+    --card-text-dark: #f5f3ff;
+    --card-border-dark: #8b5cf6;
+  }
+
+  .element-Mg,
+  .element-Ca,
+  .element-Ba {
+    --card-bg: linear-gradient(135deg, #ffedd5 0%, #fdba74 100%);
+    --card-text: #9a3412;
+    --card-border: #fed7aa;
+    --card-bg-dark: linear-gradient(135deg, #7c2d12 0%, #431407 100%);
+    --card-text-dark: #ffedd5;
+    --card-border-dark: #f97316;
+  }
+
+  .element-Al,
+  .element-Fe,
+  .element-Zn,
+  .element-Ag,
+  .element-Hg {
+    --card-bg: linear-gradient(135deg, #f1f5f9 0%, #cbd5e1 100%);
+    --card-text: #334155;
+    --card-border: #e2e8f0;
+    --card-bg-dark: linear-gradient(135deg, #334155 0%, #1e293b 100%);
+    --card-text-dark: #f1f5f9;
+    --card-border-dark: #64748b;
+  }
+
+  .element-Cu {
+    --card-bg: linear-gradient(135deg, #fff7ed 0%, #fb923c 100%);
+    --card-text: #9a3412;
+    --card-border: #ffedd5;
+    --card-bg-dark: linear-gradient(135deg, #9a3412 0%, #7c2d12 100%);
+    --card-text-dark: #fff7ed;
+    --card-border-dark: #f97316;
+  }
+
+  .card-noble {
+    --card-bg: linear-gradient(135deg, #fafaf9 0%, #e7e5e4 100%);
+    --card-text: #44403c;
+    --card-border: #d6d3d1;
+    --card-bg-dark: linear-gradient(135deg, #292524 0%, #1c1917 100%);
+    --card-text-dark: #fafaf9;
+    --card-border-dark: #57534e;
+  }
+
+  .card-func {
+    --card-bg: linear-gradient(135deg, #f0f9ff 0%, #bae6fd 100%);
+    --card-text: #075985;
+    --card-border: #7dd3fc;
+    --card-bg-dark: linear-gradient(135deg, #075985 0%, #082f49 100%);
+    --card-text-dark: #f0f9ff;
+    --card-border-dark: #0ea5e9;
+  }
+
+  .card-reaction {
+    --card-bg: linear-gradient(135deg, #fdf4ff 0%, #f5d0fe 100%);
+    --card-text: #701a75;
+    --card-border: #e879f9;
+    --card-bg-dark: linear-gradient(135deg, #701a75 0%, #4a044e 100%);
+    --card-text-dark: #fdf4ff;
+    --card-border-dark: #d946ef;
+  }
+
+  /* Apply the variables to classes */
+  .element-H,
+  .element-O,
+  .element-C,
+  .element-N,
+  .element-S,
+  .element-F,
+  .element-P,
+  .element-Cl,
+  .element-Br,
+  .element-I,
+  .element-Na,
+  .element-K,
+  .element-Mg,
+  .element-Ca,
+  .element-Ba,
+  .element-Al,
+  .element-Fe,
+  .element-Zn,
+  .element-Ag,
+  .element-Hg,
+  .element-Cu,
+  .card-noble,
+  .card-func,
+  .card-reaction {
+    background: var(--card-bg);
+    color: var(--card-text);
+    border-color: var(--card-border);
+  }
+
+  .dark .element-H,
+  .dark .element-O,
+  .dark .element-C,
+  .dark .element-N,
+  .dark .element-S,
+  .dark .element-F,
+  .dark .element-P,
+  .dark .element-Cl,
+  .dark .element-Br,
+  .dark .element-I,
+  .dark .element-Na,
+  .dark .element-K,
+  .dark .element-Mg,
+  .dark .element-Ca,
+  .dark .element-Ba,
+  .dark .element-Al,
+  .dark .element-Fe,
+  .dark .dark .element-Zn,
+  .dark .element-Ag,
+  .dark .element-Hg,
+  .dark .element-Cu,
+  .dark .card-noble,
+  .dark .card-func,
+  .dark .card-reaction {
+    background: var(--card-bg-dark);
+    color: var(--card-text-dark);
+    border-color: var(--card-border-dark);
+  }
+}

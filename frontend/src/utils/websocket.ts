@@ -111,15 +111,21 @@ class WebSocketService {
   }
 
   joinRoom(roomId: string): void {
+    console.log('[WebSocket] Joining room:', roomId)
     this.send({ type: 'join_room', room_id: roomId })
   }
 
   leaveRoom(): void {
+    console.log('[WebSocket] Leaving room')
     this.send({ type: 'leave_room' })
   }
 
   sendChat(message: string): void {
     this.send({ type: 'chat', message })
+  }
+
+  isConnected(): boolean {
+    return this.ws !== null && this.ws.readyState === WebSocket.OPEN
   }
 }
 

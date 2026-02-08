@@ -2,6 +2,8 @@ package repository
 
 import (
 	"chemistryuno/database"
+	"log"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -39,14 +41,51 @@ func (r *SessionRepository) FindByUserUID(uid uint) ([]database.UserSession, err
 	return sessions, err
 }
 
-// UpdateActivity 更新会话活动时间和IP
+// UpdateActivity 更新会话活动时间和IP（带重试机制）
 func (r *SessionRepository) UpdateActivity(id string, ip string) error {
-	return r.db.Model(&database.UserSession{}).
-		Where("id = ?", id).
-		Updates(map[string]interface{}{
-			"last_active": time.Now(),
-			"ip_address":  ip,
-		}).Error
+	// 尝试更新，如果因为数据库锁定失败，最多重试3次
+	maxRetries := 3
+	var lastErr error
+
+	for i := 0; i < maxRetries; i++ {
+		err := r.db.Model(&database.UserSession{}).
+			Where("id = ?", id).
+			Updates(map[string]interface{}{
+				"last_active": time.Now(),
+				"ip_address":  ip,
+			}).Error
+
+		if err == nil {
+			return nil
+		}
+
+		lastErr = err
+		// 如果是数据库锁定错误，等待后重试
+		if isDatabaseBusyError(err) && i < maxRetries-1 {
+			time.Sleep(time.Millisecond * time.Duration(50*(i+1))) // 递增退避
+			continue
+		}
+
+		// 其他错误直接返回
+		if i == maxRetries-1 {
+			log.Printf("[Session更新失败] SID=%s, IP=%s: %v (已重试%d次)", id, ip, err, maxRetries)
+		}
+		break
+	}
+
+	return lastErr
+}
+
+// isDatabaseBusyError 检查是否是数据库忙碌/锁定错误
+func isDatabaseBusyError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errMsg := err.Error()
+	// 检查SQLite常见的锁定错误
+	return strings.Contains(errMsg, "database is locked") ||
+		strings.Contains(errMsg, "SQLITE_BUSY") ||
+		strings.Contains(errMsg, "database locked")
 }
 
 // Delete 删除会话
@@ -68,7 +107,12 @@ func (r *SessionRepository) DeleteByIDAndUserUID(id string, uid uint) error {
 func (r *SessionRepository) Exists(id string) (bool, error) {
 	var count int64
 	err := r.db.Model(&database.UserSession{}).Where("id = ?", id).Count(&count).Error
-	return count > 0, err
+	if err != nil {
+		// 数据库错误时，记录日志并返回错误而不是直接false
+		log.Printf("[Session验证错误] 数据库查询失败 SID=%s: %v", id, err)
+		return false, err
+	}
+	return count > 0, nil
 }
 
 // ValidateSessionForUser 验证会话是否属于指定用户
@@ -77,7 +121,11 @@ func (r *SessionRepository) ValidateSessionForUser(id string, uid uint) (bool, e
 	err := r.db.Model(&database.UserSession{}).
 		Where("id = ? AND user_uid = ?", id, uid).
 		Count(&count).Error
-	return count > 0, err
+	if err != nil {
+		log.Printf("[Session验证错误] 验证用户会话失败 SID=%s, UID=%d: %v", id, uid, err)
+		return false, err
+	}
+	return count > 0, nil
 }
 
 // CleanupInactive 清理24小时未活动的会话

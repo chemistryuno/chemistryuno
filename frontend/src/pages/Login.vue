@@ -19,6 +19,8 @@ const tempUID = ref<number | null>(null)
 const error = ref('')
 const loading = ref(false)
 const smtpEnabled = ref(false)
+const recaptchaToken = ref('')
+const siteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY
 const router = useRouter()
 const dialog = useDialog()
 
@@ -26,6 +28,21 @@ onMounted(async () => {
   try {
     const res = await authAPI.getAuthConfig()
     smtpEnabled.value = res.data.smtp_enabled
+    
+    // 初始化 reCAPTCHA
+    if (siteKey && (window as any).grecaptcha) {
+      setTimeout(() => {
+        (window as any).grecaptcha.render('recaptcha-login', {
+          sitekey: siteKey,
+          callback: (token: string) => {
+            recaptchaToken.value = token
+          },
+          'expired-callback': () => {
+            recaptchaToken.value = ''
+          }
+        })
+      }, 500)
+    }
   } catch (err) {
     console.error('获取配置失败', err)
   }
@@ -54,6 +71,12 @@ const handleResetSubmit = async (username: string, code: string, newPw: string) 
 
 const handleSubmit = async () => {
   error.value = ''
+
+  if (siteKey && !recaptchaToken.value) {
+    error.value = '请先完成 reCAPTCHA 验证'
+    return
+  }
+
   loading.value = true
   
   // 保存最后一次输入的用户名
@@ -63,6 +86,7 @@ const handleSubmit = async () => {
     const response = await authAPI.login({
       username: identifier.value,
       password: password.value,
+      recaptcha_token: recaptchaToken.value,
     })
     
     if (response.data.two_factor_required) {
@@ -231,6 +255,11 @@ const handleOAuthLogin = (provider: 'github' | 'ms' | 'google' | 'apple') => {
                     placeholder="请输入密码"
                   />
                 </div>
+              </div>
+
+              <!-- reCAPTCHA Container -->
+              <div v-if="siteKey" class="flex justify-center py-2">
+                <div id="recaptcha-login"></div>
               </div>
 
               <button

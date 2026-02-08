@@ -10,7 +10,10 @@ const props = defineProps<{
   title?: string
   placeholder?: string
   maxHeight?: string
+  hideHeader?: boolean
 }>()
+
+const emit = defineEmits(['close'])
 
 const messages = ref<any[]>([])
 const newMessage = ref('')
@@ -131,11 +134,11 @@ const formatTime = (date: Date) => {
 
 <template>
   <div 
-    class="flex flex-col bg-white dark:bg-[#121216]/80 backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-[28px] overflow-hidden shadow-2xl"
+    :class="cn('flex flex-col bg-white dark:bg-[#121216]/80 backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-[28px] overflow-hidden shadow-2xl', $attrs.class)"
     :style="maxHeight ? { height: maxHeight } : {}"
   >
     <!-- Header -->
-    <div class="px-4 py-3 border-b border-slate-100 dark:border-white/5 flex items-center justify-between bg-slate-50/50 dark:bg-white/[0.02] shrink-0">
+    <div v-if="!hideHeader" class="px-4 py-3 border-b border-slate-100 dark:border-white/5 flex items-center justify-between bg-slate-50/50 dark:bg-white/[0.02] shrink-0">
       <div class="flex items-center gap-2">
         <div class="w-6 h-6 rounded-lg bg-blue-500/10 flex items-center justify-center">
           <MessageSquare class="w-3.5 h-3.5 text-blue-500" />
@@ -145,9 +148,18 @@ const formatTime = (date: Date) => {
           <p class="text-[8px] font-mono text-slate-400 uppercase tracking-tighter">Messaging_Protocol</p>
         </div>
       </div>
-      <div class="flex items-center gap-1 px-2 py-0.5 bg-blue-500/10 rounded-full border border-blue-500/20">
-        <span class="w-1 h-1 bg-blue-500 rounded-full animate-pulse"></span>
-        <span class="text-[8px] font-black text-blue-500 uppercase">Live</span>
+      <div class="flex items-center gap-2">
+        <div class="flex items-center gap-1 px-2 py-0.5 bg-blue-500/10 rounded-full border border-blue-500/20">
+          <span class="w-1 h-1 bg-blue-500 rounded-full animate-pulse"></span>
+          <span class="text-[8px] font-black text-blue-500 uppercase">Live</span>
+        </div>
+        <button 
+          v-if="roomId"
+          @click="emit('close')" 
+          class="p-1 hover:bg-slate-200 dark:hover:bg-white/10 rounded-lg transition-colors text-slate-400 hover:text-slate-600 dark:hover:text-white"
+        >
+          <X class="w-4 h-4" />
+        </button>
       </div>
     </div>
 

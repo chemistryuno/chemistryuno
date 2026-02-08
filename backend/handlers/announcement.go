@@ -20,6 +20,16 @@ func GetActiveAnnouncements(c *gin.Context) {
 	c.JSON(http.StatusOK, announcements)
 }
 
+// GetRandomHints 获取随机3条实验情报提示
+func GetRandomHints(c *gin.Context) {
+	hints, err := repository.AnnouncementRepo.FindRandomHints()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取实验情报失败"})
+		return
+	}
+	c.JSON(http.StatusOK, hints)
+}
+
 // GetAllAnnouncements 管理员获取所有公告
 func GetAllAnnouncements(c *gin.Context) {
 	announcements, err := repository.AnnouncementRepo.FindAll()

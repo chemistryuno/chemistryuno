@@ -69,22 +69,25 @@ type UserCredential struct {
 }
 
 type RegisterRequest struct {
-	Username string `json:"username"`
-	Email    string `json:"email"`
-	Nickname string `json:"nickname" binding:"required,min=1,max=20"`
-	Password string `json:"password" binding:"required,min=6"`
-	Code     string `json:"code"`
+	Username       string `json:"username"`
+	Email          string `json:"email"`
+	Nickname       string `json:"nickname" binding:"required,min=1,max=20"`
+	Password       string `json:"password" binding:"required,min=6"`
+	Code           string `json:"code"`
+	RecaptchaToken string `json:"recaptcha_token"`
 }
 
 type LoginRequest struct {
-	Username string `json:"username"`
-	Email    string `json:"email"`
-	Password string `json:"password" binding:"required"`
+	Username       string `json:"username"`
+	Email          string `json:"email"`
+	Password       string `json:"password" binding:"required"`
+	RecaptchaToken string `json:"recaptcha_token"`
 }
 
 type SendCodeRequest struct {
-	Email string `json:"email" binding:"required,email"`
-	Type  string `json:"type"` // "register" or "reset"
+	Email          string `json:"email" binding:"required,email"`
+	Type           string `json:"type"` // "register" or "reset"
+	RecaptchaToken string `json:"recaptcha_token"`
 }
 
 type ResetPasswordByEmailRequest struct {

@@ -6,23 +6,24 @@ import (
 	"math/rand"
 	"net/smtp"
 	"os"
+	"strings"
 )
 
 // IsSMTPConfigured 检查SMTP是否已配置
 func IsSMTPConfigured() bool {
-	return os.Getenv("SMTP_HOST") != "" &&
-		os.Getenv("SMTP_PORT") != "" &&
-		os.Getenv("SMTP_USER") != "" &&
-		os.Getenv("SMTP_PASS") != ""
+	return strings.TrimSpace(os.Getenv("SMTP_HOST")) != "" &&
+		strings.TrimSpace(os.Getenv("SMTP_PORT")) != "" &&
+		strings.TrimSpace(os.Getenv("SMTP_USER")) != "" &&
+		strings.TrimSpace(os.Getenv("SMTP_PASS")) != ""
 }
 
 // SendEmail 发送邮件
 func SendEmail(to, subject, body string) error {
-	host := os.Getenv("SMTP_HOST")
-	port := os.Getenv("SMTP_PORT")
-	user := os.Getenv("SMTP_USER")
-	pass := os.Getenv("SMTP_PASS")
-	from := os.Getenv("SMTP_FROM")
+	host := strings.TrimSpace(os.Getenv("SMTP_HOST"))
+	port := strings.TrimSpace(os.Getenv("SMTP_PORT"))
+	user := strings.TrimSpace(os.Getenv("SMTP_USER"))
+	pass := strings.TrimSpace(os.Getenv("SMTP_PASS"))
+	from := strings.TrimSpace(os.Getenv("SMTP_FROM"))
 	if from == "" {
 		from = user
 	}

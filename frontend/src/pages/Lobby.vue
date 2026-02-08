@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 import { gameAPI, authAPI, commonAPI, friendAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
 import websocket from '../utils/websocket'
-import { Beaker, Plus, Shield, LogOut, Settings, Play, X, Loader2, Database, MessageCircle, Trophy, Megaphone } from 'lucide-vue-next'
+import { Beaker, Plus, Shield, LogOut, Settings, Play, X, Loader2, Database, MessageCircle, Trophy, Megaphone, Menu } from 'lucide-vue-next'
 import { cn } from '../utils/cn'
 import ChatBox from '../components/ChatBox.vue'
 
@@ -50,6 +50,7 @@ const isPrivate = ref(false)
 const loading = ref(false)
 const currentTime = ref(new Date())
 const onlineCount = ref(0)
+const isMobileMenuOpen = ref(false)
 
 const activeRoom = computed(() => {
   return rooms.value.find(r => 
@@ -225,7 +226,7 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
 
           <div class="flex items-center gap-3">
             <!-- User Identity Chip -->
-            <div class="hidden sm:flex items-center gap-2.5 pl-1.5 pr-3 py-1 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl hover:bg-slate-200 dark:hover:bg-white/10 transition-all cursor-pointer group">
+            <div @click="router.push('/profile')" class="flex items-center gap-2.5 pl-1.5 pr-1.5 sm:pr-3 py-1 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl hover:bg-slate-200 dark:hover:bg-white/10 transition-all cursor-pointer group">
                <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-800 flex items-center justify-center text-base shadow-inner group-hover:scale-105 transition-transform overflow-hidden">
                  <template v-if="user.avatar && user.avatar.startsWith('data:')">
                     <img :src="user.avatar" class="w-full h-full object-cover" />
@@ -234,7 +235,7 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
                     {{ user.avatar || '🧪' }}
                  </template>
                </div>
-               <div class="flex flex-col">
+               <div class="hidden sm:flex flex-col">
                  <span class="text-[11px] font-black text-slate-900 dark:text-white">{{ user.nickname || user.username }}</span>
                  <span class="text-[8px] text-slate-500 font-mono uppercase">
                    {{ user.is_admin ? 'Lead' : 'Researcher' }}
@@ -242,7 +243,8 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
                </div>
             </div>
 
-            <div class="flex items-center gap-0.5">
+            <!-- Desktop Navigation -->
+            <div class="hidden lg:flex items-center gap-0.5">
               <router-link 
                 to="/ranking" 
                 class="flex items-center gap-1.5 px-3 py-2 hover:bg-amber-500/10 rounded-xl transition-all text-amber-500/70 hover:text-amber-400 group" 
@@ -271,9 +273,67 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
                 <LogOut class="w-4 h-4" />
               </button>
             </div>
+
+            <!-- Mobile Menu Toggle -->
+            <button 
+              @click="isMobileMenuOpen = !isMobileMenuOpen"
+              class="lg:hidden p-2.5 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-slate-500 active:scale-95 transition-all"
+            >
+              <Menu v-if="!isMobileMenuOpen" class="w-5 h-5" />
+              <X v-else class="w-5 h-5" />
+            </button>
           </div>
         </div>
       </header>
+
+      <!-- Mobile Menu Overlay -->
+      <transition
+        enter-active-class="transition duration-200 ease-out"
+        enter-from-class="opacity-0 -translate-y-4"
+        enter-to-class="opacity-100 translate-y-0"
+        leave-active-class="transition duration-150 ease-in"
+        leave-from-class="opacity-100 translate-y-0"
+        leave-to-class="opacity-0 -translate-y-4"
+      >
+        <div v-if="isMobileMenuOpen" class="lg:hidden fixed inset-0 z-[45] pt-16 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl">
+          <div class="p-6 space-y-4">
+            <div class="grid grid-cols-2 gap-3">
+              <router-link @click="isMobileMenuOpen = false" to="/ranking" class="flex flex-col items-center justify-center p-4 bg-slate-100 dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/10">
+                <Trophy class="w-6 h-6 text-amber-500 mb-2" />
+                <span class="text-xs font-black uppercase tracking-widest">排位榜单</span>
+              </router-link>
+              <router-link @click="isMobileMenuOpen = false" to="/profile" class="flex flex-col items-center justify-center p-4 bg-slate-100 dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/10">
+                <Settings class="w-6 h-6 text-slate-500 mb-2" />
+                <span class="text-xs font-black uppercase tracking-widest">个人主页</span>
+              </router-link>
+              <router-link @click="isMobileMenuOpen = false" to="/data" class="flex flex-col items-center justify-center p-4 bg-slate-100 dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/10">
+                <Database class="w-6 h-6 text-blue-500 mb-2" />
+                <span class="text-xs font-black uppercase tracking-widest">物质百科</span>
+              </router-link>
+              <router-link @click="isMobileMenuOpen = false" to="/chat" class="flex flex-col items-center justify-center p-4 bg-slate-100 dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/10">
+                <MessageCircle class="w-6 h-6 text-indigo-500 mb-2" />
+                <span class="text-xs font-black uppercase tracking-widest">公共频道</span>
+              </router-link>
+              <router-link @click="isMobileMenuOpen = false" to="/feedbacks" class="flex flex-col items-center justify-center p-4 bg-slate-100 dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/10">
+                <Megaphone class="w-6 h-6 text-emerald-500 mb-2" />
+                <span class="text-xs font-black uppercase tracking-widest">反馈中心</span>
+              </router-link>
+              <router-link v-if="user.is_admin" @click="isMobileMenuOpen = false" to="/admin" class="flex flex-col items-center justify-center p-4 bg-slate-100 dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/10">
+                <Shield class="w-6 h-6 text-yellow-500 mb-2" />
+                <span class="text-xs font-black uppercase tracking-widest">管理面板</span>
+              </router-link>
+            </div>
+            
+            <button 
+              @click="handleLogout" 
+              class="w-full flex items-center justify-center gap-3 py-4 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-2xl border border-red-500/20 transition-all font-black uppercase tracking-[0.2em] text-sm"
+            >
+              <LogOut class="w-5 h-5" />
+              中止实验并注销
+            </button>
+          </div>
+        </div>
+      </transition>
 
       <main class="flex-1 max-w-[1400px] mx-auto w-full px-4 sm:px-5 py-4 flex flex-col min-h-0">
         <!-- Welcome & Global Actions -->

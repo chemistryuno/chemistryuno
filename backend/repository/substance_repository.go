@@ -22,6 +22,17 @@ func (r *SubstanceRepository) FindApproved() ([]database.Substance, error) {
 	return substances, err
 }
 
+// FindRandomApproved 随机获取一个已批准的物质
+func (r *SubstanceRepository) FindRandomApproved() (*database.Substance, error) {
+	var substance database.Substance
+	// 使用 SQLite 的 RANDOM() 函数
+	err := r.db.Where("status = ?", "approved").Order("RANDOM()").First(&substance).Error
+	if err != nil {
+		return nil, err
+	}
+	return &substance, nil
+}
+
 // FindByID 根据ID查找物质
 func (r *SubstanceRepository) FindByID(id uint) (*database.Substance, error) {
 	var substance database.Substance

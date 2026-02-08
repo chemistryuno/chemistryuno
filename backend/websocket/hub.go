@@ -147,6 +147,22 @@ func (h *Hub) LeaveRoom(client *Client) {
 	h.mutex.Lock()
 	defer h.mutex.Unlock()
 
+	h.leaveRoomInternal(client)
+}
+
+// LeaveRoomByUID 让指定 UID 的用户离开其当前所在的房间
+func (h *Hub) LeaveRoomByUID(uid int) {
+	h.mutex.Lock()
+	defer h.mutex.Unlock()
+
+	for client := range h.clients {
+		if client.uid == uid {
+			h.leaveRoomInternal(client)
+		}
+	}
+}
+
+func (h *Hub) leaveRoomInternal(client *Client) {
 	if client.roomID != "" {
 		roomID := client.roomID
 		if clients, ok := h.rooms[client.roomID]; ok {
@@ -154,7 +170,7 @@ func (h *Hub) LeaveRoom(client *Client) {
 			log.Printf("用户 %d 离开房间 %s (房间剩余 %d 人)", client.uid, roomID, len(clients))
 			if len(clients) == 0 {
 				delete(h.rooms, client.roomID)
-				log.Printf("房间 %s 已清空并删除", roomID)
+				log.Printf("房间 %s 已清空并从 Hub 中删除", roomID)
 			}
 		}
 		client.roomID = ""

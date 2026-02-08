@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { gameAPI, adminAPI, friendAPI, authAPI } from '../utils/api'
+import { gameAPI, adminAPI, friendAPI, authAPI, commonAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
 import websocket from '../utils/websocket'
 import { ArrowLeft, Play, RefreshCw, Zap, Activity, FlaskConical, Trophy, ChevronRight, Loader2, Users, Timer, Plus, QrCode, Copy, Sparkles, ShieldAlert, Ban, UserMinus, X, MessageCircle, UserPlus, Flag } from 'lucide-vue-next'
@@ -31,7 +31,7 @@ const playersInfo = ref<any[]>([])
 const friendsList = ref<any[]>([])
 const availableSubstances = ref<string[]>([])
 
-const loading = ref(false)
+const loading = ref(true)
 const isRedirecting = ref(false)
 const timeRemaining = ref(0)
 let timerInterval: any = null
@@ -42,6 +42,23 @@ const doubleMode = ref(false)
 const firstDoubleSubstance = ref<string | null>(null)
 const secondDoubleSubstance = ref<string | null>(null)
 const substanceInput = ref('')
+const randomHints = ref<any[]>([])
+
+// UI State
+const isMobile = ref(false)
+const showLogs = ref(false)
+const showHints = ref(true)
+const handContainer = ref<HTMLElement | null>(null)
+const substancesContainer = ref<HTMLElement | null>(null)
+
+const fetchRandomHints = async () => {
+  try {
+    const res = await commonAPI.getHints()
+    randomHints.value = res.data || []
+  } catch (error) {
+    console.error('Failed to fetch hints from labs:', error)
+  }
+}
 
 const isReady = computed(() => {
   return roomInfo.value?.ready_uids?.includes(Number(user.value.uid))
@@ -135,7 +152,18 @@ const banHours = ref(24)
 const banReason = ref('你由于违规游戏而被踢出')
 
 watch(showChat, (val) => {
-  if (val) hasNewMessage.value = false
+  if (val) {
+    hasNewMessage.value = false
+    if (isMobile.value) {
+      showHints.value = false
+    }
+  }
+})
+
+watch(showHints, (val) => {
+  if (val && isMobile.value) {
+    showChat.value = false
+  }
 })
 
 const openAdminAction = (player: any) => {
@@ -274,8 +302,11 @@ const addExp = (amount: number) => {
   localStorage.setItem('chem_exp', exp.value.toString())
 }
 
-const showLogs = ref(false)
-const showHints = ref(true)
+watch(showHints, (val) => {
+  if (val && randomHints.value.length === 0) {
+    fetchRandomHints()
+  }
+})
 
 // 如果是积分赛，强制关闭提示并锁定
 watch(() => roomInfo.value?.is_points_mode, (val) => {
@@ -456,7 +487,6 @@ const loadGameState = async (silent = false) => {
 onMounted(() => {
   // 重置状态，防止之前的错误状态影响
   isRedirecting.value = false
-  loading.value = false
 
   // 设置一个安全超时，如果15秒后还在loading状态，强制重置
   const safetyTimeout = setTimeout(() => {
@@ -660,6 +690,15 @@ const toggleDoubleMode = () => {
   selectedSubstance.value = null
 }
 
+const removeSubstance = (pos: number) => {
+  if (pos === 1) {
+    firstDoubleSubstance.value = secondDoubleSubstance.value
+    secondDoubleSubstance.value = null
+  } else {
+    secondDoubleSubstance.value = null
+  }
+}
+
 const handleInputPlay = async () => {
   if (!substanceInput.value) return
 
@@ -751,10 +790,6 @@ const getDynamicCardClass = (card: any, formula?: string) => {
   
   return ''
 }
-
-const isMobile = ref(false)
-const handContainer = ref<HTMLElement | null>(null)
-const substancesContainer = ref<HTMLElement | null>(null)
 
 const setupDraggable = (el: HTMLElement | null) => {
   if (!el) return
@@ -982,7 +1017,7 @@ onMounted(() => {
              <Zap class="w-3.5 h-3.5" :class="showLogs && 'fill-current text-blue-500'" />
           </button>
           
-          <button @click="showChat = !showChat" class="w-8 h-8 relative flex items-center justify-center bg-slate-100 dark:bg-white/5 rounded-lg border border-slate-200 dark:border-white/10 text-slate-500 hover:text-blue-500">
+          <button @click="showChat = !showChat; hasNewMessage = false" class="w-8 h-8 relative flex items-center justify-center bg-slate-100 dark:bg-white/5 rounded-lg border border-slate-200 dark:border-white/10 text-slate-500 hover:text-blue-500">
              <MessageCircle class="w-3.5 h-3.5" :class="showChat && 'fill-current text-blue-500'" />
              <div v-if="hasNewMessage" class="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-rose-500 border-2 border-white dark:border-[#0d0d10] rounded-full animate-pulse"></div>
           </button>
@@ -993,8 +1028,8 @@ onMounted(() => {
       <div class="flex-1 relative flex flex-col items-center justify-center p-4 mb-20 overflow-hidden">
           <!-- Left Sidebar: Hint & Status -->
           <div :class="cn(
-            'absolute left-6 top-6 bottom-6 w-72 z-[60] bg-white/80 dark:bg-black/80 backdrop-blur-3xl border border-slate-200 dark:border-white/10 rounded-[40px] shadow-3xl transition-all duration-700 flex flex-col overflow-hidden',
-            showHints ? 'translate-x-0 opacity-100' : 'translate-x-[calc(-100%-3rem)] opacity-0 pointer-events-none'
+            'fixed lg:absolute left-0 lg:left-6 top-0 lg:top-6 bottom-0 lg:bottom-6 w-full lg:w-72 z-[100] lg:z-[60] bg-white/95 dark:bg-black/95 lg:bg-white/80 lg:dark:bg-black/80 backdrop-blur-3xl border-r lg:border border-slate-200 dark:border-white/10 lg:rounded-[40px] shadow-3xl transition-all duration-500 flex flex-col overflow-hidden',
+            showHints ? 'translate-x-0 opacity-100' : '-translate-x-full lg:-translate-x-[calc(100%+3rem)] opacity-0 pointer-events-none'
           )">
              <div class="p-6 border-b border-slate-200 dark:border-white/10 flex items-center justify-between">
                 <div class="flex items-center gap-2">
@@ -1083,6 +1118,26 @@ onMounted(() => {
                 <div v-else class="py-10 flex flex-col items-center justify-center opacity-20 text-center">
                    <Timer class="w-8 h-8 mb-3" />
                    <p class="text-[10px] font-black uppercase tracking-widest">等待其他研究员行动</p>
+                </div>
+
+                <!-- Database Trivia Hints -->
+                <div v-if="randomHints.length > 0" class="pt-4 border-t border-slate-200 dark:border-white/10">
+                   <div class="flex items-center justify-between mb-4">
+                      <div class="flex items-center gap-2">
+                         <Sparkles class="w-3.5 h-3.5 text-blue-500" />
+                         <span class="text-[10px] font-black uppercase tracking-widest text-slate-500">实验小贴士</span>
+                      </div>
+                      <button @click="fetchRandomHints" class="p-1 hover:bg-slate-100 dark:hover:bg-white/5 rounded-full transition-colors text-slate-400 hover:text-blue-500">
+                         <RefreshCw class="w-3 h-3" />
+                      </button>
+                   </div>
+                   <div class="space-y-4">
+                      <div v-for="hint in randomHints" :key="hint.id" class="relative pl-4">
+                         <div class="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-blue-500/30 rounded-full"></div>
+                         <h4 v-if="hint.title" class="text-[10px] font-black text-slate-600 dark:text-slate-300 mb-1">{{ hint.title }}</h4>
+                         <p class="text-[9px] font-bold text-slate-400 leading-relaxed">{{ hint.content }}</p>
+                      </div>
+                   </div>
                 </div>
              </div>
           </div>
@@ -1319,27 +1374,50 @@ onMounted(() => {
               </div>
 
               <!-- 双联模式提示状态 -->
-              <div v-if="doubleMode" class="mt-2 flex items-center gap-4 animate-in slide-in-from-top-4 duration-500">
-                <div class="flex items-center gap-3">
-                  <div :class="cn('w-10 h-10 rounded-xl flex items-center justify-center border-2 transition-all duration-500', firstDoubleSubstance ? 'bg-blue-500/20 border-blue-500 shadow-lg' : 'bg-slate-800/50 border-white/10 opacity-50')">
-                    <span v-if="firstDoubleSubstance" class="text-[10px] font-black" v-html="formatFormula(firstDoubleSubstance)"></span>
+              <div v-if="doubleMode" class="mt-2 flex flex-wrap items-center justify-center gap-4 animate-in slide-in-from-top-4 duration-500">
+                <div class="flex items-center gap-2 sm:gap-3">
+                  <div 
+                    @click="firstDoubleSubstance && removeSubstance(1)"
+                    :class="cn(
+                      'w-10 h-10 rounded-xl flex items-center justify-center border-2 transition-all duration-300 relative group/sub',
+                      firstDoubleSubstance ? 'bg-blue-500/20 border-blue-500 shadow-lg cursor-pointer hover:border-red-500/50' : 'bg-slate-800/50 border-white/10 opacity-50'
+                    )"
+                  >
+                    <span v-if="firstDoubleSubstance" class="text-[10px] font-black group-hover/sub:opacity-20 transition-opacity" v-html="formatFormula(firstDoubleSubstance)"></span>
+                    <X v-if="firstDoubleSubstance" class="w-4 h-4 text-red-500 absolute opacity-0 group-hover/sub:opacity-100 transition-opacity" />
                     <FlaskConical v-else class="w-4 h-4 text-slate-500" />
                   </div>
-                  <div class="w-4 h-0.5 bg-blue-500/30"></div>
-                  <div :class="cn('w-10 h-10 rounded-xl flex items-center justify-center border-2 transition-all duration-500', secondDoubleSubstance ? 'bg-blue-500/20 border-blue-500 shadow-lg' : 'bg-slate-800/50 border-white/10 opacity-50')">
-                    <span v-if="secondDoubleSubstance" class="text-[10px] font-black" v-html="formatFormula(secondDoubleSubstance)"></span>
+                  <div class="w-3 sm:w-4 h-0.5 bg-blue-500/30"></div>
+                  <div 
+                    @click="secondDoubleSubstance && removeSubstance(2)"
+                    :class="cn(
+                      'w-10 h-10 rounded-xl flex items-center justify-center border-2 transition-all duration-300 relative group/sub',
+                      secondDoubleSubstance ? 'bg-blue-500/20 border-blue-500 shadow-lg cursor-pointer hover:border-red-500/50' : 'bg-slate-800/50 border-white/10 opacity-50'
+                    )"
+                  >
+                    <span v-if="secondDoubleSubstance" class="text-[10px] font-black group-hover/sub:opacity-20 transition-opacity" v-html="formatFormula(secondDoubleSubstance)"></span>
+                    <X v-if="secondDoubleSubstance" class="w-4 h-4 text-red-500 absolute opacity-0 group-hover/sub:opacity-100 transition-opacity" />
                     <FlaskConical v-else class="w-4 h-4 text-slate-500" />
                   </div>
                 </div>
 
-                <button 
-                  v-if="firstDoubleSubstance && secondDoubleSubstance"
-                  @click="handleDoublePlay"
-                  class="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-2 rounded-2xl flex items-center gap-2 shadow-lg animate-in zoom-in duration-300 group"
-                >
-                  <span class="text-[10px] font-black uppercase tracking-widest">启动双联反应</span>
-                  <Play class="w-3.5 h-3.5 fill-current group-hover:translate-x-0.5 transition-transform" />
-                </button>
+                <div class="flex items-center gap-2">
+                  <button 
+                    v-if="firstDoubleSubstance && secondDoubleSubstance"
+                    @click="handleDoublePlay"
+                    class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 sm:px-6 py-2 rounded-2xl flex items-center gap-2 shadow-lg animate-in zoom-in duration-300 group"
+                  >
+                    <span class="text-[10px] font-black uppercase tracking-widest">启动反应</span>
+                    <Play class="w-3.5 h-3.5 fill-current group-hover:translate-x-0.5 transition-transform" />
+                  </button>
+
+                  <button 
+                    @click="toggleDoubleMode"
+                    class="bg-slate-800/80 hover:bg-slate-700 text-white/80 px-4 py-2 rounded-2xl flex items-center gap-2 border border-white/10 shadow-lg transition-all"
+                  >
+                    <span class="text-[10px] font-black uppercase tracking-widest">取消</span>
+                  </button>
+                </div>
               </div>
            </div>
         </div>
@@ -1417,7 +1495,7 @@ onMounted(() => {
                </div>
              </div>
 
-             <div class="grid grid-cols-3 gap-2 sm:gap-3 mb-6 sm:mb-8 max-h-[160px] sm:max-h-[240px] overflow-y-auto pr-2 custom-scrollbar">
+             <div class="grid grid-cols-2 xs:grid-cols-3 gap-2 sm:gap-3 mb-6 sm:mb-8 max-h-[40vh] sm:max-h-[240px] overflow-y-auto pr-2 custom-scrollbar">
                 <button
                   v-for="(substance, index) in availableSubstances"
                   :key="index"
@@ -1618,13 +1696,28 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- Chat Sidebar/Modal -->
+    <!-- Chat Floating Sidebar -->
+    <div 
+      :class="cn(
+        'fixed lg:absolute right-0 lg:right-6 top-0 lg:top-6 bottom-0 lg:bottom-6 w-full lg:w-96 z-[100] lg:z-[60] transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] flex flex-col',
+        showChat ? 'translate-x-0 opacity-100' : 'translate-x-[110%] opacity-0 pointer-events-none'
+      )"
+    >
+      <ChatBox 
+        :roomId="id" 
+        title="实验内通信线程" 
+        maxHeight="100%" 
+        class="h-full !bg-white/95 dark:!bg-[#0D0D10]/95 backdrop-blur-3xl shadow-3xl lg:rounded-[40px] border-l lg:border border-slate-200 dark:border-white/10"
+        @close="showChat = false"
+      />
+    </div>
+
+    <!-- Mobile Overlay for Chat -->
     <div 
       v-if="showChat"
-      class="fixed inset-y-0 right-0 w-full sm:w-96 bg-white dark:bg-[#0d0d10]/95 backdrop-blur-2xl border-l border-slate-200 dark:border-white/5 z-[90] shadow-3xl animate-slide-in-right"
-    >
-      <ChatBox title="实验内通信线程" />
-    </div>
+      class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[95] lg:hidden"
+      @click="showChat = false"
+    ></div>
   </div>
 </template>
 

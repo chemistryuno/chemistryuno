@@ -17,6 +17,8 @@ const loading = ref(false)
 const codeLoading = ref(false)
 const smtpEnabled = ref(false)
 const countdown = ref(0)
+const recaptchaToken = ref('')
+const siteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY
 const router = useRouter()
 const dialog = useDialog()
 const { showAlert } = dialog
@@ -25,6 +27,21 @@ onMounted(async () => {
   try {
     const res = await authAPI.getAuthConfig()
     smtpEnabled.value = res.data.smtp_enabled
+
+    // 初始化 reCAPTCHA
+    if (siteKey && (window as any).grecaptcha) {
+      setTimeout(() => {
+        (window as any).grecaptcha.render('recaptcha-register', {
+          sitekey: siteKey,
+          callback: (token: string) => {
+            recaptchaToken.value = token
+          },
+          'expired-callback': () => {
+            recaptchaToken.value = ''
+          }
+        })
+      }, 500)
+    }
   } catch (err) {
     console.error('获取配置失败', err)
   }
@@ -77,9 +94,14 @@ const handleSendCode = async () => {
     return
   }
 
+  if (siteKey && !recaptchaToken.value) {
+    error.value = '请先完成 reCAPTCHA 验证以发送验证码'
+    return
+  }
+
   codeLoading.value = true
   try {
-    await authAPI.sendCode(email.value)
+    await authAPI.sendCode(email.value, 'register', recaptchaToken.value)
     showAlert('验证码已发送至您的邮箱，请查收。', '发送成功')
     
     // 倒计时
@@ -116,7 +138,8 @@ const handleSubmit = async () => {
       email: smtpEnabled.value ? email.value : undefined,
       code: smtpEnabled.value ? code.value : undefined,
       nickname: nickname.value,
-      password: password.value
+      password: password.value,
+      recaptcha_token: recaptchaToken.value
     })
     await showAlert('注册成功，请使用新凭据登录。', '研究员注册成功')
     router.push('/login')
@@ -203,6 +226,11 @@ const handleSubmit = async () => {
                   {{ countdown > 0 ? `${countdown}s` : '获取验证码' }}
                 </button>
               </div>
+            </div>
+
+            <!-- reCAPTCHA Container for Registration/Code -->
+            <div v-if="siteKey" class="flex justify-center py-2">
+              <div id="recaptcha-register"></div>
             </div>
 
             <div class="relative group">

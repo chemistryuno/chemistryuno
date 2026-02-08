@@ -31,6 +31,13 @@ func Register(c *gin.Context) {
 		req.Email = strings.ToLower(strings.TrimSpace(req.Email))
 	}
 
+	// reCAPTCHA 验证
+	success, err := utils.VerifyRecaptcha(req.RecaptchaToken)
+	if err != nil || !success {
+		c.JSON(http.StatusForbidden, gin.H{"error": "reCAPTCHA 验证失败"})
+		return
+	}
+
 	// 1. 系统模式判断与参数验证
 	if smtpConfigured {
 		if req.Email == "" {
@@ -140,6 +147,13 @@ func Login(c *gin.Context) {
 	}
 
 	fmt.Printf("登录尝试 - 用户: %s, 来源IP: %s\n", identifier, c.ClientIP())
+
+	// reCAPTCHA 验证
+	success, err := utils.VerifyRecaptcha(req.RecaptchaToken)
+	if err != nil || !success {
+		c.JSON(http.StatusForbidden, gin.H{"error": "reCAPTCHA 验证失败"})
+		return
+	}
 
 	userRepo := repository.NewUserRepository()
 	dbUser, err := userRepo.FindByEmailOrUsername(identifier)
@@ -435,6 +449,13 @@ func SendVerificationCode(c *gin.Context) {
 
 	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
 
+	// reCAPTCHA 验证
+	success, err := utils.VerifyRecaptcha(req.RecaptchaToken)
+	if err != nil || !success {
+		c.JSON(http.StatusForbidden, gin.H{"error": "reCAPTCHA 验证失败"})
+		return
+	}
+
 	if !utils.IsSMTPConfigured() {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "系统未启用邮件服务"})
 		return
@@ -447,7 +468,7 @@ func SendVerificationCode(c *gin.Context) {
 
 	// 限制发送频率
 	var latestCode database.VerificationCode
-	err := database.DB.Where("email = ? AND created_at > ?", req.Email, time.Now().Add(-1*time.Minute)).Order("created_at desc").First(&latestCode).Error
+	err = database.DB.Where("email = ? AND created_at > ?", req.Email, time.Now().Add(-1*time.Minute)).Order("created_at desc").First(&latestCode).Error
 	if err == nil {
 		c.JSON(http.StatusTooManyRequests, gin.H{"error": "请求过快，请稍后再试"})
 		return
@@ -482,6 +503,16 @@ func SendVerificationCode(c *gin.Context) {
 		exists, err := userRepo.ExistsByEmail(req.Email)
 		if err == nil && exists {
 			c.JSON(http.StatusConflict, gin.H{"error": "该邮箱已被其他研究员占用"})
+			return
+		}
+	}
+
+	// 如果是注销账号，检查用户是否存在
+	if codeType == "delete_account" {
+		userRepo := repository.NewUserRepository()
+		exists, err := userRepo.ExistsByEmail(req.Email)
+		if err != nil || !exists {
+			c.JSON(http.StatusNotFound, gin.H{"error": "该邮箱未注册"})
 			return
 		}
 	}
@@ -543,6 +574,18 @@ func SendVerificationCode(c *gin.Context) {
 				<p>您正尝试将此邮箱绑定为您的研究员通讯地址。验证码为：</p>
 				<h1 style="color: #2563eb; letter-spacing: 5px;">%s</h1>
 				<p>该验证码将在 10 分钟后过期。如果这不是您的操作，请忽略此邮件。</p>
+			</div>
+		`, code)
+	} else if codeType == "delete_account" {
+		subject = "【危险操作】研究所档案注销请求"
+		body = fmt.Sprintf(`
+			<div style="padding: 20px; font-family: sans-serif; border: 2px solid #ef4444; border-radius: 8px;">
+				<h2 style="color: #ef4444;">档案彻底清除授权</h2>
+				<p>我们收到了通过此邮箱注销研究员档案的申请。<strong>注意：此操作不可逆，您的所有实验数据、积分和成就将被永久删除。</strong></p>
+				<p>如果不慎误操作，请立即关闭相关页面。若确定要注销，请在页面输入以下验证码：</p>
+				<h1 style="color: #ef4444; letter-spacing: 5px; text-align: center;">%s</h1>
+				<p>该验证码将在 10 分钟后失效。</p>
+				<p style="font-size: 12px; color: #6b7280; margin-top: 20px;">这是一封由系统自动发出的邮件，请勿直接回复。</p>
 			</div>
 		`, code)
 	} else {
@@ -687,8 +730,36 @@ func ChangeEmail(c *gin.Context) {
 func DeleteAccount(c *gin.Context) {
 	uid := c.GetInt("uid")
 
+	// 注销账号需要邮箱验证
+	var req struct {
+		Code string `json:"code" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请提供验证码进行验证"})
+		return
+	}
+
 	userRepo := repository.NewUserRepository()
-	err := userRepo.Delete(uint(uid))
+	user, err := userRepo.FindByUID(uint(uid))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取用户信息失败"})
+		return
+	}
+
+	if utils.IsSMTPConfigured() {
+		// 验证码校验
+		var code database.VerificationCode
+		err = database.DB.Where("email = ? AND code = ? AND type = ? AND expires_at > ?",
+			user.Email, req.Code, "delete_account", time.Now()).First(&code).Error
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "验证码错误或已过期"})
+			return
+		}
+		// 校验成功后删除验证码
+		database.DB.Delete(&code)
+	}
+
+	err = userRepo.Delete(uint(uid))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "注销账号失败"})
 		return

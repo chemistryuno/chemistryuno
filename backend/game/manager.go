@@ -920,17 +920,24 @@ func LeaveRoom(roomID string, uid int) error {
 		}
 	}
 
+	// 从 WebSocket Hub 中移除该用户的房间订阅
+	if websocket.GlobalHub != nil {
+		websocket.GlobalHub.LeaveRoomByUID(uid)
+	}
+
 	// 如果是正在游戏中且玩家少于2个，则解散
 	if gameRoom.Room.Status == "playing" && len(gameRoom.Room.Players) < 2 {
 		gameRoom.terminateRoom("由于实验样本不足（少于2人），本次反应宣告失败，实验室已关闭")
 		return nil
 	}
 
-	// 如果所有玩家均已离开，销毁房间
+	// 如果所有玩家和观战者均已离开，销毁房间
 	if len(gameRoom.Room.Players) == 0 && len(gameRoom.Room.Spectators) == 0 {
+		gameRoom.cancelStartTimer()
 		roomMutex.Lock()
 		delete(rooms, roomID)
 		roomMutex.Unlock()
+		log.Printf("房间 %s 已空，已自动关闭并清理资源", roomID)
 	}
 
 	return nil
@@ -1048,33 +1055,73 @@ func StartGame(roomID string, uid int) error {
 		gameRoom.GameState.Players = append(gameRoom.GameState.Players, player)
 	}
 
-	// 抽出第一张牌作为起始排放堆
-	for len(gameRoom.GameState.DrawPile) > 0 {
-		firstCard := gameRoom.GameState.DrawPile[0]
-		gameRoom.GameState.DrawPile = gameRoom.GameState.DrawPile[1:]
+	// 抽出场上初始物质，从 substances 表中随机抽取
+	var initialSubstance string
+	var initialCard models.Card
+	var foundBase bool
 
-		// 第一张牌不能是功能牌 (+2, +4, 换向, 稀有气体, 金)
-		specialTypes := []string{"+2", "+4", "reverse", "Au", "He", "Ne", "Ar", "Kr"}
-		isSpecial := false
-		for _, st := range specialTypes {
-			if firstCard.Type == st || firstCard.Effect == st {
-				isSpecial = true
+	// 尝试从数据库获取一个已批准的随机物质
+	subRepo := repository.NewSubstanceRepository()
+	s, err := subRepo.FindRandomApproved()
+	if err == nil && s != nil {
+		initialSubstance = s.Formula
+		// 为了保证游戏能继续，我们需要从牌堆中找出一张合适的卡牌作为“底座”
+		// 优先找非功能牌
+		for i, card := range gameRoom.GameState.DrawPile {
+			isSpecial := false
+			specialTypes := []string{"+2", "+4", "reverse", "Au", "He", "Ne", "Ar", "Kr"}
+			for _, st := range specialTypes {
+				if card.Type == st || card.Effect == st {
+					isSpecial = true
+					break
+				}
+			}
+
+			if !isSpecial {
+				initialCard = card
+				// 从牌堆移除该牌
+				gameRoom.GameState.DrawPile = append(gameRoom.GameState.DrawPile[:i], gameRoom.GameState.DrawPile[i+1:]...)
+				foundBase = true
 				break
 			}
 		}
+	}
 
-		if !isSpecial {
-			playedCard := models.PlayedCard{
-				Card:      firstCard,
-				Substance: firstCard.Type,
-				PlayerUID: 0, // 表示系统出牌
+	if foundBase {
+		playedCard := models.PlayedCard{
+			Card:      initialCard,
+			Substance: initialSubstance,
+			PlayerUID: 0, // 表示系统出牌
+		}
+		gameRoom.GameState.DiscardPile = append(gameRoom.GameState.DiscardPile, playedCard)
+		gameRoom.GameState.LastCard = &gameRoom.GameState.DiscardPile[0]
+	} else {
+		// 回退方案：如果数据库为空或没找到合适的底牌，按原有逻辑从牌堆抽第一张非功能牌
+		for len(gameRoom.GameState.DrawPile) > 0 {
+			firstCard := gameRoom.GameState.DrawPile[0]
+			gameRoom.GameState.DrawPile = gameRoom.GameState.DrawPile[1:]
+
+			specialTypes := []string{"+2", "+4", "reverse", "Au", "He", "Ne", "Ar", "Kr"}
+			isSpecial := false
+			for _, st := range specialTypes {
+				if firstCard.Type == st || firstCard.Effect == st {
+					isSpecial = true
+					break
+				}
 			}
-			gameRoom.GameState.DiscardPile = append(gameRoom.GameState.DiscardPile, playedCard)
-			gameRoom.GameState.LastCard = &gameRoom.GameState.DiscardPile[0]
-			break
-		} else {
-			// 如果是功能牌，放回牌堆底部
-			gameRoom.GameState.DrawPile = append(gameRoom.GameState.DrawPile, firstCard)
+
+			if !isSpecial {
+				playedCard := models.PlayedCard{
+					Card:      firstCard,
+					Substance: firstCard.Type,
+					PlayerUID: 0, // 表示系统出牌
+				}
+				gameRoom.GameState.DiscardPile = append(gameRoom.GameState.DiscardPile, playedCard)
+				gameRoom.GameState.LastCard = &gameRoom.GameState.DiscardPile[0]
+				break
+			} else {
+				gameRoom.GameState.DrawPile = append(gameRoom.GameState.DrawPile, firstCard)
+			}
 		}
 	}
 

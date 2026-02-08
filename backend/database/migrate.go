@@ -122,6 +122,36 @@ func initDefaultData() error {
 		log.Printf("初始化默认系统配置失败: %v", err)
 	}
 
+	// 初始化默认提示数据
+	if err := initDefaultHints(); err != nil {
+		log.Printf("初始化默认提示数据失败: %v", err)
+	}
+
+	return nil
+}
+
+// initDefaultHints 初始化实验情报提示
+func initDefaultHints() error {
+	var count int64
+	DB.Model(&Announcement{}).Where("type = ?", "hint").Count(&count)
+	if count > 0 {
+		return nil
+	}
+
+	hints := []Announcement{
+		{Title: "合成技巧", Content: "在 Uno 中，你可以通过合理的卡牌组合来通过化学方程式合成更高级的物质。", Type: "hint", Active: true},
+		{Title: "稀有元素", Content: "金(Au)是极其稀有的元素，如果能成功合成金相关的化合物，通常会获得高额分数或成就。", Type: "hint", Active: true},
+		{Title: "加牌机制", Content: "使用 +2 或 +4 类型的反应卡可以强迫下一位研究员摸取对应的卡牌，除非他能打出另一张叠加卡。", Type: "hint", Active: true},
+		{Title: "双重反应", Content: "在某些模式下，你可以一次打出两张底物来尝试更复杂的双重置换反应。", Type: "hint", Active: true},
+		{Title: "非法操作", Content: "尝试不符合真实化学逻辑的反应会导致爆炸并强制罚牌，请务必保证你的实验计划符合科学规律。", Type: "hint", Active: true},
+	}
+
+	for _, hint := range hints {
+		if err := DB.Create(&hint).Error; err != nil {
+			log.Printf("创建默认提示失败: %v", err)
+		}
+	}
+	log.Println("✅ 默认实验情报提示初始化成功")
 	return nil
 }
 
@@ -1062,6 +1092,50 @@ func initDefaultReactionsGORM() error {
 		// 补充遗漏的2条反应
 		{R1: "CO2", R2: "NaClO", Display: "NaClO + CO2 + H2O = NaHCO3 + HClO", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
 		{R1: "FeCl3", R2: "Na2S", Display: "3Na2S + 2FeCl3 + 6H2O = 2Fe(OH)3 + 3H2S + 6NaCl", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+
+		// 补充锰相关反应
+		{R1: "H2O2", R2: "KMnO4", Display: "2KMnO4 + 3H2O2 = 2MnO2 + 3O2 + 2KOH + 2H2O", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+		{R1: "(NH4)2S", R2: "MnSO4", Display: "MnSO4 + (NH4)2S = MnS + (NH4)2SO4", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+		{R1: "HCl", R2: "Mn", Display: "Mn + 2HCl = MnCl2 + H2", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+		{R1: "HI", R2: "MnO2", Display: "MnO2 + 4HI = MnI2 + I2 + 2H2O", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+		{R1: "Mn", R2: "O2", Display: "2Mn + O2 = 2MnO", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+		{R1: "HCl", R2: "Mn(OH)2", Display: "Mn(OH)2 + 2HCl = MnCl2 + 2H2O", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+		{R1: "H2SO4", R2: "MnO2", Display: "2MnO2 + 2H2SO4 = 2MnSO4 + O2 + 2H2O", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+		{R1: "KMnO4", R2: "Na2S", Display: "2KMnO4 + 3Na2S + 4H2O = 2MnO2 + 3S + 6NaOH + 2KOH", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+		{R1: "Cl2", R2: "Mn", Display: "Mn + Cl2 = MnCl2", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+		{R1: "HCl", R2: "MnCO3", Display: "MnCO3 + 2HCl = MnCl2 + CO2 + H2O", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+		{R1: "Mn(NO3)2", R2: "NaOH", Display: "Mn(NO3)2 + 2NaOH = Mn(OH)2 + 2NaNO3", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+		{R1: "CO", R2: "MnO2", Display: "MnO2 + 2CO = Mn + 2CO2", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+
+		// 补充锰相关反应
+		{R1: "H2O2", R2: "KMnO4", Display: "2KMnO4 + 3H2O2 = 2MnO2 + 3O2 + 2KOH + 2H2O", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+		{R1: "(NH4)2S", R2: "MnSO4", Display: "MnSO4 + (NH4)2S = MnS + (NH4)2SO4", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+		{R1: "HCl", R2: "Mn", Display: "Mn + 2HCl = MnCl2 + H2", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+		{R1: "HI", R2: "MnO2", Display: "MnO2 + 4HI = MnI2 + I2 + 2H2O", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+		{R1: "Mn", R2: "O2", Display: "2Mn + O2 = 2MnO", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+		{R1: "HCl", R2: "Mn(OH)2", Display: "Mn(OH)2 + 2HCl = MnCl2 + 2H2O", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+		{R1: "H2SO4", R2: "MnO2", Display: "2MnO2 + 2H2SO4 = 2MnSO4 + O2 + 2H2O", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+		{R1: "KMnO4", R2: "Na2S", Display: "2KMnO4 + 3Na2S + 4H2O = 2MnO2 + 3S + 6NaOH + 2KOH", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+		{R1: "Cl2", R2: "Mn", Display: "Mn + Cl2 = MnCl2", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+		{R1: "HCl", R2: "MnCO3", Display: "MnCO3 + 2HCl = MnCl2 + CO2 + H2O", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+		{R1: "Mn(NO3)2", R2: "NaOH", Display: "Mn(NO3)2 + 2NaOH = Mn(OH)2 + 2NaNO3", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+		{R1: "CO", R2: "MnO2", Display: "MnO2 + 2CO = Mn + 2CO2", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+
+		{R1: "MnCl2", R2: "NaOH", Display: "MnCl2 + 2NaOH = Mn(OH)2↓ + 2NaCl", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+		{R1: "Mn(OH)2", R2: "O2", Display: "2Mn(OH)2 + O2 = 2MnO2 + 2H2O", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+		{R1: "H2O2", R2: "MnO2", Display: "MnO2 + H2O2 + H2SO4 = MnSO4 + O2↑ + 2H2O", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+		{R1: "Al", R2: "MnO2", Display: "3MnO2 + 4Al = 3Mn + 2Al2O3", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+		{R1: "MnSO4", R2: "NaOH", Display: "MnSO4 + 2NaOH = Mn(OH)2↓ + Na2SO4", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+		{R1: "MnSO4", R2: "Na2CO3", Display: "MnSO4 + Na2CO3 = MnCO3↓ + Na2SO4", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+		{R1: "KMnO4", R2: "SO2", Display: "2KMnO4 + 5SO2 + 2H2O = K2SO4 + 2MnSO4 + 2H2SO4", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+		{R1: "KClO3", R2: "MnO2", Display: "2KClO3 = 2KCl + 3O2↑ (MnO2为催化剂)", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+		{R1: "HCl", R2: "MnS", Display: "MnS + 2HCl = MnCl2 + H2S↑", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+		{R1: "MnS", R2: "O2", Display: "2MnS + 3O2 = 2MnO + 2SO2", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+		{R1: "C", R2: "MnO", Display: "MnO + C = Mn + CO↑", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+		{R1: "H2", R2: "MnO", Display: "MnO + H2 = Mn + H2O", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+		{R1: "Al", R2: "MnO", Display: "3MnO + 2Al = 3Mn + Al2O3", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+		{R1: "H2C2O4", R2: "MnO2", Display: "MnO2 + H2C2O4 + H2SO4 = MnSO4 + 2CO2↑ + 2H2O", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+		{R1: "Cl2", R2: "K2MnO4", Display: "2K2MnO4 + Cl2 = 2KMnO4 + 2KCl", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
 	}
 
 	log.Printf("开始批量导入 %d 组化学反应...", reactionCount)

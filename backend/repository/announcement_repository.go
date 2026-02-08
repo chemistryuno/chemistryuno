@@ -101,3 +101,18 @@ func (r *AnnouncementRepository) UpdateLastBroadcast(id uint, time time.Time) er
 		Where("id = ?", id).
 		Update("last_broadcast_at", time).Error
 }
+
+// FindRandomHints 获取随机3条类型为 'hint' 的公告
+func (r *AnnouncementRepository) FindRandomHints() ([]Announcement, error) {
+	var announcements []Announcement
+	// 使用数据库特定的随机排序，这里假设使用的是 SQLite/MySQL/PostgreSQL 支持 RANDOM() 或 RAND()
+	// GORM 可以通过 Order("RANDOM()") 来实现，但为了兼容性，也可以查出所有 hint 后再随机
+	// 这里使用 Order("RAND() / RANDOM()") 的通用写法是不太稳妥，但如果是 SQLite 则是 RANDOM()
+
+	// 先根据活跃状态和类型过滤
+	query := r.db.Where("active = ? AND type = ?", true, "hint")
+
+	// 在 SQLite 中是 RANDOM()
+	err := query.Order("RANDOM()").Limit(3).Find(&announcements).Error
+	return announcements, err
+}

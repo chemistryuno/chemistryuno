@@ -21,13 +21,20 @@ func GenerateRandomSecret(length int) (string, error) {
 
 // EnsureJWTSecret 确保JWT密钥存在，如果不存在则生成并保存
 func EnsureJWTSecret() error {
-	// 查找.env文件路径
+	// 查找.env文件路径 (支持从根目录或 backend 目录)
 	envPath := ".env"
+	if _, err := os.Stat("backend/.env"); err == nil {
+		envPath = "backend/.env"
+	}
 
 	// 检查.env文件是否存在
 	if _, err := os.Stat(envPath); os.IsNotExist(err) {
 		// 如果.env不存在，尝试从.env.example复制
 		examplePath := ".env.example"
+		if _, err := os.Stat("backend/.env.example"); err == nil {
+			examplePath = "backend/.env.example"
+		}
+
 		if _, err := os.Stat(examplePath); err == nil {
 			content, err := os.ReadFile(examplePath)
 			if err != nil {

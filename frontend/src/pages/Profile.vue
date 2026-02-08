@@ -24,7 +24,7 @@ import TwoFactorSetupModal from '../components/profile/TwoFactorSetupModal.vue'
 import HardwareKeyModal from '../components/profile/HardwareKeyModal.vue'
 import DeviceManagementModal from '../components/profile/DeviceManagementModal.vue'
 import ChangeEmailModal from '../components/profile/ChangeEmailModal.vue'
-import { LayoutDashboard, ShieldCheck, FlaskConical, History, Sliders, Menu, X as CloseIcon } from 'lucide-vue-next'
+import { LayoutDashboard, ShieldCheck, FlaskConical, History, Sliders, Menu, X as CloseIcon, LogOut } from 'lucide-vue-next'
 
 const router = useRouter()
 const { showAlert, showConfirm, showPrompt } = useDialog()
@@ -204,11 +204,16 @@ const handleDeleteAccount = async () => {
   if (!confirm2) return
 
   try {
-    await authAPI.deleteAccount()
-    await showAlert('账号已注销', '注销成功')
+    // 发送注销验证码
+    await authAPI.sendCode(user.value.email, 'delete_account')
+    const code = await showPrompt('验证码已发送至您的通讯邮箱，请输入以授权注销操作', '档案注销授权', '安全验证')
+    if (!code) return
+
+    await authAPI.deleteAccount(code)
+    await showAlert('您的研究员档案已被彻底移除。', '注销成功')
     handleLogout()
   } catch (error: any) {
-    showAlert(error.response?.data?.error || '注销账号失败', '错误')
+    showAlert(error.response?.data?.error || '注销流程中断，请稍后重试', '操作受阻')
   }
 }
 
@@ -298,6 +303,16 @@ const handleOAuthUnbind = async (provider: 'github' | 'ms' | 'google' | 'apple')
           <component :is="cat.icon" class="w-4 h-4" />
           <span class="text-sm">{{ cat.name }}</span>
         </button>
+
+        <div class="pt-4 mt-4 border-t border-slate-100 dark:border-white/5">
+          <button 
+            @click="handleLogout"
+            class="w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all font-bold text-sm text-red-500 hover:bg-red-500/10"
+          >
+            <LogOut class="w-4 h-4" />
+            <span>退出登录 / Logout</span>
+          </button>
+        </div>
       </nav>
     </aside>
 

@@ -31,11 +31,32 @@ var upgrader = ws.Upgrader{
 var hub *websocket.Hub
 
 func main() {
-	// 加载.env文件
-	if err := godotenv.Load(); err != nil {
-		log.Println("警告: 未找到.env文件或加载失败，将使用环境变量或默认值")
+	// 智能加载 .env 文件，支持从根目录或 backend 目录运行
+	var loadErr error
+	if _, err := os.Stat("backend/.env"); err == nil {
+		loadErr = godotenv.Load("backend/.env")
+		if loadErr == nil {
+			log.Println("✓ 成功从 backend/.env 加载配置")
+		} else {
+			log.Printf("警告: 从 backend/.env 加载配置失败: %v", loadErr)
+		}
+	} else if _, err := os.Stat(".env"); err == nil {
+		loadErr = godotenv.Load(".env")
+		if loadErr == nil {
+			log.Println("✓ 成功从 .env 加载配置")
+		} else {
+			log.Printf("警告: 从 .env 加载配置失败: %v", loadErr)
+		}
 	} else {
-		log.Println("✓ 成功加载 .env 配置文件")
+		// 尝试默认加载
+		loadErr = godotenv.Load()
+		if loadErr == nil {
+			log.Println("✓ 成功通过默认路径加载 .env")
+		}
+	}
+
+	if loadErr != nil && !os.IsNotExist(loadErr) {
+		log.Printf("警告: 加载 .env 配置文件出错: %v", loadErr)
 	}
 
 	// 确保JWT密钥存在（首次启动自动生成）
@@ -165,6 +186,7 @@ func main() {
 		}
 
 		api.GET("/announcements", handlers.GetActiveAnnouncements)
+		api.GET("/hints", handlers.GetRandomHints)
 
 		// 需要认证的路由
 		auth := api.Group("/")

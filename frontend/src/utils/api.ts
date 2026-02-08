@@ -49,8 +49,8 @@ export const authAPI = {
     api.get('/auth/config'),
   unbindOAuth: (provider: string) =>
     api.post(`/auth/oauth/unbind?provider=${provider}`),
-  sendCode: (email: string, type: string = 'register') =>
-    api.post('/auth/send-code', { email, type }),
+  sendCode: (email: string, type: string = 'register', recaptcha_token?: string) =>
+    api.post('/auth/send-code', { email, type, recaptcha_token }),
   resetPasswordByEmail: (data: any) =>
     api.post('/auth/reset-password', data),
   resetPasswordBy2FA: (data: any) =>
@@ -73,8 +73,8 @@ export const authAPI = {
     api.put('/user/nickname', { nickname }),
   changeEmail: (data: { old_code: string, new_email: string, new_code: string }) =>
     api.post('/user/change-email', data),
-  deleteAccount: () => 
-    api.delete('/user/account'),
+  deleteAccount: (code: string) => 
+    api.delete('/user/account', { data: { code } }),
   searchUsers: (query: string) =>
     api.get(`/users/search?q=${encodeURIComponent(query)}`),
   submitFeedback: (content: string, type: string) =>
@@ -193,6 +193,8 @@ export const adminAPI = {
 export const commonAPI = {
   getAnnouncements: () =>
     api.get('/announcements'),
+  getHints: () =>
+    api.get('/hints'),
 }
 
 // 反应管理API

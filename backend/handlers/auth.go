@@ -447,7 +447,7 @@ func SendVerificationCode(c *gin.Context) {
 
 	// 限制发送频率
 	var latestCode database.VerificationCode
-	err = database.DB.Where("email = ? AND created_at > ?", req.Email, time.Now().Add(-1*time.Minute)).Order("created_at desc").First(&latestCode).Error
+	err := database.DB.Where("email = ? AND created_at > ?", req.Email, time.Now().Add(-1*time.Minute)).Order("created_at desc").First(&latestCode).Error
 	if err == nil {
 		c.JSON(http.StatusTooManyRequests, gin.H{"error": "请求过快，请稍后再试"})
 		return

@@ -411,3 +411,19 @@ func RespondToDuel(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "挑战已接受", "room_id": room.ID})
 }
+
+// CheckRoomStatus 检查房间状态（无需加入房间）
+func CheckRoomStatus(c *gin.Context) {
+	roomID := c.Param("id")
+
+	exists, status := game.GetRoomStatus(roomID)
+	if !exists {
+		c.JSON(http.StatusNotFound, gin.H{"exists": false})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"exists": true,
+		"status": status,
+	})
+}

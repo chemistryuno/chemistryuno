@@ -186,6 +186,26 @@ func (c *Client) handleMessage(msg *Message) {
 				return
 			}
 
+			// 检查是否是游戏邀请消息
+			isGameInvite := false
+			roomID := ""
+			var inviteData map[string]interface{}
+			if json.Unmarshal([]byte(msg.Message), &inviteData) == nil {
+				if inviteType, ok := inviteData["type"].(string); ok && inviteType == "game_invite" {
+					isGameInvite = true
+					if rid, ok := inviteData["room_id"].(string); ok {
+						roomID = rid
+					}
+				}
+			}
+
+			// 保存消息到数据库
+			privateChatRepo := repository.NewPrivateChatRepository()
+			err = privateChatRepo.SavePrivateMessage(uint(c.uid), uint(msg.TargetUID), msg.Message, isGameInvite, roomID)
+			if err != nil {
+				log.Printf("保存私聊消息到数据库失败: %v", err)
+			}
+
 			// 发送给目标用户
 			payload := Message{
 				Type:      "private_chat",

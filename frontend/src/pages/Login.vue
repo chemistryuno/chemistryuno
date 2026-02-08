@@ -126,18 +126,18 @@ const handleLoginSuccess = (token: string, user: any, announcements: any[] = [])
   localStorage.setItem('user', JSON.stringify(user))
   websocket.connect()
 
-  // 处理登录时的公告
-  if (announcements && announcements.length > 0) {
-    announcements.forEach((ann: any) => {
-      // 只处理模态框类型的，跑马灯交给 AnnouncementTicker 自动获取
-      if (!ann.is_ticker) {
-        let title = ann.title || '系统公告'
-        if (ann.type === 'emergency' && !ann.title) title = '紧急通知'
-        if (ann.type === 'maintenance' && !ann.title) title = '维护通知'
-        dialog.showAlert(ann.content, title, '确定', ann.close_delay || 0)
-      }
-    })
-  }
+  // 处理登录时的公告 - 已禁用开屏提示
+  // if (announcements && announcements.length > 0) {
+  //   announcements.forEach((ann: any) => {
+  //     // 只处理模态框类型的，跑马灯交给 AnnouncementTicker 自动获取
+  //     if (!ann.is_ticker) {
+  //       let title = ann.title || '系统公告'
+  //       if (ann.type === 'emergency' && !ann.title) title = '紧急通知'
+  //       if (ann.type === 'maintenance' && !ann.title) title = '维护通知'
+  //       dialog.showAlert(ann.content, title, '确定', ann.close_delay || 0)
+  //     }
+  //   })
+  // }
 
   router.push('/')
 }

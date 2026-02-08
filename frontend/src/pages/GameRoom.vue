@@ -131,6 +131,7 @@ const handleAddFriend = async (player: any) => {
 const showChat = ref(false)
 const hasNewMessage = ref(false)
 const showQrModal = ref(false)
+const showInviteFriendsModal = ref(false)
 
 const startPrivateChat = (player: any) => {
   if (!isFriend(player.uid)) {
@@ -142,6 +143,27 @@ const startPrivateChat = (player: any) => {
   window.dispatchEvent(new CustomEvent('start-private-chat', {
     detail: { uid: player.uid, username: player.username }
   }))
+}
+
+const sendGameInvite = async (friend: any) => {
+  const inviteData = {
+    type: 'game_invite',
+    room_id: id,
+    room_name: roomInfo.value?.name || '实验室',
+    player_count: allPlayers.value.length,
+    max_players: roomInfo.value?.max_players || 0,
+    is_points_mode: roomInfo.value?.is_points_mode || false
+  }
+
+  websocket.send({
+    type: 'private_chat',
+    target_uid: friend.uid,
+    message: JSON.stringify(inviteData),
+    is_game_invite: true
+  })
+
+  showAlert(`游戏邀请已发送给 ${friend.username}`, '邀请已发送')
+  showInviteFriendsModal.value = false
 }
 
 // Admin management state
@@ -420,6 +442,23 @@ const loadGameState = async (silent = false) => {
       loading.value = true
     }
     console.log('[GameRoom] Loading game state for room:', id)
+
+    // 只在首次加载时尝试加入房间（silent=false），避免重复调用
+    if (!silent) {
+      try {
+        await gameAPI.joinRoom(id)
+        console.log('[GameRoom] Successfully joined/rejoined room')
+      } catch (joinError: any) {
+        // 如果加入失败（例如房间已满、被封禁等），显示错误并返回
+        console.error('[GameRoom] Failed to join room:', joinError)
+        const errorMsg = joinError.response?.data?.error || '无法加入该房间'
+        showAlert(errorMsg, '加入失败')
+        loading.value = false
+        router.push('/')
+        return
+      }
+    }
+
     const response = await gameAPI.getRoomState(id)
     const data = response.data
     console.log('[GameRoom] Game state loaded:', {
@@ -841,7 +880,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="h-screen bg-slate-50 dark:bg-[#0a0a0c] text-slate-900 dark:text-white overflow-hidden flex flex-col font-sans selection:bg-blue-500/30">
+  <div class="h-screen bg-slate-50 dark:bg-[#0a0a0c] text-slate-900 dark:text-white overflow-hidden flex flex-col font-sans selection:bg-blue-500/30 max-w-[1920px] mx-auto">
     <!-- Loading State -->
     <div v-if="loading" class="h-screen bg-slate-50 dark:bg-[#0a0a0c] flex flex-col items-center justify-center p-4 relative overflow-hidden">
       <!-- Background Elements -->
@@ -1013,10 +1052,7 @@ onMounted(() => {
           <button v-if="!roomInfo?.is_points_mode" @click="showHints = !showHints" class="w-8 h-8 flex items-center justify-center bg-slate-100 dark:bg-white/5 rounded-lg border border-slate-200 dark:border-white/10 text-slate-500 hover:text-blue-500">
              <Sparkles class="w-3.5 h-3.5" :class="showHints && 'fill-current text-blue-500'" />
           </button>
-          <button @click="showLogs = !showLogs" class="w-8 h-8 flex items-center justify-center bg-slate-100 dark:bg-white/5 rounded-lg border border-slate-200 dark:border-white/10 text-slate-500 hover:text-blue-500">
-             <Zap class="w-3.5 h-3.5" :class="showLogs && 'fill-current text-blue-500'" />
-          </button>
-          
+
           <button @click="showChat = !showChat; hasNewMessage = false" class="w-8 h-8 relative flex items-center justify-center bg-slate-100 dark:bg-white/5 rounded-lg border border-slate-200 dark:border-white/10 text-slate-500 hover:text-blue-500">
              <MessageCircle class="w-3.5 h-3.5" :class="showChat && 'fill-current text-blue-500'" />
              <div v-if="hasNewMessage" class="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-rose-500 border-2 border-white dark:border-[#0d0d10] rounded-full animate-pulse"></div>
@@ -1028,114 +1064,119 @@ onMounted(() => {
       <div class="flex-1 relative flex flex-col items-center justify-center p-4 mb-20 overflow-hidden">
           <!-- Left Sidebar: Hint & Status -->
           <div :class="cn(
-            'fixed lg:absolute left-0 lg:left-6 top-0 lg:top-6 bottom-0 lg:bottom-6 w-full lg:w-72 z-[100] lg:z-[60] bg-white/95 dark:bg-black/95 lg:bg-white/80 lg:dark:bg-black/80 backdrop-blur-3xl border-r lg:border border-slate-200 dark:border-white/10 lg:rounded-[40px] shadow-3xl transition-all duration-500 flex flex-col overflow-hidden',
-            showHints ? 'translate-x-0 opacity-100' : '-translate-x-full lg:-translate-x-[calc(100%+3rem)] opacity-0 pointer-events-none'
+            'fixed left-0 top-0 bottom-0 w-full lg:w-80 z-[100] bg-white/95 dark:bg-slate-900/60 backdrop-blur-3xl border-r lg:border border-slate-200 dark:border-white/10 lg:rounded-[40px] lg:top-6 lg:bottom-52 lg:left-6 shadow-3xl transition-all duration-500 flex flex-col overflow-hidden',
+            showHints ? 'translate-x-0 opacity-100' : '-translate-x-full opacity-0 pointer-events-none'
           )">
-             <div class="p-6 border-b border-slate-200 dark:border-white/10 flex items-center justify-between">
+             <div class="p-4 py-3 border-b border-slate-200 dark:border-white/10 flex items-center justify-between bg-slate-50/50 dark:bg-white/[0.02]">
                 <div class="flex items-center gap-2">
-                   <Trophy class="w-4 h-4 text-blue-500" />
-                   <span class="text-xs font-black uppercase tracking-widest text-slate-500">实验辅助情报</span>
+                   <div class="w-6 h-6 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                      <Trophy class="w-3.5 h-3.5 text-blue-500" />
+                   </div>
+                   <div>
+                      <h3 class="text-[10px] font-black uppercase tracking-widest text-slate-800 dark:text-white">实验辅助情报</h3>
+                      <p class="text-[8px] font-mono text-slate-400 uppercase tracking-tighter">Intelligence_Protocol</p>
+                   </div>
                 </div>
-                <button @click="showHints = false" class="text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors">
+                <button @click="showHints = false" class="p-1 hover:bg-slate-200 dark:hover:bg-white/10 rounded-lg transition-colors text-slate-400 hover:text-slate-600 dark:hover:text-white">
                    <ArrowLeft class="w-4 h-4" />
                 </button>
              </div>
              
-             <div class="flex-1 overflow-y-auto p-5 custom-scrollbar space-y-6">
+             <div class="flex-1 overflow-y-auto p-3 custom-scrollbar space-y-4">
                 <!-- Status Banners -->
-                <div class="space-y-3">
-                   <div v-if="allowedAny" class="bg-amber-500/10 border border-amber-500/20 p-3 rounded-2xl animate-pulse">
-                      <div class="flex items-center gap-2 text-amber-500 mb-1">
-                         <Zap class="w-3.5 h-3.5 fill-current" />
-                         <span class="text-[10px] font-black uppercase tracking-wider">AU 特权激活</span>
+                <div class="space-y-2">
+                   <div v-if="allowedAny" class="bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-xl animate-pulse">
+                      <div class="flex items-center gap-1.5 text-amber-500 mb-0.5">
+                         <Zap class="w-3 h-3 fill-current" />
+                         <span class="text-[9px] font-black uppercase tracking-wider">AU 特权激活</span>
                       </div>
-                      <p class="text-[9px] font-bold text-slate-500">已跳过所有反应规则限制</p>
+                      <p class="text-[8px] font-bold text-slate-500">已跳过所有反应规则限制</p>
                    </div>
 
-                   <div v-if="gameState?.pending_draw_count > 0" class="bg-red-500/10 border border-red-500/20 p-3 rounded-2xl animate-bounce">
-                      <div class="flex items-center gap-2 text-red-500 mb-1">
-                         <RefreshCw class="w-3.5 h-3.5 animate-spin-slow" />
-                         <span class="text-[10px] font-black uppercase tracking-wider">加牌预演中</span>
+                   <div v-if="gameState?.pending_draw_count > 0" class="bg-red-500/10 border border-red-500/20 p-2.5 rounded-xl animate-bounce">
+                      <div class="flex items-center gap-1.5 text-red-500 mb-0.5">
+                         <RefreshCw class="w-3 h-3 animate-spin-slow" />
+                         <span class="text-[9px] font-black uppercase tracking-wider">加牌预演中</span>
                       </div>
-                      <p class="text-[9px] font-bold text-slate-500">需结算或叠加累计: {{ gameState.pending_draw_count }}</p>
+                      <p class="text-[8px] font-bold text-slate-500">需结算或叠加累计: {{ gameState.pending_draw_count }}</p>
                    </div>
                 </div>
 
                 <!-- Turn Hints -->
                 <div v-if="isMyTurn">
-                   <div class="flex items-center gap-2 mb-3">
-                      <FlaskConical class="w-3.5 h-3.5 text-blue-500" />
-                      <span class="text-[10px] font-black uppercase tracking-widest text-slate-500">可用合成路径</span>
+                   <div class="flex items-center gap-1.5 mb-2">
+                      <FlaskConical class="w-3 h-3 text-blue-500" />
+                      <span class="text-[9px] font-black uppercase tracking-widest text-slate-500">可用合成路径</span>
                    </div>
-                   
-                   <div v-if="turnReadySubstances.length > 0" class="space-y-2">
-                      <button 
-                         v-for="sub in turnReadySubstances" 
+
+                   <div v-if="turnReadySubstances.length > 0" class="space-y-1.5">
+                      <button
+                         v-for="sub in turnReadySubstances"
                          :key="sub"
                          @click="selectedSubstance = sub; handlePlayCard()"
-                         class="w-full text-left px-4 py-3 bg-white/50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl hover:border-blue-500 hover:bg-blue-500/5 transition-all group"
+                         class="w-full text-left px-3 py-2 bg-white/50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl hover:border-blue-500 hover:bg-blue-500/5 transition-all group"
                       >
                          <div class="flex items-center justify-between">
-                            <span class="text-xs font-black dark:text-white" v-html="formatFormula(sub)"></span>
+                            <span class="text-[10px] font-black dark:text-white" v-html="formatFormula(sub)"></span>
                             <div class="w-1.5 h-1.5 rounded-full bg-emerald-500 group-hover:scale-125 transition-transform shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
                          </div>
-                         <p class="text-[9px] font-bold text-slate-400 mt-1 tracking-tighter">{{ getSubstanceName(sub) }}</p>
+                         <p class="text-[8px] font-bold text-slate-400 mt-0.5 tracking-tighter">{{ getSubstanceName(sub) }}</p>
                       </button>
                    </div>
-                   <div v-else class="py-10 flex flex-col items-center justify-center opacity-30 text-center">
-                      <Zap class="w-8 h-8 mb-3" />
-                      <p class="text-[10px] font-black uppercase tracking-widest">目前无可用反应</p>
-                      <p class="text-[9px] font-bold mt-1">请尝试摸牌补充底物</p>
+                   <div v-else class="py-8 flex flex-col items-center justify-center opacity-30 text-center">
+                      <Zap class="w-6 h-6 mb-2" />
+                      <p class="text-[9px] font-black uppercase tracking-widest">目前无可用反应</p>
+                      <p class="text-[8px] font-bold mt-0.5">请尝试摸牌补充底物</p>
                    </div>
                 </div>
                 
-                <div v-else-if="roomInfo?.status === 'waiting'" class="space-y-4">
+                <div v-else-if="roomInfo?.status === 'waiting'" class="space-y-3">
                    <!-- 积分模式提示 -->
-                   <div v-if="roomInfo?.is_points_mode" class="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-center gap-3">
-                      <Trophy class="w-5 h-5 text-amber-500 shrink-0" />
+                   <div v-if="roomInfo?.is_points_mode" class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center gap-2">
+                      <Trophy class="w-4 h-4 text-amber-500 shrink-0" />
                       <div class="text-left">
-                         <p class="text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-500">Competitive Mode</p>
-                         <p class="text-[9px] font-bold text-slate-500 mt-0.5">积分竞技模式：胜者将获得积分，败者扣除积分。强制使用默认牌组。</p>
+                         <p class="text-[9px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-500">Competitive Mode</p>
+                         <p class="text-[8px] font-bold text-slate-500 mt-0.5">积分竞技模式：胜者获得积分，败者扣除积分。</p>
                       </div>
                    </div>
 
-                   <div class="p-4 bg-blue-500/5 border border-blue-500/10 rounded-2xl flex flex-col items-center text-center">
-                      <Users class="w-6 h-6 text-blue-500 mb-2" />
-                      <span class="text-[10px] font-black uppercase tracking-widest text-blue-500">准备就绪?</span>
-                      <p class="text-[9px] font-bold text-slate-500 mt-1">当前由于连接数 {{ allPlayers.length }} / {{ roomInfo?.max_players }}，等待就绪的人数达标后，实验室将自动开启。</p>
+                   <div class="p-3 bg-blue-500/5 border border-blue-500/10 rounded-xl flex flex-col items-center text-center">
+                      <Users class="w-5 h-5 text-blue-500 mb-1.5" />
+                      <span class="text-[9px] font-black uppercase tracking-widest text-blue-500">准备就绪?</span>
+                      <p class="text-[8px] font-bold text-slate-500 mt-0.5">当前连接数 {{ allPlayers.length }}/{{ roomInfo?.max_players }}，等待就绪后自动开启。</p>
                    </div>
-                   <div class="p-4 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl">
-                      <div class="flex items-center gap-2 mb-2">
-                         <QrCode class="w-3.5 h-3.5 text-blue-500" />
-                         <span class="text-[10px] font-black uppercase tracking-widest text-slate-500">快速邀请</span>
+                   <div class="p-3 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl">
+                      <div class="flex items-center gap-1.5 mb-1.5">
+                         <QrCode class="w-3 h-3 text-blue-500" />
+                         <span class="text-[9px] font-black uppercase tracking-widest text-slate-500">快速邀请</span>
                       </div>
-                      <p class="text-[8px] font-bold text-slate-400 leading-relaxed uppercase">
-                         点击中间区域的“招募伙伴”按钮可快速复制链接，或点击二维码图标让好友扫码加入此反应室。
+                      <p class="text-[7px] font-bold text-slate-400 leading-relaxed uppercase">
+                         点击中间区域的"招募伙伴"按钮可快速复制链接，或点击二维码图标让好友扫码加入反应室。
                       </p>
                    </div>
                 </div>
                 
-                <div v-else class="py-10 flex flex-col items-center justify-center opacity-20 text-center">
-                   <Timer class="w-8 h-8 mb-3" />
-                   <p class="text-[10px] font-black uppercase tracking-widest">等待其他研究员行动</p>
+                <div v-else class="py-8 flex flex-col items-center justify-center opacity-20 text-center">
+                   <Timer class="w-6 h-6 mb-2" />
+                   <p class="text-[9px] font-black uppercase tracking-widest">等待其他研究员行动</p>
                 </div>
 
                 <!-- Database Trivia Hints -->
-                <div v-if="randomHints.length > 0" class="pt-4 border-t border-slate-200 dark:border-white/10">
-                   <div class="flex items-center justify-between mb-4">
-                      <div class="flex items-center gap-2">
-                         <Sparkles class="w-3.5 h-3.5 text-blue-500" />
-                         <span class="text-[10px] font-black uppercase tracking-widest text-slate-500">实验小贴士</span>
+                <div v-if="randomHints.length > 0" class="pt-3 border-t border-slate-200 dark:border-white/10">
+                   <div class="flex items-center justify-between mb-3">
+                      <div class="flex items-center gap-1.5">
+                         <Sparkles class="w-3 h-3 text-blue-500" />
+                         <span class="text-[9px] font-black uppercase tracking-widest text-slate-500">实验小贴士</span>
                       </div>
                       <button @click="fetchRandomHints" class="p-1 hover:bg-slate-100 dark:hover:bg-white/5 rounded-full transition-colors text-slate-400 hover:text-blue-500">
-                         <RefreshCw class="w-3 h-3" />
+                         <RefreshCw class="w-2.5 h-2.5" />
                       </button>
                    </div>
-                   <div class="space-y-4">
-                      <div v-for="hint in randomHints" :key="hint.id" class="relative pl-4">
-                         <div class="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-blue-500/30 rounded-full"></div>
-                         <h4 v-if="hint.title" class="text-[10px] font-black text-slate-600 dark:text-slate-300 mb-1">{{ hint.title }}</h4>
-                         <p class="text-[9px] font-bold text-slate-400 leading-relaxed">{{ hint.content }}</p>
+                   <div class="space-y-3">
+                      <div v-for="hint in randomHints" :key="hint.id" class="relative pl-3">
+                         <div class="absolute left-0 top-1 bottom-1 w-0.5 bg-blue-500/30 rounded-full"></div>
+                         <h4 v-if="hint.title" class="text-[9px] font-black text-slate-600 dark:text-slate-300 mb-0.5">{{ hint.title }}</h4>
+                         <p class="text-[8px] font-bold text-slate-400 leading-relaxed">{{ hint.content }}</p>
                       </div>
                    </div>
                 </div>
@@ -1274,14 +1315,21 @@ onMounted(() => {
                   </div>
 
                   <div class="flex items-center gap-2 w-full">
-                    <button 
+                    <button
                         @click="handleCopyLink"
                         class="flex-1 flex items-center justify-center gap-2 py-2.5 bg-slate-800 dark:bg-white/10 hover:bg-slate-700 text-white rounded-xl transition-all active:scale-95 group shadow-md"
                     >
                         <Copy class="w-3 h-3 group-hover:rotate-12 transition-transform" />
                         <span class="text-[9px] font-black uppercase tracking-widest">招募成员</span>
                     </button>
-                    <button 
+                    <button
+                        @click="showInviteFriendsModal = true"
+                        class="flex-1 flex items-center justify-center gap-2 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl transition-all active:scale-95 group shadow-md"
+                    >
+                        <UserPlus class="w-3 h-3 group-hover:scale-110 transition-transform" />
+                        <span class="text-[9px] font-black uppercase tracking-widest">邀请好友</span>
+                    </button>
+                    <button
                         @click="showQrModal = !showQrModal"
                         class="w-10 h-10 flex items-center justify-center bg-white dark:bg-white/10 border border-slate-200 dark:border-white/10 rounded-xl text-slate-500 hover:text-blue-500 transition-all active:scale-90 shadow-md"
                     >
@@ -1312,121 +1360,121 @@ onMounted(() => {
       </div>
 
       <!-- Hand / Deck Area -->
-      <div class="fixed bottom-0 left-0 right-0 z-[70] bg-white/60 dark:bg-black/60 backdrop-blur-2xl border-t border-slate-200 dark:border-white/5 flex flex-col items-center">
+      <div class="fixed bottom-0 left-0 right-0 z-[70] bg-white/70 dark:bg-black/60 backdrop-blur-2xl border-t border-slate-200 dark:border-white/5 flex flex-col items-center">
         <!-- Turn-related buttons and timer -->
         <div class="h-0 relative w-full flex justify-center">
-           <div v-if="isMyTurn" class="absolute bottom-full mb-4 flex flex-col items-center gap-3 animate-in slide-in-from-bottom-4">
-              <div class="flex items-center bg-white/90 dark:bg-black/80 backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-xl sm:rounded-2xl p-0.5 shadow-2xl">
-                <input 
-                  v-model="substanceInput" 
+           <div v-if="isMyTurn" class="absolute bottom-full mb-2 flex flex-col items-center gap-2 animate-in slide-in-from-bottom-4">
+              <div class="flex items-center bg-white/90 dark:bg-black/80 backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-lg sm:rounded-xl p-0.5 shadow-xl">
+                <input
+                  v-model="substanceInput"
                   @keyup.enter="handleInputPlay"
-                  placeholder="手动注入化学式" 
-                  class="bg-transparent border-none outline-none text-[10px] sm:text-xs px-3 py-1 w-32 sm:w-48 font-black tracking-widest placeholder:text-slate-400 text-slate-900 dark:text-white"
+                  placeholder="手动注入化学式"
+                  class="bg-transparent border-none outline-none text-[9px] sm:text-[10px] px-2 py-0.5 w-28 sm:w-40 font-black tracking-widest placeholder:text-slate-400 text-slate-900 dark:text-white"
                 />
                 
-                <div class="flex items-center gap-1">
-                   <button 
+                <div class="flex items-center gap-0.5">
+                   <button
                       @click="handleInputPlay"
-                      class="bg-blue-600 hover:bg-blue-500 w-7 h-7 rounded-lg flex items-center justify-center transition-all active:scale-90 shadow-lg group"
+                      class="bg-blue-600 hover:bg-blue-500 w-6 h-6 rounded-md flex items-center justify-center transition-all active:scale-90 shadow-md group"
                       title="执行反应"
                    >
-                      <ChevronRight class="w-4 h-4 text-white group-hover:translate-x-0.5 transition-transform" />
+                      <ChevronRight class="w-3.5 h-3.5 text-white group-hover:translate-x-0.5 transition-transform" />
                    </button>
-                   
-                   <div class="w-px h-5 bg-slate-200 dark:bg-white/10 mx-0.5"></div>
 
-                   <button 
+                   <div class="w-px h-4 bg-slate-200 dark:bg-white/10 mx-0.5"></div>
+
+                   <button
                       @click="handleDrawCard"
                       :disabled="!isMyTurn"
                       :class="cn(
-                        'px-3 h-7 rounded-lg flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-lg group relative overflow-hidden',
+                        'px-2 h-6 rounded-md flex items-center justify-center gap-1 transition-all active:scale-95 shadow-md group relative overflow-hidden',
                         isMyTurn ? (gameState?.pending_draw_count > 0 ? 'bg-red-600 hover:bg-red-500 text-white' : 'bg-slate-800 dark:bg-white/10 hover:bg-slate-700 dark:hover:bg-white/20 text-white') : 'bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed grayscale'
                       )"
                    >
-                      <Plus v-if="!(gameState?.pending_draw_count > 0)" class="w-3 h-3" />
-                      <RefreshCw v-else class="w-3 h-3 animate-spin-slow" />
-                      <span class="text-[9px] font-black uppercase tracking-widest whitespace-nowrap">
+                      <Plus v-if="!(gameState?.pending_draw_count > 0)" class="w-2.5 h-2.5" />
+                      <RefreshCw v-else class="w-2.5 h-2.5 animate-spin-slow" />
+                      <span class="text-[8px] font-black uppercase tracking-widest whitespace-nowrap">
                         摸牌{{ gameState?.pending_draw_count > 0 ? gameState.pending_draw_count : '1' }}张
                       </span>
                    </button>
                 </div>
               </div>
-              
-              <div class="flex items-center gap-2">
-                <div class="bg-blue-600/90 backdrop-blur-md px-4 py-1.5 rounded-full border border-white/20 shadow-lg flex items-center gap-2.5 animate-slide-in-bottom">
-                  <Zap class="w-3 h-3 fill-current animate-pulse text-white" />
-                  <span class="text-[9px] font-black uppercase tracking-widest text-white">科研操作 ({{ timeRemaining }}s)</span>
-                  
+
+              <div class="flex items-center gap-1.5">
+                <div class="bg-blue-600/90 backdrop-blur-md px-3 py-1 rounded-full border border-white/20 shadow-md flex items-center gap-2 animate-slide-in-bottom">
+                  <Zap class="w-2.5 h-2.5 fill-current animate-pulse text-white" />
+                  <span class="text-[8px] font-black uppercase tracking-widest text-white">操作 ({{ timeRemaining }}s)</span>
+
                   <!-- 双联行动按钮 -->
-                  <button 
+                  <button
                     v-if="myData?.double_action_available"
                     @click.stop="toggleDoubleMode"
                     :class="cn(
-                      'px-3 py-1 rounded-xl border border-white/20 transition-all flex items-center gap-2 relative overflow-hidden',
-                      doubleMode ? 'bg-amber-500 text-white border-amber-400 shadow-md' : 'bg-black/40 text-white/60 hover:text-white hover:bg-black/60'
+                      'px-2 py-0.5 rounded-lg border border-white/20 transition-all flex items-center gap-1.5 relative overflow-hidden',
+                      doubleMode ? 'bg-amber-500 text-white border-amber-400 shadow-sm' : 'bg-black/40 text-white/60 hover:text-white hover:bg-black/60'
                     )"
                   >
                      <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover/btn:animate-shimmer"></div>
-                     <Activity :class="cn('w-3.5 h-3.5', doubleMode && 'animate-spin')" />
-                     <span class="text-[8px] font-black uppercase tracking-tighter">{{ doubleMode ? '解除超限' : '超限双联' }}</span>
+                     <Activity :class="cn('w-3 h-3', doubleMode && 'animate-spin')" />
+                     <span class="text-[7px] font-black uppercase tracking-tighter">{{ doubleMode ? '解除超限' : '超限双联' }}</span>
                   </button>
                 </div>
               </div>
 
               <!-- 双联模式提示状态 -->
-              <div v-if="doubleMode" class="mt-2 flex flex-wrap items-center justify-center gap-4 animate-in slide-in-from-top-4 duration-500">
-                <div class="flex items-center gap-2 sm:gap-3">
-                  <div 
+              <div v-if="doubleMode" class="mt-1 flex flex-wrap items-center justify-center gap-3 animate-in slide-in-from-top-4 duration-500">
+                <div class="flex items-center gap-2">
+                  <div
                     @click="firstDoubleSubstance && removeSubstance(1)"
                     :class="cn(
-                      'w-10 h-10 rounded-xl flex items-center justify-center border-2 transition-all duration-300 relative group/sub',
-                      firstDoubleSubstance ? 'bg-blue-500/20 border-blue-500 shadow-lg cursor-pointer hover:border-red-500/50' : 'bg-slate-800/50 border-white/10 opacity-50'
+                      'w-8 h-8 rounded-lg flex items-center justify-center border-2 transition-all duration-300 relative group/sub',
+                      firstDoubleSubstance ? 'bg-blue-500/20 border-blue-500 shadow-md cursor-pointer hover:border-red-500/50' : 'bg-slate-800/50 border-white/10 opacity-50'
                     )"
                   >
-                    <span v-if="firstDoubleSubstance" class="text-[10px] font-black group-hover/sub:opacity-20 transition-opacity" v-html="formatFormula(firstDoubleSubstance)"></span>
-                    <X v-if="firstDoubleSubstance" class="w-4 h-4 text-red-500 absolute opacity-0 group-hover/sub:opacity-100 transition-opacity" />
-                    <FlaskConical v-else class="w-4 h-4 text-slate-500" />
+                    <span v-if="firstDoubleSubstance" class="text-[9px] font-black group-hover/sub:opacity-20 transition-opacity" v-html="formatFormula(firstDoubleSubstance)"></span>
+                    <X v-if="firstDoubleSubstance" class="w-3 h-3 text-red-500 absolute opacity-0 group-hover/sub:opacity-100 transition-opacity" />
+                    <FlaskConical v-else class="w-3 h-3 text-slate-500" />
                   </div>
-                  <div class="w-3 sm:w-4 h-0.5 bg-blue-500/30"></div>
-                  <div 
+                  <div class="w-3 h-0.5 bg-blue-500/30"></div>
+                  <div
                     @click="secondDoubleSubstance && removeSubstance(2)"
                     :class="cn(
-                      'w-10 h-10 rounded-xl flex items-center justify-center border-2 transition-all duration-300 relative group/sub',
-                      secondDoubleSubstance ? 'bg-blue-500/20 border-blue-500 shadow-lg cursor-pointer hover:border-red-500/50' : 'bg-slate-800/50 border-white/10 opacity-50'
+                      'w-8 h-8 rounded-lg flex items-center justify-center border-2 transition-all duration-300 relative group/sub',
+                      secondDoubleSubstance ? 'bg-blue-500/20 border-blue-500 shadow-md cursor-pointer hover:border-red-500/50' : 'bg-slate-800/50 border-white/10 opacity-50'
                     )"
                   >
-                    <span v-if="secondDoubleSubstance" class="text-[10px] font-black group-hover/sub:opacity-20 transition-opacity" v-html="formatFormula(secondDoubleSubstance)"></span>
-                    <X v-if="secondDoubleSubstance" class="w-4 h-4 text-red-500 absolute opacity-0 group-hover/sub:opacity-100 transition-opacity" />
-                    <FlaskConical v-else class="w-4 h-4 text-slate-500" />
+                    <span v-if="secondDoubleSubstance" class="text-[9px] font-black group-hover/sub:opacity-20 transition-opacity" v-html="formatFormula(secondDoubleSubstance)"></span>
+                    <X v-if="secondDoubleSubstance" class="w-3 h-3 text-red-500 absolute opacity-0 group-hover/sub:opacity-100 transition-opacity" />
+                    <FlaskConical v-else class="w-3 h-3 text-slate-500" />
                   </div>
                 </div>
 
-                <div class="flex items-center gap-2">
-                  <button 
+                <div class="flex items-center gap-1.5">
+                  <button
                     v-if="firstDoubleSubstance && secondDoubleSubstance"
                     @click="handleDoublePlay"
-                    class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 sm:px-6 py-2 rounded-2xl flex items-center gap-2 shadow-lg animate-in zoom-in duration-300 group"
+                    class="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow-md animate-in zoom-in duration-300 group"
                   >
-                    <span class="text-[10px] font-black uppercase tracking-widest">启动反应</span>
-                    <Play class="w-3.5 h-3.5 fill-current group-hover:translate-x-0.5 transition-transform" />
+                    <span class="text-[9px] font-black uppercase tracking-widest">启动反应</span>
+                    <Play class="w-3 h-3 fill-current group-hover:translate-x-0.5 transition-transform" />
                   </button>
 
-                  <button 
+                  <button
                     @click="toggleDoubleMode"
-                    class="bg-slate-800/80 hover:bg-slate-700 text-white/80 px-4 py-2 rounded-2xl flex items-center gap-2 border border-white/10 shadow-lg transition-all"
+                    class="bg-slate-800/80 hover:bg-slate-700 text-white/80 px-3 py-1.5 rounded-xl flex items-center gap-1.5 border border-white/10 shadow-md transition-all"
                   >
-                    <span class="text-[10px] font-black uppercase tracking-widest">取消</span>
+                    <span class="text-[9px] font-black uppercase tracking-widest">取消</span>
                   </button>
                 </div>
               </div>
            </div>
         </div>
 
-        <div class="w-full max-w-6xl flex justify-center items-end py-1 sm:py-2">
-           <div ref="handContainer" class="flex items-end gap-1 sm:gap-1.5 px-3 sm:px-6 overflow-x-auto custom-scrollbar-hidden py-2 sm:py-4 min-h-[110px] sm:min-h-[150px] w-full max-w-7xl">
-            <div v-if="roomInfo?.status === 'waiting'" class="flex flex-col items-center justify-center opacity-30 pb-2 min-w-full">
-              <Loader2 class="w-8 h-8 sm:w-12 sm:h-12 mb-1 animate-spin text-blue-500" />
-              <p class="font-black uppercase tracking-widest text-[8px] sm:text-xs text-slate-500 text-center">正在同步量子状态并等待开场就绪...</p>
+        <div class="w-full max-w-7xl mx-auto flex justify-center items-end py-1">
+           <div ref="handContainer" class="flex items-end gap-1 sm:gap-1.5 px-3 sm:px-6 overflow-x-auto custom-scrollbar-hidden py-1.5 sm:py-2 min-h-[90px] sm:min-h-[120px] w-full">
+            <div v-if="roomInfo?.status === 'waiting'" class="flex flex-col items-center justify-center opacity-30 pb-1 min-w-full">
+              <Loader2 class="w-6 h-6 sm:w-8 sm:h-8 mb-0.5 animate-spin text-blue-500" />
+              <p class="font-black uppercase tracking-widest text-[7px] sm:text-[9px] text-slate-500 text-center">正在同步量子状态并等待开场就绪...</p>
             </div>
             <template v-else-if="myData?.hand_cards?.length > 0">
               <div
@@ -1434,33 +1482,33 @@ onMounted(() => {
                 :key="index"
                 @click="isMyTurn && handleCardClick(card)"
                 :class="cn(
-                  'uno-card w-16 sm:w-24 h-22 sm:h-34 rounded-2xl flex flex-col items-center justify-center cursor-pointer shrink-0',
+                  'uno-card w-14 sm:w-20 h-20 sm:h-28 rounded-xl flex flex-col items-center justify-center cursor-pointer shrink-0',
                   getDynamicCardClass(card),
                   selectedCard === card && 'ring-2 ring-blue-500 scale-105 z-10',
                   !isMyTurn && 'opacity-60 grayscale cursor-not-allowed'
                 )"
                 :style="{
-                  transform: selectedCard === card ? (isMobile ? 'translateY(-12px)' : 'translateY(-20px)') : 'none'
+                  transform: selectedCard === card ? (isMobile ? 'translateY(-8px)' : 'translateY(-12px)') : 'none'
                 }"
               >
-                <div class="absolute top-0.5 sm:top-1.5 left-0.5 sm:left-1.5 text-[5px] sm:text-[7px] font-black opacity-30 uppercase tracking-tighter">{{ ELEMENTS_DATA[card.type] ? 'Elem' : 'Spec' }}</div>
+                <div class="absolute top-0.5 sm:top-1 left-0.5 sm:left-1 text-[5px] sm:text-[6px] font-black opacity-30 uppercase tracking-tighter">{{ ELEMENTS_DATA[card.type] ? 'Elem' : 'Spec' }}</div>
                 <div class="flex flex-col items-center justify-center">
-                  <div class="text-lg sm:text-xl font-black font-mono italic tracking-tighter leading-none">{{ card.type }}</div>
-                  <div v-if="card.effect || ['He','Ne','Ar','Kr'].includes(card.type)" class="mt-0.5 sm:mt-1.5 px-1 sm:px-1.5 py-0.5 bg-black/10 rounded-lg text-[8px] sm:text-[10px] font-black uppercase tracking-tighter">
+                  <div class="text-base sm:text-lg font-black font-mono italic tracking-tighter leading-none">{{ card.type }}</div>
+                  <div v-if="card.effect || ['He','Ne','Ar','Kr'].includes(card.type)" class="mt-0.5 sm:mt-1 px-1 py-0.5 bg-black/10 rounded-md text-[7px] sm:text-[8px] font-black uppercase tracking-tighter">
                     {{ ['He','Ne','Ar','Kr'].includes(card.type) ? '转向' : card.effect === 'Au' ? '跳过' : card.effect === '+2' ? '+2' : card.effect === '+4' ? '+4' : card.effect }}
                   </div>
-                  <div v-else-if="ELEMENTS_DATA[card.type]" class="text-[7px] sm:text-[9px] font-bold opacity-80 mt-0.5 sm:mt-1 uppercase tracking-tighter font-serif italic text-black/40">
+                  <div v-else-if="ELEMENTS_DATA[card.type]" class="text-[6px] sm:text-[8px] font-bold opacity-80 mt-0.5 uppercase tracking-tighter font-serif italic text-black/40">
                     {{ ELEMENTS_DATA[card.type].name }}
                   </div>
                 </div>
-                <div class="absolute bottom-0.5 sm:bottom-1.5 right-0.5 sm:right-1.5 text-[5px] sm:text-[6px] font-mono opacity-40 uppercase tracking-tighter">
+                <div class="absolute bottom-0.5 sm:bottom-1 right-0.5 sm:right-1 text-[5px] sm:text-[6px] font-mono opacity-40 uppercase tracking-tighter">
                   {{ card.effect ? 'Func' : 'Pass' }}
                 </div>
               </div>
             </template>
-            <div v-else class="flex flex-col items-center justify-center opacity-10 pb-4 sm:pb-10">
-              <FlaskConical class="w-10 h-10 sm:w-16 sm:h-16 mb-2" />
-              <p class="font-black uppercase tracking-widest text-[8px] sm:text-xs">Inventory_Empty</p>
+            <div v-else class="flex flex-col items-center justify-center opacity-10 pb-2 sm:pb-4">
+              <FlaskConical class="w-8 h-8 sm:w-12 sm:h-12 mb-1" />
+              <p class="font-black uppercase tracking-widest text-[7px] sm:text-[9px]">Inventory_Empty</p>
             </div>
            </div>
         </div>
@@ -1696,18 +1744,74 @@ onMounted(() => {
       </div>
     </div>
 
+    <!-- Invite Friends Modal -->
+    <div v-if="showInviteFriendsModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <div class="absolute inset-0 bg-black/80 backdrop-blur-md" @click="showInviteFriendsModal = false"></div>
+      <div class="relative w-full max-w-lg bg-white dark:bg-[#121216] border border-slate-200 dark:border-white/10 rounded-[40px] shadow-2xl overflow-hidden animate-in zoom-in duration-300">
+        <div class="p-8 border-b border-slate-200 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.02]">
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="text-2xl font-black text-slate-900 dark:text-white tracking-tighter flex items-center gap-3">
+                <UserPlus class="w-6 h-6 text-blue-500" />
+                邀请好友加入
+              </h3>
+              <p class="text-[10px] text-slate-500 font-mono uppercase tracking-[0.2em] mt-2">选择一位好友发送游戏邀请</p>
+            </div>
+            <button @click="showInviteFriendsModal = false" class="p-2 hover:bg-slate-200 dark:hover:bg-white/5 rounded-full transition-colors">
+              <X class="w-6 h-6 text-slate-400" />
+            </button>
+          </div>
+        </div>
+
+        <div class="p-8 max-h-[500px] overflow-y-auto custom-scrollbar">
+          <div v-if="friendsList.length === 0" class="flex flex-col items-center justify-center py-16 opacity-20 grayscale">
+            <Users class="w-16 h-16 mb-4" />
+            <p class="text-sm font-black uppercase tracking-[0.2em]">暂无好友</p>
+            <p class="text-[10px] mt-2 italic font-medium uppercase">请先添加好友后再邀请</p>
+          </div>
+          <div v-else class="space-y-3">
+            <button
+              v-for="friend in friendsList"
+              :key="friend.uid"
+              @click="sendGameInvite(friend)"
+              class="w-full p-4 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-[24px] flex items-center justify-between hover:border-blue-500/30 hover:bg-blue-500/5 transition-all group"
+            >
+              <div class="flex items-center gap-4">
+                <div class="relative">
+                  <div class="w-12 h-12 rounded-xl bg-white dark:bg-white/10 flex items-center justify-center text-2xl border border-slate-200 dark:border-white/10 shadow-sm">
+                    {{ friend.avatar || '🧪' }}
+                  </div>
+                  <div v-if="friend.is_online" class="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-emerald-500 border-3 border-white dark:border-[#121216] rounded-full shadow-lg shadow-emerald-500/20"></div>
+                </div>
+                <div class="text-left">
+                  <div class="text-base font-bold text-slate-700 dark:text-white flex items-center gap-2">
+                    {{ friend.nickname || friend.username }}
+                    <span v-if="friend.is_online" class="px-2 py-0.5 bg-emerald-500/10 text-emerald-500 text-[8px] font-black rounded uppercase tracking-widest">Online</span>
+                  </div>
+                  <div class="text-[9px] text-slate-400 font-mono mt-1">UID: {{ friend.uid }}</div>
+                </div>
+              </div>
+              <div class="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center group-hover:bg-blue-500 transition-all">
+                <Send class="w-4 h-4 text-blue-500 group-hover:text-white group-hover:translate-x-0.5 transition-all" />
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Chat Floating Sidebar -->
-    <div 
+    <div
       :class="cn(
-        'fixed lg:absolute right-0 lg:right-6 top-0 lg:top-6 bottom-0 lg:bottom-6 w-full lg:w-96 z-[100] lg:z-[60] transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] flex flex-col',
-        showChat ? 'translate-x-0 opacity-100' : 'translate-x-[110%] opacity-0 pointer-events-none'
+        'fixed right-0 top-0 bottom-0 w-full lg:w-80 z-[100] lg:top-6 lg:bottom-52 lg:right-6 transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] flex flex-col',
+        showChat ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0 pointer-events-none'
       )"
     >
-      <ChatBox 
-        :roomId="id" 
-        title="实验内通信线程" 
-        maxHeight="100%" 
-        class="h-full !bg-white/95 dark:!bg-[#0D0D10]/95 backdrop-blur-3xl shadow-3xl lg:rounded-[40px] border-l lg:border border-slate-200 dark:border-white/10"
+      <ChatBox
+        :roomId="id"
+        title="实验内通信线程"
+        maxHeight="100%"
+        class="h-full !bg-white/95 dark:!bg-slate-900/60 backdrop-blur-3xl shadow-3xl lg:rounded-[40px] border-l lg:border border-slate-200 dark:border-white/10"
         @close="showChat = false"
       />
     </div>
@@ -1715,7 +1819,7 @@ onMounted(() => {
     <!-- Mobile Overlay for Chat -->
     <div 
       v-if="showChat"
-      class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[95] lg:hidden"
+      class="fixed inset-0 bg-white/10 dark:bg-black/20 backdrop-blur-[2px] z-[95] lg:hidden"
       @click="showChat = false"
     ></div>
   </div>

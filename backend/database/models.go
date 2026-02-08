@@ -133,6 +133,24 @@ func (GlobalChat) TableName() string {
 	return "global_chats"
 }
 
+// PrivateChat GORM模型 - 私聊消息记录表
+type PrivateChat struct {
+	ID           uint      `gorm:"primaryKey;autoIncrement" json:"id"`
+	SenderUID    uint      `gorm:"not null;index:idx_sender" json:"sender_uid"`
+	ReceiverUID  uint      `gorm:"not null;index:idx_receiver" json:"receiver_uid"`
+	Message      string    `gorm:"type:text;not null" json:"message"`
+	IsGameInvite bool      `gorm:"default:false" json:"is_game_invite"`              // 是否为游戏邀请
+	RoomID       string    `gorm:"size:100;index:idx_room" json:"room_id,omitempty"` // 关联的游戏房间ID，用于游戏邀请
+	CreatedAt    time.Time `gorm:"autoCreateTime;index" json:"created_at"`
+
+	Sender   User `gorm:"foreignKey:SenderUID" json:"sender"`
+	Receiver User `gorm:"foreignKey:ReceiverUID" json:"receiver"`
+}
+
+func (PrivateChat) TableName() string {
+	return "private_chats"
+}
+
 // WebAuthnCredential GORM模型 - WebAuthn凭证表
 type WebAuthnCredential struct {
 	ID              string    `gorm:"primaryKey;size:255" json:"id"`

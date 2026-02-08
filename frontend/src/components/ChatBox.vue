@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, nextTick } from 'vue'
-import { Send, MessageSquare, User, X } from 'lucide-vue-next'
+import { useRouter } from 'vue-router'
+import { Send, MessageSquare, User, X, FlaskConical, Users, Trophy } from 'lucide-vue-next'
 import websocket from '../utils/websocket'
-import { authAPI } from '../utils/api'
+import { authAPI, gameAPI } from '../utils/api'
 import { cn } from '../utils/cn'
+
+const router = useRouter()
 
 const props = defineProps<{
   roomId?: string
@@ -24,9 +27,34 @@ const scrollContainer = ref<HTMLElement | null>(null)
 const chatMode = ref<'normal' | 'private'>('normal')
 const privateTarget = ref<{uid: number, username: string} | null>(null)
 
+// 房间状态缓存
+const roomStatusCache = ref<Record<string, { status: string, checkedAt: number }>>({})
+
 const scrollToBottom = () => {
   if (scrollContainer.value) {
     scrollContainer.value.scrollTop = scrollContainer.value.scrollHeight
+  }
+}
+
+// 检查房间状态
+const checkRoomStatus = async (roomId: string) => {
+  // 检查缓存（缓存5秒）
+  const cached = roomStatusCache.value[roomId]
+  if (cached && Date.now() - cached.checkedAt < 5000) {
+    return cached.status
+  }
+
+  try {
+    const res = await gameAPI.checkRoomStatus(roomId)
+    const status = res.data.exists ? res.data.status : 'closed'
+    roomStatusCache.value[roomId] = {
+      status,
+      checkedAt: Date.now()
+    }
+    return status
+  } catch (err) {
+    // 如果出错，假设房间已关闭
+    return 'closed'
   }
 }
 
@@ -57,9 +85,9 @@ onMounted(() => {
 
   const handleChatMessage = (msg: any) => {
     // 检查是否已存在（避免重复显示历史记录中的消息）
-    const isDuplicate = messages.value.some(m => 
-      m.uid === msg.uid && 
-      m.text === msg.message && 
+    const isDuplicate = messages.value.some(m =>
+      m.uid === msg.uid &&
+      m.text === msg.message &&
       Math.abs(new Date(m.time).getTime() - new Date().getTime()) < 2000
     )
     if (isDuplicate) return
@@ -75,15 +103,35 @@ onMounted(() => {
     nextTick(scrollToBottom)
   }
 
-  const handlePrivateMessage = (msg: any) => {
+  const handlePrivateMessage = async (msg: any) => {
+    // 尝试解析游戏邀请消息
+    let isGameInvite = false
+    let gameInviteData = null
+
+    try {
+      const parsed = JSON.parse(msg.message)
+      if (parsed.type === 'game_invite') {
+        isGameInvite = true
+        gameInviteData = parsed
+
+        // 检查房间状态
+        if (gameInviteData.room_id) {
+          gameInviteData.room_status = await checkRoomStatus(gameInviteData.room_id)
+        }
+      }
+    } catch (e) {
+      // 不是JSON或不是游戏邀请，按普通消息处理
+    }
+
     messages.value.push({
       uid: msg.uid,
       target_uid: msg.target_uid,
       username: msg.data?.nickname || msg.data?.username || '研究员',
       avatar: msg.data?.avatar,
-      text: msg.message,
+      text: isGameInvite ? '' : msg.message,
       time: new Date(),
-      type: 'private'
+      type: isGameInvite ? 'game_invite' : 'private',
+      gameInviteData: gameInviteData
     })
     nextTick(scrollToBottom)
   }
@@ -122,19 +170,23 @@ const handleSend = () => {
       message: newMessage.value
     })
   }
-  
+
   newMessage.value = ''
 }
 
+const handleJoinGame = (roomId: string) => {
+  router.push(`/room/${roomId}`)
+}
+
 const formatTime = (date: Date) => {
-  return date.getHours().toString().padStart(2, '0') + ':' + 
+  return date.getHours().toString().padStart(2, '0') + ':' +
          date.getMinutes().toString().padStart(2, '0')
 }
 </script>
 
 <template>
-  <div 
-    :class="cn('flex flex-col bg-white dark:bg-[#121216]/80 backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-[28px] overflow-hidden shadow-2xl', $attrs.class)"
+  <div
+    :class="cn('flex flex-col bg-white/95 dark:bg-slate-900/60 backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-[28px] overflow-hidden shadow-2xl', $attrs.class)"
     :style="maxHeight ? { height: maxHeight } : {}"
   >
     <!-- Header -->
@@ -166,11 +218,13 @@ const formatTime = (date: Date) => {
     <!-- Messages -->
     <div 
       ref="scrollContainer"
-      class="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar"
+      class="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar bg-transparent"
     >
       <div v-if="messages.length === 0" class="flex flex-col items-center justify-center h-full py-10 opacity-20">
-        <MessageSquare class="w-10 h-10 mb-2" />
-        <p class="text-[10px] font-black uppercase tracking-widest">等待信号传输...</p>
+        <div class="w-12 h-12 rounded-2xl bg-slate-200 dark:bg-white/10 flex items-center justify-center mb-3">
+          <MessageSquare class="w-6 h-6" />
+        </div>
+        <p class="text-[10px] font-black uppercase tracking-widest text-slate-500">连接已建立 | 等待数据包...</p>
       </div>
       
       <div 
@@ -201,17 +255,87 @@ const formatTime = (date: Date) => {
             <span v-if="msg.uid !== currentUID" class="text-[8px] font-black text-slate-400 uppercase tracking-tighter">
               {{ msg.username }}
               <span v-if="msg.type === 'private'" class="text-rose-500 ml-1">(私语)</span>
+              <span v-if="msg.type === 'game_invite'" class="text-blue-500 ml-1">(游戏邀请)</span>
             </span>
             <span v-else-if="msg.type === 'private'" class="text-[8px] font-black text-rose-500 uppercase tracking-tighter">
               对 {{ msg.target_uid === currentUID ? '自己' : '研究员' }} 说道
             </span>
+            <span v-else-if="msg.type === 'game_invite'" class="text-[8px] font-black text-blue-500 uppercase tracking-tighter">
+              发送了游戏邀请
+            </span>
             <span class="text-[7px] font-mono text-slate-300 dark:text-slate-600">{{ formatTime(msg.time) }}</span>
           </div>
-          <div :class="cn(
+
+          <!-- Game Invite Card -->
+          <div v-if="msg.type === 'game_invite' && msg.gameInviteData"
+            :class="cn(
+              'w-full max-w-xs p-3 rounded-2xl bg-gradient-to-br border-2 shadow-lg backdrop-blur-sm transition-all',
+              msg.gameInviteData.room_status === 'finished' || msg.gameInviteData.room_status === 'closed'
+                ? 'from-slate-300/30 to-slate-400/30 border-slate-400/30 grayscale opacity-60'
+                : 'from-blue-500/10 to-purple-500/10 border-blue-500/20'
+            )"
+          >
+            <div class="flex items-center gap-2 mb-2">
+              <div :class="cn(
+                'w-8 h-8 rounded-lg flex items-center justify-center',
+                msg.gameInviteData.room_status === 'finished' || msg.gameInviteData.room_status === 'closed'
+                  ? 'bg-slate-500/20'
+                  : 'bg-blue-500/20'
+              )">
+                <FlaskConical :class="cn(
+                  'w-4 h-4',
+                  msg.gameInviteData.room_status === 'finished' || msg.gameInviteData.room_status === 'closed'
+                    ? 'text-slate-500'
+                    : 'text-blue-500'
+                )" />
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="text-[10px] font-black text-slate-800 dark:text-white truncate">
+                  {{ msg.gameInviteData.room_name }}
+                </div>
+                <div :class="cn(
+                  'text-[8px] font-mono uppercase',
+                  msg.gameInviteData.room_status === 'finished' || msg.gameInviteData.room_status === 'closed'
+                    ? 'text-slate-500'
+                    : 'text-slate-500'
+                )">
+                  {{ msg.gameInviteData.room_status === 'finished' || msg.gameInviteData.room_status === 'closed' ? '房间已关闭' : '实验室邀请' }}
+                </div>
+              </div>
+            </div>
+
+            <div v-if="msg.gameInviteData.room_status !== 'finished' && msg.gameInviteData.room_status !== 'closed'" class="flex items-center gap-3 mb-3 text-[9px]">
+              <div class="flex items-center gap-1 text-slate-600 dark:text-slate-400">
+                <Users class="w-3 h-3" />
+                <span class="font-bold">{{ msg.gameInviteData.player_count }}/{{ msg.gameInviteData.max_players }}</span>
+              </div>
+              <div v-if="msg.gameInviteData.is_points_mode" class="flex items-center gap-1 px-2 py-0.5 bg-amber-500/10 text-amber-600 dark:text-amber-500 rounded-lg">
+                <Trophy class="w-3 h-3" />
+                <span class="font-black uppercase tracking-widest">积分模式</span>
+              </div>
+            </div>
+
+            <button
+              @click="msg.gameInviteData.room_status !== 'finished' && msg.gameInviteData.room_status !== 'closed' && handleJoinGame(msg.gameInviteData.room_id)"
+              :disabled="msg.gameInviteData.room_status === 'finished' || msg.gameInviteData.room_status === 'closed'"
+              :class="cn(
+                'w-full h-9 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all shadow-md active:scale-95 flex items-center justify-center gap-2',
+                msg.gameInviteData.room_status === 'finished' || msg.gameInviteData.room_status === 'closed'
+                  ? 'bg-slate-400 text-slate-600 cursor-not-allowed'
+                  : 'bg-blue-600 hover:bg-blue-500 text-white'
+              )"
+            >
+              <FlaskConical class="w-3.5 h-3.5" />
+              {{ msg.gameInviteData.room_status === 'finished' || msg.gameInviteData.room_status === 'closed' ? '房间已关闭' : '立即加入实验室' }}
+            </button>
+          </div>
+
+          <!-- Normal Message -->
+          <div v-else :class="cn(
             'px-2 py-1 rounded-xl text-[10px] font-medium leading-relaxed break-words shadow-sm',
             msg.type === 'private' ? 'border-2 border-rose-500/10' : '',
-            msg.uid === currentUID 
-              ? 'bg-blue-600 text-white rounded-tr-none' 
+            msg.uid === currentUID
+              ? 'bg-blue-600 text-white rounded-tr-none'
               : 'bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-200 border border-slate-200/50 dark:border-white/5 rounded-tl-none'
           )">
             {{ msg.text }}
@@ -221,35 +345,35 @@ const formatTime = (date: Date) => {
     </div>
 
     <!-- Input -->
-    <div class="p-3 border-t border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.01] space-y-2 shrink-0">
+    <div class="p-3 pb-4 border-t border-slate-100 dark:border-white/10 bg-white/90 dark:bg-slate-800/60 space-y-2 shrink-0">
       <!-- Mode Selector -->
       <div v-if="chatMode === 'private'" class="flex items-center gap-2 animate-in slide-in-from-bottom-1">
-        <div class="flex items-center gap-2 px-2 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all bg-rose-500 text-white">
+        <div class="flex items-center gap-2 px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all bg-rose-500 text-white shadow-lg shadow-rose-500/20">
           <User class="w-2.5 h-2.5" />
-          {{ `私聊: ${privateTarget?.username}` }}
+          {{ `私密传输: ${privateTarget?.username}` }}
         </div>
-        <button @click="chatMode = 'normal'; privateTarget = null" class="p-1 rounded-md bg-slate-200 dark:bg-white/10 text-slate-500 hover:bg-slate-300 transition-all">
-          <X class="w-2.5 h-2.5" />
+        <button @click="chatMode = 'normal'; privateTarget = null" class="p-1 px-2 rounded-lg bg-slate-200 dark:bg-white/10 text-slate-500 hover:text-slate-700 dark:hover:text-white transition-all uppercase text-[8px] font-black">
+          取消
         </button>
       </div>
 
       <div class="flex gap-2">
         <div class="flex-1 relative group">
-          <div class="absolute -inset-0.5 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-xl blur opacity-0 group-focus-within:opacity-20 transition duration-500"></div>
-          <input 
+          <div class="absolute -inset-0.5 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-xl blur opacity-0 group-focus-within:opacity-30 transition duration-500"></div>
+          <input
             v-model="newMessage"
-            type="text" 
-            :placeholder="placeholder || '向各研究员发送讯息...'"
-            class="relative w-full h-9 bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-3 text-[10px] font-medium focus:outline-none focus:border-blue-500/50 transition-all dark:text-white"
+            type="text"
+            :placeholder="placeholder || '输入实验指令或群聊讯息...'"
+            class="relative w-full h-9 bg-white dark:bg-slate-700/80 border border-slate-200 dark:border-white/10 rounded-xl px-3 text-xs font-bold focus:outline-none focus:border-blue-500/50 transition-all dark:text-white dark:placeholder:text-slate-500"
             @keydown.enter="handleSend"
           />
         </div>
-        <button 
+        <button
           @click="handleSend"
           :disabled="!newMessage.trim()"
-          class="w-9 h-9 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:grayscale text-white rounded-xl flex items-center justify-center transition-all shadow-lg shadow-blue-500/20 active:scale-95 shrink-0"
+          class="w-9 h-9 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:grayscale text-white rounded-xl flex items-center justify-center transition-all shadow-lg shadow-blue-500/20 active:scale-95 shrink-0 group/send"
         >
-          <Send class="w-3.5 h-3.5" />
+          <Send class="w-3.5 h-3.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
         </button>
       </div>
     </div>

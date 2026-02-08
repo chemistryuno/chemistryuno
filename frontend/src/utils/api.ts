@@ -87,7 +87,9 @@ export const authAPI = {
     api.post('/feedback/withdraw', { id }),
   getGlobalChatHistory: (limit: number = 50) =>
     api.get(`/chat/global/history?limit=${limit}`),
-  
+  getPrivateChatHistory: (friendUID: number, limit: number = 50) =>
+    api.get(`/chat/private/history/${friendUID}?limit=${limit}`),
+
   // 2FA相关
   setup2FA: () => api.post('/user/2fa/setup'),
   enable2FA: (code: string, password: string) => api.post('/user/2fa/enable', { code, password }),
@@ -106,15 +108,17 @@ export const gameAPI = {
     api.get('/rooms'),
   createRoom: (name: string, maxPlayers: number, deckID: number, isPointsMode: boolean = false, isPrivate: boolean = false) => 
     api.post('/rooms', { name, max_players: maxPlayers, deck_id: deckID, is_points_mode: isPointsMode, is_private: isPrivate }),
-  getRoomState: (roomId: string) => 
+  getRoomState: (roomId: string) =>
     api.get(`/rooms/${roomId}`),
-  joinRoom: (roomId: string) => 
+  checkRoomStatus: (roomId: string) =>
+    api.get(`/rooms/${roomId}/status`),
+  joinRoom: (roomId: string) =>
     api.post(`/rooms/${roomId}/join`),
   leaveRoom: (roomId: string) => 
     api.post(`/rooms/${roomId}/leave`),
   ready: (roomId: string) =>
     api.post(`/rooms/${roomId}/ready`),
-  startGame: (roomId: string) => 
+  startGame: (roomId: string) =>
     api.post(`/rooms/${roomId}/start`),
   initiateDuel: (target_uid: number) =>
     api.post('/game/duel', { target_uid }),

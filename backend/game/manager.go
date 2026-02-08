@@ -392,6 +392,19 @@ func GetAllRooms() []*models.Room {
 	return result
 }
 
+// GetRoomStatus 检查房间是否存在及其状态
+func GetRoomStatus(roomID string) (exists bool, status string) {
+	roomMutex.RLock()
+	defer roomMutex.RUnlock()
+
+	gr, exists := rooms[roomID]
+	if !exists {
+		return false, ""
+	}
+
+	return true, gr.Room.Status
+}
+
 // 积分结算逻辑
 func handlePointsCalculation(gr *GameRoom) {
 	finished := gr.GameState.FinishedPlayers
@@ -798,9 +811,16 @@ func JoinRoom(roomID string, uid int, username string) error {
 	for _, pid := range gameRoom.Room.Players {
 		if pid == uid {
 			// 如果在离线列表中，移除它
-			delete(gameRoom.OfflineAt, uid)
-			gameRoom.checkAutoStart()
-			gameRoom.broadcastRoomUpdate()
+			wasOffline := false
+			if _, exists := gameRoom.OfflineAt[uid]; exists {
+				delete(gameRoom.OfflineAt, uid)
+				wasOffline = true
+			}
+			// 只有在玩家之前处于离线状态时才广播更新和检查自动开始
+			if wasOffline {
+				gameRoom.checkAutoStart()
+				gameRoom.broadcastRoomUpdate()
+			}
 			return nil
 		}
 	}
@@ -1493,6 +1513,12 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 			winnerUID := gameRoom.GameState.FinishedPlayers[0]
 			saveGameHistory(roomID, winnerUID, gameRoom.Room.Players, gameRoom.GameState.OriginalPlayerCount, gameRoom.GameState.QuittedCount)
 
+			// 清理该房间的游戏邀请消息
+			privateChatRepo := repository.NewPrivateChatRepository()
+			if err := privateChatRepo.DeleteGameInvitesByRoom(roomID); err != nil {
+				log.Printf("清理房间 %s 的游戏邀请失败: %v", roomID, err)
+			}
+
 			if gameRoom.Room.IsPointsMode {
 				handlePointsCalculation(gameRoom)
 			}
@@ -2022,6 +2048,13 @@ func DoublePlay(roomID string, uid int, sub1 string, sub2 string) error {
 		gameRoom.Room.Status = "finished"
 		// 记录游戏历史
 		saveGameHistory(roomID, uid, gameRoom.Room.Players, gameRoom.GameState.OriginalPlayerCount, gameRoom.GameState.QuittedCount)
+
+		// 清理该房间的游戏邀请消息
+		privateChatRepo := repository.NewPrivateChatRepository()
+		if err := privateChatRepo.DeleteGameInvitesByRoom(roomID); err != nil {
+			log.Printf("清理房间 %s 的游戏邀请失败: %v", roomID, err)
+		}
+
 		return nil
 	}
 

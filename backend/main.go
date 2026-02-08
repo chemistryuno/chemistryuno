@@ -211,6 +211,7 @@ func main() {
 
 			// 聊天相关
 			auth.GET("/chat/global/history", handlers.GetGlobalChatHistory)
+			auth.GET("/chat/private/history/:friend_uid", handlers.GetPrivateChatHistory)
 
 			// 会话与设备管理
 			auth.GET("/user/sessions", handlers.GetSessions)
@@ -258,6 +259,7 @@ func main() {
 			auth.POST("/game/duel", handlers.InitiateDuel)
 			auth.POST("/game/duel/respond", handlers.RespondToDuel)
 			auth.GET("/rooms/:id", handlers.GetRoomState)
+			auth.GET("/rooms/:id/status", handlers.CheckRoomStatus)
 			auth.POST("/rooms/:id/join", handlers.JoinRoom)
 			auth.POST("/rooms/:id/leave", handlers.LeaveRoom)
 			auth.POST("/rooms/:id/ready", handlers.ToggleReady)

@@ -15,6 +15,7 @@ func autoMigrate() error {
 		&User{},
 		&UserSession{},
 		&GlobalChat{},
+		&PrivateChat{},
 		&WebAuthnCredential{},
 		&Friendship{},
 		&Reaction{},

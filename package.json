@@ -11,7 +11,7 @@
     "build:frontend": "pnpm -C frontend build",
     "install:frontend": "pnpm -C frontend install",
     "frontend:dev": "pnpm -C frontend dev",
-    "frontend": "pnpm install:frontend && pnpm build:frontend && pnpm -C frontend copy-dist && echo \"✅ 前端打包部署完成！\"",
+    "frontend": "pnpm -C frontend install --prefer-offline --silent && pnpm build:frontend && pnpm -C frontend copy-dist && echo \"✅ 前端打包部署完成！\"",
     "backend": "node -e \"const {execSync} = require('child_process'); process.env.CGO_ENABLED='0'; execSync('go run main.go', {cwd:'backend', stdio:'inherit'})\"",
     "db:init": "node -e \"const {execSync} = require('child_process'); execSync('go run scripts/init_db.go', {cwd:'backend', stdio:'inherit'})\"",
     "db:init-interactive": "node -e \"const {spawn} = require('child_process'); const isWin = process.platform === 'win32'; spawn(isWin ? 'db-init.bat' : './db-init.sh', [], {stdio: 'inherit', shell: true})\"",

@@ -25,8 +25,6 @@ const showPassword = ref(false)
 const recoveryMode = ref<'2fa' | 'email'>('2fa')
 const emailLoading = ref(false)
 const countdown = ref(0)
-const recaptchaToken = ref('')
-const siteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY
 
 onMounted(async () => {
   try {
@@ -36,23 +34,6 @@ onMounted(async () => {
       recoveryMode.value = 'email'
     }
 
-    // 初始化 reCAPTCHA (仅在 email 模式下需要)
-    if (siteKey && (window as any).grecaptcha) {
-      setTimeout(() => {
-        const container = document.getElementById('recaptcha-reset')
-        if (container) {
-          (window as any).grecaptcha.render('recaptcha-reset', {
-            sitekey: siteKey,
-            callback: (token: string) => {
-              recaptchaToken.value = token
-            },
-            'expired-callback': () => {
-              recaptchaToken.value = ''
-            }
-          })
-        }
-      }, 500)
-    }
   } catch (err) {
     console.error('获取配置失败', err)
   }
@@ -64,14 +45,9 @@ const handleSendCode = async () => {
     return
   }
 
-  if (siteKey && !recaptchaToken.value) {
-    alert('请先完成 reCAPTCHA 验证以发送验证码')
-    return
-  }
-
   emailLoading.value = true
   try {
-    await authAPI.sendCode(username.value, 'reset', recaptchaToken.value)
+    await authAPI.sendCode(username.value, 'reset')
     dialog.showAlert('验证码已发送至您的电子邮箱，请在10分钟内完成重置。', '发送成功')
     countdown.value = 60
     const timer = setInterval(() => {
@@ -170,10 +146,6 @@ const handleReset = async () => {
               class="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 focus:border-blue-500/50 rounded-2xl py-4 pl-12 pr-4 outline-none transition-all text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 font-bold text-sm"
               required
             />
-          </div>
-
-          <div v-show="recoveryMode === 'email'">
-            <div id="recaptcha-reset" class="my-4 flex justify-center scale-90 sm:scale-100"></div>
           </div>
 
           <div v-if="recoveryMode === 'email'" class="relative group flex gap-2">

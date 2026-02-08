@@ -31,13 +31,6 @@ func Register(c *gin.Context) {
 		req.Email = strings.ToLower(strings.TrimSpace(req.Email))
 	}
 
-	// reCAPTCHA 验证
-	success, err := utils.VerifyRecaptcha(req.RecaptchaToken)
-	if err != nil || !success {
-		c.JSON(http.StatusForbidden, gin.H{"error": "reCAPTCHA 验证失败"})
-		return
-	}
-
 	// 1. 系统模式判断与参数验证
 	if smtpConfigured {
 		if req.Email == "" {
@@ -147,13 +140,6 @@ func Login(c *gin.Context) {
 	}
 
 	fmt.Printf("登录尝试 - 用户: %s, 来源IP: %s\n", identifier, c.ClientIP())
-
-	// reCAPTCHA 验证
-	success, err := utils.VerifyRecaptcha(req.RecaptchaToken)
-	if err != nil || !success {
-		c.JSON(http.StatusForbidden, gin.H{"error": "reCAPTCHA 验证失败"})
-		return
-	}
 
 	userRepo := repository.NewUserRepository()
 	dbUser, err := userRepo.FindByEmailOrUsername(identifier)
@@ -448,13 +434,6 @@ func SendVerificationCode(c *gin.Context) {
 	}
 
 	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
-
-	// reCAPTCHA 验证
-	success, err := utils.VerifyRecaptcha(req.RecaptchaToken)
-	if err != nil || !success {
-		c.JSON(http.StatusForbidden, gin.H{"error": "reCAPTCHA 验证失败"})
-		return
-	}
 
 	if !utils.IsSMTPConfigured() {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "系统未启用邮件服务"})

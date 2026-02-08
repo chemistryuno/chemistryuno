@@ -5,6 +5,8 @@ pnpm-lock.yaml
 # Build outputs
 dist/
 build/
+bin/
+backend/static/dist/
 *.exe
 *.exe~
 *.dll

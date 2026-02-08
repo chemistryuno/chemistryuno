@@ -6,9 +6,11 @@ import (
 	"chemistryuno/handlers"
 	"chemistryuno/middleware"
 	"chemistryuno/repository"
+	"chemistryuno/static"
 	"chemistryuno/utils"
 	"chemistryuno/websocket"
 	"context"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
@@ -328,21 +330,45 @@ func main() {
 		}
 	}
 
-	// 静态文件服务 (仅在 production 模式或 frontend 目录存在时)
-	// 判断 frontend 目录是否存在
-	if _, err := os.Stat("./frontend"); err == nil {
-		r.Static("/assets", "./frontend/assets")
-		r.StaticFile("/favicon.ico", "./frontend/favicon.ico")
-		r.StaticFile("/", "./frontend/index.html")
+	// 服务前端静态文件（使用 embed 嵌入）
+	distFS, err := static.GetDistFS()
+	if err != nil {
+		log.Printf("⚠ 未找到前端构建文件: %v（仅启用 API 服务）", err)
+	} else {
+		// 静态资源文件（带缓存头）
+		r.GET("/assets/*filepath", func(c *gin.Context) {
+			c.FileFromFS(c.Request.URL.Path, http.FS(distFS))
+		})
 
-		// SPA 路由回退
+		// 处理其他静态文件（如 favicon.ico）
+		r.GET("/favicon.ico", func(c *gin.Context) {
+			c.FileFromFS("favicon.ico", http.FS(distFS))
+		})
+
+		// SPA 路由回退 - 非 API 请求返回 index.html
 		r.NoRoute(func(c *gin.Context) {
-			if !strings.HasPrefix(c.Request.URL.Path, "/api") {
-				c.File("./frontend/index.html")
+			// API 请求返回 404
+			if strings.HasPrefix(c.Request.URL.Path, "/api") || strings.HasPrefix(c.Request.URL.Path, "/ws") {
+				c.JSON(404, gin.H{"error": "API route not found"})
 				return
 			}
-			c.JSON(404, gin.H{"error": "API route not found"})
+
+			// 尝试读取静态文件
+			if _, err := fs.Stat(distFS, strings.TrimPrefix(c.Request.URL.Path, "/")); err == nil {
+				c.FileFromFS(c.Request.URL.Path, http.FS(distFS))
+				return
+			}
+
+			// 读取 index.html 用于 Vue Router
+			data, err := fs.ReadFile(distFS, "index.html")
+			if err != nil {
+				c.String(500, "Error loading page")
+				return
+			}
+			c.Data(200, "text/html; charset=utf-8", data)
 		})
+
+		log.Println("✓ 前端静态文件服务已启用（embed 模式）")
 	}
 
 	log.Println("✅ 服务器准备启动在 :8080")

@@ -1036,35 +1036,27 @@ func StartGame(roomID string, uid int) error {
 		initialCardsCount = 10 // 容错
 	}
 
-	// 从 reactions 表的 r1 和 r2 字段提取所有物质，构建初始手牌池
-	reactionRepo := repository.NewReactionRepository()
-	approvedReactions, err := reactionRepo.FindApprovedReactions()
+	numPlayers := len(shuffledPlayers)
+	totalCardsNeeded := numPlayers * initialCardsCount
 
-	// 提取所有不重复的物质
-	substanceSet := make(map[string]bool)
-	for _, reaction := range approvedReactions {
-		if reaction.R1 != "" {
-			substanceSet[reaction.R1] = true
-		}
-		if reaction.R2 != "" {
-			substanceSet[reaction.R2] = true
-		}
+	// 检查牌堆是否足够
+	if len(gameRoom.GameState.DrawPile) < totalCardsNeeded {
+		log.Printf("[初始手牌] ⚠️  牌堆不足：需要 %d 张，实际 %d 张，将平均分配",
+			totalCardsNeeded, len(gameRoom.GameState.DrawPile))
+		initialCardsCount = len(gameRoom.GameState.DrawPile) / numPlayers
 	}
 
-	// 转换为切片并随机打乱
-	availableSubstances := make([]string, 0, len(substanceSet))
-	for substance := range substanceSet {
-		availableSubstances = append(availableSubstances, substance)
-	}
-	rand.Shuffle(len(availableSubstances), func(i, j int) {
-		availableSubstances[i], availableSubstances[j] = availableSubstances[j], availableSubstances[i]
-	})
+	log.Printf("[初始手牌] 📊 牌堆统计：总计 %d 张，将为 %d 位玩家每人发 %d 张",
+		len(gameRoom.GameState.DrawPile), numPlayers, initialCardsCount)
 
-	log.Printf("[初始手牌] 从 %d 个已批准反应中提取了 %d 种不同的物质作为手牌池",
-		len(approvedReactions), len(availableSubstances))
+	// 统计牌堆中的卡牌类型分布（用于日志）
+	cardTypeCount := make(map[string]int)
+	for _, card := range gameRoom.GameState.DrawPile {
+		cardTypeCount[card.Type]++
+	}
+	log.Printf("[初始手牌] 🎴 牌堆组成：%v", cardTypeCount)
 
 	// 初始化玩家
-	substanceIndex := 0
 	for _, pid := range shuffledPlayers {
 		user, err := repository.UserRepo.FindByUID(uint(pid))
 		username := ""
@@ -1088,70 +1080,103 @@ func StartGame(roomID string, uid int) error {
 			ActionProgress:        0,
 		}
 
-		// 发初始手牌：优先从 reactions 物质池中选择
-		cardsDealt := 0
-		for i := 0; i < initialCardsCount; i++ {
-			var card models.Card
-
-			// 如果还有可用的物质，从物质池中选择
-			if substanceIndex < len(availableSubstances) {
-				substance := availableSubstances[substanceIndex]
-				substanceIndex++
-
-				card = models.Card{
-					Type:   substance,
-					Count:  1,
-					Effect: getCardEffect(substance),
-				}
-				cardsDealt++
-			} else if len(gameRoom.GameState.DrawPile) > 0 {
-				// 物质池用完了，从常规牌堆补充
-				card = gameRoom.GameState.DrawPile[0]
-				gameRoom.GameState.DrawPile = gameRoom.GameState.DrawPile[1:]
-				cardsDealt++
-			} else {
-				// 彻底没牌了
-				break
-			}
-
+		// 从洗好的牌堆顶部抽取初始手牌（按配置的比例随机分配）
+		playerCardTypes := make(map[string]int)
+		for i := 0; i < initialCardsCount && len(gameRoom.GameState.DrawPile) > 0; i++ {
+			card := gameRoom.GameState.DrawPile[0]
+			gameRoom.GameState.DrawPile = gameRoom.GameState.DrawPile[1:]
 			player.HandCards = append(player.HandCards, card)
 			player.CardCount++
+			playerCardTypes[card.Type]++
 		}
 
-		log.Printf("[初始手牌] 玩家 %s (UID:%d) 获得 %d 张初始手牌",
-			username, pid, cardsDealt)
+		log.Printf("[初始手牌] 👤 玩家 %s (UID:%d) 获得 %d 张手牌：%v",
+			username, pid, player.CardCount, playerCardTypes)
 
 		gameRoom.GameState.Players = append(gameRoom.GameState.Players, player)
 	}
 
-	// 抽出场上初始物质，从 substances 表中随机抽取
+	// 抽出场上初始物质，从 reactions 表的 r1/r2 字段中随机选择
 	var initialSubstance string
 	var initialCard models.Card
 	var foundBase bool
 
-	// 尝试从数据库获取一个已批准的随机物质
-	subRepo := repository.NewSubstanceRepository()
-	s, err := subRepo.FindRandomApproved()
-	if err == nil && s != nil {
-		initialSubstance = s.Formula
-		// 为了保证游戏能继续，我们需要从牌堆中找出一张合适的卡牌作为“底座”
-		// 优先找非功能牌
-		for i, card := range gameRoom.GameState.DrawPile {
-			isSpecial := false
-			specialTypes := []string{"+2", "+4", "reverse", "Au", "He", "Ne", "Ar", "Kr"}
-			for _, st := range specialTypes {
-				if card.Type == st || card.Effect == st {
-					isSpecial = true
+	// 从 reactions 表获取所有已批准的反应
+	reactionRepo := repository.NewReactionRepository()
+	approvedReactions, err := reactionRepo.FindApprovedReactions()
+
+	if err == nil && len(approvedReactions) > 0 {
+		// 提取所有 r1 和 r2 物质（去重）
+		substanceSet := make(map[string]bool)
+		for _, reaction := range approvedReactions {
+			if reaction.R1 != "" {
+				substanceSet[reaction.R1] = true
+			}
+			if reaction.R2 != "" {
+				substanceSet[reaction.R2] = true
+			}
+		}
+
+		// 转换为切片
+		availableSubstances := make([]string, 0, len(substanceSet))
+		for substance := range substanceSet {
+			availableSubstances = append(availableSubstances, substance)
+		}
+
+		// 随机选择一个物质作为场上初始物质
+		if len(availableSubstances) > 0 {
+			randomIndex := rand.Intn(len(availableSubstances))
+			initialSubstance = availableSubstances[randomIndex]
+
+			log.Printf("[场上初始物质] 🎲 从 %d 个已批准反应中提取了 %d 种物质，随机选择: %s",
+				len(approvedReactions), len(availableSubstances), initialSubstance)
+
+			// 从牌堆中找出对应的卡牌作为"底座"
+			// 优先找非功能牌，且类型匹配的卡牌
+			for i, card := range gameRoom.GameState.DrawPile {
+				// 检查是否为特殊功能牌
+				isSpecial := false
+				specialTypes := []string{"+2", "+4", "reverse", "Au", "He", "Ne", "Ar", "Kr"}
+				for _, st := range specialTypes {
+					if card.Type == st || card.Effect == st {
+						isSpecial = true
+						break
+					}
+				}
+
+				// 优先选择与初始物质匹配的普通卡牌
+				if !isSpecial && card.Type == initialSubstance {
+					initialCard = card
+					// 从牌堆移除该牌
+					gameRoom.GameState.DrawPile = append(gameRoom.GameState.DrawPile[:i], gameRoom.GameState.DrawPile[i+1:]...)
+					foundBase = true
+					log.Printf("[场上初始物质] ✅ 找到匹配的卡牌: %s", card.Type)
 					break
 				}
 			}
 
-			if !isSpecial {
-				initialCard = card
-				// 从牌堆移除该牌
-				gameRoom.GameState.DrawPile = append(gameRoom.GameState.DrawPile[:i], gameRoom.GameState.DrawPile[i+1:]...)
-				foundBase = true
-				break
+			// 如果没找到匹配的，选择任意非功能牌
+			if !foundBase {
+				for i, card := range gameRoom.GameState.DrawPile {
+					isSpecial := false
+					specialTypes := []string{"+2", "+4", "reverse", "Au", "He", "Ne", "Ar", "Kr"}
+					for _, st := range specialTypes {
+						if card.Type == st || card.Effect == st {
+							isSpecial = true
+							break
+						}
+					}
+
+					if !isSpecial {
+						initialCard = card
+						// 从牌堆移除该牌
+						gameRoom.GameState.DrawPile = append(gameRoom.GameState.DrawPile[:i], gameRoom.GameState.DrawPile[i+1:]...)
+						foundBase = true
+						log.Printf("[场上初始物质] ℹ️  未找到匹配卡牌，使用: %s (展示物质: %s)",
+							card.Type, initialSubstance)
+						break
+					}
+				}
 			}
 		}
 	}
@@ -1164,8 +1189,11 @@ func StartGame(roomID string, uid int) error {
 		}
 		gameRoom.GameState.DiscardPile = append(gameRoom.GameState.DiscardPile, playedCard)
 		gameRoom.GameState.LastCard = &gameRoom.GameState.DiscardPile[0]
+		log.Printf("[场上初始物质] 🎴 场上初始卡牌已设置: 卡牌类型=%s, 展示物质=%s",
+			initialCard.Type, initialSubstance)
 	} else {
-		// 回退方案：如果数据库为空或没找到合适的底牌，按原有逻辑从牌堆抽第一张非功能牌
+		// 回退方案：如果 reactions 为空或没找到合适的底牌，从牌堆抽第一张非功能牌
+		log.Println("[场上初始物质] ⚠️  未找到合适的初始物质，使用备用方案")
 		for len(gameRoom.GameState.DrawPile) > 0 {
 			firstCard := gameRoom.GameState.DrawPile[0]
 			gameRoom.GameState.DrawPile = gameRoom.GameState.DrawPile[1:]
@@ -1187,6 +1215,7 @@ func StartGame(roomID string, uid int) error {
 				}
 				gameRoom.GameState.DiscardPile = append(gameRoom.GameState.DiscardPile, playedCard)
 				gameRoom.GameState.LastCard = &gameRoom.GameState.DiscardPile[0]
+				log.Printf("[场上初始物质] 🎴 备用方案：使用卡牌 %s", firstCard.Type)
 				break
 			} else {
 				gameRoom.GameState.DrawPile = append(gameRoom.GameState.DrawPile, firstCard)

@@ -37,9 +37,9 @@ function checkRedis() {
   }
 }
 
-// 检查并加载.env文件（如果存在）
+// 检查并加载.env文件（统一从根目录读取）
 function loadEnvFile() {
-  const envPath = path.join(__dirname, 'backend', '.env');
+  const envPath = path.join(__dirname, '.env');
   if (fs.existsSync(envPath)) {
     const envContent = fs.readFileSync(envPath, 'utf8');
     envContent.split('\n').forEach(line => {

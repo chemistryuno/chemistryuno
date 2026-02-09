@@ -156,12 +156,12 @@ async function initializeDatabase() {
   }
 }
 
-// 创建配置文件
+// 创建配置文件（统一存放在根目录）
 async function createConfigFiles() {
   log('\n⚙️  创建配置文件...', colors.cyan);
 
   // 创建 .env 文件（如果不存在）
-  const envPath = path.join(__dirname, 'backend', '.env');
+  const envPath = path.join(__dirname, '.env');
   if (!fs.existsSync(envPath)) {
     const envContent = `# Chemistry UNO Mendeleef 配置文件
 # 后端配置
@@ -169,7 +169,7 @@ PORT=8080
 JWT_SECRET=chemistry-uno-secret-key-change-in-production
 SQLITE_PATH=./chemistryuno.db
 
-# 前端配置  
+# 前端配置
 VITE_API_URL=http://localhost:8080
 VITE_WS_URL=ws://localhost:8080/ws
 
@@ -177,7 +177,7 @@ VITE_WS_URL=ws://localhost:8080/ws
 NODE_ENV=development
 GIN_MODE=debug
 `;
-    
+
     fs.writeFileSync(envPath, envContent);
     success('创建 .env 配置文件');
   } else {

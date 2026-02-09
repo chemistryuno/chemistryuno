@@ -33,14 +33,14 @@ var upgrader = ws.Upgrader{
 var hub *websocket.Hub
 
 func main() {
-	// 智能加载 .env 文件，支持生产和开发环境
-	// 优先级：1. 当前目录 .env（生产）2. 上级目录 .env（从 backend 运行）3. backend/.env（兼容）
+	// 加载 .env 配置文件（统一从根目录读取）
+	// 优先级：1. 当前目录 .env（从根目录运行）2. 上级目录 .env（从 backend 目录运行）
 	var loadErr error
 	if _, err := os.Stat(".env"); err == nil {
-		// 当前目录的 .env（生产模式或从根目录运行）
+		// 当前目录的 .env（从根目录运行）
 		loadErr = godotenv.Load(".env")
 		if loadErr == nil {
-			log.Println("✓ 成功从 .env 加载配置（生产模式）")
+			log.Println("✓ 成功从 .env 加载配置")
 		} else {
 			log.Printf("警告: 从 .env 加载配置失败: %v", loadErr)
 		}
@@ -48,28 +48,14 @@ func main() {
 		// 上级目录的 .env（从 backend 目录运行）
 		loadErr = godotenv.Load("../.env")
 		if loadErr == nil {
-			log.Println("✓ 成功从 ../.env 加载配置（开发模式）")
+			log.Println("✓ 成功从 ../.env 加载配置")
 		} else {
 			log.Printf("警告: 从 ../.env 加载配置失败: %v", loadErr)
-		}
-	} else if _, err := os.Stat("backend/.env"); err == nil {
-		// backend/.env（向后兼容旧配置）
-		loadErr = godotenv.Load("backend/.env")
-		if loadErr == nil {
-			log.Println("✓ 成功从 backend/.env 加载配置（兼容模式）")
-		} else {
-			log.Printf("警告: 从 backend/.env 加载配置失败: %v", loadErr)
-		}
-	} else {
-		// 尝试默认加载
-		loadErr = godotenv.Load()
-		if loadErr == nil {
-			log.Println("✓ 成功通过默认路径加载 .env")
 		}
 	}
 
 	if loadErr != nil && !os.IsNotExist(loadErr) {
-		log.Printf("警告: 加载 .env 配置文件出错: %v", loadErr)
+		log.Printf("警告: 加载 .env 配置文件出错: %v（将使用系统环境变量）", loadErr)
 	}
 
 	// 确保JWT密钥存在（首次启动自动生成）

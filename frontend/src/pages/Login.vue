@@ -3,8 +3,9 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import api, { authAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
-import { Beaker, Lock, User, Loader2, Fingerprint, Shield, Cpu, Mail, Github, Globe, Chrome, Apple, Eye, EyeOff } from 'lucide-vue-next'
+import { Beaker, Lock, User, Loader2, Fingerprint, Shield, Cpu, Mail, Eye, EyeOff } from 'lucide-vue-next'
 import ResetPassword2FAModal from '../components/ResetPassword2FAModal.vue'
+import OAuthLogos from '../components/icons/OAuthLogos.vue'
 import websocket from '../utils/websocket'
 import { get } from '@github/webauthn-json'
 
@@ -122,27 +123,56 @@ const handleLoginSuccess = (token: string, user: any, announcements: any[] = [])
 }
 
 const handleWebAuthnLogin = async () => {
+  // 验证是否输入了用户名/邮箱
+  if (!identifier.value || identifier.value.trim() === '') {
+    error.value = smtpEnabled.value ? '请先输入您的邮箱地址' : '请先输入您的用户名'
+    return
+  }
+
   error.value = ''
   loading.value = true
+
   try {
+    console.log('开始 WebAuthn 登录流程，用户:', identifier.value)
+
     // 1. 开始 WebAuthn 登录
     const beginRes = await authAPI.beginWebAuthnLogin(identifier.value)
-    
+    console.log('WebAuthn 选项获取成功')
+
     // 2. 调用浏览器 WebAuthn API
     const credential = await get(beginRes.data)
-    
+    console.log('WebAuthn 凭证获取成功')
+
     // 3. 完成 WebAuthn 登录
     const finishRes = await authAPI.finishWebAuthnLogin(credential, identifier.value)
-    
+    console.log('WebAuthn 验证成功')
+
     const { token, user, announcements } = finishRes.data
     handleLoginSuccess(token, user, announcements)
     dialog.showAlert('已通过物理研究密钥验证身份，准许进入。', '授权成功')
   } catch (err: any) {
-    console.error('WebAuthn 登录失败', err)
+    console.error('WebAuthn 登录失败:', err)
+
+    // 检查是否是用户取消操作
     if (err.name === 'NotAllowedError') {
-      error.value = '硬件验证被取消'
-    } else {
-      error.value = err.response?.data?.error || '硬件验证失败，请确保您已绑定密钥'
+      error.value = '硬件验证已取消'
+    }
+    // 检查是否是浏览器不支持
+    else if (err.name === 'NotSupportedError') {
+      error.value = '您的浏览器不支持 WebAuthn，请使用 Chrome、Edge 或 Safari'
+    }
+    // 检查是否是超时
+    else if (err.name === 'TimeoutError') {
+      error.value = '硬件验证超时，请重试'
+    }
+    // 检查后端返回的错误
+    else if (err.response?.data?.error) {
+      error.value = err.response.data.error
+    }
+    // 其他错误
+    else {
+      error.value = '硬件验证失败，请确保您已绑定物理密钥'
+      console.error('详细错误:', err.message || err)
     }
   } finally {
     loading.value = false
@@ -198,71 +228,71 @@ const handleOAuthLogin = (provider: 'github' | 'ms' | 'google' | 'apple') => {
     <div class="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-500/5 rounded-full blur-[120px]"></div>
     <div class="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-500/5 rounded-full blur-[120px]"></div>
 
-    <div class="w-full max-w-md relative z-10 animate-in fade-in zoom-in duration-500">
-      <div class="glass-panel-light rounded-[32px] sm:rounded-[40px] shadow-[0_20px_60px_rgba(0,0,0,0.1)] dark:shadow-[0_20px_60px_rgba(0,0,0,0.3)] overflow-hidden">
-        <div class="p-6 sm:p-8 md:p-10">
-          <div class="flex flex-col items-center mb-6 sm:mb-8">
-            <div class="w-14 h-14 sm:w-16 sm:h-16 bg-blue-600 rounded-2xl flex items-center justify-center mb-3 sm:mb-4 shadow-lg transform rotate-3 hover:rotate-0 transition-transform duration-500">
-              <Beaker class="w-7 h-7 sm:w-8 sm:h-8 text-white" />
+    <div class="w-full max-w-sm relative z-10 animate-in fade-in zoom-in duration-500">
+      <div class="glass-panel-light rounded-2xl sm:rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.1)] dark:shadow-[0_20px_60px_rgba(0,0,0,0.3)] overflow-hidden">
+        <div class="p-3 sm:p-4 md:p-6">
+          <div class="flex flex-col items-center mb-3 sm:mb-4">
+            <div class="w-10 h-10 sm:w-12 sm:h-12 bg-blue-600 rounded-xl sm:rounded-2xl flex items-center justify-center mb-1.5 sm:mb-2 shadow-lg transform rotate-3 hover:rotate-0 transition-transform duration-500">
+              <Beaker class="w-5 h-5 sm:w-6 sm:h-6 text-white" />
             </div>
-            <h1 class="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tighter">
+            <h1 class="text-lg sm:text-xl font-black text-slate-900 dark:text-slate-100 tracking-tighter">
               化学<span class="text-blue-600">UNO</span>
             </h1>
-            <p class="text-slate-400 dark:text-slate-500 text-xs-mobile font-black uppercase tracking-[0.2em] mt-2 font-mono">LABORATORY ACCESS</p>
+            <p class="text-slate-400 dark:text-slate-500 text-[10px] sm:text-xs font-black uppercase tracking-[0.2em] mt-0.5 font-mono">LABORATORY ACCESS</p>
           </div>
 
-          <div v-if="error" class="bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 text-red-500 px-4 py-3 rounded-2xl mb-5 sm:mb-6 text-center text-xs font-bold animate-shake">
+          <div v-if="error" class="bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 text-red-500 px-2.5 py-2 rounded-xl mb-2.5 sm:mb-3 text-center text-xs font-bold animate-shake">
             {{ error }}
           </div>
 
-          <div v-if="!show2FA" class="space-y-5 sm:space-y-6">
-            <form @submit.prevent="handleSubmit" class="space-y-4 sm:space-y-5">
-              <div class="space-y-1.5">
-                  <label class="text-xs-mobile font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">
+          <div v-if="!show2FA" class="space-y-2.5 sm:space-y-3">
+            <form @submit.prevent="handleSubmit" class="space-y-2 sm:space-y-2.5">
+              <div class="space-y-0.5">
+                  <label class="text-[10px] sm:text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">
                     {{ smtpEnabled ? '电子邮箱' : '账号' }}
                   </label>
                   <div class="relative group">
-                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 dark:text-slate-500 group-focus-within:text-blue-500 transition-colors">
-                      <component :is="smtpEnabled ? Mail : User" class="w-4 h-4" />
+                    <div class="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-400 dark:text-slate-500 group-focus-within:text-blue-500 transition-colors">
+                      <component :is="smtpEnabled ? Mail : User" class="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     </div>
                     <input
                       v-model="identifier"
                       type="text"
                       required
-                      class="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-slate-100 pl-11 pr-4 py-4 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all placeholder:text-slate-500/50 text-base font-bold"
+                      class="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-slate-100 pl-9 pr-2.5 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all placeholder:text-slate-500/50 text-xs sm:text-sm font-bold"
                       :placeholder="smtpEnabled ? '注册时的邮箱' : '请输入用户名'"
                     />
                   </div>
               </div>
 
-              <div class="space-y-1.5">
+              <div class="space-y-0.5">
                 <div class="flex justify-between items-center px-1">
-                  <label class="text-xs-mobile font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">访问秘钥</label>
+                  <label class="text-[10px] sm:text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">访问秘钥</label>
                   <button
                     type="button"
                     @click="handleForgotPassword"
-                    class="text-xs-mobile font-black text-blue-500 hover:text-blue-600 uppercase tracking-widest transition-colors cursor-pointer touch-feedback"
+                    class="text-[10px] sm:text-xs font-black text-blue-500 hover:text-blue-600 uppercase tracking-widest transition-colors cursor-pointer touch-feedback"
                   >
                     找回凭证?
                   </button>
                 </div>
                 <div class="relative group">
-                  <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 dark:text-slate-500 group-focus-within:text-blue-500 transition-colors">
-                    <Lock class="w-4 h-4" />
+                  <div class="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-400 dark:text-slate-500 group-focus-within:text-blue-500 transition-colors">
+                    <Lock class="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                   </div>
                   <input
                     v-model="password"
                     :type="showPassword ? 'text' : 'password'"
                     required
-                    class="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-slate-100 pl-11 pr-12 py-4 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all placeholder:text-slate-500/50 text-base font-bold font-mono"
+                    class="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-slate-100 pl-9 pr-10 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all placeholder:text-slate-500/50 text-xs sm:text-sm font-bold font-mono"
                     placeholder="请输入访问凭证"
                   />
                   <button
                     type="button"
                     @click="showPassword = !showPassword"
-                    class="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-blue-500 transition-colors touch-feedback"
+                    class="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-blue-500 transition-colors touch-feedback"
                   >
-                    <component :is="showPassword ? EyeOff : Eye" class="w-4 h-4" />
+                    <component :is="showPassword ? EyeOff : Eye" class="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                   </button>
                 </div>
               </div>
@@ -270,10 +300,10 @@ const handleOAuthLogin = (provider: 'github' | 'ms' | 'google' | 'apple') => {
               <button
                 type="submit"
                 :disabled="loading"
-                class="w-full h-12 sm:h-14 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white rounded-2xl font-black transition-all shadow-lg shadow-blue-500/25 touch-feedback flex items-center justify-center gap-2"
+                class="w-full h-9 sm:h-10 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white rounded-xl sm:rounded-2xl font-black transition-all shadow-lg shadow-blue-500/25 touch-feedback flex items-center justify-center gap-2 text-xs sm:text-sm"
               >
                 <template v-if="loading">
-                  <Loader2 class="w-5 h-5 animate-spin" />
+                  <Loader2 class="w-4 h-4 animate-spin" />
                   核验中...
                 </template>
                 <template v-else>
@@ -281,9 +311,9 @@ const handleOAuthLogin = (provider: 'github' | 'ms' | 'google' | 'apple') => {
                 </template>
               </button>
 
-              <div class="relative flex items-center py-2">
+              <div class="relative flex items-center py-1">
                 <div class="flex-grow border-t border-slate-100 dark:border-white/5"></div>
-                <span class="flex-shrink mx-4 text-xs-mobile font-black text-slate-400 dark:text-slate-600 uppercase tracking-widest">OR</span>
+                <span class="flex-shrink mx-2.5 text-[10px] sm:text-xs font-black text-slate-400 dark:text-slate-600 uppercase tracking-widest">OR</span>
                 <div class="flex-grow border-t border-slate-100 dark:border-white/5"></div>
               </div>
 
@@ -291,74 +321,74 @@ const handleOAuthLogin = (provider: 'github' | 'ms' | 'google' | 'apple') => {
                 type="button"
                 @click="handleWebAuthnLogin"
                 :disabled="loading"
-                class="w-full h-12 sm:h-14 bg-blue-600/5 dark:bg-blue-600/10 hover:bg-blue-600/10 dark:hover:bg-blue-600/20 text-blue-700 dark:text-blue-400 font-black rounded-2xl touch-feedback transition-all text-xs-mobile uppercase tracking-[0.2em] flex items-center justify-center gap-3 group border border-blue-600/20 shadow-sm"
+                class="w-full h-8 sm:h-9 bg-blue-600/5 dark:bg-blue-600/10 hover:bg-blue-600/10 dark:hover:bg-blue-600/20 text-blue-700 dark:text-blue-400 font-black rounded-lg sm:rounded-xl touch-feedback transition-all text-[10px] sm:text-xs uppercase tracking-[0.2em] flex items-center justify-center gap-1.5 sm:gap-2 group border border-blue-600/20 shadow-sm"
               >
-                <Cpu class="w-4 h-4 text-blue-600 animate-pulse" />
+                <Cpu class="w-3.5 h-3.5 text-blue-600 animate-pulse" />
                 使用物理研究密钥登录
               </button>
 
-              <div class="grid grid-cols-2 gap-3">
+              <div class="grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   @click="handleOAuthLogin('github')"
                   :disabled="loading"
-                  class="h-11 sm:h-12 bg-slate-50 dark:bg-black/40 hover:bg-white dark:hover:bg-black/60 text-slate-600 dark:text-slate-400 font-bold rounded-xl touch-feedback transition-all text-xs-mobile uppercase tracking-widest flex items-center justify-center gap-2 border border-slate-200 dark:border-white/5 hover:border-blue-500/50 hover:text-blue-600 shadow-sm"
+                  class="h-8 sm:h-9 bg-slate-50 dark:bg-black/40 hover:bg-white dark:hover:bg-black/60 text-slate-600 dark:text-slate-400 font-bold rounded-lg sm:rounded-xl touch-feedback transition-all text-[10px] sm:text-xs uppercase tracking-widest flex items-center justify-center gap-1 sm:gap-1.5 border border-slate-200 dark:border-white/5 hover:border-blue-500/50 hover:text-blue-600 shadow-sm"
                 >
-                  <Github class="w-4 h-4" />
+                  <OAuthLogos provider="github" :size="14" class="text-slate-800 dark:text-white" />
                   GitHub 授权
                 </button>
                 <button
                   type="button"
                   @click="handleOAuthLogin('ms')"
                   :disabled="loading"
-                  class="h-11 sm:h-12 bg-slate-50 dark:bg-black/40 hover:bg-white dark:hover:bg-black/60 text-slate-600 dark:text-slate-400 font-bold rounded-xl touch-feedback transition-all text-xs-mobile uppercase tracking-widest flex items-center justify-center gap-2 border border-slate-200 dark:border-white/5 hover:border-blue-500/50 hover:text-blue-600 shadow-sm"
+                  class="h-8 sm:h-9 bg-slate-50 dark:bg-black/40 hover:bg-white dark:hover:bg-black/60 text-slate-600 dark:text-slate-400 font-bold rounded-lg sm:rounded-xl touch-feedback transition-all text-[10px] sm:text-xs uppercase tracking-widest flex items-center justify-center gap-1 sm:gap-1.5 border border-slate-200 dark:border-white/5 hover:border-blue-500/50 hover:text-blue-600 shadow-sm"
                 >
-                  <Globe class="w-4 h-4 text-sky-500" />
+                  <OAuthLogos provider="microsoft" :size="14" />
                   Microsoft
                 </button>
                 <button
                   type="button"
                   @click="handleOAuthLogin('google')"
                   :disabled="loading"
-                  class="h-11 sm:h-12 bg-slate-50 dark:bg-black/40 hover:bg-white dark:hover:bg-black/60 text-slate-600 dark:text-slate-400 font-bold rounded-xl touch-feedback transition-all text-xs-mobile uppercase tracking-widest flex items-center justify-center gap-2 border border-slate-200 dark:border-white/5 hover:border-blue-500/50 hover:text-blue-600 shadow-sm"
+                  class="h-8 sm:h-9 bg-slate-50 dark:bg-black/40 hover:bg-white dark:hover:bg-black/60 text-slate-600 dark:text-slate-400 font-bold rounded-lg sm:rounded-xl touch-feedback transition-all text-[10px] sm:text-xs uppercase tracking-widest flex items-center justify-center gap-1 sm:gap-1.5 border border-slate-200 dark:border-white/5 hover:border-blue-500/50 hover:text-blue-600 shadow-sm"
                 >
-                  <Chrome class="w-4 h-4 text-rose-500" />
+                  <OAuthLogos provider="google" :size="14" />
                   Google
                 </button>
                 <button
                   type="button"
                   @click="handleOAuthLogin('apple')"
                   :disabled="loading"
-                  class="h-11 sm:h-12 bg-slate-50 dark:bg-black/40 hover:bg-white dark:hover:bg-black/60 text-slate-600 dark:text-slate-400 font-bold rounded-xl touch-feedback transition-all text-xs-mobile uppercase tracking-widest flex items-center justify-center gap-2 border border-slate-200 dark:border-white/5 hover:border-blue-500/50 hover:text-blue-600 shadow-sm"
+                  class="h-8 sm:h-9 bg-slate-50 dark:bg-black/40 hover:bg-white dark:hover:bg-black/60 text-slate-600 dark:text-slate-400 font-bold rounded-lg sm:rounded-xl touch-feedback transition-all text-[10px] sm:text-xs uppercase tracking-widest flex items-center justify-center gap-1 sm:gap-1.5 border border-slate-200 dark:border-white/5 hover:border-blue-500/50 hover:text-blue-600 shadow-sm"
                 >
-                  <Apple class="w-4 h-4" />
+                  <OAuthLogos provider="apple" :size="14" class="text-slate-800 dark:text-white" />
                   Apple ID
                 </button>
               </div>
             </form>
           </div>
 
-          <div v-else class="space-y-5 sm:space-y-6 animate-in slide-in-from-bottom duration-500">
-            <div class="text-center mb-5 sm:mb-6">
-              <div class="w-14 h-14 sm:w-16 sm:h-16 bg-blue-600/10 flex items-center justify-center rounded-3xl mx-auto mb-3 sm:mb-4 border border-blue-500/20 shadow-inner">
-                <Shield class="w-7 h-7 sm:w-8 sm:h-8 text-blue-600 animate-pulse" />
+          <div v-else class="space-y-2.5 sm:space-y-3 animate-in slide-in-from-bottom duration-500">
+            <div class="text-center mb-3 sm:mb-4">
+              <div class="w-10 h-10 sm:w-12 sm:h-12 bg-blue-600/10 flex items-center justify-center rounded-xl sm:rounded-2xl mx-auto mb-1.5 sm:mb-2 border border-blue-500/20 shadow-inner">
+                <Shield class="w-5 h-5 sm:w-6 sm:h-6 text-blue-600 animate-pulse" />
               </div>
-              <h2 class="text-lg sm:text-xl font-black text-slate-900 dark:text-slate-100 tracking-tight">二次身份核验</h2>
-              <p class="text-xs-mobile text-slate-500 font-bold uppercase tracking-widest mt-1">AUTHORIZED PERSONNEL ONLY</p>
+              <h2 class="text-base sm:text-lg font-black text-slate-900 dark:text-slate-100 tracking-tight">二次身份核验</h2>
+              <p class="text-[10px] sm:text-xs text-slate-500 font-bold uppercase tracking-widest mt-0.5">AUTHORIZED PERSONNEL ONLY</p>
             </div>
 
-            <div class="space-y-1.5">
-              <label class="text-xs-mobile font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">动态安全令牌</label>
+            <div class="space-y-0.5">
+              <label class="text-[10px] sm:text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">动态安全令牌</label>
               <div class="relative group">
-                <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-blue-500">
-                  <Fingerprint class="w-4 h-4" />
+                <div class="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-400 group-focus-within:text-blue-500">
+                  <Fingerprint class="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </div>
                 <input
                   v-model="twoFactorCode"
                   type="text"
                   maxlength="6"
                   required
-                  class="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-slate-100 pl-11 pr-4 py-5 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all text-center tracking-[0.6em] font-black text-2xl font-mono shadow-inner"
+                  class="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-slate-100 pl-9 pr-2.5 py-3 sm:py-4 rounded-xl sm:rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all text-center tracking-[0.6em] font-black text-lg sm:text-xl font-mono shadow-inner"
                   placeholder="------"
                   @keyup.enter="handle2FAVerify"
                 />
@@ -368,10 +398,10 @@ const handleOAuthLogin = (provider: 'github' | 'ms' | 'google' | 'apple') => {
             <button
               @click="handle2FAVerify"
               :disabled="loading"
-              class="w-full h-12 sm:h-14 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white rounded-2xl font-black transition-all shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2 touch-feedback"
+              class="w-full h-9 sm:h-10 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white rounded-xl sm:rounded-2xl font-black transition-all shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2 touch-feedback text-xs sm:text-sm"
             >
               <template v-if="loading">
-                <Loader2 class="w-5 h-5 animate-spin" />
+                <Loader2 class="w-4 h-4 animate-spin" />
                 验证中...
               </template>
               <template v-else>
@@ -381,14 +411,14 @@ const handleOAuthLogin = (provider: 'github' | 'ms' | 'google' | 'apple') => {
 
             <button
               @click="show2FA = false"
-              class="w-full text-xs-mobile font-black text-slate-400 hover:text-slate-600 uppercase tracking-widest transition-colors touch-feedback"
+              class="w-full text-[10px] sm:text-xs font-black text-slate-400 hover:text-slate-600 uppercase tracking-widest transition-colors touch-feedback"
             >
               ← 返回基础授权
             </button>
           </div>
 
-          <div class="mt-6 sm:mt-8 pt-6 sm:pt-8 border-t border-slate-100 dark:border-white/5 text-center">
-            <p class="text-xs-mobile font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+          <div class="mt-4 sm:mt-5 pt-4 sm:pt-5 border-t border-slate-100 dark:border-white/5 text-center">
+            <p class="text-[10px] sm:text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
               还不是正式研究员？
               <router-link to="/register" class="text-blue-600 hover:text-blue-500">提交申请</router-link>
             </p>

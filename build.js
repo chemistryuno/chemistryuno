@@ -143,6 +143,31 @@ taskkill /F /IM ${backendBinary} > nul 2>&1
 `
     : `#!/bin/bash
 echo "Starting Chemistry UNO V1.2.0 Mendeleef..."
+
+# 检查 .env 文件
+if [ ! -f .env ]; then
+    echo ""
+    echo "⚠️  警告: 未找到 .env 配置文件"
+    echo ""
+    if [ -f .env.example ]; then
+        echo "正在从 .env.example 创建 .env 文件..."
+        cp .env.example .env
+        echo "✓ 已创建 .env 文件"
+        echo ""
+        echo "⚠️  重要提示:"
+        echo "   1. 请编辑 .env 文件，配置您的数据库、OAuth 等信息"
+        echo "   2. 至少需要设置 JWT_SECRET（程序启动时会自动生成）"
+        echo "   3. 如需使用 OAuth 登录，请配置相应的 CLIENT_ID 和 SECRET"
+        echo ""
+        echo "按 Ctrl+C 退出，或按任意键继续使用默认配置启动..."
+        read -n 1 -s
+    else
+        echo "❌ 错误: .env.example 文件也不存在"
+        echo "请确保在正确的目录中运行此脚本"
+        exit 1
+    fi
+fi
+
 ./${backendBinary} &
 PID=$!
 echo "Server started at http://localhost:8080"
@@ -159,6 +184,32 @@ wait $PID
 
   // 创建README
   const readme = `# Chemistry UNO V1.2.0 Mendeleef
+
+## 快速开始
+
+### 首次部署（Linux/macOS）
+
+\`\`\`bash
+# 1. 解压发布包
+cd dist
+
+# 2. 配置环境变量（首次运行必须）
+cp .env.example .env
+nano .env  # 或使用 vim/vi 编辑
+
+# 3. 启动服务
+chmod +x start.sh chemistryuno
+./start.sh
+\`\`\`
+
+### 首次部署（Windows）
+
+\`\`\`
+1. 进入 dist 目录
+2. 复制 .env.example 为 .env
+3. 编辑 .env 文件配置
+4. 双击 start.bat 启动
+\`\`\`
 
 ## 运行说明
 
@@ -185,6 +236,56 @@ start.bat
 
 ## 配置说明
 
+### 必须配置（首次运行）
+
+⚠️ **在 Linux/生产环境部署时，必须先配置 .env 文件！**
+
+\`\`\`bash
+# 从示例文件创建配置
+cp .env.example .env
+
+# 编辑配置文件
+nano .env  # Linux/macOS
+# 或
+notepad .env  # Windows
+\`\`\`
+
+### OAuth 配置检查
+
+如果 OAuth 登录按钮不显示，请检查：
+
+1. **.env 文件是否存在**
+   \`\`\`bash
+   # Linux: 检查文件
+   ls -la .env
+   cat .env | grep CLIENT_ID
+   \`\`\`
+
+2. **OAuth 配置是否填写**
+   \`\`\`bash
+   # GitHub OAuth
+   GITHUB_CLIENT_ID=your_client_id
+   GITHUB_CLIENT_SECRET=your_client_secret
+   GITHUB_REDIRECT_URI=https://yourdomain.com/api/auth/github/callback
+
+   # Microsoft OAuth
+   MS_CLIENT_ID=your_client_id
+   MS_CLIENT_SECRET=your_client_secret
+   MS_REDIRECT_URI=https://yourdomain.com/api/auth/ms/callback
+
+   # Google OAuth
+   GOOGLE_CLIENT_ID=your_client_id
+   GOOGLE_CLIENT_SECRET=your_client_secret
+   GOOGLE_REDIRECT_URI=https://yourdomain.com/api/auth/google/callback
+   \`\`\`
+
+3. **验证配置是否生效**
+   \`\`\`bash
+   # 启动后访问
+   curl http://localhost:8080/api/auth/config
+   # 应返回: {"github_enabled":true,"ms_enabled":true,...}
+   \`\`\`
+
 ### 环境变量配置
 
 首次运行前，请将 \`.env.example\` 复制为 \`.env\` 并根据需要修改配置：
@@ -205,7 +306,7 @@ cp .env.example .env
 - \`MYSQL_DSN\`: MySQL连接字符串
 
 **安全配置**：
-- \`JWT_SECRET\`: JWT密钥（如未设置会自动生成）
+- \`JWT_SECRET\`: JWT密钥（首次启动会自动生成，也可手动设置）
 - \`REDIS_ADDR\`: Redis地址（如 localhost:6379，可选）
 - \`REDIS_PASSWORD\`: Redis密码（可选）
 
@@ -222,6 +323,7 @@ cp .env.example .env
 
 **OAuth 配置** (可选)：
 - GitHub、Microsoft、Google、Apple OAuth 相关配置
+- 如果不配置 CLIENT_ID，对应的 OAuth 登录按钮会自动隐藏
 
 ### 生产环境建议
 
@@ -247,6 +349,37 @@ cp .env.example .env
    WEBAUTHN_RPID=yourdomain.com
    WEBAUTHN_ORIGIN=https://yourdomain.com
    \`\`\`
+
+## 常见问题
+
+### Q: OAuth 登录按钮不显示？
+
+**A:** 请检查以下几点：
+
+1. 确认 .env 文件存在且已配置 OAuth CLIENT_ID
+2. 重启服务器
+3. 检查浏览器控制台是否有错误
+4. 访问 \`http://localhost:8080/api/auth/config\` 确认配置已加载
+
+### Q: Linux 环境下服务无法启动？
+
+**A:** 请确保：
+
+1. 已创建 .env 文件: \`cp .env.example .env\`
+2. 二进制文件有执行权限: \`chmod +x chemistryuno\`
+3. start.sh 有执行权限: \`chmod +x start.sh\`
+
+### Q: 如何查看服务器日志？
+
+**A:**
+\`\`\`bash
+# 直接运行查看实时日志
+./chemistryuno
+
+# 后台运行并记录日志
+./chemistryuno > server.log 2>&1 &
+tail -f server.log
+\`\`\`
 
 ## 技术栈
 

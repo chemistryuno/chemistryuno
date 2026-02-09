@@ -1,6 +1,6 @@
 {
   "name": "chemistryuno-mendeleef",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "private": true,
   "scripts": {
     "init": "node init.js",
@@ -23,7 +23,7 @@
     "clean": "node -e \"const fs = require('fs'); ['chemistryuno.db', 'chemistryuno.exe', 'chemistryuno', 'dist'].forEach(f => { try { if (fs.existsSync(f)) { if (fs.statSync(f).isDirectory()) { fs.rmSync(f, {recursive: true}); } else { fs.unlinkSync(f); } } } catch(e) {} })\"",
     "clean:all": "pnpm clean && node -e \"const fs = require('fs'); ['frontend/node_modules', 'frontend/dist', 'frontend/.vite'].forEach(f => { try { if (fs.existsSync(f)) { fs.rmSync(f, {recursive: true}); } } catch(e) {} })\""
   },
-  "description": "Chemistry UNO V1.0.0 Mendeleef - 化学元素版UNO游戏 (正式版)",
+  "description": "Chemistry UNO V1.2.0 Mendeleef - 化学元素版UNO游戏",
   "keywords": ["game", "uno", "chemistry", "vue", "go"],
   "author": "TomKe & Copilot",
   "license": "MIT"

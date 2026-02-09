@@ -5,7 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 
-console.log('🏗️  构建 Chemistry UNO V1.0.0 Mendeleef (PRODUCTION)...\n');
+console.log('🏗️  构建 Chemistry UNO V1.2.0 Mendeleef (PRODUCTION)...\n');
 
 const isWindows = process.platform === 'win32';
 
@@ -15,7 +15,60 @@ if (!fs.existsSync(distDir)) {
   fs.mkdirSync(distDir, { recursive: true });
 }
 
-// 1. 构建后端
+// 1. 构建前端
+console.log('🎨 构建前端 (Vue + Vite)...');
+const frontendPath = path.join(__dirname, 'frontend');
+
+try {
+  const buildCmd = `pnpm build`;
+
+  execSync(buildCmd, {
+    cwd: frontendPath,
+    stdio: 'inherit',
+    shell: true
+  });
+  console.log('✅ 前端构建成功: frontend/dist/\n');
+} catch (err) {
+  console.error('❌ 前端构建失败:', err.message);
+  process.exit(1);
+}
+
+// 2. 复制前端文件到 backend/static/dist
+console.log('📋 复制前端文件到 backend/static/dist...');
+try {
+  const frontendDist = path.join(frontendPath, 'dist');
+  const backendStaticDist = path.join(__dirname, 'backend', 'static', 'dist');
+
+  // 删除旧的 backend/static/dist
+  if (fs.existsSync(backendStaticDist)) {
+    fs.rmSync(backendStaticDist, { recursive: true, force: true });
+  }
+
+  // 递归复制目录
+  function copyDir(src, dest) {
+    if (!fs.existsSync(dest)) {
+      fs.mkdirSync(dest, { recursive: true });
+    }
+    const entries = fs.readdirSync(src, { withFileTypes: true });
+    for (let entry of entries) {
+      const srcPath = path.join(src, entry.name);
+      const destPath = path.join(dest, entry.name);
+      if (entry.isDirectory()) {
+        copyDir(srcPath, destPath);
+      } else {
+        fs.copyFileSync(srcPath, destPath);
+      }
+    }
+  }
+
+  copyDir(frontendDist, backendStaticDist);
+  console.log('✅ 前端文件已复制到 backend/static/dist\n');
+} catch (err) {
+  console.error('❌ 复制前端文件失败:', err.message);
+  process.exit(1);
+}
+
+// 3. 构建后端
 console.log('📦 构建后端 (Go)...');
 const backendBinary = isWindows ? 'chemistryuno.exe' : 'chemistryuno';
 const backendOutput = path.join(__dirname, backendBinary);
@@ -40,25 +93,7 @@ try {
   process.exit(1);
 }
 
-// 2. 构建前端
-console.log('🎨 构建前端 (Vue + Vite)...');
-const frontendPath = path.join(__dirname, 'frontend');
-
-try {
-  const buildCmd = `pnpm build`;
-
-  execSync(buildCmd, { 
-    cwd: frontendPath, 
-    stdio: 'inherit', 
-    shell: true 
-  });
-  console.log('✅ 前端构建成功: frontend/dist/\n');
-} catch (err) {
-  console.error('❌ 前端构建失败:', err.message);
-  process.exit(1);
-}
-
-// 3. 复制构建产物到dist目录
+// 4. 复制构建产物到dist目录
 console.log('📂 整理构建产物...');
 try {
   // 复制后端二进制
@@ -98,7 +133,7 @@ try {
   // 创建启动脚本
   const startScript = isWindows
     ? `@echo off
-echo Starting Chemistry UNO V1.0.0 Mendeleef...
+echo Starting Chemistry UNO V1.2.0 Mendeleef...
 start ${backendBinary}
 echo Server started at http://localhost:8080
 echo.
@@ -107,7 +142,7 @@ pause > nul
 taskkill /F /IM ${backendBinary} > nul 2>&1
 `
     : `#!/bin/bash
-echo "Starting Chemistry UNO V1.0.0 Mendeleef..."
+echo "Starting Chemistry UNO V1.2.0 Mendeleef..."
 ./${backendBinary} &
 PID=$!
 echo "Server started at http://localhost:8080"
@@ -123,7 +158,7 @@ wait $PID
   }
 
   // 创建README
-  const readme = `# Chemistry UNO V1.0.0 Mendeleef
+  const readme = `# Chemistry UNO V1.2.0 Mendeleef
 
 ## 运行说明
 

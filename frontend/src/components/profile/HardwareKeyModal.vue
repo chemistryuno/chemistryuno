@@ -160,7 +160,7 @@ onMounted(() => {
             {{ registering ? '正在等待硬件响应...' : '添加新硬件密钥' }}
           </button>
           <p class="text-[10px] text-slate-400 text-center mt-4 uppercase tracking-widest font-bold">
-            Chemistry Uno Security Framework V1.0 - WebAuthn Protocol
+            Chemistry Uno Security Framework V1.2.0 - WebAuthn Protocol
           </p>
         </div>
       </div>

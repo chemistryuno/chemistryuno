@@ -1014,7 +1014,7 @@ onMounted(() => {
                     <span v-else class="text-xs-mobile font-black uppercase text-red-500 animate-pulse tracking-tighter">OFFLINE</span>
                   </template>
                   <template v-else>
-                    <span :class="cn('text-xs-mobile font-black uppercase tracking-widest', player.is_ready ? 'text-emerald-500' : 'text-slate-400')">
+                    <span :class="cn('text-[10px] font-black uppercase tracking-widest', player.is_ready ? 'text-emerald-500' : 'text-slate-400')">
                        {{ player.is_ready ? 'READY' : 'WAIT' }}
                     </span>
                   </template>

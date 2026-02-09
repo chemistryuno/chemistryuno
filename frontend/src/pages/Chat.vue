@@ -357,7 +357,7 @@ const formatTime = (date: Date) => {
 </script>
 
 <template>
-  <div class="min-h-0 h-full max-h-screen bg-slate-50 dark:bg-[#0a0a0c] text-white flex flex-col transition-colors duration-500 overflow-hidden">
+  <div class="h-[100dvh] bg-slate-50 dark:bg-[#0a0a0c] text-white flex flex-col transition-colors duration-500 overflow-hidden">
     <!-- Header -->
     <header class="h-12 sm:h-14 bg-white/70 dark:bg-black/20 backdrop-blur-xl border-b border-slate-200 dark:border-white/5 flex items-center px-3 sm:px-4 shrink-0 relative z-30">
       <div class="flex items-center gap-2 sm:gap-3 w-full">

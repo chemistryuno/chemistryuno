@@ -1031,16 +1031,40 @@ func StartGame(roomID string, uid int) error {
 	})
 
 	// 计算每个玩家应当获得相同的初始手牌数
-	numPlayers := len(shuffledPlayers)
 	initialCardsCount := gameRoom.Room.DeckConfig.InitialCards
 	if initialCardsCount <= 0 {
 		initialCardsCount = 10 // 容错
 	}
-	if len(gameRoom.GameState.DrawPile) < numPlayers*initialCardsCount {
-		initialCardsCount = len(gameRoom.GameState.DrawPile) / numPlayers
+
+	// 从 reactions 表的 r1 和 r2 字段提取所有物质，构建初始手牌池
+	reactionRepo := repository.NewReactionRepository()
+	approvedReactions, err := reactionRepo.FindApprovedReactions()
+
+	// 提取所有不重复的物质
+	substanceSet := make(map[string]bool)
+	for _, reaction := range approvedReactions {
+		if reaction.R1 != "" {
+			substanceSet[reaction.R1] = true
+		}
+		if reaction.R2 != "" {
+			substanceSet[reaction.R2] = true
+		}
 	}
 
+	// 转换为切片并随机打乱
+	availableSubstances := make([]string, 0, len(substanceSet))
+	for substance := range substanceSet {
+		availableSubstances = append(availableSubstances, substance)
+	}
+	rand.Shuffle(len(availableSubstances), func(i, j int) {
+		availableSubstances[i], availableSubstances[j] = availableSubstances[j], availableSubstances[i]
+	})
+
+	log.Printf("[初始手牌] 从 %d 个已批准反应中提取了 %d 种不同的物质作为手牌池",
+		len(approvedReactions), len(availableSubstances))
+
 	// 初始化玩家
+	substanceIndex := 0
 	for _, pid := range shuffledPlayers {
 		user, err := repository.UserRepo.FindByUID(uint(pid))
 		username := ""
@@ -1064,13 +1088,38 @@ func StartGame(roomID string, uid int) error {
 			ActionProgress:        0,
 		}
 
-		// 发初始手牌
-		for i := 0; i < initialCardsCount && len(gameRoom.GameState.DrawPile) > 0; i++ {
-			card := gameRoom.GameState.DrawPile[0]
-			gameRoom.GameState.DrawPile = gameRoom.GameState.DrawPile[1:]
+		// 发初始手牌：优先从 reactions 物质池中选择
+		cardsDealt := 0
+		for i := 0; i < initialCardsCount; i++ {
+			var card models.Card
+
+			// 如果还有可用的物质，从物质池中选择
+			if substanceIndex < len(availableSubstances) {
+				substance := availableSubstances[substanceIndex]
+				substanceIndex++
+
+				card = models.Card{
+					Type:   substance,
+					Count:  1,
+					Effect: getCardEffect(substance),
+				}
+				cardsDealt++
+			} else if len(gameRoom.GameState.DrawPile) > 0 {
+				// 物质池用完了，从常规牌堆补充
+				card = gameRoom.GameState.DrawPile[0]
+				gameRoom.GameState.DrawPile = gameRoom.GameState.DrawPile[1:]
+				cardsDealt++
+			} else {
+				// 彻底没牌了
+				break
+			}
+
 			player.HandCards = append(player.HandCards, card)
 			player.CardCount++
 		}
+
+		log.Printf("[初始手牌] 玩家 %s (UID:%d) 获得 %d 张初始手牌",
+			username, pid, cardsDealt)
 
 		gameRoom.GameState.Players = append(gameRoom.GameState.Players, player)
 	}

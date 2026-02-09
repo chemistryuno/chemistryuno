@@ -375,7 +375,7 @@ const filteredHistory = computed(() => {
     <div class="fixed inset-0 overflow-hidden pointer-events-none">
       <div class="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-cyan-500/5 rounded-full blur-[120px] animate-pulse" />
       <div class="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-orange-500/5 rounded-full blur-[120px]" />
-      <div class="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 brightness-50 contrast-150 mix-blend-overlay" />
+      <div class="absolute inset-0 bg-[url('/noise.svg')] opacity-20 brightness-50 contrast-150 mix-blend-overlay" />
     </div>
 
     <div class="max-w-7xl mx-auto relative z-10">

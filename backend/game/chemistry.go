@@ -1,9 +1,9 @@
 ﻿package game
 
 import (
-	"chemistryuno/database"
-	"chemistryuno/models"
-	"chemistryuno/repository"
+	"chemistryuno/backend/database"
+	"chemistryuno/backend/models"
+	"chemistryuno/backend/repository"
 	"strings"
 )
 

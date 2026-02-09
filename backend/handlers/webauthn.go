@@ -2,10 +2,10 @@ package handlers
 
 import (
 	"bytes"
-	"chemistryuno/database"
-	"chemistryuno/models"
-	"chemistryuno/repository"
-	"chemistryuno/utils"
+	"chemistryuno/backend/database"
+	"chemistryuno/backend/models"
+	"chemistryuno/backend/repository"
+	"chemistryuno/backend/utils"
 	"encoding/base64"
 	"encoding/binary"
 	"fmt"

@@ -1,8 +1,8 @@
 ﻿package utils
 
 import (
-	"chemistryuno/database"
-	"chemistryuno/repository"
+	"chemistryuno/backend/database"
+	"chemistryuno/backend/repository"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"

@@ -1,9 +1,9 @@
 package handlers
 
 import (
-	"chemistryuno/database"
-	"chemistryuno/repository"
-	"chemistryuno/utils"
+	"chemistryuno/backend/database"
+	"chemistryuno/backend/repository"
+	"chemistryuno/backend/utils"
 	"context"
 	"encoding/base64"
 	"encoding/json"

@@ -130,124 +130,184 @@ const handleSubmit = async () => {
 </script>
 
 <template>
-  <div class="min-h-screen flex items-center justify-center p-4 bg-slate-50 dark:bg-[#1a1a1e] relative overflow-hidden font-sans">
-    <div class="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-500/5 rounded-full blur-[120px]"></div>
-    <div class="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-500/5 rounded-full blur-[120px]"></div>
+  <div class="min-h-screen flex items-center justify-center p-4 bg-slate-50 dark:bg-black relative overflow-hidden font-sans">
+    <!-- 实验性动态背景 -->
+    <div class="absolute inset-0 overflow-hidden pointer-events-none">
+      <div class="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-cyan-500/10 rounded-full blur-[120px] animate-pulse"></div>
+      <div class="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-blue-500/10 rounded-full blur-[120px] animate-pulse" style="animation-delay: 2s"></div>
+      <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full opacity-[0.03] dark:opacity-[0.05]" 
+           style="background-image: radial-gradient(#4f46e5 1px, transparent 1px); background-size: 40px 40px;"></div>
+    </div>
 
     <div class="w-full max-w-lg relative z-10 animate-in fade-in zoom-in duration-500">
-      <div class="glass-panel-light rounded-[40px] shadow-[0_20px_60px_rgba(0,0,0,0.1)] dark:shadow-[0_20px_60px_rgba(0,0,0,0.3)] overflow-hidden">
-        <div class="p-8 md:p-10">
-          <div class="flex flex-col items-center mb-8">
-            <div class="w-16 h-16 bg-blue-600 rounded-3xl flex items-center justify-center mb-4 shadow-lg transform -rotate-3 hover:rotate-0 transition-transform duration-500">
-              <FlaskConical class="w-8 h-8 text-white" />
+      <div class="bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl rounded-[32px] sm:rounded-[40px] shadow-2xl border border-white dark:border-white/10 overflow-hidden">
+        <div class="p-6 sm:p-8 md:p-12">
+          <div class="flex flex-col items-center mb-8 sm:mb-10">
+            <div class="relative group">
+              <div class="absolute -inset-4 bg-gradient-to-tr from-cyan-500 to-blue-600 rounded-full blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
+              <div class="relative w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-tr from-cyan-600 to-blue-700 rounded-3xl flex items-center justify-center mb-4 sm:mb-6 shadow-xl transform rotate-3 group-hover:rotate-0 transition-transform duration-500">
+                <FlaskConical class="w-8 h-8 sm:w-10 sm:h-10 text-white animate-bounce-slow" />
+              </div>
             </div>
-            <h1 class="text-3xl font-black text-slate-900 dark:text-white tracking-tighter">
-              加入<span class="text-blue-600">实验室</span>
+            <h1 class="text-3xl sm:text-4xl md:text-5xl font-black text-slate-900 dark:text-white tracking-tighter">
+              研究员<span class="text-transparent bg-clip-text bg-gradient-to-r from-cyan-500 to-blue-600">入职</span>
             </h1>
-            <p class="text-slate-500 dark:text-slate-400 text-sm mt-2 font-medium">创建您的研究员账户</p>
+            <p class="text-slate-500 dark:text-slate-400 text-xs sm:text-sm mt-2 sm:mt-3 font-bold uppercase tracking-[0.2em]">创建实验室访问凭证</p>
           </div>
 
-          <form @submit.prevent="handleSubmit" class="space-y-4">
-            <div v-if="error" class="flex items-center gap-2 p-4 bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 text-red-600 text-sm rounded-2xl animate-shake">
-              <div class="w-2 h-2 rounded-full bg-red-400"></div>
+          <form @submit.prevent="handleSubmit" class="space-y-4 sm:space-y-5">
+            <div v-if="error" class="flex items-center gap-3 p-4 sm:p-5 bg-red-500/10 border border-red-500/20 text-red-500 text-sm rounded-2xl animate-shake font-bold">
+              <div class="w-2 h-2 rounded-full bg-red-500 animate-ping"></div>
               {{ error }}
             </div>
 
             <div v-if="!smtpEnabled" class="relative group">
-              <div class="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-blue-500 transition-colors">
-                <User :size="18" :stroke-width="2.5" />
+              <div class="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-cyan-500 transition-colors">
+                <User :size="20" />
               </div>
               <input
                 v-model="username"
                 type="text"
                 required
-                class="w-full pl-12 pr-4 py-4 bg-slate-100/50 dark:bg-black/40 border-2 border-transparent focus:border-blue-500 focus:bg-white dark:focus:bg-black/60 rounded-2xl text-slate-900 dark:text-slate-100 placeholder:text-slate-500/70 font-bold outline-none transition-all text-sm"
-                placeholder="用户名 (登录账号)"
+                class="w-full pl-14 pr-6 py-5 bg-slate-100/50 dark:bg-black/40 border-2 border-transparent focus:border-cyan-500 focus:bg-white dark:focus:bg-black/60 rounded-2xl text-slate-900 dark:text-slate-100 placeholder:text-slate-500/50 font-bold outline-none transition-all text-base"
+                placeholder="设定登录名 (Username)"
               />
             </div>
 
             <div v-else class="space-y-4">
               <div class="relative group">
-                <div class="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-blue-500 transition-colors">
-                  <Mail :size="18" :stroke-width="2.5" />
+                <div class="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-cyan-500 transition-colors">
+                  <Mail :size="20" />
                 </div>
                 <input
                   v-model="email"
                   type="email"
                   required
-                  class="w-full pl-12 pr-4 py-4 bg-slate-100/50 dark:bg-black/40 border-2 border-transparent focus:border-blue-500 focus:bg-white dark:focus:bg-black/60 rounded-2xl text-slate-900 dark:text-slate-100 placeholder:text-slate-500/70 font-bold outline-none transition-all text-sm"
-                  placeholder="电子邮箱 (登录凭据)"
+                  class="w-full pl-14 pr-6 py-5 bg-slate-100/50 dark:bg-black/40 border-2 border-transparent focus:border-cyan-500 focus:bg-white dark:focus:bg-black/60 rounded-2xl text-slate-900 dark:text-slate-100 placeholder:text-slate-500/50 font-bold outline-none transition-all text-base"
+                  placeholder="实验室联系邮箱 (Email)"
                 />
               </div>
 
               <div class="relative group flex gap-3">
-                <div class="relative flex-1 group">
-                  <div class="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-blue-500 transition-colors">
-                    <ShieldCheck :size="18" :stroke-width="2.5" />
+                <div class="relative flex-1">
+                  <div class="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-cyan-500 transition-colors">
+                    <ShieldCheck :size="20" />
                   </div>
                   <input
                     v-model="code"
                     type="text"
                     required
-                    class="w-full pl-12 pr-4 py-4 bg-slate-100/50 dark:bg-black/40 border-2 border-transparent focus:border-blue-500 focus:bg-white dark:focus:bg-black/60 rounded-2xl text-slate-900 dark:text-slate-100 placeholder:text-slate-500/70 font-bold outline-none transition-all text-sm"
-                    placeholder="验证码"
+                    class="w-full pl-14 pr-6 py-5 bg-slate-100/50 dark:bg-black/40 border-2 border-transparent focus:border-cyan-500 focus:bg-white dark:focus:bg-black/60 rounded-2xl text-slate-900 dark:text-slate-100 placeholder:text-slate-500/50 font-bold outline-none transition-all text-base"
+                    placeholder="通讯校验码"
                   />
                 </div>
                 <button
                   type="button"
                   @click="handleSendCode"
                   :disabled="codeLoading || countdown > 0"
-                  class="px-6 rounded-2xl font-black text-xs uppercase tracking-widest transition-all bg-slate-200 dark:bg-white/5 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  class="px-6 rounded-2xl font-black text-xs uppercase tracking-widest transition-all bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 hover:bg-cyan-500/20 disabled:opacity-50 border border-cyan-500/20 flex items-center gap-2"
                 >
-                  <Send v-if="!codeLoading" class="w-4 h-4" />
-                  <Loader2 v-else class="w-4 h-4 animate-spin" />
-                  {{ countdown > 0 ? `${countdown}s` : '获取验证码' }}
+                  {{ countdown > 0 ? `${countdown}S` : '发送指令' }}
                 </button>
               </div>
             </div>
 
             <div class="relative group">
-              <div class="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-blue-500 transition-colors">
-                <FlaskConical :size="18" :stroke-width="2.5" />
+              <div class="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-cyan-500 transition-colors">
+                <FlaskConical :size="20" />
               </div>
               <input
                 v-model="nickname"
                 type="text"
                 required
-                class="w-full pl-12 pr-4 py-4 bg-slate-100/50 dark:bg-black/40 border-2 border-transparent focus:border-blue-500 focus:bg-white dark:focus:bg-black/60 rounded-2xl text-slate-900 dark:text-slate-100 placeholder:text-slate-500/70 font-bold outline-none transition-all text-sm"
-                placeholder="研究员昵称 (公开展示)"
+                class="w-full pl-14 pr-6 py-5 bg-slate-100/50 dark:bg-black/40 border-2 border-transparent focus:border-cyan-500 focus:bg-white dark:focus:bg-black/60 rounded-2xl text-slate-900 dark:text-slate-100 placeholder:text-slate-500/50 font-bold outline-none transition-all text-base"
+                placeholder="显示昵称 (Researcher Name)"
               />
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div class="relative group">
-                <div class="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-blue-500 transition-colors">
-                  <Lock :size="18" :stroke-width="2.5" />
+                <div class="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors">
+                  <Lock :size="20" />
                 </div>
                 <input
                   v-model="password"
                   type="password"
                   required
-                  class="w-full pl-12 pr-4 py-4 bg-slate-100/50 dark:bg-black/40 border-2 border-transparent focus:border-blue-500 focus:bg-white dark:focus:bg-black/60 rounded-2xl text-slate-900 dark:text-slate-100 placeholder:text-slate-500/70 font-bold outline-none transition-all text-sm"
-                  placeholder="设定密码 (至少6位)"
+                  class="w-full pl-14 pr-6 py-5 bg-slate-100/50 dark:bg-black/40 border-2 border-transparent focus:border-blue-500 focus:bg-white dark:focus:bg-black/60 rounded-2xl text-slate-900 dark:text-slate-100 placeholder:text-slate-500/50 font-bold outline-none transition-all text-base"
+                  placeholder="入职密钥"
                 />
               </div>
 
               <div class="relative group">
-                <div class="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-blue-500 transition-colors">
-                  <ShieldCheck :size="18" :stroke-width="2.5" />
+                <div class="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors">
+                  <ShieldCheck :size="20" />
                 </div>
                 <input
                   v-model="confirmPassword"
                   type="password"
                   required
-                  class="w-full pl-12 pr-4 py-4 bg-slate-100/50 dark:bg-black/40 border-2 border-transparent focus:border-blue-500 focus:bg-white dark:focus:bg-black/60 rounded-2xl text-slate-900 dark:text-slate-100 placeholder:text-slate-500/70 font-bold outline-none transition-all text-sm"
-                  placeholder="确认密码"
+                  class="w-full pl-14 pr-6 py-5 bg-slate-100/50 dark:bg-black/40 border-2 border-transparent focus:border-blue-500 focus:bg-white dark:focus:bg-black/60 rounded-2xl text-slate-900 dark:text-slate-100 placeholder:text-slate-500/50 font-bold outline-none transition-all text-base"
+                  placeholder="确认密钥"
                 />
               </div>
             </div>
 
             <button
+              type="submit"
+              :disabled="loading"
+              class="w-full h-14 sm:h-16 bg-gradient-to-r from-cyan-600 to-blue-700 hover:from-cyan-500 hover:to-blue-600 disabled:from-slate-600 disabled:to-slate-700 text-white rounded-2xl font-black text-base sm:text-lg shadow-xl shadow-cyan-500/20 transition-all flex items-center justify-center gap-3 touch-feedback mt-4"
+            >
+              <template v-if="loading">
+                <Loader2 class="w-6 h-6 animate-spin" />
+                协议签署中...
+              </template>
+              <template v-else>
+                签署入职协议
+              </template>
+            </button>
+
+            <div class="relative flex items-center py-3 sm:py-4">
+              <div class="flex-grow border-t border-slate-100 dark:border-white/5"></div>
+              <span class="flex-shrink mx-4 text-xs-mobile font-black text-slate-400 dark:text-slate-600 uppercase tracking-[0.3em]">其他接入方式</span>
+              <div class="flex-grow border-t border-slate-100 dark:border-white/5"></div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                @click="handleOAuthLogin('github')"
+                :disabled="loading"
+                class="h-12 sm:h-14 bg-slate-50 dark:bg-black/40 hover:bg-white dark:hover:bg-black/60 text-slate-600 dark:text-slate-400 font-bold rounded-2xl touch-feedback transition-all text-xs-mobile uppercase tracking-widest flex items-center justify-center gap-3 border border-slate-200 dark:border-white/5 hover:border-cyan-500/50"
+              >
+                <Github class="w-5 h-5 text-slate-800 dark:text-white" />
+                GitHub
+              </button>
+              <button
+                type="button"
+                @click="handleOAuthLogin('ms')"
+                :disabled="loading"
+                class="h-12 sm:h-14 bg-slate-50 dark:bg-black/40 hover:bg-white dark:hover:bg-black/60 text-slate-600 dark:text-slate-400 font-bold rounded-2xl touch-feedback transition-all text-xs-mobile uppercase tracking-widest flex items-center justify-center gap-3 border border-slate-200 dark:border-white/5 hover:border-blue-500/50"
+              >
+                <Globe class="w-5 h-5 text-blue-500" />
+                Microsoft
+              </button>
+            </div>
+          </form>
+
+          <div class="mt-8 sm:mt-10 text-center pt-6 sm:pt-8 border-t border-slate-100 dark:border-white/5">
+            <p class="text-slate-500 dark:text-slate-500 text-xs font-bold uppercase tracking-widest">
+              已有合法的研究员凭证？
+              <router-link to="/login" class="text-cyan-500 hover:text-cyan-400 transition-colors ml-2 border-b border-cyan-500/30">
+                立即返回登录
+              </router-link>
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
               type="submit"
               :disabled="loading"
               class="w-full py-4 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white rounded-2xl font-black text-lg shadow-[0_15px_30px_rgba(37,99,235,0.2)] dark:shadow-[0_15px_30px_rgba(37,99,235,0.3)] transition-all flex items-center justify-center gap-3 transform active:scale-[0.98] mt-4"

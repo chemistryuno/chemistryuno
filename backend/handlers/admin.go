@@ -1,11 +1,11 @@
 ﻿package handlers
 
 import (
-	"chemistryuno/database"
-	"chemistryuno/game"
-	"chemistryuno/models"
-	"chemistryuno/repository"
-	"chemistryuno/utils"
+	"chemistryuno/backend/database"
+	"chemistryuno/backend/game"
+	"chemistryuno/backend/models"
+	"chemistryuno/backend/repository"
+	"chemistryuno/backend/utils"
 	"encoding/json"
 	"fmt"
 	"log"

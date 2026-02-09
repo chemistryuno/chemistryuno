@@ -17,18 +17,17 @@ if (!fs.existsSync(distDir)) {
 
 // 1. 构建后端
 console.log('📦 构建后端 (Go)...');
-const backendPath = path.join(__dirname, 'backend');
 const backendBinary = isWindows ? 'chemistryuno.exe' : 'chemistryuno';
-const backendOutput = path.join(backendPath, backendBinary);
+const backendOutput = path.join(__dirname, backendBinary);
 
 try {
   // 设置跨平台的环境变量
   const env = { ...process.env, CGO_ENABLED: '0' };
   const buildCmd = `go build -ldflags="-s -w" -o ${backendBinary} main.go`;
 
-  execSync(buildCmd, { 
-    cwd: backendPath, 
-    stdio: 'inherit', 
+  execSync(buildCmd, {
+    cwd: __dirname,
+    stdio: 'inherit',
     shell: true,
     env: env
   });
@@ -89,6 +88,13 @@ try {
 
   copyDir(frontendDist, distFrontend);
 
+  // 复制 .env.example 到 dist 目录
+  const envExample = path.join(__dirname, '.env.example');
+  if (fs.existsSync(envExample)) {
+    fs.copyFileSync(envExample, path.join(distDir, '.env.example'));
+    console.log('✓ 已复制 .env.example 到 dist/ 目录');
+  }
+
   // 创建启动脚本
   const startScript = isWindows
     ? `@echo off
@@ -142,36 +148,77 @@ start.bat
 - **主页**: http://localhost:8080
 - **API文档**: http://localhost:8080/api
 
-## 默认账户
+## 配置说明
 
-- 用户名: admin
-- 密码: admin123
+### 环境变量配置
 
-## 配置
+首次运行前，请将 \`.env.example\` 复制为 \`.env\` 并根据需要修改配置：
 
-### 环境变量（可选）
+\`\`\`bash
+# Windows
+copy .env.example .env
 
-- \`JWT_SECRET\`: JWT密钥（如未设置会自动生成）
-- \`REDIS_ADDR\`: Redis地址（如 localhost:6379）
-- \`REDIS_PASSWORD\`: Redis密码
+# Linux/macOS
+cp .env.example .env
+\`\`\`
+
+### 主要配置项
+
+**数据库配置**：
 - \`DB_TYPE\`: 数据库类型（sqlite 或 mysql，默认 sqlite）
 - \`SQLITE_PATH\`: SQLite数据库路径（默认 ./chemistryuno.db）
 - \`MYSQL_DSN\`: MySQL连接字符串
 
-### Redis配置（可选）
+**安全配置**：
+- \`JWT_SECRET\`: JWT密钥（如未设置会自动生成）
+- \`REDIS_ADDR\`: Redis地址（如 localhost:6379，可选）
+- \`REDIS_PASSWORD\`: Redis密码（可选）
 
-Redis用于缓存和会话管理，不配置也可以正常运行。
+**WebAuthn 配置**：
+- \`WEBAUTHN_RPID\`: 域名（例如 localhost 或 yourdomain.com）
+- \`WEBAUTHN_ORIGIN\`: 完整URL（例如 http://localhost:8080）
 
-如需启用Redis：
-1. 安装Redis
-2. 设置环境变量 \`REDIS_ADDR=localhost:6379\`
-3. 重启服务
+**SMTP 邮箱配置** (可选)：
+- \`SMTP_HOST\`: SMTP服务器地址
+- \`SMTP_PORT\`: SMTP端口
+- \`SMTP_USER\`: 邮箱账号
+- \`SMTP_PASS\`: 邮箱密码
+- \`SMTP_FROM\`: 发件人地址
+
+**OAuth 配置** (可选)：
+- GitHub、Microsoft、Google、Apple OAuth 相关配置
+
+### 生产环境建议
+
+1. **使用 MySQL 数据库**：
+   \`\`\`env
+   DB_TYPE=mysql
+   MYSQL_DSN=root:password@tcp(localhost:3306)/chemistryuno?charset=utf8mb4&parseTime=True&loc=Local
+   \`\`\`
+
+2. **配置 Redis 缓存**（可选但推荐）：
+   \`\`\`env
+   REDIS_ADDR=localhost:6379
+   REDIS_PASSWORD=your_strong_password
+   \`\`\`
+
+3. **设置强 JWT 密钥**：
+   \`\`\`env
+   JWT_SECRET=your_at_least_32_chars_random_secret_key_here
+   \`\`\`
+
+4. **配置正确的 WebAuthn 域名**：
+   \`\`\`env
+   WEBAUTHN_RPID=yourdomain.com
+   WEBAUTHN_ORIGIN=https://yourdomain.com
+   \`\`\`
 
 ## 技术栈
 
 - 后端: Go 1.20+ (Gin框架)
 - 前端: Vue 3 + TypeScript + Vite
-- 数据库: SQLite (纯Go实现，无需CGO)
+- 数据库: SQLite (纯Go实现，无需CGO) / MySQL
+- 缓存: Redis (可选)
 - 实时通信: WebSocket
 
 ## 支持

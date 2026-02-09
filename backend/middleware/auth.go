@@ -1,8 +1,8 @@
 ﻿package middleware
 
 import (
-	"chemistryuno/repository"
-	"chemistryuno/utils"
+	"chemistryuno/backend/repository"
+	"chemistryuno/backend/utils"
 	"log"
 	"net/http"
 	"strings"

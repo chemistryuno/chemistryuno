@@ -13,6 +13,55 @@ body {
 
 @layer utilities {
 
+  /* ========== 移动端优化工具类 ========== */
+
+  /* 响应式字体系统 - 移动端最小11px保证可读性 */
+  .text-xs-mobile {
+    @apply text-[11px] sm:text-xs;
+  }
+
+  .text-sm-mobile {
+    @apply text-[13px] sm:text-sm;
+  }
+
+  .text-base-mobile {
+    @apply text-[15px] sm:text-base;
+  }
+
+  /* 触摸友好的最小目标尺寸 (44x44px标准) */
+  .btn-touch {
+    @apply min-h-[44px] min-w-[44px] sm:min-h-[40px] sm:min-w-[40px];
+  }
+
+  .icon-touch {
+    @apply w-5 h-5 sm:w-4 sm:h-4;
+  }
+
+  /* 响应式Padding - 移动端更大的呼吸空间 */
+  .p-mobile {
+    @apply p-4 sm:p-5 md:p-6;
+  }
+
+  .px-mobile {
+    @apply px-4 sm:px-5 md:px-6;
+  }
+
+  .py-mobile {
+    @apply py-3 sm:py-4 md:py-5;
+  }
+
+  /* 触摸反馈动画 */
+  .touch-feedback {
+    @apply active:scale-95 transition-transform duration-150;
+  }
+
+  /* 安全触摸间距 - 避免误触 */
+  .gap-touch {
+    @apply gap-2 sm:gap-1.5;
+  }
+
+  /* ========== 原有Card样式 ========== */
+
   /* Generic Card Styles */
   .uno-card {
     @apply relative border-2 transition-all duration-300 shadow-lg overflow-hidden backdrop-blur-md;

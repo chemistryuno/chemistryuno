@@ -1,9 +1,9 @@
 package main
 
 import (
-	"chemistryuno/database"
-	"chemistryuno/repository"
-	"chemistryuno/utils"
+	"chemistryuno/backend/database"
+	"chemistryuno/backend/repository"
+	"chemistryuno/backend/utils"
 	"fmt"
 	"log"
 	"os"

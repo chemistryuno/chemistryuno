@@ -1,7 +1,7 @@
 ﻿package websocket
 
 import (
-	"chemistryuno/repository"
+	"chemistryuno/backend/repository"
 	"encoding/json"
 	"log"
 	"time"

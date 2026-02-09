@@ -1,10 +1,10 @@
 ﻿package game
 
 import (
-	"chemistryuno/database"
-	"chemistryuno/models"
-	"chemistryuno/repository"
-	"chemistryuno/websocket"
+	"chemistryuno/backend/database"
+	"chemistryuno/backend/models"
+	"chemistryuno/backend/repository"
+	"chemistryuno/backend/websocket"
 	"encoding/json"
 	"errors"
 	"fmt"

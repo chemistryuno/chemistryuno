@@ -1,7 +1,7 @@
 package repository
 
 import (
-	"chemistryuno/database"
+	"chemistryuno/backend/database"
 
 	"gorm.io/gorm"
 )

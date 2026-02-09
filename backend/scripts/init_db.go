@@ -5,7 +5,7 @@ import (
 	"log"
 	"os"
 
-	"chemistryuno/database"
+	"chemistryuno/backend/database"
 )
 
 func main() {

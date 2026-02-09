@@ -1,9 +1,9 @@
 ﻿package handlers
 
 import (
-	"chemistryuno/database"
-	"chemistryuno/repository"
-	"chemistryuno/websocket"
+	"chemistryuno/backend/database"
+	"chemistryuno/backend/repository"
+	"chemistryuno/backend/websocket"
 	"net/http"
 	"time"
 

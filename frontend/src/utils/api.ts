@@ -55,6 +55,10 @@ export const authAPI = {
     api.post('/auth/reset-password', data),
   resetPasswordBy2FA: (data: any) =>
     api.post('/auth/2fa/reset-password', data),
+  beginWebAuthnLogin: (username: string = '') =>
+    api.get(`/auth/webauthn/login/begin${username ? `?username=${username}` : ''}`),
+  finishWebAuthnLogin: (credential: any, username: string = '') =>
+    api.post(`/auth/webauthn/login/finish${username ? `?username=${username}` : ''}`, credential),
   beginResetPasswordWebAuthn: (username: string) =>
     api.post('/auth/webauthn/reset-password/begin', { username }),
   finishResetPasswordWebAuthn: (username: string, newPassword: string, credential: any) =>

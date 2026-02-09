@@ -918,48 +918,48 @@ onMounted(() => {
         <div class="absolute top-0 left-0 w-full h-px bg-blue-500/20 shadow-[0_0_15px_rgba(59,130,246,0.5)] animate-scan"></div>
       </div>
 
-      <!-- Compressed Header -->
-      <header class="h-[56px] sm:h-[64px] bg-white/70 dark:bg-black/60 backdrop-blur-3xl border-b border-slate-200 dark:border-white/5 px-3 sm:px-6 flex items-center gap-3 z-50 sticky top-0 overflow-x-auto custom-scrollbar-hidden">
+      <!-- Compressed Header - 移动端优化 -->
+      <header class="h-14 sm:h-16 bg-white/70 dark:bg-black/60 backdrop-blur-3xl border-b border-slate-200 dark:border-white/5 px-3 sm:px-6 flex items-center gap-3 z-50 sticky top-0 overflow-x-auto custom-scrollbar-hidden">
         <div class="flex items-center gap-2 sm:gap-4 shrink-0">
-          <button 
-            @click="handleLeaveRoom" 
-            class="w-8 h-8 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-white/10 rounded-xl text-slate-500 hover:text-blue-500 transition-all"
+          <button
+            @click="handleLeaveRoom"
+            class="btn-touch flex items-center justify-center hover:bg-slate-100 dark:hover:bg-white/10 rounded-xl text-slate-500 hover:text-blue-500 transition-all touch-feedback"
           >
-            <ArrowLeft class="w-4 h-4 sm:w-5 sm:h-5" />
+            <ArrowLeft class="icon-touch" />
           </button>
           <div class="hidden xs:block">
-            <h2 class="text-[9px] font-black tracking-widest uppercase font-mono text-slate-400">Node: {{ id.substring(0, 6) }}</h2>
+            <h2 class="text-xs-mobile font-black tracking-widest uppercase font-mono text-slate-400">Node: {{ id.substring(0, 6) }}</h2>
             <div class="flex items-center gap-1">
-               <div :class="cn('w-1 h-1 rounded-full animate-pulse', roomInfo?.status === 'waiting' ? 'bg-amber-500' : 'bg-emerald-500')"></div>
-               <span class="text-[7px] font-black uppercase text-slate-500 tracking-tighter">{{ roomInfo?.status === 'waiting' ? 'Idle' : 'Active' }}</span>
+               <div :class="cn('w-1.5 h-1.5 sm:w-1 sm:h-1 rounded-full animate-pulse', roomInfo?.status === 'waiting' ? 'bg-amber-500' : 'bg-emerald-500')"></div>
+               <span class="text-xs-mobile font-black uppercase text-slate-500 tracking-tighter">{{ roomInfo?.status === 'waiting' ? 'Idle' : 'Active' }}</span>
             </div>
           </div>
         </div>
 
-        <!-- Players Horizontal Bar -->
-        <div class="flex-1 flex items-center gap-1.5 sm:gap-3 overflow-x-auto custom-scrollbar-hidden py-1">
+        <!-- Players Horizontal Bar - 移动端优化 -->
+        <div class="flex-1 flex items-center gap-2 sm:gap-1.5 overflow-x-auto custom-scrollbar-hidden py-1.5 sm:py-1">
           <template v-if="allPlayers.length > 0">
-            <div 
+            <div
               v-for="(player, index) in allPlayers"
               :key="player.uid || index"
               :class="cn(
-                'flex items-center gap-1.5 sm:gap-2 px-2 py-1 rounded-xl border transition-all shrink-0',
-                gameState?.current_player === index 
-                  ? 'bg-blue-600 shadow-md shadow-blue-500/10 ring-1 ring-blue-500/20 border-blue-500' 
+                'flex items-center gap-2 sm:gap-1.5 px-2.5 sm:px-2 py-1.5 sm:py-1 rounded-xl border transition-all shrink-0',
+                gameState?.current_player === index
+                  ? 'bg-blue-600 shadow-md shadow-blue-500/10 ring-1 ring-blue-500/20 border-blue-500'
                   : (gameState ? 'bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/5 opacity-60' : 'bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/10')
               )"
             >
-              <div class="relative w-6 h-6 sm:w-8 sm:h-8 shrink-0">
+              <div class="relative w-8 h-8 sm:w-7 sm:h-7 shrink-0">
                 <div :class="cn(
-                  'w-full h-full rounded-lg flex items-center justify-center text-xs border overflow-hidden relative',
+                  'w-full h-full rounded-lg flex items-center justify-center text-sm sm:text-xs border overflow-hidden relative',
                    gameState?.current_player === index ? 'bg-white text-blue-600 border-white/20' : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-white/10'
                 )">
                    <img v-if="player.avatar && player.avatar.startsWith('data:')" :src="player.avatar" class="w-full h-full object-cover" />
                    <span v-else>{{ player.avatar || '🧪' }}</span>
-                   
+
                    <!-- Offline Overlay -->
                    <div v-if="player.is_offline" class="absolute inset-0 bg-red-500/40 flex items-center justify-center backdrop-blur-[1px]">
-                      <Activity class="w-3.5 h-3.5 text-white animate-pulse" />
+                      <Activity class="w-4 h-4 sm:w-3.5 sm:h-3.5 text-white animate-pulse" />
                    </div>
                 </div>
                 <!-- Action Progress Dots (Only during gameplay) -->
@@ -969,52 +969,52 @@ onMounted(() => {
               </div>
               <div class="flex flex-col min-w-0">
                 <div class="flex items-center gap-1 leading-none">
-                  <span class="text-[8px] font-black truncate max-w-[40px] sm:max-w-[60px] tracking-tight" :class="gameState?.current_player === index ? 'text-white' : 'text-slate-500'">{{ player.username }}</span>
-                  <span class="text-[6px] font-mono opacity-40 shrink-0" :class="gameState?.current_player === index ? 'text-white' : 'text-slate-500'">#{{ player.uid }}</span>
-                  <Zap v-if="player.double_action_available" :class="cn('w-2 h-2 fill-current', gameState?.current_player === index ? 'text-amber-300' : 'text-amber-500')" />
+                  <span class="text-xs-mobile font-black truncate max-w-[50px] sm:max-w-[60px] tracking-tight" :class="gameState?.current_player === index ? 'text-white' : 'text-slate-500'">{{ player.username }}</span>
+                  <span class="text-[9px] sm:text-[7px] font-mono opacity-40 shrink-0" :class="gameState?.current_player === index ? 'text-white' : 'text-slate-500'">#{{ player.uid }}</span>
+                  <Zap v-if="player.double_action_available" :class="cn('w-2.5 h-2.5 sm:w-2 sm:h-2 fill-current', gameState?.current_player === index ? 'text-amber-300' : 'text-amber-500')" />
                   <!-- Player Actions -->
-                  <div class="flex items-center gap-0.5 ml-auto">
-                    <button v-if="Number(player.uid) !== Number(user.uid) && !isFriend(player.uid)" 
+                  <div class="flex items-center gap-1 ml-auto">
+                    <button v-if="Number(player.uid) !== Number(user.uid) && !isFriend(player.uid)"
                             @click.stop="handleAddFriend(player)"
-                            :class="cn('p-0.5 rounded transition-colors', gameState?.current_player === index ? 'hover:bg-white/20 text-white' : 'hover:bg-amber-500/20 text-amber-500')"
+                            :class="cn('p-1 sm:p-0.5 rounded transition-colors touch-feedback', gameState?.current_player === index ? 'hover:bg-white/20 text-white' : 'hover:bg-amber-500/20 text-amber-500')"
                             title="添加好友"
                     >
-                      <UserPlus class="w-2.5 h-2.5" />
+                      <UserPlus class="w-3.5 h-3.5 sm:w-2.5 sm:h-2.5" />
                     </button>
-                    <button v-if="Number(player.uid) !== Number(user.uid) && isFriend(player.uid)" 
+                    <button v-if="Number(player.uid) !== Number(user.uid) && isFriend(player.uid)"
                             @click.stop="startPrivateChat(player)"
-                            :class="cn('p-0.5 rounded transition-colors', gameState?.current_player === index ? 'hover:bg-white/20 text-white' : 'hover:bg-blue-500/20 text-blue-500')"
+                            :class="cn('p-1 sm:p-0.5 rounded transition-colors touch-feedback', gameState?.current_player === index ? 'hover:bg-white/20 text-white' : 'hover:bg-blue-500/20 text-blue-500')"
                             title="私聊"
                     >
-                      <MessageCircle class="w-2.5 h-2.5" />
+                      <MessageCircle class="w-3.5 h-3.5 sm:w-2.5 sm:h-2.5" />
                     </button>
                     <!-- Report Player -->
                     <button v-if="Number(player.uid) !== Number(user.uid)"
                             @click.stop="handleReportPlayer(player)"
-                            :class="cn('p-0.5 rounded transition-colors', gameState?.current_player === index ? 'hover:bg-white/20 text-white' : 'hover:bg-rose-500/20 text-rose-500')"
+                            :class="cn('p-1 sm:p-0.5 rounded transition-colors touch-feedback', gameState?.current_player === index ? 'hover:bg-white/20 text-white' : 'hover:bg-rose-500/20 text-rose-500')"
                             title="举报玩家"
                     >
-                      <Flag class="w-2.5 h-2.5" />
+                      <Flag class="w-3.5 h-3.5 sm:w-2.5 sm:h-2.5" />
                     </button>
                     <!-- Admin Actions -->
-                    <button v-if="user.is_admin && Number(player.uid) !== Number(user.uid)" 
-                            @click.stop="openAdminAction(player)" 
-                            :class="cn('p-0.5 rounded transition-colors', gameState?.current_player === index ? 'hover:bg-white/20 text-white' : 'hover:bg-red-500/20 text-red-500')"
+                    <button v-if="user.is_admin && Number(player.uid) !== Number(user.uid)"
+                            @click.stop="openAdminAction(player)"
+                            :class="cn('p-1 sm:p-0.5 rounded transition-colors touch-feedback', gameState?.current_player === index ? 'hover:bg-white/20 text-white' : 'hover:bg-red-500/20 text-red-500')"
                             title="管理玩家"
                     >
-                      <ShieldAlert class="w-2.5 h-2.5" />
+                      <ShieldAlert class="w-3.5 h-3.5 sm:w-2.5 sm:h-2.5" />
                     </button>
                   </div>
                 </div>
                 <!-- Status/Card Count -->
                 <div class="flex items-center gap-1">
                   <template v-if="gameState">
-                    <Trophy v-if="!player.is_offline" :class="cn('w-2 h-2', gameState?.current_player === index ? 'text-white' : 'text-slate-400')" />
-                    <span v-if="!player.is_offline" :class="cn('text-[7px] font-mono font-bold', gameState?.current_player === index ? 'text-white/80' : 'text-slate-400')">{{ player.card_count || 0 }}</span>
-                    <span v-else class="text-[6px] font-black uppercase text-red-500 animate-pulse tracking-tighter">OFFLINE</span>
+                    <Trophy v-if="!player.is_offline" :class="cn('w-2.5 h-2.5 sm:w-2 sm:h-2', gameState?.current_player === index ? 'text-white' : 'text-slate-400')" />
+                    <span v-if="!player.is_offline" :class="cn('text-xs-mobile font-mono font-bold', gameState?.current_player === index ? 'text-white/80' : 'text-slate-400')">{{ player.card_count || 0 }}</span>
+                    <span v-else class="text-xs-mobile font-black uppercase text-red-500 animate-pulse tracking-tighter">OFFLINE</span>
                   </template>
                   <template v-else>
-                    <span :class="cn('text-[6px] font-black uppercase tracking-widest', player.is_ready ? 'text-emerald-500' : 'text-slate-400')">
+                    <span :class="cn('text-xs-mobile font-black uppercase tracking-widest', player.is_ready ? 'text-emerald-500' : 'text-slate-400')">
                        {{ player.is_ready ? 'READY' : 'WAIT' }}
                     </span>
                   </template>
@@ -1023,39 +1023,39 @@ onMounted(() => {
             </div>
 
             <!-- Empty Slots in Top Bar -->
-            <div 
-              v-for="i in (roomInfo?.max_players || 0) - allPlayers.length" 
+            <div
+              v-for="i in (roomInfo?.max_players || 0) - allPlayers.length"
               :key="'empty-top-' + i"
-              class="flex items-center gap-1.5 px-2 py-1 rounded-xl border border-dashed border-slate-200 dark:border-white/5 opacity-30 shrink-0"
+              class="flex items-center gap-2 sm:gap-1.5 px-2.5 sm:px-2 py-1.5 sm:py-1 rounded-xl border border-dashed border-slate-200 dark:border-white/5 opacity-30 shrink-0"
             >
-              <div class="w-6 h-6 sm:w-8 sm:h-8 rounded-lg border border-dashed border-slate-300 dark:border-white/10 flex items-center justify-center">
-                 <Plus class="w-3 h-3 text-slate-400" />
+              <div class="w-8 h-8 sm:w-7 sm:h-7 rounded-lg border border-dashed border-slate-300 dark:border-white/10 flex items-center justify-center">
+                 <Plus class="w-4 h-4 sm:w-3 sm:h-3 text-slate-400" />
               </div>
               <div class="hidden sm:flex flex-col">
-                 <span class="text-[7px] font-black uppercase tracking-tighter text-slate-400">EMPTY_SLOT</span>
+                 <span class="text-xs-mobile font-black uppercase tracking-tighter text-slate-400">EMPTY_SLOT</span>
               </div>
             </div>
           </template>
-          <div v-else class="flex items-center gap-1.5 opacity-30 px-3">
-             <Loader2 class="w-3.5 h-3.5 animate-spin" />
-             <span class="text-[9px] font-black uppercase tracking-widest italic">Awaiting Peers...</span>
+          <div v-else class="flex items-center gap-2 opacity-30 px-3">
+             <Loader2 class="w-4 h-4 sm:w-3.5 sm:h-3.5 animate-spin" />
+             <span class="text-xs-mobile font-black uppercase tracking-widest italic">Awaiting Peers...</span>
           </div>
         </div>
 
         <!-- Global Status -->
-        <div class="flex items-center gap-2 pl-3 border-l border-slate-200 dark:border-white/10 shrink-0">
-          <div v-if="gameState?.status === 'playing'" class="flex items-center gap-1.5 px-2 py-1 bg-blue-500/10 border border-blue-500/20 rounded-lg">
-             <Activity class="w-3 h-3 text-blue-500" :class="timeRemaining <= 10 && 'animate-pulse'" />
-             <span class="font-mono font-black text-[10px] text-blue-500">{{ timeRemaining }}S</span>
+        <div class="flex items-center gap-2 sm:gap-1.5 pl-3 border-l border-slate-200 dark:border-white/10 shrink-0">
+          <div v-if="gameState?.status === 'playing'" class="flex items-center gap-1.5 px-2.5 sm:px-2 py-1 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+             <Activity class="w-3.5 h-3.5 sm:w-3 sm:h-3 text-blue-500" :class="timeRemaining <= 10 && 'animate-pulse'" />
+             <span class="font-mono font-black text-xs-mobile text-blue-500">{{ timeRemaining }}S</span>
           </div>
 
-          <button v-if="!roomInfo?.is_points_mode" @click="showHints = !showHints" class="w-8 h-8 flex items-center justify-center bg-slate-100 dark:bg-white/5 rounded-lg border border-slate-200 dark:border-white/10 text-slate-500 hover:text-blue-500">
-             <Sparkles class="w-3.5 h-3.5" :class="showHints && 'fill-current text-blue-500'" />
+          <button v-if="!roomInfo?.is_points_mode" @click="showHints = !showHints" class="btn-touch flex items-center justify-center bg-slate-100 dark:bg-white/5 rounded-lg border border-slate-200 dark:border-white/10 text-slate-500 hover:text-blue-500 touch-feedback">
+             <Sparkles class="icon-touch" :class="showHints && 'fill-current text-blue-500'" />
           </button>
 
-          <button @click="showChat = !showChat; hasNewMessage = false" class="w-8 h-8 relative flex items-center justify-center bg-slate-100 dark:bg-white/5 rounded-lg border border-slate-200 dark:border-white/10 text-slate-500 hover:text-blue-500">
-             <MessageCircle class="w-3.5 h-3.5" :class="showChat && 'fill-current text-blue-500'" />
-             <div v-if="hasNewMessage" class="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-rose-500 border-2 border-white dark:border-[#0d0d10] rounded-full animate-pulse"></div>
+          <button @click="showChat = !showChat; hasNewMessage = false" class="btn-touch relative flex items-center justify-center bg-slate-100 dark:bg-white/5 rounded-lg border border-slate-200 dark:border-white/10 text-slate-500 hover:text-blue-500 touch-feedback">
+             <MessageCircle class="icon-touch" :class="showChat && 'fill-current text-blue-500'" />
+             <div v-if="hasNewMessage" class="absolute -top-1 -right-1 w-3 h-3 sm:w-2.5 sm:h-2.5 bg-rose-500 border-2 border-white dark:border-[#0d0d10] rounded-full animate-pulse"></div>
           </button>
         </div>
       </header>
@@ -1361,62 +1361,62 @@ onMounted(() => {
 
       <!-- Hand / Deck Area -->
       <div class="fixed bottom-0 left-0 right-0 z-[70] bg-white/70 dark:bg-black/60 backdrop-blur-2xl border-t border-slate-200 dark:border-white/5 flex flex-col items-center">
-        <!-- Turn-related buttons and timer -->
+        <!-- Turn-related buttons and timer - 移动端优化 -->
         <div class="h-0 relative w-full flex justify-center">
-           <div v-if="isMyTurn" class="absolute bottom-full mb-2 flex flex-col items-center gap-2 animate-in slide-in-from-bottom-4">
-              <div class="flex items-center bg-white/90 dark:bg-black/80 backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-lg sm:rounded-xl p-0.5 shadow-xl">
+           <div v-if="isMyTurn" class="absolute bottom-full mb-3 sm:mb-2 flex flex-col items-center gap-3 sm:gap-2 animate-in slide-in-from-bottom-4">
+              <div class="flex items-center bg-white/90 dark:bg-black/80 backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-xl sm:rounded-lg p-1 sm:p-0.5 shadow-xl">
                 <input
                   v-model="substanceInput"
                   @keyup.enter="handleInputPlay"
                   placeholder="手动注入化学式"
-                  class="bg-transparent border-none outline-none text-[9px] sm:text-[10px] px-2 py-0.5 w-28 sm:w-40 font-black tracking-widest placeholder:text-slate-400 text-slate-900 dark:text-white"
+                  class="bg-transparent border-none outline-none text-sm sm:text-xs-mobile px-3 sm:px-2 py-1.5 sm:py-0.5 w-32 sm:w-40 font-black tracking-widest placeholder:text-slate-400 text-slate-900 dark:text-white"
                 />
-                
-                <div class="flex items-center gap-0.5">
+
+                <div class="flex items-center gap-1">
                    <button
                       @click="handleInputPlay"
-                      class="bg-blue-600 hover:bg-blue-500 w-6 h-6 rounded-md flex items-center justify-center transition-all active:scale-90 shadow-md group"
+                      class="btn-touch bg-blue-600 hover:bg-blue-500 rounded-lg sm:rounded-md flex items-center justify-center transition-all touch-feedback shadow-md group"
                       title="执行反应"
                    >
-                      <ChevronRight class="w-3.5 h-3.5 text-white group-hover:translate-x-0.5 transition-transform" />
+                      <ChevronRight class="w-4 h-4 sm:w-3.5 sm:h-3.5 text-white group-hover:translate-x-0.5 transition-transform" />
                    </button>
 
-                   <div class="w-px h-4 bg-slate-200 dark:bg-white/10 mx-0.5"></div>
+                   <div class="w-px h-5 sm:h-4 bg-slate-200 dark:bg-white/10 mx-1 sm:mx-0.5"></div>
 
                    <button
                       @click="handleDrawCard"
                       :disabled="!isMyTurn"
                       :class="cn(
-                        'px-2 h-6 rounded-md flex items-center justify-center gap-1 transition-all active:scale-95 shadow-md group relative overflow-hidden',
+                        'px-3 sm:px-2 btn-touch rounded-lg sm:rounded-md flex items-center justify-center gap-1.5 sm:gap-1 transition-all touch-feedback shadow-md group relative overflow-hidden',
                         isMyTurn ? (gameState?.pending_draw_count > 0 ? 'bg-red-600 hover:bg-red-500 text-white' : 'bg-slate-800 dark:bg-white/10 hover:bg-slate-700 dark:hover:bg-white/20 text-white') : 'bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed grayscale'
                       )"
                    >
-                      <Plus v-if="!(gameState?.pending_draw_count > 0)" class="w-2.5 h-2.5" />
-                      <RefreshCw v-else class="w-2.5 h-2.5 animate-spin-slow" />
-                      <span class="text-[8px] font-black uppercase tracking-widest whitespace-nowrap">
+                      <Plus v-if="!(gameState?.pending_draw_count > 0)" class="w-3 h-3 sm:w-2.5 sm:h-2.5" />
+                      <RefreshCw v-else class="w-3 h-3 sm:w-2.5 sm:h-2.5 animate-spin-slow" />
+                      <span class="text-xs-mobile font-black uppercase tracking-widest whitespace-nowrap">
                         摸牌{{ gameState?.pending_draw_count > 0 ? gameState.pending_draw_count : '1' }}张
                       </span>
                    </button>
                 </div>
               </div>
 
-              <div class="flex items-center gap-1.5">
-                <div class="bg-blue-600/90 backdrop-blur-md px-3 py-1 rounded-full border border-white/20 shadow-md flex items-center gap-2 animate-slide-in-bottom">
-                  <Zap class="w-2.5 h-2.5 fill-current animate-pulse text-white" />
-                  <span class="text-[8px] font-black uppercase tracking-widest text-white">操作 ({{ timeRemaining }}s)</span>
+              <div class="flex items-center gap-2 sm:gap-1.5">
+                <div class="bg-blue-600/90 backdrop-blur-md px-4 sm:px-3 py-2 sm:py-1 rounded-full border border-white/20 shadow-md flex items-center gap-2.5 sm:gap-2 animate-slide-in-bottom">
+                  <Zap class="w-3 h-3 sm:w-2.5 sm:h-2.5 fill-current animate-pulse text-white" />
+                  <span class="text-xs-mobile font-black uppercase tracking-widest text-white">操作 ({{ timeRemaining }}s)</span>
 
                   <!-- 双联行动按钮 -->
                   <button
                     v-if="myData?.double_action_available"
                     @click.stop="toggleDoubleMode"
                     :class="cn(
-                      'px-2 py-0.5 rounded-lg border border-white/20 transition-all flex items-center gap-1.5 relative overflow-hidden',
+                      'px-2.5 sm:px-2 py-1 sm:py-0.5 rounded-lg border border-white/20 transition-all flex items-center gap-1.5 relative overflow-hidden touch-feedback',
                       doubleMode ? 'bg-amber-500 text-white border-amber-400 shadow-sm' : 'bg-black/40 text-white/60 hover:text-white hover:bg-black/60'
                     )"
                   >
                      <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover/btn:animate-shimmer"></div>
-                     <Activity :class="cn('w-3 h-3', doubleMode && 'animate-spin')" />
-                     <span class="text-[7px] font-black uppercase tracking-tighter">{{ doubleMode ? '解除超限' : '超限双联' }}</span>
+                     <Activity :class="cn('w-3.5 h-3.5 sm:w-3 sm:h-3', doubleMode && 'animate-spin')" />
+                     <span class="text-xs-mobile font-black uppercase tracking-tighter">{{ doubleMode ? '解除超限' : '超限双联' }}</span>
                   </button>
                 </div>
               </div>
@@ -1470,11 +1470,11 @@ onMounted(() => {
            </div>
         </div>
 
-        <div class="w-full max-w-7xl mx-auto flex justify-center items-end py-1">
-           <div ref="handContainer" class="flex items-end gap-1 sm:gap-1.5 px-3 sm:px-6 overflow-x-auto custom-scrollbar-hidden py-1.5 sm:py-2 min-h-[90px] sm:min-h-[120px] w-full">
+        <div class="w-full max-w-7xl mx-auto flex justify-center items-end py-2 sm:py-1">
+           <div ref="handContainer" class="flex items-end gap-2 sm:gap-1.5 px-4 sm:px-6 overflow-x-auto custom-scrollbar-hidden py-2 sm:py-1.5 min-h-[110px] sm:min-h-[120px] w-full">
             <div v-if="roomInfo?.status === 'waiting'" class="flex flex-col items-center justify-center opacity-30 pb-1 min-w-full">
-              <Loader2 class="w-6 h-6 sm:w-8 sm:h-8 mb-0.5 animate-spin text-blue-500" />
-              <p class="font-black uppercase tracking-widest text-[7px] sm:text-[9px] text-slate-500 text-center">正在同步量子状态并等待开场就绪...</p>
+              <Loader2 class="w-8 h-8 sm:w-6 sm:h-6 mb-1 animate-spin text-blue-500" />
+              <p class="font-black uppercase tracking-widest text-xs-mobile text-slate-500 text-center">正在同步量子状态并等待开场就绪...</p>
             </div>
             <template v-else-if="myData?.hand_cards?.length > 0">
               <div
@@ -1482,33 +1482,33 @@ onMounted(() => {
                 :key="index"
                 @click="isMyTurn && handleCardClick(card)"
                 :class="cn(
-                  'uno-card w-14 sm:w-20 h-20 sm:h-28 rounded-xl flex flex-col items-center justify-center cursor-pointer shrink-0',
+                  'uno-card w-16 sm:w-20 h-24 sm:h-28 rounded-xl flex flex-col items-center justify-center cursor-pointer shrink-0 touch-feedback',
                   getDynamicCardClass(card),
                   selectedCard === card && 'ring-2 ring-blue-500 scale-105 z-10',
                   !isMyTurn && 'opacity-60 grayscale cursor-not-allowed'
                 )"
                 :style="{
-                  transform: selectedCard === card ? (isMobile ? 'translateY(-8px)' : 'translateY(-12px)') : 'none'
+                  transform: selectedCard === card ? (isMobile ? 'translateY(-10px)' : 'translateY(-12px)') : 'none'
                 }"
               >
-                <div class="absolute top-0.5 sm:top-1 left-0.5 sm:left-1 text-[5px] sm:text-[6px] font-black opacity-30 uppercase tracking-tighter">{{ ELEMENTS_DATA[card.type] ? 'Elem' : 'Spec' }}</div>
+                <div class="absolute top-1 left-1 text-xs-mobile sm:text-[6px] font-black opacity-30 uppercase tracking-tighter">{{ ELEMENTS_DATA[card.type] ? 'Elem' : 'Spec' }}</div>
                 <div class="flex flex-col items-center justify-center">
-                  <div class="text-base sm:text-lg font-black font-mono italic tracking-tighter leading-none">{{ card.type }}</div>
-                  <div v-if="card.effect || ['He','Ne','Ar','Kr'].includes(card.type)" class="mt-0.5 sm:mt-1 px-1 py-0.5 bg-black/10 rounded-md text-[7px] sm:text-[8px] font-black uppercase tracking-tighter">
+                  <div class="text-lg sm:text-base font-black font-mono italic tracking-tighter leading-none">{{ card.type }}</div>
+                  <div v-if="card.effect || ['He','Ne','Ar','Kr'].includes(card.type)" class="mt-1 px-1.5 sm:px-1 py-0.5 bg-black/10 rounded-md text-xs-mobile sm:text-[8px] font-black uppercase tracking-tighter">
                     {{ ['He','Ne','Ar','Kr'].includes(card.type) ? '转向' : card.effect === 'Au' ? '跳过' : card.effect === '+2' ? '+2' : card.effect === '+4' ? '+4' : card.effect }}
                   </div>
-                  <div v-else-if="ELEMENTS_DATA[card.type]" class="text-[6px] sm:text-[8px] font-bold opacity-80 mt-0.5 uppercase tracking-tighter font-serif italic text-black/40">
+                  <div v-else-if="ELEMENTS_DATA[card.type]" class="text-xs-mobile sm:text-[8px] font-bold opacity-80 mt-0.5 uppercase tracking-tighter font-serif italic text-black/40">
                     {{ ELEMENTS_DATA[card.type].name }}
                   </div>
                 </div>
-                <div class="absolute bottom-0.5 sm:bottom-1 right-0.5 sm:right-1 text-[5px] sm:text-[6px] font-mono opacity-40 uppercase tracking-tighter">
+                <div class="absolute bottom-1 right-1 text-xs-mobile sm:text-[6px] font-mono opacity-40 uppercase tracking-tighter">
                   {{ card.effect ? 'Func' : 'Pass' }}
                 </div>
               </div>
             </template>
-            <div v-else class="flex flex-col items-center justify-center opacity-10 pb-2 sm:pb-4">
-              <FlaskConical class="w-8 h-8 sm:w-12 sm:h-12 mb-1" />
-              <p class="font-black uppercase tracking-widest text-[7px] sm:text-[9px]">Inventory_Empty</p>
+            <div v-else class="flex flex-col items-center justify-center opacity-10 pb-3 sm:pb-4">
+              <FlaskConical class="w-10 h-10 sm:w-12 sm:h-12 mb-1" />
+              <p class="font-black uppercase tracking-widest text-xs-mobile">Inventory_Empty</p>
             </div>
            </div>
         </div>

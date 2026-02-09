@@ -1,10 +1,10 @@
 ﻿package handlers
 
 import (
-	"chemistryuno/game"
-	"chemistryuno/models"
-	"chemistryuno/repository"
-	"chemistryuno/websocket"
+	"chemistryuno/backend/game"
+	"chemistryuno/backend/models"
+	"chemistryuno/backend/repository"
+	"chemistryuno/backend/websocket"
 	"fmt"
 	"log"
 	"math/rand"

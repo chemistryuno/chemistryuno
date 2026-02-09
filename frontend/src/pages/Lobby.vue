@@ -200,20 +200,20 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
     <!-- Main Layout Layer -->
     <div class="relative z-10 flex flex-col xl:h-screen min-h-screen xl:overflow-hidden">
       
-      <!-- Top Command Bar -->
-      <header class="h-16 border-b border-slate-200 dark:border-white/5 bg-white/60 dark:bg-black/40 backdrop-blur-xl sticky top-0 z-50 shrink-0">
-        <div class="max-w-[1400px] mx-auto h-full px-6 flex items-center justify-between">
-          <div class="flex items-center gap-4">
-            <div class="flex items-center gap-2.5 group px-3 py-1.5 bg-gradient-to-br from-blue-500/10 to-blue-600/5 border border-blue-500/20 rounded-xl">
-              <Beaker class="w-6 h-6 text-blue-500 group-hover:rotate-12 transition-transform" />
+      <!-- Top Command Bar - 移动端优化 -->
+      <header class="h-14 sm:h-16 border-b border-slate-200 dark:border-white/5 bg-white/60 dark:bg-black/40 backdrop-blur-xl sticky top-0 z-50 shrink-0">
+        <div class="max-w-[1400px] mx-auto h-full px-4 sm:px-6 flex items-center justify-between">
+          <div class="flex items-center gap-3 sm:gap-4">
+            <div class="flex items-center gap-2 sm:gap-2.5 group px-2.5 sm:px-3 py-1.5 bg-gradient-to-br from-blue-500/10 to-blue-600/5 border border-blue-500/20 rounded-xl">
+              <Beaker class="w-5 h-5 sm:w-6 sm:h-6 text-blue-500 group-hover:rotate-12 transition-transform" />
               <div>
-                 <h1 class="text-base font-black tracking-tighter text-slate-900 dark:text-white leading-none">CHEMISTRY <span class="text-blue-500">UNO</span></h1>
-                 <p class="text-[9px] text-blue-500/50 font-mono tracking-widest leading-none mt-1 uppercase">V1.0.2 Mendeleef</p>
+                 <h1 class="text-sm sm:text-base font-black tracking-tighter text-slate-900 dark:text-white leading-none">CHEMISTRY <span class="text-blue-500">UNO</span></h1>
+                 <p class="text-xs-mobile text-blue-500/50 font-mono tracking-widest leading-none mt-0.5 sm:mt-1 uppercase">V1.0.2 Mendeleef</p>
               </div>
             </div>
 
             <!-- Status Indicators (Desktop) -->
-            <div class="hidden lg:flex items-center gap-4 text-[9px] font-mono tracking-widest text-slate-500 border-l border-slate-200 dark:border-white/10 pl-6 uppercase">
+            <div class="hidden lg:flex items-center gap-4 text-xs-mobile font-mono tracking-widest text-slate-500 border-l border-slate-200 dark:border-white/10 pl-6 uppercase">
               <div class="flex items-center gap-2">
                 <div class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
                 STABLE
@@ -224,9 +224,9 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
             </div>
           </div>
 
-          <div class="flex items-center gap-3">
+          <div class="flex items-center gap-2 sm:gap-3">
             <!-- User Identity Chip -->
-            <div @click="router.push('/profile')" class="flex items-center gap-2.5 pl-1.5 pr-1.5 sm:pr-3 py-1 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl hover:bg-slate-200 dark:hover:bg-white/10 transition-all cursor-pointer group">
+            <div @click="router.push('/profile')" class="flex items-center gap-2 sm:gap-2.5 pl-1.5 pr-2 sm:pr-3 py-1 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl hover:bg-slate-200 dark:hover:bg-white/10 transition-all cursor-pointer group touch-feedback">
                <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-800 flex items-center justify-center text-base shadow-inner group-hover:scale-105 transition-transform overflow-hidden">
                  <template v-if="user.avatar && user.avatar.startsWith('data:')">
                     <img :src="user.avatar" class="w-full h-full object-cover" />
@@ -236,8 +236,8 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
                  </template>
                </div>
                <div class="hidden sm:flex flex-col">
-                 <span class="text-[11px] font-black text-slate-900 dark:text-white">{{ user.nickname || user.username }}</span>
-                 <span class="text-[8px] text-slate-500 font-mono uppercase">
+                 <span class="text-xs-mobile font-black text-slate-900 dark:text-white">{{ user.nickname || user.username }}</span>
+                 <span class="text-[9px] sm:text-[8px] text-slate-500 font-mono uppercase">
                    {{ user.is_admin ? 'Lead' : 'Researcher' }}
                  </span>
                </div>
@@ -245,39 +245,39 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
 
             <!-- Desktop Navigation -->
             <div class="hidden lg:flex items-center gap-0.5">
-              <router-link 
-                to="/ranking" 
-                class="flex items-center gap-1.5 px-3 py-2 hover:bg-amber-500/10 rounded-xl transition-all text-amber-500/70 hover:text-amber-400 group" 
+              <router-link
+                to="/ranking"
+                class="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 hover:bg-amber-500/10 rounded-xl transition-all text-amber-500/70 hover:text-amber-400 group touch-feedback"
                 title="积分排行榜"
               >
                 <Trophy class="w-4 h-4 group-hover:scale-110 transition-transform" />
-                <span class="text-[9px] font-black uppercase tracking-widest hidden md:block">排位</span>
+                <span class="text-xs-mobile font-black uppercase tracking-widest hidden md:block">排位</span>
               </router-link>
-              <router-link to="/feedbacks" class="p-2 hover:bg-amber-500/10 rounded-xl transition-all text-amber-500/70 hover:text-amber-400" title="反馈与公告">
+              <router-link to="/feedbacks" class="p-2 hover:bg-amber-500/10 rounded-xl transition-all text-amber-500/70 hover:text-amber-400 touch-feedback" title="反馈与公告">
                 <Megaphone class="w-4 h-4" />
               </router-link>
-              <router-link to="/profile" class="p-2 hover:bg-white/5 rounded-xl transition-all text-slate-400 hover:text-white" title="个人主页">
+              <router-link to="/profile" class="p-2 hover:bg-white/5 rounded-xl transition-all text-slate-400 hover:text-white touch-feedback" title="个人主页">
                 <Settings class="w-4 h-4" />
               </router-link>
-              <router-link to="/data" class="p-2 hover:bg-blue-500/10 rounded-xl transition-all text-blue-500/70 hover:text-blue-400" title="数据库">
+              <router-link to="/data" class="p-2 hover:bg-blue-500/10 rounded-xl transition-all text-blue-500/70 hover:text-blue-400 touch-feedback" title="数据库">
                 <Database class="w-4 h-4" />
               </router-link>
-              <router-link to="/chat" class="p-2 hover:bg-indigo-500/10 rounded-xl transition-all text-indigo-500/70 hover:text-indigo-400" title="公共频道">
+              <router-link to="/chat" class="p-2 hover:bg-indigo-500/10 rounded-xl transition-all text-indigo-500/70 hover:text-indigo-400 touch-feedback" title="公共频道">
                 <MessageCircle class="w-4 h-4" />
               </router-link>
-              <router-link v-if="user.is_admin" to="/admin" class="p-2 hover:bg-yellow-500/10 rounded-xl transition-all text-yellow-500/70 hover:text-yellow-400" title="管理面板">
+              <router-link v-if="user.is_admin" to="/admin" class="p-2 hover:bg-yellow-500/10 rounded-xl transition-all text-yellow-500/70 hover:text-yellow-400 touch-feedback" title="管理面板">
                 <Shield class="w-4 h-4" />
               </router-link>
               <div class="w-px h-5 bg-white/10 mx-1"></div>
-              <button @click="handleLogout" class="p-2 hover:bg-red-500/10 rounded-xl transition-all text-red-500/70 hover:text-red-400" title="退出登录">
+              <button @click="handleLogout" class="p-2 hover:bg-red-500/10 rounded-xl transition-all text-red-500/70 hover:text-red-400 touch-feedback" title="退出登录">
                 <LogOut class="w-4 h-4" />
               </button>
             </div>
 
             <!-- Mobile Menu Toggle -->
-            <button 
+            <button
               @click="isMobileMenuOpen = !isMobileMenuOpen"
-              class="lg:hidden p-2.5 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-slate-500 active:scale-95 transition-all"
+              class="lg:hidden p-2.5 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-slate-500 touch-feedback transition-all"
             >
               <Menu v-if="!isMobileMenuOpen" class="w-5 h-5" />
               <X v-else class="w-5 h-5" />

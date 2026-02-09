@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	"chemistryuno/repository"
+	"chemistryuno/backend/repository"
 	"net/http"
 	"strconv"
 

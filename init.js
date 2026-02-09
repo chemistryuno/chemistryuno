@@ -126,15 +126,14 @@ async function installFrontendDependencies() {
 // 安装后端依赖
 async function installBackendDependencies() {
   log('\n🏗️  安装后端依赖...', colors.cyan);
-  const backendPath = path.join(__dirname, 'backend');
-  
-  if (!fs.existsSync(path.join(backendPath, 'go.mod'))) {
+
+  if (!fs.existsSync(path.join(__dirname, 'go.mod'))) {
     error('后端 go.mod 不存在');
     process.exit(1);
   }
 
   try {
-    await runCommand('go', ['mod', 'tidy'], { cwd: backendPath });
+    await runCommand('go', ['mod', 'tidy'], { cwd: __dirname });
     success('后端依赖安装成功');
   } catch (err) {
     error('后端依赖安装失败: ' + err.message);
@@ -239,8 +238,7 @@ async function validateInstallation() {
   }
 
   // 检查后端模块
-  const backendPath = path.join(__dirname, 'backend');
-  if (!fs.existsSync(path.join(backendPath, 'go.sum'))) {
+  if (!fs.existsSync(path.join(__dirname, 'go.sum'))) {
     error('后端依赖缺失');
     return false;
   }

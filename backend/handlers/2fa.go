@@ -1,9 +1,9 @@
 ﻿package handlers
 
 import (
-	"chemistryuno/models"
-	"chemistryuno/repository"
-	"chemistryuno/utils"
+	"chemistryuno/backend/models"
+	"chemistryuno/backend/repository"
+	"chemistryuno/backend/utils"
 	"encoding/base64"
 	"fmt"
 	"net/http"

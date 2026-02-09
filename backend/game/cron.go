@@ -1,8 +1,8 @@
 ﻿package game
 
 import (
-	"chemistryuno/repository"
-	"chemistryuno/websocket"
+	"chemistryuno/backend/repository"
+	"chemistryuno/backend/websocket"
 	"log"
 	"time"
 )

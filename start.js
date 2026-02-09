@@ -62,7 +62,6 @@ console.log('');
 
 // 启动后端 (Go)
 console.log('📦 启动后端服务器...');
-const backendPath = path.join(__dirname, 'backend');
 
 // 禁用CGO以避免MinGW链接器问题（modernc.org/sqlite是纯Go实现，不需要CGO）
 const backendEnv = Object.assign({}, process.env, {
@@ -70,7 +69,7 @@ const backendEnv = Object.assign({}, process.env, {
 });
 
 const backendProcess = spawn('go', ['run', 'main.go'], {
-  cwd: backendPath,
+  cwd: __dirname,
   shell: true,
   stdio: 'inherit',
   env: backendEnv

@@ -25,6 +25,10 @@ var (
 
 // InitDB 初始化GORM数据库连接和Redis
 func InitDB(dbPath string) error {
+	log.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	log.Println("🚀 Chemistry UNO 数据库初始化")
+	log.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
 	// 从环境变量获取数据库类型（默认为sqlite）
 	dbType := strings.ToLower(os.Getenv("DB_TYPE"))
 	if dbType == "" {
@@ -61,7 +65,8 @@ func InitDB(dbPath string) error {
 				user, pass, host, port, dbname)
 		}
 		dialector = mysql.Open(dsn)
-		log.Printf("📊 使用 MySQL 数据库: %s", formatDSN(dsn))
+		log.Printf("📊 使用 MySQL 数据库")
+		log.Printf("   连接地址: %s", formatDSN(dsn))
 
 	case "sqlite":
 		// SQLite配置 - 使用纯Go实现（modernc.org/sqlite）
@@ -82,7 +87,8 @@ func InitDB(dbPath string) error {
 			DriverName: "sqlite",
 			DSN:        sqlitePath,
 		}
-		log.Printf("📊 使用 SQLite 数据库 (纯Go, UTF-8, WAL模式): %s\n", sqlitePath)
+		log.Printf("📊 使用 SQLite 数据库 (纯Go驱动, WAL模式)")
+		log.Printf("   数据库文件: %s", strings.Split(sqlitePath, "?")[0])
 
 	default:
 		return fmt.Errorf("不支持的数据库类型: %s（支持: mysql, sqlite）", dbType)
@@ -139,7 +145,10 @@ func InitDB(dbPath string) error {
 		return fmt.Errorf("初始化默认数据失败: %v", err)
 	}
 
-	log.Println("数据库初始化成功")
+	log.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	log.Println("✅ 数据库初始化完成")
+	log.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	log.Println("")
 	return nil
 }
 

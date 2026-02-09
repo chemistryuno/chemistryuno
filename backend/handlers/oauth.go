@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -28,6 +29,8 @@ var (
 
 // InitOauth 初始化 OAuth 配置
 func InitOauth() {
+	log.Println("🔐 初始化 OAuth 配置...")
+
 	githubOauthConfig = &oauth2.Config{
 		ClientID:     strings.TrimSpace(os.Getenv("GITHUB_CLIENT_ID")),
 		ClientSecret: strings.TrimSpace(os.Getenv("GITHUB_CLIENT_SECRET")),
@@ -65,24 +68,46 @@ func InitOauth() {
 		},
 	}
 
-	if githubOauthConfig.ClientID != "" {
-		fmt.Println("✓ GitHub OAuth 已加载")
+	// 统计已配置的 OAuth 提供商
+	enabledProviders := []string{}
+	disabledProviders := []string{}
+
+	if githubOauthConfig.ClientID != "" && githubOauthConfig.ClientSecret != "" {
+		log.Println("   ✅ GitHub OAuth 已启用")
+		enabledProviders = append(enabledProviders, "GitHub")
 	} else {
-		fmt.Println("⚠ GitHub OAuth 未配置 (GITHUB_CLIENT_ID 为空)")
+		disabledProviders = append(disabledProviders, "GitHub")
 	}
 
-	if msOauthConfig.ClientID != "" {
-		fmt.Println("✓ Microsoft OAuth 已加载")
+	if msOauthConfig.ClientID != "" && msOauthConfig.ClientSecret != "" {
+		log.Println("   ✅ Microsoft OAuth 已启用")
+		enabledProviders = append(enabledProviders, "Microsoft")
 	} else {
-		fmt.Println("⚠ Microsoft OAuth 未配置 (MS_CLIENT_ID 为空)")
+		disabledProviders = append(disabledProviders, "Microsoft")
 	}
 
-	if googleOauthConfig.ClientID != "" {
-		fmt.Println("✓ Google OAuth 已加载")
+	if googleOauthConfig.ClientID != "" && googleOauthConfig.ClientSecret != "" {
+		log.Println("   ✅ Google OAuth 已启用")
+		enabledProviders = append(enabledProviders, "Google")
+	} else {
+		disabledProviders = append(disabledProviders, "Google")
 	}
 
 	if appleOauthConfig.ClientID != "" {
-		fmt.Println("✓ Apple OAuth 已加载")
+		log.Println("   ✅ Apple OAuth 已启用")
+		enabledProviders = append(enabledProviders, "Apple")
+	} else {
+		disabledProviders = append(disabledProviders, "Apple")
+	}
+
+	// 汇总提示
+	if len(enabledProviders) > 0 {
+		log.Printf("✅ OAuth 配置完成，已启用 %d 个提供商: %s", len(enabledProviders), strings.Join(enabledProviders, ", "))
+	}
+
+	if len(disabledProviders) > 0 {
+		log.Printf("💡 未配置的 OAuth 提供商: %s (登录按钮将自动隐藏)", strings.Join(disabledProviders, ", "))
+		log.Println("   如需启用，请在 .env 文件中配置相应的 CLIENT_ID 和 CLIENT_SECRET")
 	}
 }
 

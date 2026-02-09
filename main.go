@@ -36,26 +36,52 @@ func main() {
 	// 加载 .env 配置文件（统一从根目录读取）
 	// 优先级：1. 当前目录 .env（从根目录运行）2. 上级目录 .env（从 backend 目录运行）
 	var loadErr error
+	envFileFound := false
+
 	if _, err := os.Stat(".env"); err == nil {
-		// 当前目录的 .env（从根目录运行）
+		// 当前目录的 .env（从根目录运行或 dist 目录运行）
 		loadErr = godotenv.Load(".env")
 		if loadErr == nil {
-			log.Println("✓ 成功从 .env 加载配置")
+			log.Println("✅ 成功从当前目录 .env 加载配置")
+			envFileFound = true
 		} else {
-			log.Printf("警告: 从 .env 加载配置失败: %v", loadErr)
+			log.Printf("⚠️  从 .env 加载配置失败: %v", loadErr)
 		}
 	} else if _, err := os.Stat("../.env"); err == nil {
 		// 上级目录的 .env（从 backend 目录运行）
 		loadErr = godotenv.Load("../.env")
 		if loadErr == nil {
-			log.Println("✓ 成功从 ../.env 加载配置")
+			log.Println("✅ 成功从上级目录 ../.env 加载配置")
+			envFileFound = true
 		} else {
-			log.Printf("警告: 从 ../.env 加载配置失败: %v", loadErr)
+			log.Printf("⚠️  从 ../.env 加载配置失败: %v", loadErr)
 		}
 	}
 
+	// 首次启动检查和提示
+	if !envFileFound {
+		log.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+		log.Println("⚠️  警告: 未找到 .env 配置文件")
+		log.Println("")
+		log.Println("📝 首次部署步骤:")
+		log.Println("   1. 复制配置文件模板:")
+		log.Println("      Linux/macOS: cp .env.example .env")
+		log.Println("      Windows:     copy .env.example .env")
+		log.Println("")
+		log.Println("   2. 编辑 .env 文件，配置以下必要项:")
+		log.Println("      - DB_TYPE (数据库类型: sqlite 或 mysql)")
+		log.Println("      - JWT_SECRET (将在首次启动时自动生成)")
+		log.Println("      - OAuth 配置 (可选，用于第三方登录)")
+		log.Println("")
+		log.Println("   3. 重新启动程序")
+		log.Println("")
+		log.Println("💡 程序将使用默认配置继续启动 (SQLite 数据库)")
+		log.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+		log.Println("")
+	}
+
 	if loadErr != nil && !os.IsNotExist(loadErr) {
-		log.Printf("警告: 加载 .env 配置文件出错: %v（将使用系统环境变量）", loadErr)
+		log.Printf("⚠️  加载 .env 配置文件出错: %v（将使用系统环境变量）", loadErr)
 	}
 
 	// 确保JWT密钥存在（首次启动自动生成）

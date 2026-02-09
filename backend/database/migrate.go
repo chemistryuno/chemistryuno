@@ -8,7 +8,16 @@ import (
 
 // autoMigrate 自动迁移所有表结构
 func autoMigrate() error {
-	log.Println("开始数据库迁移...")
+	log.Println("🔄 开始数据库迁移和初始化...")
+
+	// 检查是否为首次初始化（User 表是否为空）
+	var userCount int64
+	DB.Model(&User{}).Count(&userCount)
+	isFirstInit := userCount == 0
+
+	if isFirstInit {
+		log.Println("📊 检测到首次启动，正在初始化数据库表结构...")
+	}
 
 	// 迁移所有模型
 	err := DB.AutoMigrate(
@@ -33,17 +42,21 @@ func autoMigrate() error {
 		return err
 	}
 
+	if isFirstInit {
+		log.Println("✅ 数据库表结构初始化成功")
+	}
+
 	// 执行数据迁移逻辑 (特别是针对 Reaction 表的 R1/R2 结构升级)
 	if err := MigrateReactionsToR1R2(); err != nil {
-		log.Printf("Reaction 数据迁移失败: %v", err)
+		log.Printf("⚠️  Reaction 数据迁移失败: %v", err)
 	}
 
 	// 修复可能存在的 R1/R2 顺序问题
 	if err := fixReactionOrdering(); err != nil {
-		log.Printf("修复反应顺序失败: %v", err)
+		log.Printf("⚠️  修复反应顺序失败: %v", err)
 	}
 
-	log.Println("数据库迁移完成")
+	log.Println("✅ 数据库迁移完成")
 	return nil
 }
 
@@ -78,6 +91,8 @@ func fixReactionOrdering() error {
 
 // initDefaultData 初始化默认数据
 func initDefaultData() error {
+	log.Println("🔧 初始化默认数据...")
+
 	// 设置 UID 起始值
 	setInitialUID()
 
@@ -86,47 +101,59 @@ func initDefaultData() error {
 	DB.Model(&User{}).Where("username = ?", "admin@chemistryuno.com").Count(&count)
 
 	if count == 0 {
+		log.Println("👤 创建默认管理员账户...")
 		// 创建默认管理员账户
 		if err := createDefaultAdmin(); err != nil {
 			return err
 		}
+		log.Println("✅ 默认管理员账户创建成功 (admin@chemistryuno.com / 123456)")
 	}
 
 	// 检查是否已有全局牌组配置
 	DB.Model(&DeckConfig{}).Where("is_global = ?", true).Count(&count)
 
 	if count == 0 {
+		log.Println("🃏 创建默认全局牌组配置...")
 		// 创建默认全局牌组
 		if err := createDefaultDeckConfig(); err != nil {
 			return err
 		}
+		log.Println("✅ 默认牌组配置创建成功")
 	}
 
 	// 初始化默认物质数据（如果需要）
 	DB.Model(&Substance{}).Count(&count)
 	if count == 0 {
+		log.Println("⚗️  初始化默认物质数据...")
 		if err := initDefaultSubstancesGORM(); err != nil {
-			log.Printf("初始化默认物质数据失败: %v", err)
+			log.Printf("⚠️  初始化默认物质数据失败: %v", err)
+		} else {
+			log.Println("✅ 默认物质数据初始化成功")
 		}
 	}
 
 	// 初始化默认反应数据（如果需要）
 	DB.Model(&Reaction{}).Count(&count)
 	if count == 0 {
+		log.Println("🧪 初始化默认化学反应数据...")
 		if err := initDefaultReactionsGORM(); err != nil {
-			log.Printf("初始化默认反应数据失败: %v", err)
+			log.Printf("⚠️  初始化默认反应数据失败: %v", err)
+		} else {
+			log.Println("✅ 默认反应数据初始化成功")
 		}
 	}
 
 	// 检查并初始化默认系统配置
 	if err := initDefaultConfigs(); err != nil {
-		log.Printf("初始化默认系统配置失败: %v", err)
+		log.Printf("⚠️  初始化默认系统配置失败: %v", err)
 	}
 
 	// 初始化默认提示数据
 	if err := initDefaultHints(); err != nil {
-		log.Printf("初始化默认提示数据失败: %v", err)
+		log.Printf("⚠️  初始化默认提示数据失败: %v", err)
 	}
+
+	log.Println("✅ 默认数据初始化完成")
 
 	return nil
 }

@@ -8,6 +8,7 @@ import (
 	"chemistryuno/backend/websocket"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -421,7 +422,11 @@ func UpdateNickname(c *gin.Context) {
 // GetAuthConfig 获取鉴权配置模式
 func GetAuthConfig(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
-		"smtp_enabled": utils.IsSMTPConfigured(),
+		"smtp_enabled":   utils.IsSMTPConfigured(),
+		"github_enabled": os.Getenv("GITHUB_CLIENT_ID") != "",
+		"ms_enabled":     os.Getenv("MS_CLIENT_ID") != "",
+		"google_enabled": os.Getenv("GOOGLE_CLIENT_ID") != "",
+		"apple_enabled":  os.Getenv("APPLE_CLIENT_ID") != "",
 	})
 }
 

@@ -21,6 +21,10 @@ const tempUID = ref<number | null>(null)
 const error = ref('')
 const loading = ref(false)
 const smtpEnabled = ref(false)
+const githubEnabled = ref(false)
+const msEnabled = ref(false)
+const googleEnabled = ref(false)
+const appleEnabled = ref(false)
 const router = useRouter()
 const dialog = useDialog()
 
@@ -28,7 +32,11 @@ onMounted(async () => {
   try {
     const res = await authAPI.getAuthConfig()
     smtpEnabled.value = res.data.smtp_enabled
-    
+    githubEnabled.value = res.data.github_enabled
+    msEnabled.value = res.data.ms_enabled
+    googleEnabled.value = res.data.google_enabled
+    appleEnabled.value = res.data.apple_enabled
+
   } catch (err) {
     console.error('获取配置失败', err)
   }
@@ -329,6 +337,7 @@ const handleOAuthLogin = (provider: 'github' | 'ms' | 'google' | 'apple') => {
 
               <div class="grid grid-cols-2 gap-2">
                 <button
+                  v-if="githubEnabled"
                   type="button"
                   @click="handleOAuthLogin('github')"
                   :disabled="loading"
@@ -338,6 +347,7 @@ const handleOAuthLogin = (provider: 'github' | 'ms' | 'google' | 'apple') => {
                   GitHub 授权
                 </button>
                 <button
+                  v-if="msEnabled"
                   type="button"
                   @click="handleOAuthLogin('ms')"
                   :disabled="loading"
@@ -347,6 +357,7 @@ const handleOAuthLogin = (provider: 'github' | 'ms' | 'google' | 'apple') => {
                   Microsoft
                 </button>
                 <button
+                  v-if="googleEnabled"
                   type="button"
                   @click="handleOAuthLogin('google')"
                   :disabled="loading"
@@ -356,6 +367,7 @@ const handleOAuthLogin = (provider: 'github' | 'ms' | 'google' | 'apple') => {
                   Google
                 </button>
                 <button
+                  v-if="appleEnabled"
                   type="button"
                   @click="handleOAuthLogin('apple')"
                   :disabled="loading"

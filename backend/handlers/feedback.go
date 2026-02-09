@@ -46,7 +46,53 @@ func GetAllFeedbacks(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取反馈列表失败"})
 		return
 	}
-	c.JSON(http.StatusOK, feedbacks)
+
+	// 组装返回数据，添加用户名信息
+	type FeedbackWithUser struct {
+		ID             uint       `json:"id"`
+		UserUID        uint       `json:"user_uid"`
+		Username       string     `json:"username"`
+		Type           string     `json:"type"`
+		Page           string     `json:"page"` // page 字段映射到 type
+		Content        string     `json:"content"`
+		Status         string     `json:"status"`
+		ProcessedByUID *uint      `json:"processed_by_uid"`
+		ProcessedAt    *time.Time `json:"processed_at"`
+		LastUrgedAt    *time.Time `json:"last_urged_at"`
+		UrgeCount      int        `json:"urge_count"`
+		ResolutionNote string     `json:"resolution_note"`
+		RemoveAt       *time.Time `json:"remove_at"`
+		CreatedAt      time.Time  `json:"created_at"`
+	}
+
+	result := make([]FeedbackWithUser, 0, len(feedbacks))
+	for _, fb := range feedbacks {
+		// 查询用户信息
+		user, err := repository.UserRepo.FindByUID(fb.UserUID)
+		username := "未知用户"
+		if err == nil && user != nil {
+			username = user.Username
+		}
+
+		result = append(result, FeedbackWithUser{
+			ID:             fb.ID,
+			UserUID:        fb.UserUID,
+			Username:       username,
+			Type:           fb.Type,
+			Page:           fb.Type, // page 字段使用 type 的值
+			Content:        fb.Content,
+			Status:         fb.Status,
+			ProcessedByUID: fb.ProcessedByUID,
+			ProcessedAt:    fb.ProcessedAt,
+			LastUrgedAt:    fb.LastUrgedAt,
+			UrgeCount:      fb.UrgeCount,
+			ResolutionNote: fb.ResolutionNote,
+			RemoveAt:       fb.RemoveAt,
+			CreatedAt:      fb.CreatedAt,
+		})
+	}
+
+	c.JSON(http.StatusOK, result)
 }
 
 func UpdateFeedbackStatus(c *gin.Context) {

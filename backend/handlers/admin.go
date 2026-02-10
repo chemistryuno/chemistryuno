@@ -1005,6 +1005,78 @@ func UpdateSystemConfig(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "配置更新成功"})
 }
 
+// GetGameTimeConfigs 获取游戏时间配置
+func GetGameTimeConfigs(c *gin.Context) {
+	configRepo := repository.NewConfigRepository()
+	configs, err := configRepo.GetAll()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取配置失败"})
+		return
+	}
+
+	// 返回游戏时间相关的配置
+	timeConfigs := map[string]string{
+		"player_kick_timeout":   configs["player_kick_timeout"],
+		"player_action_timeout": configs["player_action_timeout"],
+		"auto_start_timeout":    configs["auto_start_timeout"],
+		"half_ready_timeout":    configs["half_ready_timeout"],
+	}
+
+	c.JSON(http.StatusOK, gin.H{"configs": timeConfigs})
+}
+
+// UpdateGameTimeConfig 更新游戏时间配置
+func UpdateGameTimeConfig(c *gin.Context) {
+	var req struct {
+		PlayerKickTimeout   int `json:"player_kick_timeout"`
+		PlayerActionTimeout int `json:"player_action_timeout"`
+		AutoStartTimeout    int `json:"auto_start_timeout"`
+		HalfReadyTimeout    int `json:"half_ready_timeout"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数无效"})
+		return
+	}
+
+	// 验证参数范围
+	if req.PlayerKickTimeout < 10 || req.PlayerKickTimeout > 300 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "玩家踢出时间必须在10-300秒之间"})
+		return
+	}
+	if req.PlayerActionTimeout < 10 || req.PlayerActionTimeout > 300 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "玩家操作时间必须在10-300秒之间"})
+		return
+	}
+	if req.AutoStartTimeout < 5 || req.AutoStartTimeout > 60 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "自动开始时间必须在5-60秒之间"})
+		return
+	}
+	if req.HalfReadyTimeout < 30 || req.HalfReadyTimeout > 120 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "半数准备时间必须在30-120秒之间"})
+		return
+	}
+
+	configRepo := repository.NewConfigRepository()
+
+	// 更新配置
+	updates := map[string]string{
+		"player_kick_timeout":   fmt.Sprintf("%d", req.PlayerKickTimeout),
+		"player_action_timeout": fmt.Sprintf("%d", req.PlayerActionTimeout),
+		"auto_start_timeout":    fmt.Sprintf("%d", req.AutoStartTimeout),
+		"half_ready_timeout":    fmt.Sprintf("%d", req.HalfReadyTimeout),
+	}
+
+	for key, value := range updates {
+		if err := configRepo.SetValue(key, value); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "配置更新失败"})
+			return
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "游戏时间配置已更新，将在新游戏中生效"})
+}
+
 // SubstanceRequest 定义物质请求结构
 type SubstanceRequest struct {
 	Formula string `json:"formula" binding:"required"`

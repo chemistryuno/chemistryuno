@@ -98,6 +98,9 @@ export const authAPI = {
   setup2FA: () => api.post('/user/2fa/setup'),
   enable2FA: (code: string, password: string) => api.post('/user/2fa/enable', { code, password }),
   disable2FA: (code: string) => api.post('/user/2fa/disable', { code }),
+
+  // 版本信息
+  getVersion: () => api.get('/version'),
   verify2FALogin: (uid: number, code: string) => api.post('/auth/2fa/verify', { uid, code }),
 
   // 会话管理
@@ -186,6 +189,10 @@ export const adminAPI = {
     api.get('/admin/configs'),
   updateConfig: (key: string, value: string) =>
     api.put('/admin/configs', { key, value }),
+  getGameTimeConfigs: () =>
+    api.get('/admin/game-time-configs'),
+  updateGameTimeConfig: (data: any) =>
+    api.put('/admin/game-time-configs', data),
   
   // 公告管理
   getAnnouncements: () =>

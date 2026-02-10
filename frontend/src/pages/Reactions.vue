@@ -433,8 +433,15 @@ const loadReactions = async () => {
 
 const handleApproveReaction = async (reaction: any, reject: boolean) => {
   try {
+    // 验证 group_id 是否有效
+    if (!reaction.group_id || reaction.group_id === null || reaction.group_id === undefined) {
+      await showAlert('该反应缺少有效的分组ID，无法审核', '数据错误')
+      return
+    }
+
     const action = reject ? '拒绝' : '通过'
-    await reactionAPI.approveReaction(reaction.group_id, reaction.display, reject)
+    // 确保传递的是字符串类型的 group_id
+    await reactionAPI.approveReaction(String(reaction.group_id), reaction.display, reject)
     await loadReactions()
     await showAlert(`该化学方程式已${action}`, '审核操作已完成')
   } catch (error: any) {

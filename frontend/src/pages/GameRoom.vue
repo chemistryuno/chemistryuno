@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { gameAPI, adminAPI, friendAPI, authAPI, commonAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
@@ -50,6 +50,31 @@ const showLogs = ref(false)
 const showHints = ref(true)
 const handContainer = ref<HTMLElement | null>(null)
 const substancesContainer = ref<HTMLElement | null>(null)
+const playersContainer = ref<HTMLElement | null>(null)
+
+// 移动端自动全屏
+const requestFullscreen = () => {
+  if (!isMobile.value) return
+  const el = document.documentElement as any
+  const rfs = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen
+  if (rfs) {
+    rfs.call(el).catch(() => {})
+  }
+}
+
+// 自动滚动到当前行动玩家
+const scrollToActivePlayer = () => {
+  if (!playersContainer.value || gameState.value?.current_player == null) return
+  const container = playersContainer.value
+  const playerCards = container.querySelectorAll('[data-player-card]')
+  const activeIndex = gameState.value.current_player
+  const activeCard = playerCards[activeIndex] as HTMLElement
+  if (!activeCard) return
+  const containerRect = container.getBoundingClientRect()
+  const cardRect = activeCard.getBoundingClientRect()
+  const scrollLeft = activeCard.offsetLeft - containerRect.width / 2 + cardRect.width / 2
+  container.scrollTo({ left: scrollLeft, behavior: 'smooth' })
+}
 
 const fetchRandomHints = async () => {
   try {
@@ -868,7 +893,19 @@ onMounted(() => {
     isMobile.value = window.innerWidth < 640
   }
   window.addEventListener('resize', handleResize)
-  
+
+  // 移动端自动全屏
+  if (isMobile.value) {
+    // 用户首次交互后请求全屏
+    const onFirstInteraction = () => {
+      requestFullscreen()
+      document.removeEventListener('touchstart', onFirstInteraction)
+      document.removeEventListener('click', onFirstInteraction)
+    }
+    document.addEventListener('touchstart', onFirstInteraction, { once: true })
+    document.addEventListener('click', onFirstInteraction, { once: true })
+  }
+
   // 初始化拖拽滑动
   setTimeout(() => {
     setupDraggable(handContainer.value)
@@ -876,6 +913,11 @@ onMounted(() => {
   }, 500)
 
   onUnmounted(() => window.removeEventListener('resize', handleResize))
+})
+
+// 监听当前玩家变化，自动滚动到行动玩家
+watch(() => gameState.value?.current_player, () => {
+  nextTick(() => scrollToActivePlayer())
 })
 </script>
 
@@ -919,7 +961,7 @@ onMounted(() => {
       </div>
 
       <!-- Compressed Header - 移动端优化 -->
-      <header class="h-14 sm:h-16 bg-white/70 dark:bg-black/60 backdrop-blur-3xl border-b border-slate-200 dark:border-white/5 px-3 sm:px-6 flex items-center gap-3 z-50 sticky top-0 overflow-x-auto custom-scrollbar-hidden">
+      <header class="h-11 sm:h-16 bg-white/70 dark:bg-black/60 backdrop-blur-3xl border-b border-slate-200 dark:border-white/5 px-2 sm:px-6 flex items-center gap-2 sm:gap-3 z-50 sticky top-0 overflow-x-auto custom-scrollbar-hidden">
         <div class="flex items-center gap-2 sm:gap-4 shrink-0">
           <button
             @click="handleLeaveRoom"
@@ -937,19 +979,20 @@ onMounted(() => {
         </div>
 
         <!-- Players Horizontal Bar - 移动端优化 -->
-        <div class="flex-1 flex items-center gap-2 sm:gap-1.5 overflow-x-auto custom-scrollbar-hidden py-1.5 sm:py-1">
+        <div ref="playersContainer" class="flex-1 flex items-center gap-2 sm:gap-1.5 overflow-x-auto custom-scrollbar-hidden py-1.5 sm:py-1">
           <template v-if="allPlayers.length > 0">
             <div
               v-for="(player, index) in allPlayers"
               :key="player.uid || index"
+              data-player-card
               :class="cn(
-                'flex items-center gap-2 sm:gap-1.5 px-2.5 sm:px-2 py-1.5 sm:py-1 rounded-xl border transition-all shrink-0',
+                'flex items-center gap-1.5 sm:gap-1.5 px-1.5 sm:px-2 py-1 sm:py-1 rounded-lg sm:rounded-xl border transition-all shrink-0',
                 gameState?.current_player === index
                   ? 'bg-blue-600 shadow-md shadow-blue-500/10 ring-1 ring-blue-500/20 border-blue-500'
                   : (gameState ? 'bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/5 opacity-60' : 'bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/10')
               )"
             >
-              <div class="relative w-8 h-8 sm:w-7 sm:h-7 shrink-0">
+              <div class="relative w-6 h-6 sm:w-7 sm:h-7 shrink-0">
                 <div :class="cn(
                   'w-full h-full rounded-lg flex items-center justify-center text-sm sm:text-xs border overflow-hidden relative',
                    gameState?.current_player === index ? 'bg-white text-blue-600 border-white/20' : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-white/10'
@@ -1061,7 +1104,7 @@ onMounted(() => {
       </header>
 
       <!-- Main Action Focus Area -->
-      <div class="flex-1 relative flex flex-col items-center justify-center p-4 mb-20 overflow-hidden">
+      <div class="flex-1 relative flex flex-col items-center justify-center p-2 sm:p-4 mb-16 sm:mb-20 overflow-hidden">
           <!-- Left Sidebar: Hint & Status -->
           <div :class="cn(
             'fixed left-0 top-0 bottom-0 w-full lg:w-80 z-[100] bg-white/95 dark:bg-slate-900/60 backdrop-blur-3xl border-r lg:border border-slate-200 dark:border-white/10 lg:rounded-[40px] lg:top-6 lg:bottom-52 lg:left-6 shadow-3xl transition-all duration-500 flex flex-col overflow-hidden',
@@ -1184,7 +1227,7 @@ onMounted(() => {
           </div>
 
           <!-- Latest Reaction Display -->
-          <div v-if="gameState?.last_card" class="relative group scale-90 sm:scale-100 flex flex-col items-center justify-center">
+          <div v-if="gameState?.last_card" class="relative group scale-75 sm:scale-100 flex flex-col items-center justify-center">
              <div class="absolute -inset-16 bg-blue-600/10 rounded-full blur-[100px] opacity-50 group-hover:opacity-80 transition-opacity animate-pulse"></div>
              
              <!-- Double Play Display (Side by Side) -->
@@ -1363,7 +1406,7 @@ onMounted(() => {
       <div class="fixed bottom-0 left-0 right-0 z-[70] bg-white/70 dark:bg-black/60 backdrop-blur-2xl border-t border-slate-200 dark:border-white/5 flex flex-col items-center">
         <!-- Turn-related buttons and timer - 移动端优化 -->
         <div class="h-0 relative w-full flex justify-center">
-           <div v-if="isMyTurn" class="absolute bottom-full mb-3 sm:mb-2 flex flex-col items-center gap-3 sm:gap-2 animate-in slide-in-from-bottom-4">
+           <div v-if="isMyTurn" class="absolute bottom-full mb-2 sm:mb-2 flex flex-col items-center gap-2 sm:gap-2 animate-in slide-in-from-bottom-4">
               <div class="flex items-center bg-white/90 dark:bg-black/80 backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-xl sm:rounded-lg p-1 sm:p-0.5 shadow-xl">
                 <input
                   v-model="substanceInput"
@@ -1471,7 +1514,7 @@ onMounted(() => {
         </div>
 
         <div class="w-full max-w-7xl mx-auto flex justify-center items-end py-2 sm:py-1">
-           <div ref="handContainer" class="flex items-end gap-2 sm:gap-1.5 px-4 sm:px-6 overflow-x-auto custom-scrollbar-hidden py-2 sm:py-1.5 min-h-[110px] sm:min-h-[120px] w-full">
+           <div ref="handContainer" class="flex items-end gap-1 sm:gap-1.5 px-2 sm:px-6 overflow-x-auto custom-scrollbar-hidden py-1 sm:py-1.5 min-h-[88px] sm:min-h-[120px] w-full">
             <div v-if="roomInfo?.status === 'waiting'" class="flex flex-col items-center justify-center opacity-30 pb-1 min-w-full">
               <Loader2 class="w-8 h-8 sm:w-6 sm:h-6 mb-1 animate-spin text-blue-500" />
               <p class="font-black uppercase tracking-widest text-xs-mobile text-slate-500 text-center">正在同步量子状态并等待开场就绪...</p>
@@ -1482,7 +1525,7 @@ onMounted(() => {
                 :key="index"
                 @click="isMyTurn && handleCardClick(card)"
                 :class="cn(
-                  'uno-card w-16 sm:w-20 h-24 sm:h-28 rounded-xl flex flex-col items-center justify-center cursor-pointer shrink-0 touch-feedback',
+                  'uno-card w-14 sm:w-20 h-20 sm:h-28 rounded-lg sm:rounded-xl flex flex-col items-center justify-center cursor-pointer shrink-0 touch-feedback',
                   getDynamicCardClass(card),
                   selectedCard === card && 'ring-2 ring-blue-500 scale-105 z-10',
                   !isMyTurn && 'opacity-60 grayscale cursor-not-allowed'
@@ -1493,7 +1536,7 @@ onMounted(() => {
               >
                 <div class="absolute top-1 left-1 text-xs-mobile sm:text-[6px] font-black opacity-30 uppercase tracking-tighter">{{ ELEMENTS_DATA[card.type] ? 'Elem' : 'Spec' }}</div>
                 <div class="flex flex-col items-center justify-center">
-                  <div class="text-lg sm:text-base font-black font-mono italic tracking-tighter leading-none">{{ card.type }}</div>
+                  <div class="text-base sm:text-base font-black font-mono italic tracking-tighter leading-none">{{ card.type }}</div>
                   <div v-if="card.effect || ['He','Ne','Ar','Kr'].includes(card.type)" class="mt-1 px-1.5 sm:px-1 py-0.5 bg-black/10 rounded-md text-xs-mobile sm:text-[8px] font-black uppercase tracking-tighter">
                     {{ ['He','Ne','Ar','Kr'].includes(card.type) ? '转向' : card.effect === 'Au' ? '跳过' : card.effect === '+2' ? '+2' : card.effect === '+4' ? '+4' : card.effect }}
                   </div>

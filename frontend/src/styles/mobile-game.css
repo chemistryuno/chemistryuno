@@ -1,0 +1,536 @@
+/* 移动端游戏UI优化样式 */
+
+/* ==================== 基础触摸优化 ==================== */
+
+/* 增强的触摸区域 */
+.btn-touch {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 8px;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.icon-touch {
+  width: 20px;
+  height: 20px;
+}
+
+@media (min-width: 640px) {
+  .btn-touch {
+    min-width: 36px;
+    min-height: 36px;
+    padding: 6px;
+  }
+
+  .icon-touch {
+    width: 16px;
+    height: 16px;
+  }
+}
+
+/* 触摸反馈动画 */
+.touch-feedback:active {
+  transform: scale(0.95);
+  transition: transform 0.1s ease-out;
+}
+
+/* ==================== 字体大小优化 ==================== */
+
+.text-xs-mobile {
+  font-size: 11px;
+}
+
+@media (min-width: 640px) {
+  .text-xs-mobile {
+    font-size: 10px;
+  }
+}
+
+/* 移动端专用大号文字 */
+.text-mobile-lg {
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+.text-mobile-xl {
+  font-size: 20px;
+  line-height: 1.3;
+}
+
+/* ==================== 滚动条优化 ==================== */
+
+/* 隐藏滚动条但保持滚动功能 */
+.custom-scrollbar-hidden {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.custom-scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+}
+
+/* 优化的滚动条（用于需要显示的地方） */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(59, 130, 246, 0.3) transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  height: 4px;
+  width: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(59, 130, 246, 0.3);
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(59, 130, 246, 0.5);
+}
+
+/* ==================== 玩家信息卡片优化 ==================== */
+
+/* 移动端玩家卡片增强显示 */
+.player-card-mobile {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  transition: all 0.2s ease;
+  min-width: max-content;
+}
+
+/* 当前回合玩家高亮 */
+.player-card-mobile.active {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  transform: scale(1.02);
+}
+
+/* 玩家头像优化 */
+.player-avatar-mobile {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  overflow: hidden;
+  flex-shrink: 0;
+  position: relative;
+}
+
+@media (min-width: 640px) {
+  .player-avatar-mobile {
+    width: 32px;
+    height: 32px;
+  }
+}
+
+/* 离线状态遮罩 */
+.player-offline-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(239, 68, 68, 0.6);
+  backdrop-filter: blur(1px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ==================== 倒计时显示优化 ==================== */
+
+/* 移动端倒计时容器 */
+.timer-mobile {
+  position: fixed;
+  top: 60px;
+  right: 12px;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+/* 倒计时圆环 */
+.timer-circle {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(59, 130, 246, 0.1);
+  border: 3px solid #3b82f6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 800;
+  font-family: monospace;
+  color: #3b82f6;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
+}
+
+/* 倒计时紧急状态 */
+.timer-circle.urgent {
+  border-color: #ef4444;
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+  animation: timer-pulse 0.5s ease-in-out infinite;
+}
+
+@keyframes timer-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+/* ==================== 手牌区域优化 ==================== */
+
+/* 手牌容器 */
+.hand-container-mobile {
+  display: flex;
+  gap: 8px;
+  padding: 12px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x proximity;
+}
+
+/* 单张手牌 */
+.card-mobile {
+  min-width: 80px;
+  width: 80px;
+  height: 112px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  scroll-snap-align: start;
+  transition: all 0.2s ease;
+}
+
+.card-mobile:active {
+  transform: translateY(-8px);
+}
+
+.card-mobile.selected {
+  transform: translateY(-12px);
+  box-shadow: 0 8px 24px rgba(59, 130, 246, 0.4);
+}
+
+@media (min-width: 640px) {
+  .card-mobile {
+    min-width: 70px;
+    width: 70px;
+    height: 98px;
+  }
+}
+
+/* ==================== 场上物质区域优化 ==================== */
+
+/* 物质展示容器 */
+.substances-container-mobile {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  gap: 8px;
+  padding: 12px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+@media (min-width: 640px) {
+  .substances-container-mobile {
+    grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+    gap: 6px;
+  }
+}
+
+/* 物质卡片 */
+.substance-card-mobile {
+  aspect-ratio: 1;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px;
+  transition: all 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.substance-card-mobile:active {
+  transform: scale(0.95);
+}
+
+.substance-card-mobile.selected {
+  box-shadow: 0 0 0 3px #3b82f6, 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+/* ==================== 操作按钮优化 ==================== */
+
+/* 移动端主要操作按钮 */
+.action-button-mobile {
+  min-height: 48px;
+  padding: 12px 20px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  transition: all 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.action-button-mobile:active {
+  transform: translateY(1px);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* 主要操作按钮 */
+.action-button-primary {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: white;
+}
+
+.action-button-primary:disabled {
+  background: #94a3b8;
+  opacity: 0.5;
+}
+
+/* 次要操作按钮 */
+.action-button-secondary {
+  background: rgba(148, 163, 184, 0.1);
+  color: #64748b;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+/* 危险操作按钮 */
+.action-button-danger {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+}
+
+/* ==================== 游戏日志优化 ==================== */
+
+/* 移动端日志容器 */
+.game-log-mobile {
+  max-height: 120px;
+  overflow-y: auto;
+  padding: 8px;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+@media (min-width: 640px) {
+  .game-log-mobile {
+    max-height: 150px;
+    font-size: 10px;
+  }
+}
+
+/* 日志条目 */
+.log-entry-mobile {
+  padding: 6px 8px;
+  margin-bottom: 4px;
+  border-radius: 6px;
+  background: rgba(148, 163, 184, 0.05);
+}
+
+/* ==================== 快捷操作面板 ==================== */
+
+/* 底部固定操作栏 */
+.bottom-action-bar-mobile {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  padding: 12px;
+  z-index: 50;
+  display: flex;
+  gap: 8px;
+  box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.05);
+}
+
+@media (prefers-color-scheme: dark) {
+  .bottom-action-bar-mobile {
+    background: rgba(0, 0, 0, 0.8);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+  }
+}
+
+/* 快捷按钮 */
+.quick-action-button {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 8px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  transition: all 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.quick-action-button:active {
+  transform: scale(0.95);
+}
+
+/* ==================== 状态指示器 ==================== */
+
+/* 回合指示器 */
+.turn-indicator-mobile {
+  position: fixed;
+  top: 70px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  padding: 8px 16px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: white;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  animation: turn-bounce 0.5s ease-out;
+}
+
+@keyframes turn-bounce {
+  0% { transform: translateX(-50%) translateY(-20px); opacity: 0; }
+  50% { transform: translateX(-50%) translateY(5px); }
+  100% { transform: translateX(-50%) translateY(0); opacity: 1; }
+}
+
+/* ==================== 响应式断点 ==================== */
+
+/* 超小屏幕（<375px） */
+@media (max-width: 374px) {
+  .text-xs-mobile {
+    font-size: 10px;
+  }
+
+  .card-mobile {
+    min-width: 70px;
+    width: 70px;
+    height: 98px;
+  }
+
+  .player-avatar-mobile {
+    width: 32px;
+    height: 32px;
+  }
+}
+
+/* 小屏幕（375px-640px） */
+@media (min-width: 375px) and (max-width: 639px) {
+  .hand-container-mobile {
+    gap: 10px;
+    padding: 14px;
+  }
+
+  .substances-container-mobile {
+    gap: 10px;
+  }
+}
+
+/* 平板竖屏（640px-768px） */
+@media (min-width: 640px) and (max-width: 767px) {
+  .card-mobile {
+    min-width: 90px;
+    width: 90px;
+    height: 126px;
+  }
+
+  .timer-circle {
+    width: 56px;
+    height: 56px;
+    font-size: 18px;
+  }
+}
+
+/* ==================== 性能优化 ==================== */
+
+/* GPU加速 */
+.gpu-accelerated {
+  transform: translateZ(0);
+  will-change: transform;
+}
+
+/* 减少重绘 */
+.no-repaint {
+  contain: layout style paint;
+}
+
+/* ==================== 暗色模式适配 ==================== */
+
+@media (prefers-color-scheme: dark) {
+  .player-card-mobile {
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .substance-card-mobile {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .log-entry-mobile {
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  .action-button-secondary {
+    background: rgba(255, 255, 255, 0.05);
+    color: #94a3b8;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+}
+
+/* ==================== 动画效果 ==================== */
+
+/* 扫描线动画 */
+@keyframes scan {
+  0% { top: 0; }
+  100% { top: 100%; }
+}
+
+.animate-scan {
+  animation: scan 3s linear infinite;
+}
+
+/* 卡片飞入动画 */
+@keyframes card-fly-in {
+  0% {
+    transform: translateY(100px) rotate(10deg);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0) rotate(0deg);
+    opacity: 1;
+  }
+}
+
+.animate-card-fly-in {
+  animation: card-fly-in 0.3s ease-out;
+}
+
+/* 脉冲动画 */
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 2s ease-in-out infinite;
+}

@@ -109,6 +109,11 @@ func main() {
 	// 初始化Admin Handlers（需要在数据库初始化后）
 	handlers.InitAdminHandlers()
 
+	// 初始化游戏时间配置（需要在数据库初始化后）
+	if err := game.InitGameConfig(); err != nil {
+		log.Printf("⚠️  游戏配置初始化失败: %v (将使用默认配置)", err)
+	}
+
 	// 记录启动时间
 	startTime := time.Now()
 
@@ -181,6 +186,9 @@ func main() {
 				"timestamp": time.Now().Unix(),
 			})
 		})
+
+		// 版本信息接口
+		api.GET("/version", handlers.GetVersion)
 
 		// 公开路由 - 认证组
 		authGroup := api.Group("/auth")
@@ -337,6 +345,8 @@ func main() {
 			admin.PUT("/feedbacks/:id/status", handlers.UpdateFeedbackStatus)
 			admin.GET("/configs", handlers.GetSystemConfigs)
 			admin.PUT("/configs", handlers.UpdateSystemConfig)
+			admin.GET("/game-time-configs", handlers.GetGameTimeConfigs)
+			admin.PUT("/game-time-configs", handlers.UpdateGameTimeConfig)
 			// 公告管理
 			admin.GET("/announcements", handlers.GetAllAnnouncements)
 			admin.POST("/announcements", handlers.CreateAnnouncement)

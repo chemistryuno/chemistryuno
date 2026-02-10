@@ -98,7 +98,7 @@ func initDefaultData() error {
 
 	// 检查是否已有管理员账户
 	var count int64
-	DB.Model(&User{}).Where("username = ?", "admin@chemistryuno.com").Count(&count)
+	DB.Model(&User{}).Where("email = ? OR username = ? OR is_admin = ?", "admin@chemistryuno.com", "admin", true).Count(&count)
 
 	if count == 0 {
 		log.Println("👤 创建默认管理员账户...")

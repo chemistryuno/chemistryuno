@@ -17,6 +17,7 @@ const { showAlert, showConfirm } = useDialog()
 const keys = ref<any[]>([])
 const loading = ref(false)
 const registering = ref(false)
+const appVersion = ref('V1.2.1') // 默认值
 
 const fetchKeys = async () => {
   loading.value = true
@@ -27,6 +28,17 @@ const fetchKeys = async () => {
     console.error('获取密钥列表失败', error)
   } finally {
     loading.value = false
+  }
+}
+
+const loadVersion = async () => {
+  try {
+    const res = await api.get('/version')
+    if (res.data && res.data.version) {
+      appVersion.value = 'V' + res.data.version
+    }
+  } catch (e) {
+    console.error('获取版本信息失败:', e)
   }
 }
 
@@ -76,6 +88,7 @@ const removeKey = async (id: string) => {
 onMounted(() => {
   if (props.show) {
     fetchKeys()
+    loadVersion()
   }
 })
 </script>
@@ -160,7 +173,7 @@ onMounted(() => {
             {{ registering ? '正在等待硬件响应...' : '添加新硬件密钥' }}
           </button>
           <p class="text-[10px] text-slate-400 text-center mt-4 uppercase tracking-widest font-bold">
-            Chemistry Uno Security Framework V1.2.0 - WebAuthn Protocol
+            Chemistry Uno Security Framework {{ appVersion }} - WebAuthn Protocol
           </p>
         </div>
       </div>

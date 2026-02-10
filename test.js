@@ -24,17 +24,17 @@ function log(message, color = colors.reset) {
   console.log(`${color}${message}${colors.reset}`);
 }
 
-// 1. 初始化测试数据库
-console.log('🗄️  初始化测试数据库...');
+// 1. 重置测试数据库到初始状态
+console.log('🔄 重置测试数据库到初始状态...');
 try {
-  execSync('go run scripts/setup_test_env.go', {
-    cwd: path.join(__dirname, 'backend'),
+  execSync('go run backend/scripts/reset_test_db.go', {
+    cwd: __dirname,
     stdio: 'inherit',
     shell: true
   });
-  log('✅ 测试数据库初始化成功\n', colors.green);
+  log('✅ 测试数据库重置成功\n', colors.green);
 } catch (err) {
-  log('❌ 测试数据库初始化失败', colors.red);
+  log('❌ 测试数据库重置失败', colors.red);
   console.error(err.message);
   process.exit(1);
 }

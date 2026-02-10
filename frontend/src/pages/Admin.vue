@@ -36,7 +36,12 @@ const users = ref<any[]>([])
 const gameHistory = ref<any[]>([])
 const feedbacks = ref<any[]>([])
 const announcements = ref<any[]>([])
-const configs = ref<any>({})
+const gameTimeConfigs = ref<any>({
+  player_kick_timeout: '30',
+  player_action_timeout: '30',
+  auto_start_timeout: '10',
+  half_ready_timeout: '60'
+})
 const deckConfig = ref<any>(null)
 const editingDeck = ref(false)
 const deckCardsEdit = ref<{ key: string, value: number, id: string }[]>([])
@@ -50,7 +55,7 @@ const tabs = [
   { id: 'special', label: '稀有元素', icon: Star },
   { id: 'announcements', label: '播音指挥', icon: Bell },
   { id: 'feedbacks', label: '通讯报告', icon: MessageSquare },
-  { id: 'configs', label: '系统参量', icon: Terminal },
+  { id: 'game-time', label: '时间配置', icon: Clock },
   { id: 'history', label: '实验日志', icon: History }
 ]
 
@@ -90,9 +95,14 @@ const loadData = async () => {
     } else if (activeTab.value === 'announcements') {
       const response = await adminAPI.getAnnouncements()
       announcements.value = response.data || []
-    } else if (activeTab.value === 'configs') {
-      const response = await adminAPI.getConfigs()
-      configs.value = response.data || {}
+    } else if (activeTab.value === 'game-time') {
+      const response = await adminAPI.getGameTimeConfigs()
+      if (response.data?.configs) {
+        gameTimeConfigs.value = response.data.configs
+      }
+    } else if (activeTab.value === 'game-time') {
+      const response = await adminAPI.getGameTimeConfigs()
+      gameTimeConfigs.value = response.data.configs || gameTimeConfigs.value
     }
   } catch (error) {
     console.error('加载数据失败:', error)
@@ -107,20 +117,6 @@ watch(activeTab, () => {
   loadData()
   searchTerm.value = ''
 })
-
-const handleUpdateConfig = async (key: string) => {
-  const cfg = configs.value[key]
-  const newValue = await showPrompt(`修改配置 [${key}]: \n${cfg.description}`, cfg.value, '⚙️ 修改系统配置')
-  if (newValue === null) return
-  
-  try {
-    await adminAPI.updateConfig(key, newValue)
-    await showAlert('配置更新成功', '成功')
-    loadData()
-  } catch (error: any) {
-    await showAlert(error.response?.data?.error || '更新配置失败', '错误')
-  }
-}
 
 const handleCreateUser = async () => {
   if (!newUser.value.username || !newUser.value.password) {
@@ -158,6 +154,9 @@ const handleAcceptFeedback = async (id: number) => {
 const handleDismissFeedback = async (id: number) => {
   try {
     const note = await showPrompt('处理说明（可留空，将使用默认文本）:', '输入说明', '处理反馈')
+    // 如果用户点击取消，中断操作
+    if (note === null) return
+
     await adminAPI.updateFeedbackStatus(id, 'dismissed', note || '')
     await showAlert('反馈已消除', '已处理')
     loadData()
@@ -277,6 +276,23 @@ const handleDeleteAnnouncement = async (id: number) => {
     loadData()
   } catch (err: any) {
     await showAlert(err.response?.data?.error || '删除失败')
+  }
+}
+
+const handleUpdateGameTimeConfig = async () => {
+  try {
+    const data = {
+      player_kick_timeout: parseInt(gameTimeConfigs.value.player_kick_timeout),
+      player_action_timeout: parseInt(gameTimeConfigs.value.player_action_timeout),
+      auto_start_timeout: parseInt(gameTimeConfigs.value.auto_start_timeout),
+      half_ready_timeout: parseInt(gameTimeConfigs.value.half_ready_timeout)
+    }
+
+    await adminAPI.updateGameTimeConfig(data)
+    await showAlert('游戏时间配置已更新，将在新游戏中生效', '成功')
+    loadData()
+  } catch (error: any) {
+    await showAlert(error.response?.data?.error || '更新配置失败', '错误')
   }
 }
 
@@ -826,51 +842,121 @@ const filteredHistory = computed(() => {
               </div>
             </div>
 
-            <!-- Configs Tab -->
-            <div v-if="activeTab === 'configs'" class="space-y-8">
+            <!-- Game Time Config Tab -->
+            <div v-if="activeTab === 'game-time'" class="space-y-8">
               <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
                 <h3 class="text-xl font-black italic uppercase text-slate-900 dark:text-white flex items-center gap-4">
-                  <Terminal class="w-5 h-5 text-violet-500" />
-                  系统核心参数配置 <span class="text-slate-400 dark:text-slate-600 font-mono not-italic text-[10px] tracking-normal">/ ROOT@ADMIN:~# settings --view</span>
+                  <Clock class="w-5 h-5 text-blue-500" />
+                  游戏时间配置 <span class="text-slate-400 dark:text-slate-600 font-mono not-italic text-[10px] tracking-normal">/ GAME@TIMING --config</span>
                 </h3>
               </div>
-              
+
               <div class="space-y-4">
                 <div class="flex items-center gap-2 mb-2">
                   <div class="h-px flex-1 bg-slate-200 dark:bg-white/5"></div>
-                  <span class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">基础协议参数 / BASE_PROTOCOL_PARAMS</span>
+                  <span class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">游戏时间参数 / GAME_TIME_PARAMS</span>
                   <div class="h-px flex-1 bg-slate-200 dark:bg-white/5"></div>
                 </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  <template v-for="(cfg, key) in configs" :key="key">
-                    <div class="bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 p-6 rounded-[2rem] group hover:border-violet-500/20 transition-all flex flex-col shadow-sm relative overflow-hidden">
-                      <div class="absolute top-0 right-0 w-32 h-32 bg-violet-500/[0.03] blur-[50px] -mr-16 -mt-16" />
-                      <div class="flex items-center justify-between mb-4 relative z-10">
-                        <span class="text-[10px] font-mono text-violet-600 dark:text-violet-400 uppercase tracking-widest font-black flex items-center gap-2">
-                           <Cpu class="w-4 h-4" /> {{ key }}
-                        </span>
-                        <button @click="handleUpdateConfig(String(key))" class="p-2.5 rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400 opacity-100 lg:opacity-0 group-hover:opacity-100 transition-all hover:bg-violet-600 hover:text-white shadow-lg shadow-violet-500/10 border border-violet-500/20">
-                          <Edit2 class="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                      <div class="flex-1 relative z-10">
-                        <div class="text-2xl font-black text-slate-900 dark:text-white italic truncate mb-2 leading-none">{{ cfg.value }}</div>
-                        <div class="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-relaxed opacity-70">{{ cfg.description }}</div>
-                      </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <!-- Player Kick Timeout -->
+                  <div class="bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 p-6 rounded-[2rem] shadow-sm relative overflow-hidden">
+                    <div class="absolute top-0 right-0 w-32 h-32 bg-blue-500/[0.03] blur-[50px] -mr-16 -mt-16" />
+                    <div class="relative z-10">
+                      <label class="text-[10px] font-mono text-blue-600 dark:text-blue-400 uppercase tracking-widest font-black flex items-center gap-2 mb-3">
+                        <Clock class="w-4 h-4" /> 玩家离线踢出时间
+                      </label>
+                      <input
+                        v-model="gameTimeConfigs.player_kick_timeout"
+                        type="number"
+                        min="10"
+                        max="300"
+                        class="w-full bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 text-lg font-black text-slate-900 dark:text-white focus:outline-none focus:border-blue-500/50 transition-all"
+                      />
+                      <div class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-2 opacity-70">秒 (范围: 10-300)</div>
                     </div>
-                  </template>
+                  </div>
+
+                  <!-- Player Action Timeout -->
+                  <div class="bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 p-6 rounded-[2rem] shadow-sm relative overflow-hidden">
+                    <div class="absolute top-0 right-0 w-32 h-32 bg-green-500/[0.03] blur-[50px] -mr-16 -mt-16" />
+                    <div class="relative z-10">
+                      <label class="text-[10px] font-mono text-green-600 dark:text-green-400 uppercase tracking-widest font-black flex items-center gap-2 mb-3">
+                        <Clock class="w-4 h-4" /> 玩家操作时间
+                      </label>
+                      <input
+                        v-model="gameTimeConfigs.player_action_timeout"
+                        type="number"
+                        min="10"
+                        max="300"
+                        class="w-full bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 text-lg font-black text-slate-900 dark:text-white focus:outline-none focus:border-green-500/50 transition-all"
+                      />
+                      <div class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-2 opacity-70">秒 (范围: 10-300)</div>
+                    </div>
+                  </div>
+
+                  <!-- Auto Start Timeout -->
+                  <div class="bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 p-6 rounded-[2rem] shadow-sm relative overflow-hidden">
+                    <div class="absolute top-0 right-0 w-32 h-32 bg-purple-500/[0.03] blur-[50px] -mr-16 -mt-16" />
+                    <div class="relative z-10">
+                      <label class="text-[10px] font-mono text-purple-600 dark:text-purple-400 uppercase tracking-widest font-black flex items-center gap-2 mb-3">
+                        <Clock class="w-4 h-4" /> 自动开始倒计时
+                      </label>
+                      <input
+                        v-model="gameTimeConfigs.auto_start_timeout"
+                        type="number"
+                        min="5"
+                        max="60"
+                        class="w-full bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 text-lg font-black text-slate-900 dark:text-white focus:outline-none focus:border-purple-500/50 transition-all"
+                      />
+                      <div class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-2 opacity-70">秒 (范围: 5-60)</div>
+                    </div>
+                  </div>
+
+                  <!-- Half Ready Timeout -->
+                  <div class="bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 p-6 rounded-[2rem] shadow-sm relative overflow-hidden">
+                    <div class="absolute top-0 right-0 w-32 h-32 bg-orange-500/[0.03] blur-[50px] -mr-16 -mt-16" />
+                    <div class="relative z-10">
+                      <label class="text-[10px] font-mono text-orange-600 dark:text-orange-400 uppercase tracking-widest font-black flex items-center gap-2 mb-3">
+                        <Clock class="w-4 h-4" /> 半数准备倒计时
+                      </label>
+                      <input
+                        v-model="gameTimeConfigs.half_ready_timeout"
+                        type="number"
+                        min="30"
+                        max="120"
+                        class="w-full bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 text-lg font-black text-slate-900 dark:text-white focus:outline-none focus:border-orange-500/50 transition-all"
+                      />
+                      <div class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-2 opacity-70">秒 (范围: 30-120)</div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Save Button -->
+                <div class="flex justify-end mt-6">
+                  <button
+                    @click="handleUpdateGameTimeConfig"
+                    class="px-8 py-4 bg-gradient-to-r from-blue-500 to-purple-600 text-white font-black uppercase text-sm rounded-2xl hover:shadow-2xl hover:shadow-blue-500/20 transition-all flex items-center gap-3 border border-white/10"
+                  >
+                    <Save class="w-4 h-4" />
+                    保存配置
+                  </button>
                 </div>
               </div>
 
-              <div class="p-8 rounded-[2.5rem] bg-violet-500/[0.03] border border-violet-500/10 flex flex-col sm:flex-row items-center sm:items-start gap-6 relative overflow-hidden group">
-                <div class="absolute inset-0 bg-gradient-to-r from-violet-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                <div class="p-5 rounded-2xl bg-violet-500/10 text-violet-600 dark:text-violet-400 shrink-0 border border-violet-500/20 shadow-inner relative z-10">
+              <div class="p-8 rounded-[2.5rem] bg-blue-500/[0.03] border border-blue-500/10 flex flex-col sm:flex-row items-center sm:items-start gap-6 relative overflow-hidden group">
+                <div class="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div class="p-5 rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400 shrink-0 border border-blue-500/20 shadow-inner relative z-10">
                   <Activity class="w-7 h-7" />
                 </div>
                 <div class="space-y-2 relative z-10 text-center sm:text-left">
-                  <h4 class="text-sm font-black text-slate-900 dark:text-white uppercase italic tracking-wider">实验室配置说明 / OPERATION_MANUAL</h4>
+                  <h4 class="text-sm font-black text-slate-900 dark:text-white uppercase italic tracking-wider">游戏时间配置说明 / TIMING_MANUAL</h4>
                   <p class="text-xs text-slate-500 dark:text-slate-400 font-bold leading-relaxed max-w-2xl italic">
-                    警告：此处参数直接影响实验室核心协议逻辑。所有更改在数据库 commit 后立即生效，请在管理员授权下进行数值调整，确保实验室环境稳定性。
+                    • 玩家离线踢出时间：玩家断线后多久会被踢出游戏<br>
+                    • 玩家操作时间：每个玩家的回合操作时限<br>
+                    • 自动开始倒计时：房间满员且全员准备后的倒计时<br>
+                    • 半数准备倒计时：半数玩家准备后的倒计时<br>
+                    ⚠️ 注意：配置更新后将在新创建的游戏中生效，不影响正在进行的游戏。
                   </p>
                 </div>
               </div>

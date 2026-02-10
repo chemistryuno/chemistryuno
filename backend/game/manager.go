@@ -16,8 +16,9 @@ import (
 )
 
 var (
-	rooms     = make(map[string]*GameRoom)
-	roomMutex sync.RWMutex
+	rooms      = make(map[string]*GameRoom)
+	roomMutex  sync.RWMutex
+	configRepo *repository.ConfigRepository
 )
 
 type GameRoom struct {
@@ -575,12 +576,14 @@ func (gr *GameRoom) checkInactivity() {
 					expiryBase = *lastOffline
 				}
 
-				if now.Sub(expiryBase) > 30*time.Second {
+				kickTimeout := getPlayerKickTimeout()
+				if now.Sub(expiryBase) > kickTimeout {
 					playersToKick = append(playersToKick, uid)
 				}
 			} else {
 				// 回退逻辑
-				if now.Sub(offlineTime) > 30*time.Second {
+				kickTimeout := getPlayerKickTimeout()
+				if now.Sub(offlineTime) > kickTimeout {
 					playersToKick = append(playersToKick, uid)
 				}
 			}
@@ -999,7 +1002,7 @@ func StartGame(roomID string, uid int) error {
 		DrawPile:            []models.Card{},
 		DiscardPile:         []models.PlayedCard{},
 		Status:              "playing",
-		TurnEndTime:         time.Now().Add(30*time.Second).UnixNano() / int64(time.Millisecond),
+		TurnEndTime:         time.Now().Add(getPlayerActionTimeout()).UnixNano() / int64(time.Millisecond),
 		PendingDrawCount:    0,
 		PendingDrawTypes:    nil,
 		AllowedAnyPlayer:    -1,
@@ -1605,7 +1608,7 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 
 		gameRoom.GameState.CurrentPlayer = getNextPlayer(gameRoom.GameState)
 		gameRoom.recordTurnStart()
-		gameRoom.GameState.TurnEndTime = time.Now().Add(30*time.Second).UnixNano() / int64(time.Millisecond)
+		gameRoom.GameState.TurnEndTime = time.Now().Add(getPlayerActionTimeout()).UnixNano() / int64(time.Millisecond)
 		return nil
 	}
 
@@ -1617,7 +1620,7 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 		// 传递到下家
 		gameRoom.GameState.CurrentPlayer = getNextPlayer(gameRoom.GameState)
 		gameRoom.recordTurnStart()
-		gameRoom.GameState.TurnEndTime = time.Now().Add(30*time.Second).UnixNano() / int64(time.Millisecond)
+		gameRoom.GameState.TurnEndTime = time.Now().Add(getPlayerActionTimeout()).UnixNano() / int64(time.Millisecond)
 		// 如果之前允许任意出牌的标记被消费（且未产生新转移），清除
 		if gameRoom.GameState.AllowedAnyPlayer == curIdx {
 			gameRoom.GameState.AllowedAnyPlayer = -1
@@ -1631,7 +1634,7 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 		// 回合传递
 		gameRoom.GameState.CurrentPlayer = getNextPlayer(gameRoom.GameState)
 		gameRoom.recordTurnStart()
-		gameRoom.GameState.TurnEndTime = time.Now().Add(30*time.Second).UnixNano() / int64(time.Millisecond)
+		gameRoom.GameState.TurnEndTime = time.Now().Add(getPlayerActionTimeout()).UnixNano() / int64(time.Millisecond)
 
 		// 结算罚牌后清空场面并允许下家随意出牌
 		gameRoom.GameState.LastCard = nil
@@ -1677,7 +1680,7 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 	if gameRoom.GameState.AllowedAnyPlayer == curIdx {
 		gameRoom.GameState.AllowedAnyPlayer = -1
 	}
-	gameRoom.GameState.TurnEndTime = time.Now().Add(30*time.Second).UnixNano() / int64(time.Millisecond)
+	gameRoom.GameState.TurnEndTime = time.Now().Add(getPlayerActionTimeout()).UnixNano() / int64(time.Millisecond)
 	return nil
 }
 
@@ -1801,7 +1804,7 @@ func DrawCard(roomID string, uid int, count int) error {
 	// 摸牌后跳过回合
 	gameRoom.GameState.CurrentPlayer = getNextPlayer(gameRoom.GameState)
 	gameRoom.recordTurnStart()
-	gameRoom.GameState.TurnEndTime = time.Now().Add(30*time.Second).UnixNano() / int64(time.Millisecond)
+	gameRoom.GameState.TurnEndTime = time.Now().Add(getPlayerActionTimeout()).UnixNano() / int64(time.Millisecond)
 
 	// 如果结算了罚牌，清空场面并允许下家随意出牌
 	if penaltyResolved {
@@ -1932,12 +1935,41 @@ func saveGameHistory(roomID string, winnerUID int, players []int, originalPlayer
 }
 
 func init() {
+	// 启动超时检查协程
 	go func() {
 		ticker := time.NewTicker(1 * time.Second)
 		for range ticker.C {
 			checkRoomsTimeout()
 		}
 	}()
+}
+
+// InitGameConfig 初始化游戏配置（需要在数据库初始化后调用）
+func InitGameConfig() error {
+	// 初始化配置仓库
+	configRepo = repository.NewConfigRepository()
+	// 初始化默认配置
+	if err := configRepo.InitDefaultConfigs(); err != nil {
+		return fmt.Errorf("初始化默认配置失败: %v", err)
+	}
+	log.Println("✅ 游戏时间配置初始化成功")
+	return nil
+}
+
+// getPlayerKickTimeout 获取玩家离线踢出超时时间
+func getPlayerKickTimeout() time.Duration {
+	if configRepo == nil {
+		return 30 * time.Second
+	}
+	return configRepo.GetDurationValue("player_kick_timeout", 30*time.Second)
+}
+
+// getPlayerActionTimeout 获取玩家操作超时时间
+func getPlayerActionTimeout() time.Duration {
+	if configRepo == nil {
+		return 30 * time.Second
+	}
+	return configRepo.GetDurationValue("player_action_timeout", 30*time.Second)
 }
 
 func checkRoomsTimeout() {
@@ -2147,7 +2179,7 @@ func DoublePlay(roomID string, uid int, sub1 string, sub2 string) error {
 	if gameRoom.GameState.AllowedAnyPlayer == curIdx {
 		gameRoom.GameState.AllowedAnyPlayer = -1
 	}
-	gameRoom.GameState.TurnEndTime = time.Now().Add(30*time.Second).UnixNano() / int64(time.Millisecond)
+	gameRoom.GameState.TurnEndTime = time.Now().Add(getPlayerActionTimeout()).UnixNano() / int64(time.Millisecond)
 
 	return nil
 }
@@ -2178,7 +2210,7 @@ func processRoomTimeout(roomID string) {
 		drawCardsForPlayer(gameRoom, gameRoom.GameState.CurrentPlayer, drawCount)
 		gameRoom.GameState.CurrentPlayer = getNextPlayer(gameRoom.GameState)
 		gameRoom.recordTurnStart()
-		gameRoom.GameState.TurnEndTime = time.Now().Add(30*time.Second).UnixNano() / int64(time.Millisecond)
+		gameRoom.GameState.TurnEndTime = time.Now().Add(getPlayerActionTimeout()).UnixNano() / int64(time.Millisecond)
 
 		// 如果结算了罚牌，清空场面并允许下家随意出牌
 		if penaltyResolved {

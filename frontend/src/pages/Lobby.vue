@@ -51,6 +51,7 @@ const loading = ref(false)
 const currentTime = ref(new Date())
 const onlineCount = ref(0)
 const isMobileMenuOpen = ref(false)
+const appVersion = ref('V1.2.1 Mendeleef') // 默认值
 
 const activeRoom = computed(() => {
   return rooms.value.find(r => 
@@ -107,10 +108,11 @@ onMounted(() => {
   loadPendingFeedbacks()
   loadPersistentAnnouncements()
   loadFriends()
+  loadVersion()
   websocket.connect()
   websocket.on('online_count', handleOnlineCountUpdate)
   websocket.on('system_announcement', handleSystemAnnouncement)
-  
+
   roomInterval = setInterval(loadRooms, 3000)
   timeInterval = setInterval(() => {
     currentTime.value = new Date()
@@ -139,6 +141,17 @@ const loadPendingFeedbacks = async () => {
     pendingFeedbacks.value = (res.data || []).filter((f: any) => f.status === 'unread')
   } catch (e) {
     console.error(e)
+  }
+}
+
+const loadVersion = async () => {
+  try {
+    const res = await authAPI.getVersion()
+    if (res.data && res.data.fullVersion) {
+      appVersion.value = res.data.fullVersion
+    }
+  } catch (e) {
+    console.error('获取版本信息失败:', e)
   }
 }
 
@@ -208,7 +221,7 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
               <Beaker class="w-5 h-5 sm:w-6 sm:h-6 text-blue-500 group-hover:rotate-12 transition-transform" />
               <div>
                  <h1 class="text-sm sm:text-base font-black tracking-tighter text-slate-900 dark:text-white leading-none">CHEMISTRY <span class="text-blue-500">UNO</span></h1>
-                 <p class="text-xs-mobile text-blue-500/50 font-mono tracking-widest leading-none mt-0.5 sm:mt-1 uppercase">V1.2.0 Mendeleef</p>
+                 <p class="text-xs-mobile text-blue-500/50 font-mono tracking-widest leading-none mt-0.5 sm:mt-1 uppercase">{{ appVersion }}</p>
               </div>
             </div>
 

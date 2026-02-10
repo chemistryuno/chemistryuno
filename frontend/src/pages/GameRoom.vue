@@ -213,6 +213,13 @@ watch(showHints, (val) => {
   }
 })
 
+// 移动端自动关闭提示面板
+watch(isMobile, (val) => {
+  if (val) {
+    showHints.value = false
+  }
+})
+
 const openAdminAction = (player: any) => {
   if (!user.value.is_admin || player.uid === user.value.uid) return
   adminTargetUser.value = player
@@ -889,6 +896,12 @@ const setupDraggable = (el: HTMLElement | null) => {
 
 onMounted(() => {
   isMobile.value = window.innerWidth < 640
+
+  // 移动端自动关闭提示面板
+  if (isMobile.value) {
+    showHints.value = false
+  }
+
   const handleResize = () => {
     isMobile.value = window.innerWidth < 640
   }

@@ -2,6 +2,7 @@
 
 import (
 	"chemistryuno/backend/database"
+	"chemistryuno/backend/game"
 	"chemistryuno/backend/models"
 	"chemistryuno/backend/repository"
 	"chemistryuno/backend/utils"
@@ -132,9 +133,9 @@ func KickPlayer(c *gin.Context) {
 // 管理员封禁用户
 func BanUser(c *gin.Context) {
 	var req struct {
-		TargetUID  int    `json:"target_uid" binding:"required"`
+		TargetUID   int    `json:"target_uid" binding:"required"`
 		BannedUntil string `json:"banned_until" binding:"required"` // ISO 8601 datetime
-		Reason     string `json:"reason"`
+		Reason      string `json:"reason"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -518,6 +519,9 @@ func ApproveReaction(c *gin.Context) {
 		}
 
 		c.JSON(http.StatusOK, gin.H{"message": "审批已处理", "status": newStatus})
+		if newStatus == "approved" {
+			game.RebuildSubstanceCache()
+		}
 		return
 	}
 
@@ -529,6 +533,9 @@ func ApproveReaction(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "状态已更新", "status": newStatus})
+	if newStatus == "approved" {
+		game.RebuildSubstanceCache()
+	}
 }
 
 // 解析 display 得到 r1 和 r2
@@ -652,6 +659,7 @@ func AddReaction(c *gin.Context) {
 	msg := "反应已提交，等待协作者或管理员审核"
 	if status == "approved" {
 		msg = "反应已成功加入核心数据库"
+		game.RebuildSubstanceCache()
 	}
 	c.JSON(http.StatusOK, gin.H{"message": msg})
 }
@@ -862,6 +870,7 @@ func DeleteReaction(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "已从实验室档案中抹除"})
+	game.RebuildSubstanceCache()
 }
 
 // 直接修改化学反应 (Admin/Co-worker)
@@ -939,6 +948,7 @@ func UpdateReaction(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "方程式已直接修改并生效"})
+	game.RebuildSubstanceCache()
 }
 
 // 批量导入化学反应 (JSON数组)
@@ -999,6 +1009,9 @@ func BatchAddReactions(c *gin.Context) {
 		"message": fmt.Sprintf("成功导入 %d 条反应", successCount),
 		"count":   successCount,
 	})
+	if successCount > 0 {
+		game.RebuildSubstanceCache()
+	}
 }
 
 // GetSystemConfigs 获取所有系统基础配置

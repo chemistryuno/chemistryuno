@@ -49,11 +49,11 @@ func (gr *GameRoom) checkAutoStart() {
 	targetCountdown := 0
 	if numPlayers >= 2 {
 		if numPlayers == maxPlayers && numReady == maxPlayers {
-			// 满员且全部准备 -> 10秒快速开始
-			targetCountdown = 10
+			// 满员且全部准备 -> 快速开始（从配置读取）
+			targetCountdown = getAutoStartTimeout()
 		} else if numReady >= (maxPlayers+1)/2 {
-			// 至少2人且准备人数过半 -> 60秒倒计时
-			targetCountdown = 60
+			// 至少2人且准备人数过半 -> 倒计时（从配置读取）
+			targetCountdown = getHalfReadyTimeout()
 		}
 	}
 
@@ -1447,6 +1447,12 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 	if substance == "" {
 		substance = card.Type
 	}
+
+	// 校验物质是否已录入
+	if !IsValidSubstance(substance) {
+		return errors.New("该物质未录入")
+	}
+
 	requiredElements := parseSubstance(substance)
 	usedCards := []int{} // 记录将要从手牌中移除的索引
 	for elemName := range requiredElements {
@@ -2022,6 +2028,10 @@ func InitGameConfig() error {
 		return fmt.Errorf("初始化默认配置失败: %v", err)
 	}
 	log.Println("✅ 游戏时间配置初始化成功")
+
+	// 初始化物质缓存
+	RebuildSubstanceCache()
+
 	return nil
 }
 
@@ -2039,6 +2049,22 @@ func getPlayerActionTimeout() time.Duration {
 		return 30 * time.Second
 	}
 	return configRepo.GetDurationValue("player_action_timeout", 30*time.Second)
+}
+
+// getAutoStartTimeout 获取满员全准备自动开始倒计时（秒）
+func getAutoStartTimeout() int {
+	if configRepo == nil {
+		return 10
+	}
+	return configRepo.GetIntValue("auto_start_timeout", 10)
+}
+
+// getHalfReadyTimeout 获取半数准备自动开始倒计时（秒）
+func getHalfReadyTimeout() int {
+	if configRepo == nil {
+		return 60
+	}
+	return configRepo.GetIntValue("half_ready_timeout", 60)
 }
 
 func checkRoomsTimeout() {
@@ -2109,6 +2135,14 @@ func DoublePlay(roomID string, uid int, sub1 string, sub2 string) error {
 	// 如果有挂起的加牌，禁止发动双联行动
 	if gameRoom.GameState.PendingDrawCount > 0 {
 		return errors.New("当前处于加牌结算状态，不可发动双联反应")
+	}
+
+	// 校验物质是否已录入
+	if !IsValidSubstance(sub1) {
+		return errors.New("该物质未录入: " + sub1)
+	}
+	if !IsValidSubstance(sub2) {
+		return errors.New("该物质未录入: " + sub2)
 	}
 
 	// 校验两物质是否能反应

@@ -53,3 +53,5 @@ yarn-error.log*
 # Temporary files
 tmpclaude-*
 *.go.txt
+bin/
+android/

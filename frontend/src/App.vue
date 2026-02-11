@@ -39,6 +39,15 @@ const handleDuelDeclined = (msg: any) => {
   showAlert(`研究员 ${msg.data.username} 拒绝了你的挑战邀请。`, '挑战被拒绝')
 }
 
+const handleForceLogout = async (msg: any) => {
+  localStorage.removeItem('token')
+  localStorage.removeItem('user')
+  websocket.disconnect()
+  const reason = msg?.message || msg?.data || '您已被管理员强制下线'
+  await showAlert(reason, '账号操作通知')
+  window.location.href = '/login'
+}
+
 const handleSystemAnnouncement = (msg: any) => {
   const ann = msg.data
   // 如果不是跑马灯，则视为弹窗公告
@@ -91,6 +100,7 @@ onMounted(() => {
     websocket.on('duel_invite', handleDuelInvite)
     websocket.on('duel_declined', handleDuelDeclined)
     websocket.on('system_announcement', handleSystemAnnouncement)
+    websocket.on('force_logout', handleForceLogout)
   } catch (err) {
     console.error('App initialization failed:', err)
   } finally {
@@ -106,6 +116,7 @@ onUnmounted(() => {
   websocket.off('duel_invite', handleDuelInvite)
   websocket.off('duel_declined', handleDuelDeclined)
   websocket.off('system_announcement', handleSystemAnnouncement)
+  websocket.off('force_logout', handleForceLogout)
 })
 </script>
 

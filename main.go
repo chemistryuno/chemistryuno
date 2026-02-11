@@ -300,6 +300,7 @@ func main() {
 			auth.POST("/rooms/:id/play-double", handlers.DoublePlay)
 			auth.POST("/rooms/:id/draw", handlers.DrawCard)
 			auth.GET("/rooms/:id/substances", handlers.GetAvailableSubstances)
+			auth.GET("/rooms/:id/reaction-hints", handlers.GetReactionHints)
 			auth.POST("/game/check-reaction", handlers.VerifyReaction)
 
 			// WebSocket
@@ -337,7 +338,7 @@ func main() {
 			admin.PUT("/users/:uid/password", handlers.AdminChangePassword)
 			admin.PUT("/users/:uid/role", handlers.PromoteUser)
 			admin.POST("/users/ban", handlers.BanUser)
-			admin.POST("/rooms/kick", handlers.KickPlayer)
+			admin.POST("/users/kick", handlers.KickPlayer)
 			admin.GET("/deck-config", handlers.GetGlobalDeckConfig)
 			admin.PUT("/deck-config", handlers.UpdateGlobalDeckConfig)
 			admin.GET("/game-history", handlers.GetGameHistory)

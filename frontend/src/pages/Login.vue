@@ -87,7 +87,16 @@ const handleSubmit = async () => {
     const { token, user, announcements } = response.data
     handleLoginSuccess(token, user, announcements)
   } catch (err: any) {
-    error.value = err.response?.data?.error || '身份验证失败，请核对凭证'
+    const data = err.response?.data
+    if (data?.banned_until) {
+      const until = new Date(data.banned_until).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })
+      error.value = `${data.error}，封禁至 ${until}（UTC+8:00）`
+    } else if (data?.frozen_until) {
+      const until = new Date(data.frozen_until).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })
+      error.value = `${data.error}，直到 ${until}（UTC+8:00）`
+    } else {
+      error.value = data?.error || '身份验证失败，请核对凭证'
+    }
   } finally {
     loading.value = false
   }
@@ -114,18 +123,18 @@ const handleLoginSuccess = (token: string, user: any, announcements: any[] = [])
   localStorage.setItem('user', JSON.stringify(user))
   websocket.connect()
 
-  // 处理登录时的公告 - 已禁用开屏提示
-  // if (announcements && announcements.length > 0) {
-  //   announcements.forEach((ann: any) => {
-  //     // 只处理模态框类型的，跑马灯交给 AnnouncementTicker 自动获取
-  //     if (!ann.is_ticker) {
-  //       let title = ann.title || '系统公告'
-  //       if (ann.type === 'emergency' && !ann.title) title = '紧急通知'
-  //       if (ann.type === 'maintenance' && !ann.title) title = '维护通知'
-  //       dialog.showAlert(ann.content, title, '确定', ann.close_delay || 0)
-  //     }
-  //   })
-  // }
+  //处理登录时的公告
+  if (announcements && announcements.length > 0) {
+    announcements.forEach((ann: any) => {
+      // 只处理模态框类型的，跑马灯交给 AnnouncementTicker 自动获取
+      if (!ann.is_ticker) {
+        let title = ann.title || '系统公告'
+        if (ann.type === 'emergency' && !ann.title) title = '紧急通知'
+        if (ann.type === 'maintenance' && !ann.title) title = '维护通知'
+        dialog.showAlert(ann.content, title, '确定', ann.close_delay || 0)
+      }
+    })
+  }
 
   router.push('/')
 }

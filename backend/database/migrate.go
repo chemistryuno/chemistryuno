@@ -148,10 +148,10 @@ func initDefaultData() error {
 		log.Printf("⚠️  初始化默认系统配置失败: %v", err)
 	}
 
-	// 初始化默认提示数据
-	if err := initDefaultHints(); err != nil {
-		log.Printf("⚠️  初始化默认提示数据失败: %v", err)
-	}
+	// // 初始化默认提示数据
+	// if err := initDefaultHints(); err != nil {
+	// 	log.Printf("⚠️  初始化默认提示数据失败: %v", err)
+	// }
 
 	log.Println("✅ 默认数据初始化完成")
 
@@ -159,29 +159,29 @@ func initDefaultData() error {
 }
 
 // initDefaultHints 初始化实验情报提示
-func initDefaultHints() error {
-	var count int64
-	DB.Model(&Announcement{}).Where("type = ?", "hint").Count(&count)
-	if count > 0 {
-		return nil
-	}
+// func initDefaultHints() error {
+// 	var count int64
+// 	DB.Model(&Announcement{}).Where("type = ?", "hint").Count(&count)
+// 	if count > 0 {
+// 		return nil
+// 	}
 
-	hints := []Announcement{
-		{Title: "合成技巧", Content: "在 Uno 中，你可以通过合理的卡牌组合来通过化学方程式合成更高级的物质。", Type: "hint", Active: true},
-		{Title: "稀有元素", Content: "金(Au)是极其稀有的元素，如果能成功合成金相关的化合物，通常会获得高额分数或成就。", Type: "hint", Active: true},
-		{Title: "加牌机制", Content: "使用 +2 或 +4 类型的反应卡可以强迫下一位研究员摸取对应的卡牌，除非他能打出另一张叠加卡。", Type: "hint", Active: true},
-		{Title: "双重反应", Content: "在某些模式下，你可以一次打出两张底物来尝试更复杂的双重置换反应。", Type: "hint", Active: true},
-		{Title: "非法操作", Content: "尝试不符合真实化学逻辑的反应会导致爆炸并强制罚牌，请务必保证你的实验计划符合科学规律。", Type: "hint", Active: true},
-	}
+// 	hints := []Announcement{
+// 		{Title: "合成技巧", Content: "在 Uno 中，你可以通过合理的卡牌组合来通过化学方程式合成更高级的物质。", Type: "hint", Active: true},
+// 		{Title: "稀有元素", Content: "金(Au)是极其稀有的元素，如果能成功合成金相关的化合物，通常会获得高额分数或成就。", Type: "hint", Active: true},
+// 		{Title: "加牌机制", Content: "使用 +2 或 +4 类型的反应卡可以强迫下一位研究员摸取对应的卡牌，除非他能打出另一张叠加卡。", Type: "hint", Active: true},
+// 		{Title: "双重反应", Content: "在某些模式下，你可以一次打出两张底物来尝试更复杂的双重置换反应。", Type: "hint", Active: true},
+// 		{Title: "非法操作", Content: "尝试不符合真实化学逻辑的反应会导致爆炸并强制罚牌，请务必保证你的实验计划符合科学规律。", Type: "hint", Active: true},
+// 	}
 
-	for _, hint := range hints {
-		if err := DB.Create(&hint).Error; err != nil {
-			log.Printf("创建默认提示失败: %v", err)
-		}
-	}
-	log.Println("✅ 默认实验情报提示初始化成功")
-	return nil
-}
+// 	for _, hint := range hints {
+// 		if err := DB.Create(&hint).Error; err != nil {
+// 			log.Printf("创建默认提示失败: %v", err)
+// 		}
+// 	}
+// 	log.Println("✅ 默认实验情报提示初始化成功")
+// 	return nil
+// }
 
 // initDefaultConfigs 初始化系统配置
 func initDefaultConfigs() error {
@@ -430,6 +430,49 @@ func initDefaultSubstancesGORM() error {
 		{Name: "氢氧化铝", Formula: "Al(OH)3", Elements: "Al,O,H", CreatedByUID: 100000000, Status: "approved"},
 		{Name: "氢氧化锌", Formula: "Zn(OH)2", Elements: "Zn,O,H", CreatedByUID: 100000000, Status: "approved"},
 		{Name: "硝酸钾", Formula: "KNO3", Elements: "K,N,O", CreatedByUID: 100000000, Status: "approved"},
+
+		// ============================================
+		// 补充缺失的物质（Au金相关、Si硅相关等）
+		// 添加时间: 2026-02-11
+		// ============================================
+
+		// 硅 Si 相关补充
+		{Name: "硅", Formula: "Si", Elements: "Si", CreatedByUID: 100000000, Status: "approved"},
+		{Name: "硅酸钠", Formula: "Na2SiO3", Elements: "Na,Si,O", CreatedByUID: 100000000, Status: "approved"},
+		{Name: "硅酸钙", Formula: "CaSiO3", Elements: "Ca,Si,O", CreatedByUID: 100000000, Status: "approved"},
+		{Name: "硅酸", Formula: "H2SiO3", Elements: "H,Si,O", CreatedByUID: 100000000, Status: "approved"},
+		{Name: "四氯化硅", Formula: "SiCl4", Elements: "Si,Cl", CreatedByUID: 100000000, Status: "approved"},
+
+		// 锰 Mn 相关补充
+		{Name: "锰", Formula: "Mn", Elements: "Mn", CreatedByUID: 100000000, Status: "approved"},
+		{Name: "一氧化锰", Formula: "MnO", Elements: "Mn,O", CreatedByUID: 100000000, Status: "approved"},
+		{Name: "二氧化锰", Formula: "MnO2", Elements: "Mn,O", CreatedByUID: 100000000, Status: "approved"},
+		{Name: "氯化锰", Formula: "MnCl2", Elements: "Mn,Cl", CreatedByUID: 100000000, Status: "approved"},
+		{Name: "硫酸锰", Formula: "MnSO4", Elements: "Mn,S,O", CreatedByUID: 100000000, Status: "approved"},
+		{Name: "碳酸锰", Formula: "MnCO3", Elements: "Mn,C,O", CreatedByUID: 100000000, Status: "approved"},
+		{Name: "氢氧化锰", Formula: "Mn(OH)2", Elements: "Mn,O,H", CreatedByUID: 100000000, Status: "approved"},
+		{Name: "硫化锰", Formula: "MnS", Elements: "Mn,S", CreatedByUID: 100000000, Status: "approved"},
+		{Name: "高锰酸钾", Formula: "KMnO4", Elements: "K,Mn,O", CreatedByUID: 100000000, Status: "approved"},
+		{Name: "硝酸锰", Formula: "Mn(NO3)2", Elements: "Mn,N,O", CreatedByUID: 100000000, Status: "approved"},
+		{Name: "溴化锰", Formula: "MnBr2", Elements: "Mn,Br", CreatedByUID: 100000000, Status: "approved"},
+		{Name: "碘化锰", Formula: "MnI2", Elements: "Mn,I", CreatedByUID: 100000000, Status: "approved"},
+		{Name: "氟化锰", Formula: "MnF2", Elements: "Mn,F", CreatedByUID: 100000000, Status: "approved"},
+
+		// ============================================
+		// 从 ref.json 补充缺失的物质
+		// 添加时间: 2026-02-11
+		// ============================================
+		{Name: "六氟硅酸", Formula: "H2SiF6", Elements: "H,Si,F", CreatedByUID: 100000000, Status: "approved"},
+		{Name: "原硅酸", Formula: "H4SiO4", Elements: "H,Si,O", CreatedByUID: 100000000, Status: "approved"},
+		{Name: "五氯化磷", Formula: "PCl5", Elements: "P,Cl", CreatedByUID: 100000000, Status: "approved"},
+		{Name: "亚磷酸", Formula: "H3PO3", Elements: "H,P,O", CreatedByUID: 100000000, Status: "approved"},
+		{Name: "氯化铵磷", Formula: "PH4Cl", Elements: "P,H,Cl", CreatedByUID: 100000000, Status: "approved"},
+		{Name: "磷化氢", Formula: "PH3", Elements: "P,H", CreatedByUID: 100000000, Status: "approved"},
+		{Name: "磷酸二氢钙", Formula: "Ca(H2PO4)2", Elements: "Ca,H,P,O", CreatedByUID: 100000000, Status: "approved"},
+		{Name: "磷酸钙", Formula: "Ca3(PO4)2", Elements: "Ca,P,O", CreatedByUID: 100000000, Status: "approved"},
+		{Name: "三氧化二磷", Formula: "P2O3", Elements: "P,O", CreatedByUID: 100000000, Status: "approved"},
+		{Name: "磷酸银", Formula: "Ag3PO4", Elements: "Ag,P,O", CreatedByUID: 100000000, Status: "approved"},
+		{Name: "硅化氢", Formula: "SiH4", Elements: "Si,H", CreatedByUID: 100000000, Status: "approved"},
 	}
 
 	log.Printf("开始批量导入 %d 种化学物质...", len(substances))
@@ -1164,6 +1207,40 @@ func initDefaultReactionsGORM() error {
 		{R1: "Al", R2: "MnO", Display: "3MnO + 2Al = 3Mn + Al2O3", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
 		{R1: "H2C2O4", R2: "MnO2", Display: "MnO2 + H2C2O4 + H2SO4 = MnSO4 + 2CO2↑ + 2H2O", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
 		{R1: "Cl2", R2: "K2MnO4", Display: "2K2MnO4 + Cl2 = 2KMnO4 + 2KCl", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+
+		// ============================================
+		// 从 ref.json 补充缺失的反应
+		// 添加时间: 2026-02-11
+		// ============================================
+
+		// HF + CaSiO3 -> CaF2 + SiF4 + H2O
+		{R1: "CaSiO3", R2: "HF", Display: "6HF + CaSiO3 = CaF2 + SiF4 + 3H2O", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+		// Si + F2 -> SiF4
+		{R1: "F2", R2: "Si", Display: "Si + 2F2 = SiF4", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+		// SiF4 + HF -> H2SiF6
+		{R1: "HF", R2: "SiF4", Display: "SiF4 + 2HF = H2SiF6", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+		// NaF + H2SO4 -> Na2SO4 + HF
+		{R1: "H2SO4", R2: "NaF", Display: "2NaF + H2SO4 = Na2SO4 + 2HF", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+		// CaF2 + H2SO4 -> CaSO4 + HF
+		{R1: "CaF2", R2: "H2SO4", Display: "CaF2 + H2SO4 = CaSO4 + 2HF", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+		// SiO2 + CaO -> CaSiO3
+		{R1: "CaO", R2: "SiO2", Display: "SiO2 + CaO = CaSiO3", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+		// SiO2 + C -> Si + CO
+		{R1: "C", R2: "SiO2", Display: "SiO2 + 2C = Si + 2CO", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+		// SiO2 + CaCO3 -> CaSiO3 + CO2
+		{R1: "CaCO3", R2: "SiO2", Display: "SiO2 + CaCO3 = CaSiO3 + CO2", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+		// SiO2 + Na2CO3 -> Na2SiO3 + CO2
+		{R1: "Na2CO3", R2: "SiO2", Display: "SiO2 + Na2CO3 = Na2SiO3 + CO2", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+		// P + Cl2 -> PCl5 (五氯化磷)
+		{R1: "Cl2", R2: "P", Display: "2P + 5Cl2 = 2PCl5", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+		// Ca3(PO4)2 + H2SO4 -> Ca(H2PO4)2 + CaSO4
+		{R1: "Ca3(PO4)2", R2: "H2SO4", Display: "Ca3(PO4)2 + 2H2SO4 = Ca(H2PO4)2 + 2CaSO4", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+		// PH3 + HCl -> PH4Cl
+		{R1: "HCl", R2: "PH3", Display: "PH3 + HCl = PH4Cl", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+		// P + O2 -> P2O3 (三氧化二磷)
+		{R1: "O2", R2: "P", Display: "4P + 3O2 = 2P2O3", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
+		// P2O5 + CaO -> Ca3(PO4)2
+		{R1: "CaO", R2: "P2O5", Display: "3CaO + P2O5 = Ca3(PO4)2", GroupID: func() *uint { id := groupIDBase + uint(reactionCount); reactionCount++; return &id }(), CreatedByUID: 100000000, Status: "approved"},
 	}
 
 	log.Printf("开始批量导入 %d 组化学反应...", reactionCount)

@@ -163,6 +163,7 @@
                           <span class="text-xs font-black text-slate-900 dark:text-white group-hover:text-blue-500 transition-colors flex items-center gap-1.5">
                             {{ player.nickname || player.username }}
                             <span v-if="Number(player.uid) === Number(user.uid)" class="text-[7px] bg-blue-600 px-1 py-0.5 rounded uppercase font-black tracking-widest text-white">You</span>
+                            <span v-if="player.is_banned" class="text-[7px] bg-red-600 px-1 py-0.5 rounded uppercase font-black tracking-widest text-white animate-pulse">CHEATER</span>
                           </span>
                           <span class="text-[7px] font-mono text-slate-400 dark:text-slate-500 uppercase tracking-tighter mt-0.5">UID: {{ player.uid }}</span>
                        </div>

@@ -431,7 +431,7 @@ func (r *UserRepository) GetUserCount() (int64, error) {
 // GetAllUsersOrderByCreatedAt 获取所有用户，按创建时间倒序
 func (r *UserRepository) GetAllUsersOrderByCreatedAt() ([]database.User, error) {
 	var users []database.User
-	err := r.db.Select("uid, username, avatar, is_admin, role, created_at").
+	err := r.db.Select("uid, username, avatar, is_admin, role, created_at, banned_until, ban_reason").
 		Order("created_at DESC").
 		Find(&users).Error
 	return users, err

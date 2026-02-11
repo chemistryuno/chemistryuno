@@ -145,7 +145,7 @@ const urge = async (id: number, idx: number) => {
                   </span>
                   <span class="flex items-center gap-1.5 text-xs text-slate-400">
                     <Clock class="w-3.5 h-3.5" />
-                    {{ f.created_at }}
+                    {{ new Date(f.created_at).toLocaleString() }}
                   </span>
                 </div>
                 

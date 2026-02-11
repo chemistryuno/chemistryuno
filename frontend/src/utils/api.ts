@@ -139,8 +139,10 @@ export const gameAPI = {
     api.post(`/rooms/${roomId}/play-double`, { sub1, sub2 }),
   drawCard: (roomId: string) => 
     api.post(`/rooms/${roomId}/draw`),
-  getAvailableSubstances: (roomId: string) => 
+  getAvailableSubstances: (roomId: string) =>
     api.get(`/rooms/${roomId}/substances`),
+  getReactionHints: (roomId: string) =>
+    api.get(`/rooms/${roomId}/reaction-hints`),
   checkReaction: (r1: string, r2: string) =>
     api.post('/game/check-reaction', { r1, r2 }),
   getMyDecks: () => 
@@ -171,10 +173,10 @@ export const adminAPI = {
     api.put(`/admin/users/${uid}/password`, { new_password: newPassword }),
   promoteUser: (uid: string, role: string) => 
     api.put(`/admin/users/${uid}/role`, { role }),
-  banUser: (targetUID: number, hours: number, reason: string) =>
-    api.post('/admin/users/ban', { target_uid: targetUID, hours, reason }),
-  kickPlayer: (roomID: string, targetUID: number, reason: string) =>
-    api.post('/admin/rooms/kick', { room_id: roomID, target_uid: targetUID, reason }),
+  banUser: (targetUID: number, bannedUntil: string, reason: string) =>
+    api.post('/admin/users/ban', { target_uid: targetUID, banned_until: bannedUntil, reason }),
+  kickPlayer: (targetUID: number, reason: string) =>
+    api.post('/admin/users/kick', { target_uid: targetUID, reason }),
   getGlobalDeckConfig: () => 
     api.get('/admin/deck-config'),
   updateGlobalDeckConfig: (name: string, cards: Record<string, number>, initialCards?: number) => 

@@ -1369,6 +1369,7 @@ func GetRoomState(roomID string, uid int) (map[string]interface{}, error) {
 			"status":             gameRoom.GameState.Status,
 			"turn_end_time":      gameRoom.GameState.TurnEndTime,
 			"allowed_any_player": gameRoom.GameState.AllowedAnyPlayer,
+			"pending_draw_count": gameRoom.GameState.PendingDrawCount,
 			"is_spectator":       isSpectator,
 		}
 	}
@@ -1898,6 +1899,74 @@ func GetAvailableSubstances(roomID string, uid int) ([]string, error) {
 	}
 
 	return substances, nil
+}
+
+// GetReactionHints 根据场上物质查询反应表提供提示；若场上无卡牌，返回数据库中的物质列表
+func GetReactionHints(roomID string, uid int) ([]map[string]string, error) {
+	roomMutex.RLock()
+	gameRoom, exists := rooms[roomID]
+	roomMutex.RUnlock()
+
+	if !exists {
+		return nil, errors.New("房间不存在")
+	}
+
+	gameRoom.mutex.RLock()
+	defer gameRoom.mutex.RUnlock()
+
+	// 验证玩家身份
+	isPlayer := false
+	for _, pid := range gameRoom.Room.Players {
+		if pid == uid {
+			isPlayer = true
+			break
+		}
+	}
+	if !isPlayer {
+		return nil, errors.New("你不在游戏中")
+	}
+
+	var hints []map[string]string
+
+	// 游戏进行中且场上有卡牌：查询反应表
+	if gameRoom.GameState != nil && gameRoom.GameState.Status == "playing" && gameRoom.GameState.LastCard != nil {
+		var fieldSubstances []string
+		if len(gameRoom.GameState.LastCard.Reactants) > 0 {
+			fieldSubstances = gameRoom.GameState.LastCard.Reactants
+		} else if gameRoom.GameState.LastCard.Substance != "" {
+			fieldSubstances = []string{gameRoom.GameState.LastCard.Substance}
+		}
+
+		seen := make(map[string]bool)
+		for _, fieldSub := range fieldSubstances {
+			reactables := GetReactableSubstances(fieldSub)
+			for _, r := range reactables {
+				if !seen[r] {
+					seen[r] = true
+					hints = append(hints, map[string]string{
+						"substance": r,
+						"source":    fieldSub,
+					})
+				}
+			}
+		}
+		return hints, nil
+	}
+
+	// 场上无卡牌或游戏未开始：从数据库查询已批准物质
+	if database.DB != nil {
+		substances, err := repository.SubstanceRepo.FindApproved()
+		if err == nil {
+			for _, sub := range substances {
+				hints = append(hints, map[string]string{
+					"substance": sub.Formula,
+					"name":      sub.Name,
+				})
+			}
+		}
+	}
+
+	return hints, nil
 }
 
 func saveGameHistory(roomID string, winnerUID int, players []int, originalPlayerCount int, quittedCount int) {

@@ -412,6 +412,24 @@ func RespondToDuel(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "挑战已接受", "room_id": room.ID})
 }
 
+// GetReactionHints 获取基于场上物质的反应提示
+func GetReactionHints(c *gin.Context) {
+	roomID := c.Param("id")
+	uid := c.GetInt("uid")
+
+	hints, err := game.GetReactionHints(roomID, uid)
+	if err != nil {
+		if err.Error() == "房间不存在" {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, hints)
+}
+
 // CheckRoomStatus 检查房间状态（无需加入房间）
 func CheckRoomStatus(c *gin.Context) {
 	roomID := c.Param("id")

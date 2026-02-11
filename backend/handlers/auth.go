@@ -168,8 +168,13 @@ func Login(c *gin.Context) {
 	// 检查封禁状态
 	now := time.Now()
 	if user.BannedUntil != nil && now.Before(*user.BannedUntil) {
+		banReason := dbUser.BanReason
+		if banReason == "" {
+			banReason = "您由于不正当游戏而被封禁"
+		}
 		c.JSON(http.StatusForbidden, gin.H{
-			"error": fmt.Sprintf("您的账号已被封禁，直到 %s", user.BannedUntil.Format("2006-01-02 15:04:05")),
+			"error":        fmt.Sprintf("您被封禁，理由：%s", banReason),
+			"banned_until": user.BannedUntil.Format(time.RFC3339),
 		})
 		return
 	}
@@ -177,7 +182,8 @@ func Login(c *gin.Context) {
 	// 检查冻结状态
 	if user.FrozenUntil != nil && now.Before(*user.FrozenUntil) {
 		c.JSON(http.StatusForbidden, gin.H{
-			"error": fmt.Sprintf("您的账号当前处于冷冻状态，直到 %s", user.FrozenUntil.Format("2006-01-02 15:04:05")),
+			"error":        "您的账号当前处于冷冻状态",
+			"frozen_until": user.FrozenUntil.Format(time.RFC3339),
 		})
 		return
 	}

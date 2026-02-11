@@ -45,6 +45,7 @@ const firstDoubleSubstance = ref<string | null>(null)
 const secondDoubleSubstance = ref<string | null>(null)
 const substanceInput = ref('')
 const randomHints = ref<any[]>([])
+const reactionHints = ref<any[]>([])
 
 // UI State
 const isMobile = ref(false)
@@ -64,6 +65,22 @@ const requestFullscreen = () => {
     rfs.call(el).catch(() => {})
   }
 }
+
+// 移动端退出全屏
+const exitFullscreen = () => {
+  if (!isMobile.value) return
+  const doc = document as any
+  if (doc.fullscreenElement || doc.webkitFullscreenElement || doc.mozFullScreenElement || doc.msFullscreenElement) {
+    const efs = doc.exitFullscreen || doc.webkitExitFullscreen || doc.mozCancelFullScreen || doc.msExitFullscreen
+    if (efs) {
+      efs.call(doc).catch(() => {})
+    }
+  }
+}
+
+// 输入框焦点管理：聚焦时退出全屏，失焦时恢复全屏
+const handleInputFocus = () => exitFullscreen()
+const handleInputBlur = () => requestFullscreen()
 
 // 自动滚动到当前行动玩家
 const scrollToActivePlayer = () => {
@@ -85,6 +102,16 @@ const fetchRandomHints = async () => {
     randomHints.value = res.data || []
   } catch (error) {
     console.error('Failed to fetch hints from labs:', error)
+  }
+}
+
+const fetchReactionHints = async () => {
+  try {
+    const res = await gameAPI.getReactionHints(id)
+    reactionHints.value = res.data || []
+  } catch (error) {
+    console.error('Failed to fetch reaction hints:', error)
+    reactionHints.value = []
   }
 }
 
@@ -162,6 +189,7 @@ const handleAddFriend = async (player: any) => {
 }
 
 // Chat system
+const showPlayers = ref(false)
 const showChat = ref(false)
 const hasNewMessage = ref(false)
 const showQrModal = ref(false)
@@ -204,15 +232,47 @@ const sendGameInvite = async (friend: any) => {
 const showAdminModal = ref(false)
 const adminTargetUser = ref<any>(null)
 const adminActionType = ref<'kick' | 'ban'>('kick')
-const banHours = ref(24)
+const banUntil = ref('')
 const banReason = ref('你由于违规游戏而被踢出')
+const selectedBanPreset = ref<number | null>(24)
+
+const formatDatetimeLocal = (d: Date) => {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') + 'T' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0')
+}
+
+const getDefaultBanUntil = () => {
+  return formatDatetimeLocal(new Date(Date.now() + 24 * 60 * 60 * 1000))
+}
+
+const banPresets = [
+  { label: '1小时', hours: 1 },
+  { label: '6小时', hours: 6 },
+  { label: '24小时', hours: 24 },
+  { label: '3天', hours: 72 },
+  { label: '7天', hours: 168 },
+  { label: '30天', hours: 720 },
+  { label: '永久', hours: 87600 },
+]
+
+const setBanDuration = (hours: number) => {
+  selectedBanPreset.value = hours
+  banUntil.value = formatDatetimeLocal(new Date(Date.now() + hours * 3600 * 1000))
+}
 
 watch(showChat, (val) => {
   if (val) {
     hasNewMessage.value = false
     if (isMobile.value) {
       showHints.value = false
+      showPlayers.value = false
     }
+  }
+})
+
+watch(showPlayers, (val) => {
+  if (val && isMobile.value) {
+    showHints.value = false
+    showChat.value = false
   }
 })
 
@@ -220,6 +280,7 @@ watch(showHints, (val) => {
   if (val) {
     if (isMobile.value) {
       showChat.value = false
+      showPlayers.value = false
     }
     if (randomHints.value.length === 0) {
       fetchRandomHints()
@@ -245,6 +306,8 @@ const openAdminAction = (player: any) => {
   adminTargetUser.value = player
   adminActionType.value = 'kick'
   banReason.value = '你由于违规游戏而被踢出'
+  selectedBanPreset.value = 24
+  banUntil.value = getDefaultBanUntil()
   showAdminModal.value = true
 }
 
@@ -264,10 +327,19 @@ const handleAdminAction = async () => {
   if (!adminTargetUser.value) return
   try {
     if (adminActionType.value === 'kick') {
-      await adminAPI.kickPlayer(id, adminTargetUser.value.uid, banReason.value)
-      showAlert('已踢出该玩家', '成功')
+      await adminAPI.kickPlayer(adminTargetUser.value.uid, banReason.value)
+      showAlert('该玩家已被强制下线并清除登录状态', '成功')
     } else {
-      await adminAPI.banUser(adminTargetUser.value.uid, banHours.value, banReason.value)
+      if (!banUntil.value) {
+        showAlert('请选择封禁截止时间', '参数缺失')
+        return
+      }
+      const until = new Date(banUntil.value)
+      if (until <= new Date()) {
+        showAlert('封禁截止时间必须晚于当前时间', '时间无效')
+        return
+      }
+      await adminAPI.banUser(adminTargetUser.value.uid, until.toISOString(), banReason.value)
       showAlert('该玩家已被封禁', '成功')
     }
     showAdminModal.value = false
@@ -359,6 +431,78 @@ const getSubstanceName = (formula: string) => {
   return formula
 }
 
+// 解析化学式，返回元素及其数量（与后端 parseSubstance 逻辑一致）
+const parseSubstanceElements = (substance: string): Record<string, number> => {
+  const result: Record<string, number> = {}
+  const stack: Record<string, number>[] = [result]
+  let i = 0
+  while (i < substance.length) {
+    const c = substance[i]
+    if (c === '(') {
+      stack.push({})
+      i++
+    } else if (c === ')') {
+      i++
+      let count = 0
+      while (i < substance.length && substance[i] >= '0' && substance[i] <= '9') {
+        count = count * 10 + (substance.charCodeAt(i) - 48)
+        i++
+      }
+      if (count === 0) count = 1
+      const top = stack.pop()!
+      const parent = stack[stack.length - 1]
+      for (const [k, v] of Object.entries(top)) {
+        parent[k] = (parent[k] || 0) + v * count
+      }
+    } else if (c >= 'A' && c <= 'Z') {
+      const start = i
+      i++
+      while (i < substance.length && substance[i] >= 'a' && substance[i] <= 'z') i++
+      const element = substance.slice(start, i)
+      let count = 0
+      while (i < substance.length && substance[i] >= '0' && substance[i] <= '9') {
+        count = count * 10 + (substance.charCodeAt(i) - 48)
+        i++
+      }
+      if (count === 0) count = 1
+      const current = stack[stack.length - 1]
+      current[element] = (current[element] || 0) + count
+    } else {
+      i++
+    }
+  }
+  return result
+}
+
+// 检查玩家手牌是否包含合成该物质所需的所有元素
+const canPlayerMakeSubstance = (substance: string): boolean => {
+  if (!myData.value?.hand_cards) return false
+  const required = parseSubstanceElements(substance)
+  // 统计手牌中各元素数量
+  const handElements: Record<string, number> = {}
+  for (const card of myData.value.hand_cards) {
+    handElements[card.type] = (handElements[card.type] || 0) + 1
+  }
+  for (const [elem, count] of Object.entries(required)) {
+    if ((handElements[elem] || 0) < count) return false
+  }
+  return true
+}
+
+// 过滤并随机取最多3个可接续反应物提示
+const filteredReactionHints = computed(() => {
+  if (!reactionHints.value.length || !isMyTurn.value) return []
+  const eligible = reactionHints.value.filter((hint: any) => canPlayerMakeSubstance(hint.substance))
+  if (eligible.length <= 3) return eligible
+  // 随机打乱后取前3个
+  const shuffled = [...eligible]
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+  }
+  return shuffled.slice(0, 3)
+})
+
 const exp = ref(Number(localStorage.getItem('chem_exp') || '0'))
 const achievements = ref<string[]>(JSON.parse(localStorage.getItem('chem_achievements') || '[]'))
 
@@ -397,6 +541,13 @@ const startTimer = () => {
 watch(() => gameState.value?.turn_end_time, () => {
   startTimer()
 })
+
+// 场上物质变化时，刷新反应提示
+watch(() => gameState.value?.last_card?.substance, () => {
+  if (gameState.value?.status === 'playing') {
+    fetchReactionHints()
+  }
+}, { immediate: true })
 
 const fetchTurnSubstances = async () => {
   if (!isMyTurn.value) {
@@ -605,6 +756,11 @@ onMounted(() => {
   loadGameState()
     .then(() => {
       clearTimeout(safetyTimeout) // 成功加载后清除超时
+
+      // 游戏状态加载成功后，获取提示信息（避免 setup 阶段的 API 调用失败导致提示为空）
+      if (showHints.value && randomHints.value.length === 0) {
+        fetchRandomHints()
+      }
 
       // 确保WebSocket已连接
       if (!websocket.isConnected()) {
@@ -1045,112 +1201,8 @@ watch(() => gameState.value?.current_player, () => {
           </div>
         </div>
 
-        <!-- Players Horizontal Bar - 移动端优化 -->
-        <div ref="playersContainer" class="flex-1 flex items-center gap-2 sm:gap-1.5 overflow-x-auto custom-scrollbar-hidden py-1.5 sm:py-1">
-          <template v-if="allPlayers.length > 0">
-            <div
-              v-for="(player, index) in allPlayers"
-              :key="player.uid || index"
-              data-player-card
-              :class="cn(
-                'flex items-center gap-1 sm:gap-1.5 px-1 sm:px-2 py-0.5 sm:py-1 rounded-lg sm:rounded-xl border transition-all shrink-0',
-                gameState?.current_player === index
-                  ? 'bg-blue-600 shadow-md shadow-blue-500/10 ring-1 ring-blue-500/20 border-blue-500'
-                  : (gameState ? 'bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/5 opacity-60' : 'bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/10')
-              )"
-            >
-              <div class="relative w-5 h-5 sm:w-7 sm:h-7 shrink-0">
-                <div :class="cn(
-                  'w-full h-full rounded-lg flex items-center justify-center text-xs sm:text-xs border overflow-hidden relative',
-                   gameState?.current_player === index ? 'bg-white text-blue-600 border-white/20' : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-white/10'
-                )">
-                   <img v-if="player.avatar && player.avatar.startsWith('data:')" :src="player.avatar" class="w-full h-full object-cover" />
-                   <span v-else>{{ player.avatar || '🧪' }}</span>
-
-                   <!-- Offline Overlay -->
-                   <div v-if="player.is_offline" class="absolute inset-0 bg-red-500/40 flex items-center justify-center backdrop-blur-[1px]">
-                      <Activity class="w-3 h-3 sm:w-3.5 sm:h-3.5 text-white animate-pulse" />
-                   </div>
-                </div>
-                <!-- Action Progress Dots (Only during gameplay) -->
-                <div v-if="gameState" class="absolute -bottom-0.5 -right-0.5 flex gap-0.5">
-                  <div v-for="i in 2" :key="i" :class="cn('w-1.5 h-1.5 rounded-full border border-black/20', i <= (player.action_progress || 0) ? (gameState?.current_player === index ? 'bg-white' : 'bg-blue-500') : 'bg-slate-500')"></div>
-                </div>
-              </div>
-              <div class="flex flex-col min-w-0">
-                <div class="flex items-center gap-1 leading-none">
-                  <span class="text-[10px] sm:text-xs-mobile font-black truncate max-w-[40px] sm:max-w-[60px] tracking-tight" :class="gameState?.current_player === index ? 'text-white' : 'text-slate-500'">{{ player.username }}</span>
-                  <span class="text-[7px] sm:text-[7px] font-mono opacity-40 shrink-0" :class="gameState?.current_player === index ? 'text-white' : 'text-slate-500'">#{{ player.uid }}</span>
-                  <Zap v-if="player.double_action_available" :class="cn('w-2 h-2 sm:w-2 sm:h-2 fill-current', gameState?.current_player === index ? 'text-amber-300' : 'text-amber-500')" />
-                  <!-- Player Actions -->
-                  <div class="flex items-center gap-1 ml-auto">
-                    <button v-if="Number(player.uid) !== Number(user.uid) && !isFriend(player.uid)"
-                            @click.stop="handleAddFriend(player)"
-                            :class="cn('p-0.5 sm:p-0.5 rounded transition-colors touch-feedback', gameState?.current_player === index ? 'hover:bg-white/20 text-white' : 'hover:bg-amber-500/20 text-amber-500')"
-                            title="添加好友"
-                    >
-                      <UserPlus class="w-2.5 h-2.5 sm:w-2.5 sm:h-2.5" />
-                    </button>
-                    <button v-if="Number(player.uid) !== Number(user.uid) && isFriend(player.uid)"
-                            @click.stop="startPrivateChat(player)"
-                            :class="cn('p-0.5 sm:p-0.5 rounded transition-colors touch-feedback', gameState?.current_player === index ? 'hover:bg-white/20 text-white' : 'hover:bg-blue-500/20 text-blue-500')"
-                            title="私聊"
-                    >
-                      <MessageCircle class="w-2.5 h-2.5 sm:w-2.5 sm:h-2.5" />
-                    </button>
-                    <!-- Report Player -->
-                    <button v-if="Number(player.uid) !== Number(user.uid)"
-                            @click.stop="handleReportPlayer(player)"
-                            :class="cn('p-0.5 sm:p-0.5 rounded transition-colors touch-feedback', gameState?.current_player === index ? 'hover:bg-white/20 text-white' : 'hover:bg-rose-500/20 text-rose-500')"
-                            title="举报玩家"
-                    >
-                      <Flag class="w-2.5 h-2.5 sm:w-2.5 sm:h-2.5" />
-                    </button>
-                    <!-- Admin Actions -->
-                    <button v-if="user.is_admin && Number(player.uid) !== Number(user.uid)"
-                            @click.stop="openAdminAction(player)"
-                            :class="cn('p-0.5 sm:p-0.5 rounded transition-colors touch-feedback', gameState?.current_player === index ? 'hover:bg-white/20 text-white' : 'hover:bg-red-500/20 text-red-500')"
-                            title="管理玩家"
-                    >
-                      <ShieldAlert class="w-2.5 h-2.5 sm:w-2.5 sm:h-2.5" />
-                    </button>
-                  </div>
-                </div>
-                <!-- Status/Card Count -->
-                <div class="flex items-center gap-1">
-                  <template v-if="gameState">
-                    <Trophy v-if="!player.is_offline" :class="cn('w-2 h-2 sm:w-2 sm:h-2', gameState?.current_player === index ? 'text-white' : 'text-slate-400')" />
-                    <span v-if="!player.is_offline" :class="cn('text-[10px] sm:text-xs-mobile font-mono font-bold', gameState?.current_player === index ? 'text-white/80' : 'text-slate-400')">{{ player.card_count || 0 }}</span>
-                    <span v-else class="text-[9px] sm:text-xs-mobile font-black uppercase text-red-500 animate-pulse tracking-tighter">OFFLINE</span>
-                  </template>
-                  <template v-else>
-                    <span :class="cn('text-[10px] font-black uppercase tracking-widest', player.is_ready ? 'text-emerald-500' : 'text-slate-400')">
-                       {{ player.is_ready ? 'READY' : 'WAIT' }}
-                    </span>
-                  </template>
-                </div>
-              </div>
-            </div>
-
-            <!-- Empty Slots in Top Bar -->
-            <div
-              v-for="i in (roomInfo?.max_players || 0) - allPlayers.length"
-              :key="'empty-top-' + i"
-              class="flex items-center gap-2 sm:gap-1.5 px-2.5 sm:px-2 py-1.5 sm:py-1 rounded-xl border border-dashed border-slate-200 dark:border-white/5 opacity-30 shrink-0"
-            >
-              <div class="w-8 h-8 sm:w-7 sm:h-7 rounded-lg border border-dashed border-slate-300 dark:border-white/10 flex items-center justify-center">
-                 <Plus class="w-4 h-4 sm:w-3 sm:h-3 text-slate-400" />
-              </div>
-              <div class="hidden sm:flex flex-col">
-                 <span class="text-xs-mobile font-black uppercase tracking-tighter text-slate-400">EMPTY_SLOT</span>
-              </div>
-            </div>
-          </template>
-          <div v-else class="flex items-center gap-2 opacity-30 px-3">
-             <Loader2 class="w-4 h-4 sm:w-3.5 sm:h-3.5 animate-spin" />
-             <span class="text-xs-mobile font-black uppercase tracking-widest italic">Awaiting Peers...</span>
-          </div>
-        </div>
+        <!-- Spacer to push status buttons to right -->
+        <div class="flex-1"></div>
 
         <!-- Global Status -->
         <div class="flex items-center gap-2 sm:gap-1.5 pl-3 border-l border-slate-200 dark:border-white/10 shrink-0">
@@ -1158,6 +1210,11 @@ watch(() => gameState.value?.current_player, () => {
              <Activity class="w-3.5 h-3.5 sm:w-3 sm:h-3 text-blue-500" :class="timeRemaining <= 10 && 'animate-pulse'" />
              <span class="font-mono font-black text-xs-mobile text-blue-500">{{ timeRemaining }}S</span>
           </div>
+
+          <button @click="showPlayers = !showPlayers" class="btn-touch relative flex items-center justify-center gap-1 bg-slate-100 dark:bg-white/5 rounded-lg border border-slate-200 dark:border-white/10 text-slate-500 hover:text-blue-500 touch-feedback">
+             <Users class="icon-touch" :class="showPlayers && 'fill-current text-blue-500'" />
+             <span class="text-[10px] sm:text-xs-mobile font-black text-slate-400">{{ allPlayers.length }}</span>
+          </button>
 
           <button v-if="!roomInfo?.is_points_mode" @click="showHints = !showHints" class="btn-touch flex items-center justify-center bg-slate-100 dark:bg-white/5 rounded-lg border border-slate-200 dark:border-white/10 text-slate-500 hover:text-blue-500 touch-feedback">
              <Sparkles class="icon-touch" :class="showHints && 'fill-current text-blue-500'" />
@@ -1212,40 +1269,7 @@ watch(() => gameState.value?.current_player, () => {
                    </div>
                 </div>
 
-                <!-- Turn Hints -->
-                <div v-if="isMyTurn">
-                   <div class="flex items-center justify-between mb-2">
-                      <div class="flex items-center gap-1.5">
-                         <FlaskConical class="w-3 h-3 text-blue-500" />
-                         <span class="text-[9px] font-black uppercase tracking-widest text-slate-500">可用合成路径</span>
-                      </div>
-                      <button @click="fetchTurnSubstances" class="p-1 hover:bg-slate-100 dark:hover:bg-white/5 rounded-full transition-colors text-slate-400 hover:text-blue-500" title="刷新提示">
-                         <RefreshCw class="w-2.5 h-2.5" />
-                      </button>
-                   </div>
-
-                   <div v-if="turnReadySubstances.length > 0" class="space-y-1.5">
-                      <button
-                         v-for="sub in turnReadySubstances"
-                         :key="sub"
-                         @click="selectedSubstance = sub; handlePlayCard()"
-                         class="w-full text-left px-3 py-2 bg-white/50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl hover:border-blue-500 hover:bg-blue-500/5 transition-all group"
-                      >
-                         <div class="flex items-center justify-between">
-                            <span class="text-[10px] font-black dark:text-white" v-html="formatFormula(sub)"></span>
-                            <div class="w-1.5 h-1.5 rounded-full bg-emerald-500 group-hover:scale-125 transition-transform shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
-                         </div>
-                         <p class="text-[8px] font-bold text-slate-400 mt-0.5 tracking-tighter">{{ getSubstanceName(sub) }}</p>
-                      </button>
-                   </div>
-                   <div v-else class="py-8 flex flex-col items-center justify-center opacity-30 text-center">
-                      <Zap class="w-6 h-6 mb-2" />
-                      <p class="text-[9px] font-black uppercase tracking-widest">目前无可用反应</p>
-                      <p class="text-[8px] font-bold mt-0.5">请尝试摸牌补充底物</p>
-                   </div>
-                </div>
-                
-                <div v-else-if="roomInfo?.status === 'waiting'" class="space-y-3">
+                <div v-if="roomInfo?.status === 'waiting'" class="space-y-3">
                    <!-- 积分模式提示 -->
                    <div v-if="roomInfo?.is_points_mode" class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center gap-2">
                       <Trophy class="w-4 h-4 text-amber-500 shrink-0" />
@@ -1274,6 +1298,36 @@ watch(() => gameState.value?.current_player, () => {
                 <div v-else class="py-8 flex flex-col items-center justify-center opacity-20 text-center">
                    <Timer class="w-6 h-6 mb-2" />
                    <p class="text-[9px] font-black uppercase tracking-widest">等待其他研究员行动</p>
+                </div>
+
+                <!-- Reaction-based Hints (场上物质反应提示) -->
+                <div v-if="filteredReactionHints.length > 0 && gameState?.status === 'playing' && isMyTurn" class="pt-3 border-t border-slate-200 dark:border-white/10">
+                   <div class="flex items-center justify-between mb-3">
+                      <div class="flex items-center gap-1.5">
+                         <Activity class="w-3 h-3 text-emerald-500" />
+                         <span class="text-[9px] font-black uppercase tracking-widest text-slate-500">可接续反应物</span>
+                      </div>
+                      <button @click="fetchReactionHints" class="p-1 hover:bg-slate-100 dark:hover:bg-white/5 rounded-full transition-colors text-slate-400 hover:text-emerald-500">
+                         <RefreshCw class="w-2.5 h-2.5" />
+                      </button>
+                   </div>
+                   <div class="space-y-1.5">
+                      <button
+                         v-for="(hint, idx) in filteredReactionHints"
+                         :key="idx"
+                         @click="selectedSubstance = hint.substance; handlePlayCard()"
+                         class="w-full text-left px-3 py-2 bg-white/50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl hover:border-emerald-500 hover:bg-emerald-500/5 transition-all group cursor-pointer"
+                      >
+                         <div class="flex items-center justify-between">
+                            <span class="text-[10px] font-black dark:text-white" v-html="formatFormula(hint.substance)"></span>
+                            <div class="flex items-center gap-1.5">
+                              <span v-if="hint.name" class="text-[8px] font-bold text-slate-400 tracking-tighter">{{ hint.name }}</span>
+                              <span v-else-if="hint.source" class="text-[7px] font-mono text-emerald-500/60 tracking-tighter">← <span v-html="formatFormula(hint.source)"></span></span>
+                              <div class="w-1.5 h-1.5 rounded-full bg-emerald-500 group-hover:scale-125 transition-transform shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
+                            </div>
+                         </div>
+                      </button>
+                   </div>
                 </div>
 
                 <!-- Database Trivia Hints -->
@@ -1487,6 +1541,8 @@ watch(() => gameState.value?.current_player, () => {
                 <input
                   v-model="substanceInput"
                   @keyup.enter="handleInputPlay"
+                  @focus="handleInputFocus"
+                  @blur="handleInputBlur"
                   placeholder="手动注入化学式"
                   class="bg-transparent border-none outline-none text-sm sm:text-xs-mobile px-3 sm:px-2 py-1.5 sm:py-0.5 w-32 sm:w-40 font-black tracking-widest placeholder:text-slate-400 text-slate-900 dark:text-white"
                 />
@@ -1513,7 +1569,7 @@ watch(() => gameState.value?.current_player, () => {
                       <Plus v-if="!(gameState?.pending_draw_count > 0)" class="w-3 h-3 sm:w-2.5 sm:h-2.5" />
                       <RefreshCw v-else class="w-3 h-3 sm:w-2.5 sm:h-2.5 animate-spin-slow" />
                       <span class="text-xs-mobile font-black uppercase tracking-widest whitespace-nowrap">
-                        摸牌{{ gameState?.pending_draw_count > 0 ? gameState.pending_draw_count : '1' }}张
+                        摸牌{{ gameState?.pending_draw_count > 0 ? gameState.pending_draw_count : '2' }}张
                       </span>
                    </button>
                 </div>
@@ -1823,18 +1879,47 @@ watch(() => gameState.value?.current_player, () => {
 
           <div v-if="adminActionType === 'ban'" class="space-y-4 animate-in slide-in-from-top-4 duration-300">
             <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest block">封禁时长</label>
-            <div class="grid grid-cols-3 gap-2">
-              <button 
-                v-for="h in [1, 24, 72, 168, 720, -1]" 
-                :key="h"
-                @click="banHours = h"
+            <div class="grid grid-cols-4 gap-2">
+              <button
+                v-for="preset in banPresets"
+                :key="preset.hours"
+                @click="setBanDuration(preset.hours)"
                 :class="cn(
-                  'py-2.5 rounded-xl text-[10px] font-bold border transition-all',
-                  banHours === h ? 'bg-red-500 text-white border-red-500' : 'bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-500'
+                  'px-2 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border active:scale-95',
+                  selectedBanPreset === preset.hours
+                    ? 'bg-red-500/10 border-red-500/30 text-red-500 shadow-sm'
+                    : 'bg-slate-50 dark:bg-black/20 border-slate-200 dark:border-white/10 text-slate-500 hover:border-red-500/20 hover:text-red-400'
                 )"
               >
-                {{ h === -1 ? '永久' : (h < 24 ? h + 'h' : Math.floor(h/24) + 'd') }}
+                {{ preset.label }}
               </button>
+              <button
+                @click="selectedBanPreset = null"
+                :class="cn(
+                  'px-2 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border active:scale-95',
+                  selectedBanPreset === null
+                    ? 'bg-red-500/10 border-red-500/30 text-red-500 shadow-sm'
+                    : 'bg-slate-50 dark:bg-black/20 border-slate-200 dark:border-white/10 text-slate-500 hover:border-red-500/20 hover:text-red-400'
+                )"
+              >
+                自定义
+              </button>
+            </div>
+            <div v-if="selectedBanPreset === null" class="animate-in slide-in-from-top-2 duration-200">
+              <input
+                v-model="banUntil"
+                type="datetime-local"
+                :min="formatDatetimeLocal(new Date())"
+                @focus="handleInputFocus"
+                @blur="handleInputBlur"
+                class="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl px-5 py-3 text-sm font-bold text-slate-700 dark:text-white focus:outline-none focus:border-red-500/50 transition-all"
+              />
+            </div>
+            <div class="flex items-center gap-2 ml-1 mt-1">
+              <div class="w-1.5 h-1.5 rounded-full" :class="banUntil ? 'bg-red-500 animate-pulse' : 'bg-slate-300 dark:bg-slate-600'"></div>
+              <span class="text-[9px] font-bold text-slate-400 dark:text-slate-600 uppercase tracking-wider">
+                截止: {{ banUntil ? new Date(banUntil).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }) + '（UTC+8）' : '未设置' }}
+              </span>
             </div>
           </div>
 
@@ -1842,9 +1927,11 @@ watch(() => gameState.value?.current_player, () => {
             <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest block">操作事由</label>
             <div class="relative group">
               <div class="absolute inset-0 bg-red-500/5 rounded-2xl blur-lg group-focus-within:bg-red-500/10 transition-all"></div>
-              <textarea 
+              <textarea
                 v-model="banReason"
                 placeholder="请输入详细的违规事由..."
+                @focus="handleInputFocus"
+                @blur="handleInputBlur"
                 class="relative w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl px-6 py-4 text-sm font-medium text-slate-700 dark:text-white focus:outline-none focus:border-red-500/50 min-h-[100px] transition-all"
               ></textarea>
             </div>
@@ -1919,6 +2006,138 @@ watch(() => gameState.value?.current_player, () => {
       </div>
     </div>
 
+    <!-- Players Floating Panel -->
+    <div
+      :class="cn(
+        'fixed right-0 top-0 bottom-0 w-full lg:w-80 z-[100] bg-white/95 dark:bg-slate-900/60 backdrop-blur-3xl border-l lg:border border-slate-200 dark:border-white/10 lg:rounded-[40px] lg:top-6 lg:bottom-52 lg:right-6 shadow-3xl transition-all duration-500 flex flex-col overflow-hidden',
+        showPlayers ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0 pointer-events-none'
+      )"
+    >
+      <div class="p-4 py-3 border-b border-slate-200 dark:border-white/10 flex items-center justify-between bg-slate-50/50 dark:bg-white/[0.02]">
+        <div class="flex items-center gap-2">
+          <div class="w-6 h-6 rounded-lg bg-blue-500/10 flex items-center justify-center">
+            <Users class="w-3.5 h-3.5 text-blue-500" />
+          </div>
+          <div>
+            <h3 class="text-[10px] font-black uppercase tracking-widest text-slate-800 dark:text-white">研究员列表</h3>
+            <p class="text-[8px] font-mono text-slate-400 uppercase tracking-tighter">Players_{{ allPlayers.length }}/{{ roomInfo?.max_players }}</p>
+          </div>
+        </div>
+        <button @click="showPlayers = false" class="p-1 hover:bg-slate-200 dark:hover:bg-white/10 rounded-lg transition-colors text-slate-400 hover:text-slate-600 dark:hover:text-white">
+          <X class="w-4 h-4" />
+        </button>
+      </div>
+
+      <div ref="playersContainer" class="flex-1 overflow-y-auto p-3 custom-scrollbar space-y-2">
+        <template v-if="allPlayers.length > 0">
+          <div
+            v-for="(player, index) in allPlayers"
+            :key="player.uid || index"
+            data-player-card
+            :class="cn(
+              'flex items-center gap-2 px-3 py-2.5 rounded-xl border transition-all',
+              gameState?.current_player === index
+                ? 'bg-blue-600 shadow-md shadow-blue-500/10 ring-1 ring-blue-500/20 border-blue-500'
+                : (gameState ? 'bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/5 opacity-70 hover:opacity-100' : 'bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/10')
+            )"
+          >
+            <div class="relative w-8 h-8 shrink-0">
+              <div :class="cn(
+                'w-full h-full rounded-lg flex items-center justify-center text-sm border overflow-hidden relative',
+                gameState?.current_player === index ? 'bg-white text-blue-600 border-white/20' : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-white/10'
+              )">
+                <img v-if="player.avatar && player.avatar.startsWith('data:')" :src="player.avatar" class="w-full h-full object-cover" />
+                <span v-else>{{ player.avatar || '🧪' }}</span>
+
+                <!-- Offline Overlay -->
+                <div v-if="player.is_offline" class="absolute inset-0 bg-red-500/40 flex items-center justify-center backdrop-blur-[1px]">
+                  <Activity class="w-3.5 h-3.5 text-white animate-pulse" />
+                </div>
+              </div>
+              <!-- Action Progress Dots -->
+              <div v-if="gameState" class="absolute -bottom-0.5 -right-0.5 flex gap-0.5">
+                <div v-for="i in 2" :key="i" :class="cn('w-1.5 h-1.5 rounded-full border border-black/20', i <= (player.action_progress || 0) ? (gameState?.current_player === index ? 'bg-white' : 'bg-blue-500') : 'bg-slate-500')"></div>
+              </div>
+            </div>
+            <div class="flex flex-col min-w-0 flex-1">
+              <div class="flex items-center gap-1 leading-none">
+                <span class="text-[11px] font-black truncate max-w-[80px] tracking-tight" :class="gameState?.current_player === index ? 'text-white' : 'text-slate-700 dark:text-slate-300'">{{ player.username }}</span>
+                <span class="text-[8px] font-mono opacity-40 shrink-0" :class="gameState?.current_player === index ? 'text-white' : 'text-slate-500'">#{{ player.uid }}</span>
+                <Zap v-if="player.double_action_available" :class="cn('w-2.5 h-2.5 fill-current', gameState?.current_player === index ? 'text-amber-300' : 'text-amber-500')" />
+              </div>
+              <!-- Status/Card Count -->
+              <div class="flex items-center gap-1 mt-0.5">
+                <template v-if="gameState">
+                  <Trophy v-if="!player.is_offline" :class="cn('w-2.5 h-2.5', gameState?.current_player === index ? 'text-white' : 'text-slate-400')" />
+                  <span v-if="!player.is_offline" :class="cn('text-[10px] font-mono font-bold', gameState?.current_player === index ? 'text-white/80' : 'text-slate-400')">{{ player.card_count || 0 }} 张</span>
+                  <span v-else class="text-[9px] font-black uppercase text-red-500 animate-pulse tracking-tighter">OFFLINE</span>
+                </template>
+                <template v-else>
+                  <span :class="cn('text-[10px] font-black uppercase tracking-widest', player.is_ready ? 'text-emerald-500' : 'text-slate-400')">
+                    {{ player.is_ready ? 'READY' : 'WAIT' }}
+                  </span>
+                </template>
+              </div>
+            </div>
+            <!-- Player Actions -->
+            <div class="flex items-center gap-1 shrink-0">
+              <button v-if="Number(player.uid) !== Number(user.uid) && !isFriend(player.uid)"
+                      @click.stop="handleAddFriend(player)"
+                      :class="cn('p-1 rounded-lg transition-colors touch-feedback', gameState?.current_player === index ? 'hover:bg-white/20 text-white' : 'hover:bg-amber-500/20 text-amber-500')"
+                      title="添加好友"
+              >
+                <UserPlus class="w-3 h-3" />
+              </button>
+              <button v-if="Number(player.uid) !== Number(user.uid) && isFriend(player.uid)"
+                      @click.stop="startPrivateChat(player)"
+                      :class="cn('p-1 rounded-lg transition-colors touch-feedback', gameState?.current_player === index ? 'hover:bg-white/20 text-white' : 'hover:bg-blue-500/20 text-blue-500')"
+                      title="私聊"
+              >
+                <MessageCircle class="w-3 h-3" />
+              </button>
+              <button v-if="Number(player.uid) !== Number(user.uid)"
+                      @click.stop="handleReportPlayer(player)"
+                      :class="cn('p-1 rounded-lg transition-colors touch-feedback', gameState?.current_player === index ? 'hover:bg-white/20 text-white' : 'hover:bg-rose-500/20 text-rose-500')"
+                      title="举报玩家"
+              >
+                <Flag class="w-3 h-3" />
+              </button>
+              <button v-if="user.is_admin && Number(player.uid) !== Number(user.uid)"
+                      @click.stop="openAdminAction(player)"
+                      :class="cn('p-1 rounded-lg transition-colors touch-feedback', gameState?.current_player === index ? 'hover:bg-white/20 text-white' : 'hover:bg-red-500/20 text-red-500')"
+                      title="管理玩家"
+              >
+                <ShieldAlert class="w-3 h-3" />
+              </button>
+            </div>
+          </div>
+
+          <!-- Empty Slots -->
+          <div
+            v-for="i in (roomInfo?.max_players || 0) - allPlayers.length"
+            :key="'empty-slot-' + i"
+            class="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-dashed border-slate-200 dark:border-white/5 opacity-30"
+          >
+            <div class="w-8 h-8 rounded-lg border border-dashed border-slate-300 dark:border-white/10 flex items-center justify-center">
+              <Plus class="w-3.5 h-3.5 text-slate-400" />
+            </div>
+            <span class="text-[10px] font-black uppercase tracking-tighter text-slate-400">EMPTY_SLOT</span>
+          </div>
+        </template>
+        <div v-else class="flex flex-col items-center justify-center py-8 opacity-30">
+          <Loader2 class="w-5 h-5 animate-spin mb-2" />
+          <span class="text-[10px] font-black uppercase tracking-widest italic">Awaiting Peers...</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mobile Overlay for Players Panel -->
+    <div
+      v-if="showPlayers"
+      class="fixed inset-0 bg-white/10 dark:bg-black/20 backdrop-blur-[2px] z-[95] lg:hidden"
+      @click="showPlayers = false"
+    ></div>
+
     <!-- Chat Floating Sidebar -->
     <div
       :class="cn(
@@ -1932,6 +2151,8 @@ watch(() => gameState.value?.current_player, () => {
         maxHeight="100%"
         class="h-full !bg-white/95 dark:!bg-slate-900/60 backdrop-blur-3xl shadow-3xl lg:rounded-[40px] border-l lg:border border-slate-200 dark:border-white/10"
         @close="showChat = false"
+        @input-focus="handleInputFocus"
+        @input-blur="handleInputBlur"
       />
     </div>
 

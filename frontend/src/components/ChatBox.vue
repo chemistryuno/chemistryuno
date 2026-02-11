@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
-import { Send, MessageSquare, User, X, FlaskConical, Users, Trophy } from 'lucide-vue-next'
+import { Send, MessageSquare, User, X, FlaskConical, Users, Trophy, Radio } from 'lucide-vue-next'
 import websocket from '../utils/websocket'
 import { authAPI, gameAPI } from '../utils/api'
 import { cn } from '../utils/cn'
@@ -16,7 +16,7 @@ const props = defineProps<{
   hideHeader?: boolean
 }>()
 
-const emit = defineEmits(['close'])
+const emit = defineEmits(['close', 'input-focus', 'input-blur'])
 
 const messages = ref<any[]>([])
 const newMessage = ref('')
@@ -24,7 +24,7 @@ const currentUID = ref(JSON.parse(localStorage.getItem('user') || '{}').uid)
 const scrollContainer = ref<HTMLElement | null>(null)
 
 // 聊天模式切换
-const chatMode = ref<'normal' | 'private'>('normal')
+const chatMode = ref<'normal' | 'private' | 'broadcast'>('normal')
 const privateTarget = ref<{uid: number, username: string} | null>(null)
 
 // 房间状态缓存
@@ -136,8 +136,21 @@ onMounted(() => {
     nextTick(scrollToBottom)
   }
 
+  const handleBroadcastMessage = (msg: any) => {
+    messages.value.push({
+      uid: msg.uid,
+      username: msg.data?.nickname || msg.data?.username || '研究员',
+      avatar: msg.data?.avatar,
+      text: msg.message,
+      time: new Date(),
+      type: 'broadcast'
+    })
+    nextTick(scrollToBottom)
+  }
+
   websocket.on('chat', handleChatMessage)
   websocket.on('private_chat', handlePrivateMessage)
+  websocket.on('broadcast_chat', handleBroadcastMessage)
 
   const handleStartPrivateChat = (e: CustomEvent) => {
     privateTarget.value = (e as any).detail
@@ -150,6 +163,7 @@ onMounted(() => {
   onUnmounted(() => {
     websocket.off('chat', handleChatMessage)
     websocket.off('private_chat', handlePrivateMessage)
+    websocket.off('broadcast_chat', handleBroadcastMessage)
     window.removeEventListener('start-private-chat', handleStartPrivateChat as any)
   })
 })
@@ -157,7 +171,12 @@ onMounted(() => {
 const handleSend = () => {
   if (!newMessage.value.trim()) return
 
-  if (chatMode.value === 'private' && privateTarget.value) {
+  if (chatMode.value === 'broadcast') {
+    websocket.send({
+      type: 'broadcast_chat',
+      message: newMessage.value
+    })
+  } else if (chatMode.value === 'private' && privateTarget.value) {
     websocket.send({
       type: 'private_chat',
       target_uid: privateTarget.value.uid,
@@ -252,7 +271,10 @@ const formatTime = (date: Date) => {
           msg.uid === currentUID ? 'items-end' : 'items-start'
         )">
           <div class="flex items-center gap-1 px-0.5">
-            <span v-if="msg.uid !== currentUID" class="text-[9px] sm:text-[8px] font-black text-slate-400 uppercase tracking-tighter">
+            <span v-if="msg.type === 'broadcast'" class="text-[9px] sm:text-[8px] font-black text-amber-500 uppercase tracking-tighter">
+              {{ msg.uid === currentUID ? '你' : msg.username }} <span class="opacity-60">[全服广播]</span>
+            </span>
+            <span v-else-if="msg.uid !== currentUID" class="text-[9px] sm:text-[8px] font-black text-slate-400 uppercase tracking-tighter">
               {{ msg.username }}
               <span v-if="msg.type === 'private'" class="text-rose-500 ml-1">(私语)</span>
               <span v-if="msg.type === 'game_invite'" class="text-blue-500 ml-1">(游戏邀请)</span>
@@ -334,9 +356,13 @@ const formatTime = (date: Date) => {
           <div v-else :class="cn(
             'px-3 sm:px-2 py-2 sm:py-1 rounded-xl text-xs-mobile font-medium leading-relaxed break-words shadow-sm',
             msg.type === 'private' ? 'border-2 border-rose-500/10' : '',
-            msg.uid === currentUID
+            msg.type === 'broadcast' ? 'border-2 border-amber-500/20 bg-amber-500/10 dark:bg-amber-500/10 text-amber-900 dark:text-amber-200' : '',
+            msg.type !== 'broadcast' && msg.uid === currentUID
               ? 'bg-blue-600 text-white rounded-tr-none'
-              : 'bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-200 border border-slate-200/50 dark:border-white/5 rounded-tl-none'
+              : '',
+            msg.type !== 'broadcast' && msg.uid !== currentUID
+              ? 'bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-200 border border-slate-200/50 dark:border-white/5 rounded-tl-none'
+              : ''
           )">
             {{ msg.text }}
           </div>
@@ -356,16 +382,39 @@ const formatTime = (date: Date) => {
           取消
         </button>
       </div>
+      <div v-else-if="chatMode === 'broadcast'" class="flex items-center gap-2 animate-in slide-in-from-bottom-1">
+        <div class="flex items-center gap-2 px-3 py-1.5 sm:py-1 rounded-lg text-xs-mobile font-black uppercase tracking-widest transition-all bg-amber-500 text-white shadow-lg shadow-amber-500/20">
+          <Radio class="w-3 h-3 sm:w-2.5 sm:h-2.5 animate-pulse" />
+          全服广播模式
+        </div>
+        <button @click="chatMode = 'normal'" class="p-1.5 sm:p-1 px-2.5 sm:px-2 rounded-lg bg-slate-200 dark:bg-white/10 text-slate-500 hover:text-slate-700 dark:hover:text-white transition-all uppercase text-[9px] sm:text-[8px] font-black touch-feedback">
+          取消
+        </button>
+      </div>
 
       <div class="flex gap-2">
+        <button
+          @click="chatMode = chatMode === 'broadcast' ? 'normal' : 'broadcast'"
+          :class="cn(
+            'w-11 h-11 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center transition-all shrink-0 touch-feedback border',
+            chatMode === 'broadcast'
+              ? 'bg-amber-500 text-white border-amber-400 shadow-lg shadow-amber-500/20'
+              : 'bg-white dark:bg-slate-700/80 text-slate-400 hover:text-amber-500 border-slate-200 dark:border-white/10'
+          )"
+          title="全服广播"
+        >
+          <Radio class="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+        </button>
         <div class="flex-1 relative group">
           <div class="absolute -inset-0.5 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-xl blur opacity-0 group-focus-within:opacity-30 transition duration-500"></div>
           <input
             v-model="newMessage"
             type="text"
-            :placeholder="placeholder || '输入实验指令或群聊讯息...'"
+            :placeholder="chatMode === 'broadcast' ? '输入全服广播内容...' : (placeholder || '输入实验指令或群聊讯息...')"
             class="relative w-full h-11 sm:h-10 bg-white dark:bg-slate-700/80 border border-slate-200 dark:border-white/10 rounded-xl px-3 sm:px-2.5 text-sm sm:text-xs font-bold focus:outline-none focus:border-blue-500/50 transition-all dark:text-white dark:placeholder:text-slate-500"
             @keydown.enter="handleSend"
+            @focus="emit('input-focus')"
+            @blur="emit('input-blur')"
           />
         </div>
         <button

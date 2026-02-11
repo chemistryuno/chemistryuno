@@ -3,22 +3,21 @@ import { ref, onMounted, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { adminAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
-import { 
-  Shield, 
-  ArrowLeft, 
-  Users, 
-  Layers, 
-  History, 
-  Trash2, 
-  Edit2, 
-  Save, 
-  ChevronRight, 
+import {
+  Shield,
+  ArrowLeft,
+  Users,
+  Layers,
+  History,
+  Trash2,
+  Edit2,
+  Save,
+  ChevronRight,
   Terminal,
   Activity,
   Cpu,
   Database,
   Search as SearchIcon,
-  Key,
   ArrowUp,
   Plus,
   Star,
@@ -26,7 +25,10 @@ import {
   Trophy,
   Bell,
   Megaphone,
-  Clock
+  Clock,
+  Ban,
+  UserMinus,
+  X
 } from 'lucide-vue-next'
 import { cn } from '../utils/cn'
 
@@ -60,8 +62,6 @@ const tabs = [
 ]
 
 const searchTerm = ref('')
-const showCreateUserModal = ref(false)
-const newUser = ref({ username: '', password: '' })
 const showCreateAnnouncementModal = ref(false)
 const newAnnouncement = ref({
   title: '',
@@ -118,28 +118,6 @@ watch(activeTab, () => {
   searchTerm.value = ''
 })
 
-const handleCreateUser = async () => {
-  if (!newUser.value.username || !newUser.value.password) {
-    await showAlert('请填写完整的用户信息', '输入错误')
-    return
-  }
-  
-  if (newUser.value.password.length < 6) {
-    await showAlert('密码长度至少为6位', '密码错误')
-    return
-  }
-  
-  try {
-    await adminAPI.createUser(newUser.value.username, newUser.value.password)
-    await showAlert('用户创建成功', '成功')
-    showCreateUserModal.value = false
-    newUser.value = { username: '', password: '' }
-    loadData()
-  } catch (error: any) {
-    await showAlert(error.response?.data?.error || '创建用户失败', '错误')
-  }
-}
-
 const handleAcceptFeedback = async (id: number) => {
   try {
     const note = await showPrompt('处理说明（可留空，将使用默认文本）:', '输入说明', '处理反馈')
@@ -162,36 +140,6 @@ const handleDismissFeedback = async (id: number) => {
     loadData()
   } catch (error: any) {
     await showAlert(error.response?.data?.error || '操作失败', '错误')
-  }
-}
-
-const handleDeleteUser = async (uid: string) => {
-  const confirmed = await showConfirm('确定要永久删除该研究员吗？此操作不可逆！', '⚠️ 危险操作')
-  if (!confirmed) return
-  
-  try {
-    await adminAPI.deleteUser(uid)
-    await showAlert('用户已从实验室数据库抹除', '删除完成')
-    loadData()
-  } catch (error: any) {
-    await showAlert(error.response?.data?.error || '删除失败', '错误')
-  }
-}
-
-const handleChangePassword = async (uid: string) => {
-  const newPassword = await showPrompt('请输入新密码（至少6位）:', '输入新密码...', '🔐 修改密码')
-  if (!newPassword || newPassword.length < 6) {
-    if (newPassword !== null) {
-      await showAlert('密码长度至少为6位', '密码错误')
-    }
-    return
-  }
-  
-  try {
-    await adminAPI.changeUserPassword(uid, newPassword)
-    await showAlert('密码修改成功', '成功')
-  } catch (error: any) {
-    await showAlert(error.response?.data?.error || '修改密码失败', '错误')
   }
 }
 
@@ -230,6 +178,86 @@ const handlePromoteUser = async (uid: string, currentRole: string) => {
     loadData()
   } catch (error: any) {
     await showAlert(error.response?.data?.error || '修改权限失败', '错误')
+  }
+}
+
+// Ban/Kick state
+const showBanModal = ref(false)
+const banTarget = ref<any>(null)
+const banUntil = ref('')
+const banReason = ref('您由于不正当游戏而被封禁')
+
+// 生成默认封禁时间（当前时间 + 24小时），格式为 datetime-local 兼容格式
+const formatDatetimeLocal = (d: Date) => {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') + 'T' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0')
+}
+
+const getDefaultBanUntil = () => {
+  return formatDatetimeLocal(new Date(Date.now() + 24 * 60 * 60 * 1000))
+}
+
+const banPresets = [
+  { label: '1小时', hours: 1 },
+  { label: '6小时', hours: 6 },
+  { label: '24小时', hours: 24 },
+  { label: '3天', hours: 72 },
+  { label: '7天', hours: 168 },
+  { label: '30天', hours: 720 },
+  { label: '永久', hours: 87600 }, // ~10年
+]
+
+const selectedPreset = ref<number | null>(24)
+
+const setBanDuration = (hours: number) => {
+  selectedPreset.value = hours
+  banUntil.value = formatDatetimeLocal(new Date(Date.now() + hours * 3600 * 1000))
+}
+
+const handleKickPlayer = async (user: any) => {
+  const reason = await showPrompt(`踢出研究员 ${user.username} (UID: ${user.uid})\n请输入踢出原因:`, '违规行为...', '踢出玩家')
+  if (reason === null) return
+
+  try {
+    await adminAPI.kickPlayer(user.uid, reason || '您由于不正当游戏而被踢出')
+    await showAlert(`已将 ${user.username} 踢出服务器`, '操作完成')
+  } catch (error: any) {
+    await showAlert(error.response?.data?.error || '踢出失败', '操作失败')
+  }
+}
+
+const openBanModal = (user: any) => {
+  banTarget.value = user
+  if (isBanned(user)) {
+    // Already banned - pre-fill with existing ban data
+    selectedPreset.value = null
+    banUntil.value = formatDatetimeLocal(new Date(user.banned_until))
+    banReason.value = user.ban_reason || '您由于不正当游戏而被封禁'
+  } else {
+    selectedPreset.value = 24
+    banUntil.value = getDefaultBanUntil()
+    banReason.value = '您由于不正当游戏而被封禁'
+  }
+  showBanModal.value = true
+}
+
+const handleBanUser = async () => {
+  if (!banTarget.value) return
+  if (!banUntil.value) {
+    await showAlert('请选择封禁截止时间', '参数缺失')
+    return
+  }
+  const until = new Date(banUntil.value)
+  if (until <= new Date()) {
+    await showAlert('封禁截止时间必须晚于当前时间', '时间无效')
+    return
+  }
+  try {
+    await adminAPI.banUser(banTarget.value.uid, until.toISOString(), banReason.value || '违规行为')
+    await showAlert(`已封禁 ${banTarget.value.username} 至 ${until.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}（UTC+8）`, '封禁执行完成')
+    showBanModal.value = false
+    banTarget.value = null
+  } catch (error: any) {
+    await showAlert(error.response?.data?.error || '封禁失败', '操作失败')
   }
 }
 
@@ -347,6 +375,10 @@ const handleUpdateDeck = async () => {
 }
 
 // handleCardCountChange was removed because it was unused
+const isBanned = (u: any) => {
+  return u.banned_until && new Date(u.banned_until) > new Date()
+}
+
 const filteredUsers = computed(() => {
   return users.value.filter(u => 
     u.username.includes(searchTerm.value) ||
@@ -540,13 +572,6 @@ const filteredHistory = computed(() => {
                       class="bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/5 rounded-2xl pl-12 pr-6 py-3 text-[10px] font-black tracking-widest focus:outline-none focus:border-cyan-500/30 w-full md:w-64 transition-all placeholder:text-slate-400 dark:placeholder:text-slate-700 text-slate-900 dark:text-white"
                     />
                   </div>
-                  <button 
-                    @click="showCreateUserModal = true"
-                    class="bg-cyan-600 hover:bg-cyan-500 text-white px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-3 transition-all shadow-lg shadow-cyan-900/10 hover:shadow-cyan-500/20 active:scale-95 whitespace-nowrap"
-                  >
-                    <Plus class="w-4 h-4" />
-                    NEW_ENTRY
-                  </button>
                 </div>
               </div>
               
@@ -573,7 +598,10 @@ const filteredHistory = computed(() => {
                           </template>
                         </div>
                         <div class="flex flex-col">
-                          <span class="group-hover:text-cyan-600 transition-colors uppercase tracking-tight text-[10px] font-black">{{ u.username }}</span>
+                          <span class="group-hover:text-cyan-600 transition-colors uppercase tracking-tight text-[10px] font-black flex items-center gap-1.5">
+                            {{ u.username }}
+                            <span v-if="isBanned(u)" class="text-[7px] bg-rose-600 px-1.5 py-0.5 rounded uppercase font-black tracking-widest text-white animate-pulse">BANNED</span>
+                          </span>
                           <span class="text-[8px] text-slate-400 font-mono tracking-tighter">ONLINE@OP-NODE</span>
                         </div>
                       </td>
@@ -586,26 +614,26 @@ const filteredHistory = computed(() => {
                       <td class="px-6 py-4 text-[9px] text-slate-500 uppercase font-bold">{{ new Date(u.created_at).toLocaleDateString() }}</td>
                       <td class="px-6 py-4 text-right">
                         <div v-if="!u.is_admin" class="flex items-center gap-2 justify-end opacity-0 group-hover:opacity-100 transition-all scale-95 group-hover:scale-100">
-                          <button 
-                            @click="handleChangePassword(u.uid)"
-                            class="p-2.5 bg-slate-100 dark:bg-white/5 hover:bg-cyan-500/10 text-slate-400 hover:text-cyan-600 rounded-xl transition-all border border-transparent hover:border-cyan-500/20"
-                            title="ACCESS_RESET"
-                          >
-                            <Key class="w-3.5 h-3.5" />
-                          </button>
-                          <button 
+                          <button
                             @click="handlePromoteUser(u.uid, u.role)"
                             class="p-2.5 bg-slate-100 dark:bg-white/5 hover:bg-violet-500/10 text-slate-400 hover:text-violet-600 rounded-xl transition-all border border-transparent hover:border-violet-500/20"
                             title="ELEVATE_AUTH"
                           >
                             <ArrowUp class="w-3.5 h-3.5" />
                           </button>
-                          <button 
-                            @click="handleDeleteUser(u.uid)"
-                            class="p-2.5 bg-slate-100 dark:bg-white/5 hover:bg-red-500/10 text-slate-400 hover:text-red-500 rounded-xl transition-all border border-transparent hover:border-red-500/20"
-                            title="PURGE_RECORD"
+                          <button
+                            @click="handleKickPlayer(u)"
+                            class="p-2.5 bg-slate-100 dark:bg-white/5 hover:bg-amber-500/10 text-slate-400 hover:text-amber-600 rounded-xl transition-all border border-transparent hover:border-amber-500/20"
+                            title="KICK_FROM_ROOM"
                           >
-                            <Trash2 class="w-3.5 h-3.5" />
+                            <UserMinus class="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            @click="openBanModal(u)"
+                            class="p-2.5 bg-slate-100 dark:bg-white/5 hover:bg-rose-500/10 text-slate-400 hover:text-rose-600 rounded-xl transition-all border border-transparent hover:border-rose-500/20"
+                            title="BAN_USER"
+                          >
+                            <Ban class="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </td>
@@ -1147,50 +1175,104 @@ const filteredHistory = computed(() => {
       </main>
     </div>
 
-    <!-- 创建用户模态框 -->
-    <div v-if="showCreateUserModal" class="fixed inset-0 bg-slate-900/40 dark:bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-      <div class="bg-white dark:bg-[#0c0c0e] border border-slate-200 dark:border-white/10 rounded-[2.5rem] p-10 max-w-md w-full shadow-[0_50px_100px_-20px_rgba(6,182,212,0.2)] animate-in zoom-in relative overflow-hidden">
-        <div class="absolute top-0 right-0 w-40 h-40 bg-cyan-500/5 blur-[60px] -mr-20 -mt-20" />
-        
-        <h3 class="text-xl font-black italic uppercase text-slate-900 dark:text-white mb-8 flex items-center gap-4 relative z-10">
-          <Users class="w-6 h-6 text-cyan-500" />
-          添加新研究员 <span class="text-[10px] text-slate-400 font-mono not-italic tracking-normal">/ NEW_STAFF_REG</span>
-        </h3>
-        
+    <!-- 封禁用户模态框 -->
+    <div v-if="showBanModal && banTarget" class="fixed inset-0 bg-slate-900/40 dark:bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+      <div class="bg-white dark:bg-[#0c0c0e] border border-slate-200 dark:border-white/10 rounded-[2.5rem] p-10 max-w-md w-full shadow-[0_50px_100px_-20px_rgba(220,38,38,0.15)] animate-in zoom-in relative overflow-hidden">
+        <div class="absolute top-0 right-0 w-40 h-40 bg-rose-500/5 blur-[60px] -mr-20 -mt-20" />
+
+        <div class="flex items-center justify-between mb-8 relative z-10">
+          <h3 class="text-xl font-black italic uppercase text-slate-900 dark:text-white flex items-center gap-4">
+            <Ban class="w-6 h-6 text-rose-500" />
+            {{ isBanned(banTarget) ? '修改封禁时间' : '封禁研究员' }} <span class="text-[10px] text-slate-400 font-mono not-italic tracking-normal">/ {{ isBanned(banTarget) ? 'MODIFY_BAN' : 'ACCESS_RESTRICT' }}</span>
+          </h3>
+          <button @click="showBanModal = false" class="p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl transition-colors text-slate-400 hover:text-slate-900 dark:hover:text-white">
+            <X class="w-5 h-5" />
+          </button>
+        </div>
+
+        <div class="p-4 bg-rose-500/5 border border-rose-500/10 rounded-2xl mb-6 relative z-10 flex items-center gap-4">
+          <div class="w-12 h-12 bg-white dark:bg-black/40 rounded-xl flex items-center justify-center text-xl border border-slate-200 dark:border-white/10 shadow-sm overflow-hidden shrink-0">
+            <template v-if="banTarget.avatar && banTarget.avatar.startsWith('data:')">
+              <img :src="banTarget.avatar" class="w-full h-full object-cover" />
+            </template>
+            <template v-else>
+              {{ banTarget.avatar || '🧪' }}
+            </template>
+          </div>
+          <div>
+            <p class="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight">{{ banTarget.username }}</p>
+            <p class="text-[9px] text-slate-400 font-mono">UID: {{ banTarget.uid }}</p>
+          </div>
+        </div>
+
         <div class="space-y-6 relative z-10">
           <div>
-            <label class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] block mb-3 ml-1">Access Identifier / 用户名</label>
-            <input 
-              v-model="newUser.username"
-              type="text" 
-              placeholder="ENTER IDENTIFIER..."
-              class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-2xl px-5 py-4 text-xs font-black text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500/50 transition-all placeholder:text-slate-300 dark:placeholder:text-slate-700 tracking-widest uppercase"
-            />
+            <label class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] block mb-3 ml-1">Ban Duration / 封禁时长</label>
+            <div class="grid grid-cols-4 gap-2 mb-4">
+              <button
+                v-for="preset in banPresets"
+                :key="preset.hours"
+                @click="setBanDuration(preset.hours)"
+                :class="cn(
+                  'px-3 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border active:scale-95',
+                  selectedPreset === preset.hours
+                    ? 'bg-rose-500/10 border-rose-500/30 text-rose-500 shadow-sm'
+                    : 'bg-slate-50 dark:bg-black/40 border-slate-200 dark:border-white/10 text-slate-500 hover:border-rose-500/20 hover:text-rose-400'
+                )"
+              >
+                {{ preset.label }}
+              </button>
+              <button
+                @click="selectedPreset = null"
+                :class="cn(
+                  'px-3 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border active:scale-95',
+                  selectedPreset === null
+                    ? 'bg-rose-500/10 border-rose-500/30 text-rose-500 shadow-sm'
+                    : 'bg-slate-50 dark:bg-black/40 border-slate-200 dark:border-white/10 text-slate-500 hover:border-rose-500/20 hover:text-rose-400'
+                )"
+              >
+                自定义
+              </button>
+            </div>
+            <div v-if="selectedPreset === null" class="animate-in slide-in-from-top-2 duration-200">
+              <input
+                v-model="banUntil"
+                type="datetime-local"
+                :min="formatDatetimeLocal(new Date())"
+                class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-2xl px-5 py-4 text-sm font-black text-slate-900 dark:text-white focus:outline-none focus:border-rose-500/50 transition-all"
+              />
+            </div>
+            <div class="flex items-center gap-2 ml-1 mt-2">
+              <div class="w-1.5 h-1.5 rounded-full" :class="banUntil ? 'bg-rose-500 animate-pulse' : 'bg-slate-300 dark:bg-slate-600'"></div>
+              <span class="text-[9px] font-bold text-slate-400 dark:text-slate-600 uppercase tracking-wider">
+                封禁截止: {{ banUntil ? new Date(banUntil).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }) + '（UTC+8）' : '未设置' }}
+              </span>
+            </div>
           </div>
-          
+
           <div>
-            <label class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] block mb-3 ml-1">Security Key / 初始密码</label>
-            <input 
-              v-model="newUser.password"
-              type="password" 
-              placeholder="MINIMUM 6 CHARS..."
-              class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-2xl px-5 py-4 text-xs font-black text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500/50 transition-all placeholder:text-slate-300 dark:placeholder:text-slate-700 tracking-widest"
+            <label class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] block mb-3 ml-1">Reason / 封禁事由</label>
+            <textarea
+              v-model="banReason"
+              rows="3"
+              placeholder="请输入封禁原因..."
+              class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-2xl px-5 py-4 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-rose-500/50 transition-all resize-none"
             />
           </div>
         </div>
-        
+
         <div class="flex gap-4 mt-10 relative z-10">
-          <button 
-            @click="showCreateUserModal = false; newUser = { username: '', password: '' }"
+          <button
+            @click="showBanModal = false"
             class="flex-1 px-6 py-4 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-500 dark:text-slate-400 rounded-[1.25rem] font-black text-[10px] uppercase tracking-widest transition-all border border-slate-200 dark:border-white/5"
           >
             Abort
           </button>
-          <button 
-            @click="handleCreateUser"
-            class="flex-1 px-6 py-4 bg-cyan-600 hover:bg-cyan-500 text-white rounded-[1.25rem] font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-cyan-500/20 active:scale-95 border border-cyan-500/20"
+          <button
+            @click="handleBanUser"
+            class="flex-1 px-6 py-4 bg-rose-600 hover:bg-rose-500 text-white rounded-[1.25rem] font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-rose-500/20 active:scale-95 border border-rose-500/20"
           >
-            Confirm Entry
+            {{ isBanned(banTarget) ? 'Update Ban' : 'Execute Ban' }}
           </button>
         </div>
       </div>

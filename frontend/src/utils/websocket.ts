@@ -106,7 +106,13 @@ class WebSocketService {
   private handleMessage(message: WebSocketMessage): void {
     const { type } = message
     if (this.listeners[type]) {
-      this.listeners[type].forEach(callback => callback(message))
+      this.listeners[type].forEach(callback => {
+        try {
+          callback(message)
+        } catch (e) {
+          console.error(`WebSocket handler error for "${type}":`, e)
+        }
+      })
     }
   }
 

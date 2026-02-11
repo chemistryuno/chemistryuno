@@ -2,10 +2,10 @@
 
 import (
 	"chemistryuno/backend/database"
-	"chemistryuno/backend/game"
 	"chemistryuno/backend/models"
 	"chemistryuno/backend/repository"
 	"chemistryuno/backend/utils"
+	"chemistryuno/backend/websocket"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -97,10 +97,9 @@ func GetAllUsers(c *gin.Context) {
 	c.JSON(http.StatusOK, users)
 }
 
-// 管理员踢出玩家
+// 管理员踢出玩家（服务器级别，直接断开连接）
 func KickPlayer(c *gin.Context) {
 	var req struct {
-		RoomID    string `json:"room_id" binding:"required"`
 		TargetUID int    `json:"target_uid" binding:"required"`
 		Reason    string `json:"reason"`
 	}
@@ -111,24 +110,31 @@ func KickPlayer(c *gin.Context) {
 	}
 
 	if req.Reason == "" {
-		req.Reason = "你由于违规游戏而被踢出"
+		req.Reason = "您由于不正当游戏而被踢出"
 	}
 
-	err := game.AdminKickPlayer(req.RoomID, req.TargetUID, req.Reason)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
+	// 如果玩家在游戏房间中，先从房间踢出
+	if websocket.GlobalHub != nil {
+		// 发送 force_logout 事件，前端会清除 SID 并跳转到登录页
+		websocket.GlobalHub.SendToUID(req.TargetUID, websocket.Message{
+			Type:    "force_logout",
+			Message: req.Reason,
+		})
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "玩家已踢出"})
+	// 删除该用户的所有会话
+	sessionRepo := repository.NewSessionRepository()
+	_ = sessionRepo.DeleteByUserUID(uint(req.TargetUID))
+
+	c.JSON(http.StatusOK, gin.H{"message": "玩家已被踢出服务器"})
 }
 
 // 管理员封禁用户
 func BanUser(c *gin.Context) {
 	var req struct {
-		TargetUID int    `json:"target_uid" binding:"required"`
-		Hours     int    `json:"hours"` // 0 为永久
-		Reason    string `json:"reason"`
+		TargetUID  int    `json:"target_uid" binding:"required"`
+		BannedUntil string `json:"banned_until" binding:"required"` // ISO 8601 datetime
+		Reason     string `json:"reason"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -137,35 +143,44 @@ func BanUser(c *gin.Context) {
 	}
 
 	if req.Reason == "" {
-		req.Reason = "你由于违规游戏而被封禁"
+		req.Reason = "您由于不正当游戏而被封禁"
 	}
 
-	var bannedUntil *time.Time
-	if req.Hours > 0 {
-		t := time.Now().Add(time.Duration(req.Hours) * time.Hour)
-		bannedUntil = &t
-	} else if req.Hours == -1 {
-		// 实际上前端可以传-1表示永久
-		t := time.Now().AddDate(100, 0, 0) // 100年后，相当于永久
-		bannedUntil = &t
+	// 解析前端传入的 ISO 8601 时间
+	bannedUntil, err := time.Parse(time.RFC3339, req.BannedUntil)
+	if err != nil {
+		// 尝试不带时区的格式
+		bannedUntil, err = time.Parse("2006-01-02T15:04:05", req.BannedUntil)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "时间格式无效"})
+			return
+		}
 	}
 
-	err := userRepo.UpdateBanStatusWithReason(uint(req.TargetUID), bannedUntil, req.Reason)
+	if bannedUntil.Before(time.Now()) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "封禁截止时间必须晚于当前时间"})
+		return
+	}
+
+	err = userRepo.UpdateBanStatusWithReason(uint(req.TargetUID), &bannedUntil, req.Reason)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "封禁失败"})
 		return
+	}
+
+	// 通过 WebSocket 立即踢出玩家（无提示弹窗，直接断开）
+	if websocket.GlobalHub != nil {
+		websocket.GlobalHub.SendToUID(req.TargetUID, websocket.Message{
+			Type:    "force_logout",
+			Message: "您的账号已被封禁",
+		})
 	}
 
 	// 封禁后强制登出
 	sessionRepo := repository.NewSessionRepository()
 	_ = sessionRepo.DeleteByUserUID(uint(req.TargetUID))
 
-	msg := "用户已被永久封禁"
-	if req.Hours > 0 {
-		msg = fmt.Sprintf("用户已被封禁 %d 小时", req.Hours)
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": msg})
+	c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("用户已被封禁至 %s", bannedUntil.Format("2006-01-02 15:04:05"))})
 }
 
 // 获取全局牌组配置

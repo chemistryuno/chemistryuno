@@ -18,8 +18,8 @@ func GetLeaderboard(c *gin.Context) {
 		orderBy = "monthly_points"
 	}
 
-	// 排除被禁封的用户
-	db := database.DB.Where("banned_until IS NULL OR banned_until < ?", time.Now())
+	// 包含所有用户（封禁用户会标记 CHEATER 标签）
+	db := database.DB
 
 	var users []database.User
 	err := db.Order(orderBy + " DESC, uid ASC").Limit(100).Find(&users).Error
@@ -41,6 +41,8 @@ func GetLeaderboard(c *gin.Context) {
 			isOnline = websocket.GlobalHub.IsUIDOnline(int(user.UID))
 		}
 
+		isBanned := user.BannedUntil != nil && time.Now().Before(*user.BannedUntil)
+
 		leaderboard = append(leaderboard, map[string]interface{}{
 			"uid":            user.UID,
 			"username":       user.Username,
@@ -50,6 +52,7 @@ func GetLeaderboard(c *gin.Context) {
 			"monthly_points": user.MonthlyPoints,
 			"bounty":         totalBounty,
 			"is_online":      isOnline,
+			"is_banned":      isBanned,
 		})
 	}
 
@@ -64,13 +67,14 @@ func GetLeaderboard(c *gin.Context) {
 			if mode == "monthly" {
 				score = user.MonthlyPoints
 			}
-			database.DB.Model(&database.User{}).Where(orderBy+" > ? AND (banned_until IS NULL OR banned_until < ?)", score, time.Now()).Count(&rank)
+			database.DB.Model(&database.User{}).Where(orderBy+" > ?", score).Count(&rank)
 
 			totalBounty, _ := repository.BountyRepo.GetTotalBounty(user.UID)
 			isOnline := false
 			if websocket.GlobalHub != nil {
 				isOnline = websocket.GlobalHub.IsUIDOnline(int(user.UID))
 			}
+			isBanned := user.BannedUntil != nil && time.Now().Before(*user.BannedUntil)
 
 			selfInfo = map[string]interface{}{
 				"uid":            user.UID,
@@ -81,6 +85,7 @@ func GetLeaderboard(c *gin.Context) {
 				"monthly_points": user.MonthlyPoints,
 				"bounty":         totalBounty,
 				"is_online":      isOnline,
+				"is_banned":      isBanned,
 				"rank":           rank + 1,
 			}
 		}

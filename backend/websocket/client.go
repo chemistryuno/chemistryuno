@@ -173,6 +173,19 @@ func (c *Client) handleMessage(msg *Message) {
 			},
 		})
 
+	case "broadcast_chat":
+		// 广播消息：发送给全服所有在线用户
+		c.hub.BroadcastToAll(Message{
+			Type:    "broadcast_chat",
+			UID:     c.uid,
+			Message: msg.Message,
+			Data: map[string]string{
+				"username": c.username,
+				"nickname": c.nickname,
+				"avatar":   c.avatar,
+			},
+		})
+
 	case "private_chat":
 		if msg.TargetUID != 0 {
 			// 检查是否是好友

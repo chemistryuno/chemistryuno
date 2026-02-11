@@ -9,7 +9,7 @@ export default defineConfig({
   ],
   server: {
     host: true,
-    allowedHosts: 'all',
+    allowedHosts: true, // true = 允许所有主机名
     port: 5000,
     proxy: {
       '/api': {

@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port 5000",
+    "dev:test": "vite --mode test --port 5000",
+    "dev:prod": "vite --mode production --port 5000",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "type-check": "tsc --noEmit",

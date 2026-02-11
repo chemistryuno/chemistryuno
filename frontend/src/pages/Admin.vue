@@ -91,7 +91,7 @@ const loadData = async () => {
       deckConfig.value = response.data
     } else if (activeTab.value === 'feedbacks') {
       const response = await adminAPI.getFeedbacks()
-      feedbacks.value = response.data || []
+      feedbacks.value = (response.data || []).filter((fb: any) => fb.status === 'pending')
     } else if (activeTab.value === 'announcements') {
       const response = await adminAPI.getAnnouncements()
       announcements.value = response.data || []

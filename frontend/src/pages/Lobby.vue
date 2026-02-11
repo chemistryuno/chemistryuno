@@ -42,6 +42,8 @@ const decks = ref<any[]>([])
 const pendingFeedbacks = ref<any[]>([])
 const persistentAnnouncements = ref<any[]>([])
 const showCreateModal = ref(false)
+const showDeckDetailModal = ref(false)
+const selectedDeckConfig = ref<any>(null)
 const roomName = ref('')
 const maxPlayers = ref(4)
 const deckID = ref(0)
@@ -162,6 +164,13 @@ const loadPersistentAnnouncements = async () => {
   } catch (e) {
     console.error(e)
   }
+}
+
+// 查看牌组配置详情
+const handleViewDeckConfig = (deckConfig: any) => {
+  if (!deckConfig) return
+  selectedDeckConfig.value = deckConfig
+  showDeckDetailModal.value = true
 }
 
 const handleCreateRoom = async () => {
@@ -507,7 +516,11 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
                         <div v-if="room.is_points_mode" class="px-1.5 py-0.5 bg-amber-500/10 border border-amber-500/20 rounded text-amber-500 text-[8px] font-black uppercase">
                           Ranked
                         </div>
-                        <div v-if="room.deck_config" class="px-1.5 py-0.5 bg-blue-500/10 border border-blue-500/20 rounded text-blue-500 text-[8px] font-black uppercase">
+                        <div v-if="room.deck_config"
+                          @click.stop="handleViewDeckConfig(room.deck_config)"
+                          class="px-1.5 py-0.5 bg-blue-500/10 border border-blue-500/20 rounded text-blue-500 text-[8px] font-black uppercase cursor-pointer hover:bg-blue-500/20 transition-colors"
+                          title="点击查看牌组详情"
+                        >
                           {{ room.deck_config.name }}
                         </div>
                       </div>
@@ -726,6 +739,92 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
             </button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <!-- 牌组详情查看模态框 -->
+    <div v-if="showDeckDetailModal && selectedDeckConfig" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <div class="absolute inset-0 bg-slate-900/40 dark:bg-black/80 backdrop-blur-md animate-in fade-in" @click="showDeckDetailModal = false" />
+      <div class="relative w-full max-w-2xl bg-white dark:bg-[#121216] border border-slate-200 dark:border-white/10 rounded-[40px] shadow-2xl overflow-hidden animate-in fade-in zoom-in slide-in-from-bottom-10 duration-500">
+         <!-- Modal Header -->
+         <div class="px-6 py-5 border-b border-slate-100 dark:border-white/5 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 bg-blue-500/10 border border-blue-500/20 rounded-xl flex items-center justify-center text-blue-500 dark:text-blue-400">
+                <Database class="w-5 h-5" />
+              </div>
+              <div>
+                <h2 class="text-lg font-black text-slate-800 dark:text-white tracking-tight leading-none">{{ selectedDeckConfig.name }}</h2>
+                <p class="text-[9px] text-slate-400 dark:text-slate-500 font-mono uppercase tracking-widest mt-1">Deck_Configuration_Details</p>
+              </div>
+            </div>
+            <button
+              @click="showDeckDetailModal = false"
+              class="p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl transition-colors text-slate-400 hover:text-slate-900 dark:hover:text-white"
+            >
+              <X class="w-5 h-5" />
+            </button>
+         </div>
+
+         <!-- Modal Content -->
+         <div class="p-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
+            <div class="space-y-4">
+              <!-- 基础信息 -->
+              <div class="p-4 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl">
+                <div class="flex items-center justify-between mb-3">
+                  <span class="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">基础信息</span>
+                  <span class="text-[8px] text-blue-500/40 font-mono">BASIC_INFO</span>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                  <div class="p-3 bg-white dark:bg-black/20 rounded-lg">
+                    <p class="text-[8px] text-slate-400 mb-1 uppercase tracking-wider">牌组名称</p>
+                    <p class="text-[11px] font-black text-slate-900 dark:text-white">{{ selectedDeckConfig.name }}</p>
+                  </div>
+                  <div class="p-3 bg-white dark:bg-black/20 rounded-lg">
+                    <p class="text-[8px] text-slate-400 mb-1 uppercase tracking-wider">元素种类</p>
+                    <p class="text-[11px] font-black text-blue-600 dark:text-blue-400">{{ Object.keys(selectedDeckConfig.cards || {}).length }} 种</p>
+                  </div>
+                  <div class="p-3 bg-white dark:bg-black/20 rounded-lg">
+                    <p class="text-[8px] text-slate-400 mb-1 uppercase tracking-wider">总卡牌数</p>
+                    <p class="text-[11px] font-black text-slate-900 dark:text-white">{{ Object.values(selectedDeckConfig.cards || {}).reduce((a, b) => a + b, 0) }} 张</p>
+                  </div>
+                  <div class="p-3 bg-white dark:bg-black/20 rounded-lg">
+                    <p class="text-[8px] text-slate-400 mb-1 uppercase tracking-wider">起始手牌</p>
+                    <p class="text-[11px] font-black text-slate-900 dark:text-white">{{ selectedDeckConfig.initial_cards || 7 }} 张</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 卡牌列表 -->
+              <div class="p-4 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl">
+                <div class="flex items-center justify-between mb-3">
+                  <span class="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">卡牌配置</span>
+                  <span class="text-[8px] text-blue-500/40 font-mono">CARD_LIST</span>
+                </div>
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-64 overflow-y-auto custom-scrollbar pr-2">
+                  <div
+                    v-for="(count, formula) in selectedDeckConfig.cards"
+                    :key="formula"
+                    class="p-2.5 bg-white dark:bg-black/20 rounded-lg border border-slate-200 dark:border-white/10 hover:border-blue-500/50 transition-colors"
+                  >
+                    <div class="flex items-center justify-between">
+                      <span class="text-[10px] font-black text-slate-900 dark:text-white font-mono" v-html="formula.replace(/(\d+)/g, '<sub>$1</sub>')"></span>
+                      <span class="text-[9px] font-black text-blue-600 dark:text-blue-400">×{{ count }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+         </div>
+
+         <!-- Modal Footer -->
+         <div class="px-6 py-4 border-t border-slate-100 dark:border-white/5 flex justify-end">
+            <button
+              @click="showDeckDetailModal = false"
+              class="px-5 py-2.5 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 font-bold rounded-xl transition-all uppercase tracking-widest text-[10px] border border-slate-200 dark:border-white/5"
+            >
+              关闭
+            </button>
+         </div>
       </div>
     </div>
   </div>

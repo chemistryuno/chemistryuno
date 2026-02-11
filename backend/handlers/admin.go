@@ -418,7 +418,7 @@ func ApproveReaction(c *gin.Context) {
 	}
 
 	groupIDStr := c.Param("group_id")
-	groupIDUint, err := strconv.ParseUint(groupIDStr, 10, 32)
+	groupIDUint, err := strconv.ParseUint(groupIDStr, 10, 64)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的group_id"})
 		return
@@ -558,37 +558,47 @@ func parseReactants(display string) []string {
 
 // 添加化学反应（co-worker或admin权限）
 func AddReaction(c *gin.Context) {
-	uid := c.GetInt("uid")
+	uid, exists := c.Get("uid")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未获取到用户身份信息"})
+		return
+	}
 	role := c.GetString("role")
 
 	var req models.ReactionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数错误: " + err.Error()})
+		return
+	}
+
+	display := strings.TrimSpace(req.Display)
+	if display == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "反应方程式不能为空"})
 		return
 	}
 
 	// 自动识别 r1, r2
-	rlist := parseReactants(req.Display)
+	rlist := parseReactants(display)
 	if len(rlist) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "无法自动识别反应物，请检查方程式格式（如: A + B -> C）"})
 		return
 	}
 
 	// 1. 校验质量守恒
-	if ok, errInfo := validateBalance(req.Display); !ok {
+	if ok, errInfo := validateBalance(display); !ok {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "方程式校验失败: " + errInfo})
 		return
 	}
 
-	// 2. 校验反应物重复
-	if isDup, oldDisplay := checkDuplicateReactants(req.Display, nil); isDup {
-		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("该反应物组合已存在: %s", oldDisplay)})
+	// 2. 校验反应物重复（检查已审核通过的）
+	if isDup, oldDisplay := checkDuplicateReactants(display, nil); isDup {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("该反应物组合已有经认证的公式: %s", oldDisplay)})
 		return
 	}
 
 	// 3. 严格校验反应物数量（仅支持双反应物）
 	if len(rlist) != 2 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "当前仅支持由两种不同物质组成的反应组合（如 A + B = C）"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "当前实验室系统仅支持由两种不同物质组成的反应组合（如 A + B = C）"})
 		return
 	}
 
@@ -603,20 +613,28 @@ func AddReaction(c *gin.Context) {
 		status = "pending_admin"
 	}
 
-	// 生成 group_id
+	// 生成 group_id (使用毫秒时间戳)
 	groupIDVal := uint(time.Now().UnixNano() / 1000000)
 	groupID := &groupIDVal
 
 	err := database.DB.Transaction(func(tx *gorm.DB) error {
-		return saveReactionToDBGorm(tx, rlist, req.Display, status, groupID, uint(uid))
+		// 这里 uid 需要断言
+		userID := uint(0)
+		if u, ok := uid.(int); ok {
+			userID = uint(u)
+		} else if u, ok := uid.(uint); ok {
+			userID = u
+		}
+		return saveReactionToDBGorm(tx, rlist, display, status, groupID, userID)
 	})
 
 	if err != nil {
+		log.Printf("[AddReaction] Database Error: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "保存反应失败: " + err.Error()})
 		return
 	}
 
-	msg := "反应已提交，等待管理员审核"
+	msg := "反应已提交，等待协作者或管理员审核"
 	if status == "approved" {
 		msg = "反应已成功加入核心数据库"
 	}
@@ -746,6 +764,11 @@ func validateBalance(display string) (bool, string) {
 	}
 	leftCounts := countElements(parts[0])
 	rightCounts := countElements(parts[1])
+
+	if len(leftCounts) == 0 || len(rightCounts) == 0 {
+		return false, "方程式左右两侧必须包含有效的化学元素"
+	}
+
 	allElements := make(map[string]bool)
 	for k := range leftCounts {
 		allElements[k] = true

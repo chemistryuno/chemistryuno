@@ -156,7 +156,7 @@ func (r *ReactionRepository) FindAllGroupedWithCreator() ([]ReactionWithCreator,
 	return results, err
 }
 
-// FindApprovedGrouped 获取已批准的反应（按组分组）
+// FindApprovedGrouped 获取已批准的反应（按组分组，带创建者信息）
 func (r *ReactionRepository) FindApprovedGrouped() ([]ReactionWithCreator, error) {
 	var results []ReactionWithCreator
 
@@ -167,7 +167,8 @@ func (r *ReactionRepository) FindApprovedGrouped() ([]ReactionWithCreator, error
 		Group("group_id")
 
 	err := r.db.Table("reactions").
-		Select("reactions.id, reactions.display, reactions.r1, reactions.r2, reactions.status, reactions.group_id, reactions.created_at").
+		Select("reactions.id, reactions.display, reactions.r1, reactions.r2, reactions.status, reactions.group_id, reactions.created_by_uid, users.username as creator_name, reactions.created_at").
+		Joins("LEFT JOIN users ON reactions.created_by_uid = users.uid").
 		Where("reactions.status = ? AND reactions.id IN (?)", "approved", subQuery).
 		Order("reactions.created_at DESC").
 		Scan(&results).Error
@@ -186,7 +187,8 @@ func (r *ReactionRepository) FindMyReactions(uid uint) ([]ReactionWithCreator, e
 		Group("group_id")
 
 	err := r.db.Table("reactions").
-		Select("reactions.id, reactions.display, reactions.r1, reactions.r2, reactions.status, reactions.created_at").
+		Select("reactions.id, reactions.display, reactions.r1, reactions.r2, reactions.status, reactions.group_id, reactions.created_by_uid, users.username as creator_name, reactions.created_at").
+		Joins("LEFT JOIN users ON reactions.created_by_uid = users.uid").
 		Where("reactions.created_by_uid = ? AND reactions.id IN (?)", uid, subQuery).
 		Order("reactions.created_at DESC").
 		Scan(&results).Error

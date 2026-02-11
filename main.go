@@ -266,7 +266,6 @@ func main() {
 			// 方程式相关的普通用户路由
 			auth.GET("/reactions/my", handlers.GetMyReactions)
 			auth.GET("/reactions/all", handlers.GetAllReactions)
-			auth.POST("/reactions", handlers.AddReaction)
 
 			// 2FA相关
 			auth.POST("/user/2fa/setup", handlers.Setup2FA)
@@ -310,6 +309,7 @@ func main() {
 			reactions := auth.Group("/reactions")
 			{
 				reactions.GET("", handlers.GetReactions)
+				reactions.POST("", handlers.AddReaction)
 				reactions.POST("/batch", middleware.CoWorkerMiddleware(), handlers.BatchAddReactions)
 				reactions.PUT("/:id", middleware.CoWorkerMiddleware(), handlers.UpdateReaction)
 				reactions.PUT("/approve/:group_id", middleware.CoWorkerMiddleware(), handlers.ApproveReaction)

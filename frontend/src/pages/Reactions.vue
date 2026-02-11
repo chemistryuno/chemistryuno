@@ -461,16 +461,23 @@ const handleAddReaction = async () => {
     await reactionAPI.addReaction(display)
     // 重置编辑器
     editorRef.value?.reset()
-    // 重新加载数据
-    await loadReactions()
+    
     let msg = '反应添加成功！'
     if (user.value.role === 'user') {
       msg = '建议已提交，数据已直接写入数据库并等待协作者/管理员审核（pending）。'
     }
     await showAlert(msg, '成功')
+
+    // 独立加载数据，失败不影响提示
+    try {
+      await loadReactions()
+    } catch (e) {
+      console.error('加载列表失败:', e)
+    }
   } catch (error: any) {
     console.error('添加反应失败:', error)
-    await showAlert(error.response?.data?.error || '添加反应失败', '错误')
+    const errorMsg = error.response?.data?.error || error.message || '添加反应失败'
+    await showAlert(errorMsg, '错误')
   } finally {
     loading.value = false
   }

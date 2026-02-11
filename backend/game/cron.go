@@ -37,6 +37,15 @@ func StartCron() {
 			cleanupSessions()
 		}
 	}()
+
+	// 4. 每小时清除24小时前的大厅聊天消息
+	go func() {
+		ticker := time.NewTicker(1 * time.Hour)
+		defer ticker.Stop()
+		for range ticker.C {
+			cleanupOldChatMessages()
+		}
+	}()
 }
 
 func countExpired() {
@@ -52,6 +61,16 @@ func cleanupSessions() {
 	count, err := repository.SessionRepo.CleanupInactive()
 	if err == nil && count > 0 {
 		log.Printf("⚖️ Cron: 已清理 %d 个过期会话", count)
+	}
+}
+
+func cleanupOldChatMessages() {
+	// 清理24小时前的大厅聊天消息
+	count, err := repository.ChatRepo.DeleteOldMessages()
+	if err != nil {
+		log.Printf("⚠️ Cron: 清理过期大厅聊天失败: %v", err)
+	} else if count > 0 {
+		log.Printf("✅ Cron: 已清理 %d 条超过24小时的大厅聊天消息", count)
 	}
 }
 

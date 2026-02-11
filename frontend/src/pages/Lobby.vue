@@ -785,7 +785,7 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
                   </div>
                   <div class="p-3 bg-white dark:bg-black/20 rounded-lg">
                     <p class="text-[8px] text-slate-400 mb-1 uppercase tracking-wider">总卡牌数</p>
-                    <p class="text-[11px] font-black text-slate-900 dark:text-white">{{ Object.values(selectedDeckConfig.cards || {}).reduce((a, b) => a + b, 0) }} 张</p>
+                    <p class="text-[11px] font-black text-slate-900 dark:text-white">{{ (Object.values(selectedDeckConfig.cards || {}) as number[]).reduce((a, b) => a + b, 0) }} 张</p>
                   </div>
                   <div class="p-3 bg-white dark:bg-black/20 rounded-lg">
                     <p class="text-[8px] text-slate-400 mb-1 uppercase tracking-wider">起始手牌</p>
@@ -807,7 +807,7 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
                     class="p-2.5 bg-white dark:bg-black/20 rounded-lg border border-slate-200 dark:border-white/10 hover:border-blue-500/50 transition-colors"
                   >
                     <div class="flex items-center justify-between">
-                      <span class="text-[10px] font-black text-slate-900 dark:text-white font-mono" v-html="formula.replace(/(\d+)/g, '<sub>$1</sub>')"></span>
+                      <span class="text-[10px] font-black text-slate-900 dark:text-white font-mono" v-html="String(formula).replace(/(\d+)/g, '<sub>$1</sub>')"></span>
                       <span class="text-[9px] font-black text-blue-600 dark:text-blue-400">×{{ count }}</span>
                     </div>
                   </div>

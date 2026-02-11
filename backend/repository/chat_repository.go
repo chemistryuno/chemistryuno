@@ -2,6 +2,7 @@ package repository
 
 import (
 	"chemistryuno/backend/database"
+	"time"
 
 	"gorm.io/gorm"
 )
@@ -37,4 +38,17 @@ func (r *ChatRepository) GetRecentMessages(limit int) ([]database.GlobalChat, er
 	}
 
 	return messages, nil
+}
+
+// ClearAllMessages 清除所有大厅聊天消息（每天0:00执行）
+func (r *ChatRepository) ClearAllMessages() error {
+	return r.db.Exec("DELETE FROM global_chats").Error
+}
+
+// DeleteOldMessages 删除24小时前的大厅聊天消息
+func (r *ChatRepository) DeleteOldMessages() (int64, error) {
+	// 计算24小时前的时间
+	cutoffTime := time.Now().Add(-24 * time.Hour)
+	result := r.db.Where("created_at < ?", cutoffTime).Delete(&database.GlobalChat{})
+	return result.RowsAffected, result.Error
 }

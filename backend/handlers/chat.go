@@ -8,7 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// GetGlobalChatHistory 获取全服聊天历史
+// GetGlobalChatHistory 获取全服聊天历史（大厅聊天，每天清除）
 func GetGlobalChatHistory(c *gin.Context) {
 	limitStr := c.DefaultQuery("limit", "50")
 	limit, _ := strconv.Atoi(limitStr)

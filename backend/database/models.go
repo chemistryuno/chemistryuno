@@ -119,7 +119,7 @@ func (UserSession) TableName() string {
 	return "user_sessions"
 }
 
-// GlobalChat GORM模型 - 全服聊天记录表
+// GlobalChat GORM模型 - 全服聊天记录表（大厅聊天，每天0:00清除）
 type GlobalChat struct {
 	ID        uint      `gorm:"primaryKey;autoIncrement" json:"id"`
 	UserUID   uint      `gorm:"not null;index" json:"user_uid"`
@@ -132,6 +132,7 @@ type GlobalChat struct {
 func (GlobalChat) TableName() string {
 	return "global_chats"
 }
+
 
 // PrivateChat GORM模型 - 私聊消息记录表
 type PrivateChat struct {

@@ -4,20 +4,22 @@ import { useRouter } from 'vue-router'
 import { authAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
 import ws from '../utils/websocket'
-import { 
-  ArrowLeft, 
-  Megaphone, 
-  Clock, 
-  User, 
-  CheckCircle2, 
+import {
+  ArrowLeft,
+  Megaphone,
+  Clock,
+  User,
+  CheckCircle2,
   AlertCircle,
   BellRing,
   Trash2,
   Trophy
 } from 'lucide-vue-next'
+import FeedbackButton from '../components/FeedbackButton.vue'
 
 const router = useRouter()
 const { showAlert, showConfirm } = useDialog()
+const feedbackButtonRef = ref<InstanceType<typeof FeedbackButton> | null>(null)
 const feedbacks = ref<any[]>([])
 const loading = ref(false)
 
@@ -63,7 +65,7 @@ onBeforeUnmount(() => {
 })
 
 const canUrge = (f: any) => {
-  if (f.status !== 'unread') return false
+  if (f.status !== 'pending') return false
   if (!f.last_urged_at) return true
   const t = new Date(f.last_urged_at)
   const next = new Date(t.getTime() + 4 * 3600 * 1000)
@@ -167,12 +169,12 @@ const urge = async (id: number, idx: number) => {
                 <div class="text-right flex flex-col items-end gap-2">
                   <div class="flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-bold tracking-tight"
                     :class="{
-                      'bg-amber-100 text-amber-600 dark:bg-amber-500/10 dark:text-amber-500': f.status === 'unread',
+                      'bg-amber-100 text-amber-600 dark:bg-amber-500/10 dark:text-amber-500': f.status === 'pending',
                       'bg-green-100 text-green-600 dark:bg-green-500/10 dark:text-green-500': f.status === 'accepted',
                       'bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-400': f.status === 'dismissed'
                     }"
                   >
-                    <component :is="f.status === 'accepted' ? CheckCircle2 : (f.status === 'unread' ? Clock : AlertCircle)" class="w-4 h-4" />
+                    <component :is="f.status === 'accepted' ? CheckCircle2 : (f.status === 'pending' ? Clock : AlertCircle)" class="w-4 h-4" />
                     {{ f.status === 'accepted' ? '已接受' : (f.status === 'dismissed' ? '不予受理' : '待处理') }}
                   </div>
                   
@@ -199,7 +201,7 @@ const urge = async (id: number, idx: number) => {
                   </p>
                   
                   <button
-                    v-if="f.status === 'unread'"
+                    v-if="f.status === 'pending'"
                     @click="handleWithdraw(f.id)"
                     class="w-full mt-4 flex items-center justify-center gap-2 py-2 px-6 rounded-xl font-bold transition-all text-red-500 hover:bg-red-500/10 text-xs uppercase tracking-widest"
                   >
@@ -219,5 +221,7 @@ const urge = async (id: number, idx: number) => {
         </p>
       </div>
     </div>
+
+    <FeedbackButton ref="feedbackButtonRef" @submitted="load" />
   </div>
 </template>

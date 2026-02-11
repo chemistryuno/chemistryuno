@@ -17,6 +17,7 @@ const prefill = (newContent: string, newType: string = 'general') => {
 }
 
 defineExpose({ prefill })
+const emit = defineEmits<{ submitted: [] }>()
 const isSubmitting = ref(false)
 const { showAlert } = useDialog()
 const editorRef = ref<any>(null)
@@ -44,6 +45,7 @@ const submitFeedback = async () => {
     type.value = 'general'
     editorRef.value?.reset()
     isOpen.value = false
+    emit('submitted')
   } catch (error: any) {
     showAlert(error.response?.data?.error || '提交失败', '错误')
   } finally {

@@ -140,39 +140,6 @@ onMounted(() => {
     nextTick(scrollToBottom)
   }
 
-  const handlePrivateMessage = async (msg: any) => {
-    // 尝试解析游戏邀请消息
-    let isGameInvite = false
-    let gameInviteData = null
-
-    try {
-      const parsed = JSON.parse(msg.message)
-      if (parsed.type === 'game_invite') {
-        isGameInvite = true
-        gameInviteData = parsed
-
-        // 检查房间状态
-        if (gameInviteData.room_id) {
-          gameInviteData.room_status = await checkRoomStatus(gameInviteData.room_id)
-        }
-      }
-    } catch (e) {
-      // 不是JSON或不是游戏邀请，按普通消息处理
-    }
-
-    messages.value.push({
-      uid: msg.uid,
-      target_uid: msg.target_uid,
-      username: msg.data?.nickname || msg.data?.username || '研究员',
-      avatar: msg.data?.avatar,
-      text: isGameInvite ? '' : msg.message,
-      time: new Date(),
-      type: isGameInvite ? 'game_invite' : 'private',
-      gameInviteData: gameInviteData
-    })
-    nextTick(scrollToBottom)
-  }
-
   websocket.on('chat', handleChatMessage)
   websocket.on('private_chat', handlePrivateMessage)
 

@@ -143,6 +143,26 @@ const handleDismissFeedback = async (id: number) => {
   }
 }
 
+const parseReportUID = (content: string): number | null => {
+  const match = content.match(/UID:\s*(\d+)/)
+  return match ? parseInt(match[1]) : null
+}
+
+const parseReportUsername = (content: string): string | null => {
+  const match = content.match(/举报用户:\s*(.+?)\s*\(UID:/)
+  return match ? match[1] : null
+}
+
+const handleBanReportedPlayer = (fb: any) => {
+  const uid = parseReportUID(fb.content)
+  const username = parseReportUsername(fb.content)
+  if (!uid) {
+    showAlert('无法从举报内容中解析被举报玩家的UID', '解析失败')
+    return
+  }
+  openBanModal({ uid, username: username || `UID:${uid}` })
+}
+
 const handlePromoteUser = async (uid: string, currentRole: string) => {
   const roles = ['user', 'co-worker', 'admin']
   const roleLabels = {
@@ -1161,6 +1181,9 @@ const filteredHistory = computed(() => {
                      <p class="text-[11px] leading-relaxed text-slate-600 dark:text-slate-400 font-bold italic">“{{ fb.content }}”</p>
                    </div>
                    <div class="flex items-center justify-end gap-3 relative z-10">
+                      <button v-if="fb.type === 'report'" @click="handleBanReportedPlayer(fb)" class="px-5 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg hover:shadow-rose-500/20 active:scale-95 flex items-center gap-2">
+                        <Ban class="w-3.5 h-3.5" />Ban
+                      </button>
                       <button @click="handleAcceptFeedback(fb.id)" class="px-5 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg hover:shadow-cyan-500/20 active:scale-95">Accept</button>
                       <button @click="handleDismissFeedback(fb.id)" class="px-5 py-2.5 bg-slate-100 dark:bg-white/5 text-slate-400 hover:text-red-500 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-slate-200 dark:border-white/10 hover:border-red-500/20 active:scale-95">Dismiss</button>
                    </div>

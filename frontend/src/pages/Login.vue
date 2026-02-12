@@ -136,7 +136,14 @@ const handleLoginSuccess = (token: string, user: any, announcements: any[] = [])
     })
   }
 
-  router.push('/')
+  // 检查是否有重定向参数
+  const redirect = router.currentRoute.value.query.redirect as string
+  if (redirect) {
+    // 跳转到原始访问的页面（包括查询参数）
+    router.push(redirect)
+  } else {
+    router.push('/')
+  }
 }
 
 const handleWebAuthnLogin = async () => {

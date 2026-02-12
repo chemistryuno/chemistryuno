@@ -216,7 +216,9 @@ const sendGameInvite = async (friend: any) => {
     room_name: roomInfo.value?.name || '实验室',
     player_count: allPlayers.value.length,
     max_players: roomInfo.value?.max_players || 0,
-    is_points_mode: roomInfo.value?.is_points_mode || false
+    is_points_mode: roomInfo.value?.is_points_mode || false,
+    is_private: roomInfo.value?.is_private || false,
+    access_key: roomInfo.value?.access_key || ''
   }
 
   websocket.send({
@@ -645,7 +647,9 @@ const loadGameState = async (silent = false) => {
     // 只在首次加载时尝试加入房间（silent=false），避免重复调用
     if (!silent) {
       try {
-        await gameAPI.joinRoom(id)
+        // 从 URL 查询参数中获取访问密钥
+        const accessKey = route.query.key as string | undefined
+        await gameAPI.joinRoom(id, accessKey)
         console.log('[GameRoom] Successfully joined/rejoined room')
       } catch (joinError: any) {
         // 如果加入失败（例如房间已满、被封禁等），显示错误并返回
@@ -678,7 +682,9 @@ const loadGameState = async (silent = false) => {
       max_players: data.max_players,
       status: data.status,
       is_points_mode: data.is_points_mode,
-      deck_config: data.deck_config
+      deck_config: data.deck_config,
+      is_private: data.is_private,
+      access_key: data.access_key
     }
 
     console.log('[GameRoom] roomInfo updated, status:', roomInfo.value.status)
@@ -1000,11 +1006,28 @@ const handleLeaveRoom = async () => {
   }
 }
 
-const shareLink = computed(() => window.location.href)
+// 生成分享链接（私密房间自动带密钥）
+const shareLink = computed(() => {
+  const currentUrl = window.location.href
+  // 如果是私密房间且有访问密钥，自动添加key参数
+  if (roomInfo.value?.is_private && roomInfo.value?.access_key) {
+    // 检查URL中是否已经包含key参数
+    if (!currentUrl.includes('?key=')) {
+      const separator = currentUrl.includes('?') ? '&' : '?'
+      return `${currentUrl}${separator}key=${roomInfo.value.access_key}`
+    }
+  }
+  return currentUrl
+})
+
 const handleCopyLink = async () => {
   try {
     await navigator.clipboard.writeText(shareLink.value)
-    showAlert('实验邀请链接已复制到剪贴板，快发送给你的科研伙伴吧！', '任务下达')
+    if (roomInfo.value?.is_private) {
+      showAlert('私密房间邀请链接已复制（含访问密钥），快发送给你的科研伙伴吧！', '任务下达')
+    } else {
+      showAlert('实验邀请链接已复制到剪贴板，快发送给你的科研伙伴吧！', '任务下达')
+    }
   } catch (err) {
     showAlert('链接复制失败，请手动复制浏览器地址栏', '设备故障')
   }

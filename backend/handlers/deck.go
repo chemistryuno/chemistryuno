@@ -12,9 +12,20 @@ import (
 
 func GetMyDecks(c *gin.Context) {
 	uid := c.GetInt("uid")
-	// 获取用户的自定义牌组和全局牌组
-	userDecks, _ := repository.DeckRepo.FindByUserUID(uint(uid))
-	globalDecks, _ := repository.DeckRepo.FindGlobalDecks()
+
+	// 获取全局牌组
+	globalDecks, err := repository.DeckRepo.FindGlobalDecks()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取全局牌组失败"})
+		return
+	}
+
+	// 获取用户的自定义牌组
+	userDecks, err := repository.DeckRepo.FindByUserUID(uint(uid))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取用户牌组失败"})
+		return
+	}
 
 	var decks []interface{}
 	// 添加所有全局牌组

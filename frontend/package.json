@@ -13,9 +13,6 @@
     "copy-dist": "node -e \"const fs=require('fs'),path=require('path');const src='dist',dst='../backend/static/dist';if(fs.existsSync(dst))fs.rmSync(dst,{recursive:true});fs.mkdirSync(path.dirname(dst),{recursive:true});fs.cpSync(src,dst,{recursive:true});console.log('✓ 前端文件已复制到 backend/static/dist')\""
   },
   "dependencies": {
-    "@capacitor/android": "^6.2.1",
-    "@capacitor/cli": "^6.2.1",
-    "@capacitor/core": "^6.2.1",
     "@github/webauthn-json": "^2.1.1",
     "axios": "^1.6.5",
     "clsx": "^2.1.1",

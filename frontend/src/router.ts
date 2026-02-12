@@ -107,9 +107,20 @@ router.beforeEach((to: RouteLocationNormalized, _from: RouteLocationNormalized, 
   }
 
   if (to.meta.requiresAuth && !token) {
-    next('/login')
+    // 保存当前完整路径（包括查询参数）作为登录后的重定向目标
+    const redirectPath = to.fullPath
+    next({
+      path: '/login',
+      query: { redirect: redirectPath }
+    })
   } else if (to.meta.guestOnly && token) {
-    next('/')
+    // 如果已登录用户访问登录页，检查是否有redirect参数
+    const redirect = to.query.redirect as string
+    if (redirect) {
+      next(redirect)
+    } else {
+      next('/')
+    }
   } else if (to.meta.adminOnly && (!user || !user.is_admin)) {
     next('/')
   } else if (to.meta.coWorkerOnly && (!user || (user.role !== 'admin' && user.role !== 'co-worker'))) {

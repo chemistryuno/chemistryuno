@@ -43,17 +43,23 @@ const pendingFeedbacks = ref<any[]>([])
 const persistentAnnouncements = ref<any[]>([])
 const showCreateModal = ref(false)
 const showDeckDetailModal = ref(false)
+const showAccessKeyModal = ref(false)
+const createdRoomInfo = ref<any>(null)
 const selectedDeckConfig = ref<any>(null)
 const roomName = ref('')
 const maxPlayers = ref(4)
 const deckID = ref(0)
 const isPointsMode = ref(false)
 const isPrivate = ref(false)
+const customAccessKey = ref('') // 自定义访问密钥
 const loading = ref(false)
 const currentTime = ref(new Date())
 const onlineCount = ref(0)
 const isMobileMenuOpen = ref(false)
 const appVersion = ref('V1.2.1 Mendeleef') // 默认值
+
+// 获取当前域名用于生成分享链接
+const currentOrigin = window.location.origin
 
 const activeRoom = computed(() => {
   return rooms.value.find(r => 
@@ -177,13 +183,33 @@ const handleCreateRoom = async () => {
   loading.value = true
 
   try {
-    const response = await gameAPI.createRoom(roomName.value, maxPlayers.value, deckID.value, isPointsMode.value, isPrivate.value)
+    const response = await gameAPI.createRoom(
+      roomName.value,
+      maxPlayers.value,
+      deckID.value,
+      isPointsMode.value,
+      isPrivate.value,
+      customAccessKey.value || undefined
+    )
     const room = response.data
     // 重置状态
     showCreateModal.value = false
     roomName.value = ''
-    isPrivate.value = false
-    router.push(`/room/${room.id}`)
+    customAccessKey.value = ''
+
+    // 如果是私密房间且有访问密钥，显示密钥模态框
+    if (isPrivate.value && room.access_key) {
+      createdRoomInfo.value = {
+        id: room.id,
+        access_key: room.access_key,
+        name: room.name
+      }
+      showAccessKeyModal.value = true
+      isPrivate.value = false
+    } else {
+      isPrivate.value = false
+      router.push(`/room/${room.id}`)
+    }
   } catch (error: any) {
     showAlert(error.response?.data?.error || '创建房间失败', '系统异常')
   } finally {
@@ -678,12 +704,33 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
             </div>
           </div>
 
+          <!-- 私密房间密钥输入框 -->
+          <div v-if="isPrivate" class="space-y-2 animate-in slide-in-from-top-2 fade-in duration-300">
+            <div class="flex justify-between items-center px-1">
+               <label class="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">访问密钥</label>
+               <span class="text-[8px] text-amber-500/40 font-mono">ACCESS_KEY</span>
+            </div>
+            <input
+              v-model="customAccessKey"
+              type="text"
+              placeholder="留空自动生成8位密钥..."
+              maxlength="20"
+              class="w-full bg-amber-50 dark:bg-amber-500/5 border border-amber-200 dark:border-amber-500/20 text-slate-900 dark:text-white px-4 py-3 rounded-xl focus:ring-1 focus:ring-amber-500/50 focus:border-amber-500/50 outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-700 font-mono text-xs"
+            />
+            <p class="text-[8px] text-amber-600 dark:text-amber-500 px-1 leading-relaxed">
+              💡 <span class="font-bold">提示：</span>可自定义4-20位密钥，或留空由系统自动生成
+            </p>
+          </div>
+
           <div v-if="!isPointsMode" class="space-y-2">
             <div class="flex justify-between items-center px-1">
                <label class="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">选择牌组</label>
                <span class="text-[8px] text-blue-500/40 font-mono">DECK</span>
             </div>
-            <div class="space-y-2">
+            <div v-if="decks.length === 0" class="p-4 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-center">
+              <p class="text-[10px] text-slate-500 dark:text-slate-400 font-mono">暂无可用牌组，将使用默认全局牌组</p>
+            </div>
+            <div v-else class="space-y-2">
               <button
                 v-for="deck in decks"
                 :key="deck.id"
@@ -691,8 +738,8 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
                 @click="deckID = deck.id"
                 :class="cn(
                   'w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left group/deck',
-                  deckID === deck.id 
-                    ? 'bg-blue-600/5 dark:bg-blue-600/10 border-blue-500/50 shadow-[0_4px_12px_rgba(59,130,246,0.05)]' 
+                  deckID === deck.id
+                    ? 'bg-blue-600/5 dark:bg-blue-600/10 border-blue-500/50 shadow-[0_4px_12px_rgba(59,130,246,0.05)]'
                     : 'bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/5 hover:border-slate-300 dark:hover:border-white/10'
                 )"
               >
@@ -823,6 +870,96 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
               class="px-5 py-2.5 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 font-bold rounded-xl transition-all uppercase tracking-widest text-[10px] border border-slate-200 dark:border-white/5"
             >
               关闭
+            </button>
+         </div>
+      </div>
+    </div>
+
+    <!-- 私密房间密钥模态框 -->
+    <div v-if="showAccessKeyModal && createdRoomInfo" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <div class="absolute inset-0 bg-slate-900/40 dark:bg-black/80 backdrop-blur-md animate-in fade-in" @click="showAccessKeyModal = false" />
+      <div class="relative w-full max-w-md bg-white dark:bg-[#121216] border border-slate-200 dark:border-white/10 rounded-[40px] shadow-2xl overflow-hidden animate-in fade-in zoom-in slide-in-from-bottom-10 duration-500">
+         <!-- Modal Header -->
+         <div class="px-6 py-5 border-b border-slate-100 dark:border-white/5 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 bg-green-500/10 border border-green-500/20 rounded-xl flex items-center justify-center text-green-500 dark:text-green-400">
+                <Shield class="w-5 h-5" />
+              </div>
+              <div>
+                <h2 class="text-lg font-black text-slate-800 dark:text-white tracking-tight leading-none">私密房间已创建</h2>
+                <p class="text-[9px] text-slate-400 dark:text-slate-500 font-mono uppercase tracking-widest mt-1">Private_Room_Created</p>
+              </div>
+            </div>
+            <button
+              @click="showAccessKeyModal = false; router.push(`/room/${createdRoomInfo.id}`)"
+              class="p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl transition-colors text-slate-400 hover:text-slate-900 dark:hover:text-white"
+            >
+              <X class="w-5 h-5" />
+            </button>
+         </div>
+
+         <!-- Modal Body -->
+         <div class="p-6 space-y-6">
+            <div class="bg-green-500/5 border border-green-500/20 rounded-2xl p-5">
+              <p class="text-xs text-slate-600 dark:text-slate-400 mb-4 leading-relaxed">
+                ✅ 房间已成功创建！以下是访问密钥和分享链接，请妥善保管。
+              </p>
+
+              <!-- 访问密钥 -->
+              <div class="mb-4">
+                <label class="text-[9px] font-black text-slate-500 dark:text-slate-500 uppercase tracking-[0.2em] block mb-2">Access Key / 访问密钥</label>
+                <div class="flex gap-2">
+                  <div class="flex-1 bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 font-mono text-lg font-black text-green-600 dark:text-green-400 tracking-widest text-center select-all">
+                    {{ createdRoomInfo.access_key }}
+                  </div>
+                  <button
+                    @click="navigator.clipboard.writeText(createdRoomInfo.access_key); showAlert('访问密钥已复制', '成功')"
+                    class="px-4 py-3 bg-green-500/10 hover:bg-green-500/20 border border-green-500/20 text-green-600 dark:text-green-400 rounded-xl transition-all font-black text-[10px] uppercase tracking-widest"
+                    title="复制密钥"
+                  >
+                    复制
+                  </button>
+                </div>
+              </div>
+
+              <!-- 分享链接 -->
+              <div>
+                <label class="text-[9px] font-black text-slate-500 dark:text-slate-500 uppercase tracking-[0.2em] block mb-2">Share Link / 分享链接</label>
+                <div class="flex gap-2">
+                  <div class="flex-1 bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 font-mono text-[10px] text-slate-600 dark:text-slate-400 truncate select-all">
+                    {{ currentOrigin }}/room/{{ createdRoomInfo.id }}?key={{ createdRoomInfo.access_key }}
+                  </div>
+                  <button
+                    @click="navigator.clipboard.writeText(`${currentOrigin}/room/${createdRoomInfo.id}?key=${createdRoomInfo.access_key}`); showAlert('分享链接已复制', '成功')"
+                    class="px-4 py-3 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 text-blue-600 dark:text-blue-400 rounded-xl transition-all font-black text-[10px] uppercase tracking-widest"
+                    title="复制链接"
+                  >
+                    复制
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="bg-amber-500/5 border border-amber-500/20 rounded-xl p-4">
+              <p class="text-[10px] text-amber-700 dark:text-amber-400 leading-relaxed">
+                ⚠️ <span class="font-black">提示：</span>其他玩家需要使用访问密钥或完整链接才能加入此私密房间。
+              </p>
+            </div>
+         </div>
+
+         <!-- Modal Footer -->
+         <div class="px-6 py-4 border-t border-slate-100 dark:border-white/5 flex gap-3">
+            <button
+              @click="showAccessKeyModal = false"
+              class="flex-1 px-5 py-2.5 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 font-bold rounded-xl transition-all uppercase tracking-widest text-[10px] border border-slate-200 dark:border-white/5"
+            >
+              稍后进入
+            </button>
+            <button
+              @click="showAccessKeyModal = false; router.push(`/room/${createdRoomInfo.id}`)"
+              class="flex-1 px-5 py-2.5 bg-green-600 hover:bg-green-500 text-white font-black rounded-xl transition-all shadow-lg shadow-green-500/20 active:scale-95 uppercase tracking-widest text-[10px]"
+            >
+              立即进入房间
             </button>
          </div>
       </div>

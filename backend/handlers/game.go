@@ -47,6 +47,7 @@ func CreateRoom(c *gin.Context) {
 		DeckID       int    `json:"deck_id"`
 		IsPointsMode bool   `json:"is_points_mode"`
 		IsPrivate    bool   `json:"is_private"`
+		AccessKey    string `json:"access_key"` // 自定义访问密钥（可选）
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -57,7 +58,7 @@ func CreateRoom(c *gin.Context) {
 	uid := c.GetInt("uid")
 	username := c.GetString("username")
 
-	room, err := game.CreateRoom(req.Name, uid, username, req.MaxPlayers, req.DeckID, req.IsPointsMode, req.IsPrivate)
+	room, err := game.CreateRoomWithKey(req.Name, uid, username, req.MaxPlayers, req.DeckID, req.IsPointsMode, req.IsPrivate, req.AccessKey)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

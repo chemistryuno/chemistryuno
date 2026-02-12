@@ -236,6 +236,11 @@ func getGlobalDeckConfigFromDB() (map[string]int, string, int) {
 
 // 创建房间
 func CreateRoom(name string, creatorUID int, creatorName string, maxPlayers int, deckID int, isPointsMode bool, isPrivate bool) (*models.Room, error) {
+	return CreateRoomWithKey(name, creatorUID, creatorName, maxPlayers, deckID, isPointsMode, isPrivate, "")
+}
+
+// 创建房间（支持自定义访问密钥）
+func CreateRoomWithKey(name string, creatorUID int, creatorName string, maxPlayers int, deckID int, isPointsMode bool, isPrivate bool, customKey string) (*models.Room, error) {
 	banned, until, reason, _ := isBanned(creatorUID)
 	if banned {
 		if reason == "" {
@@ -298,12 +303,21 @@ func CreateRoom(name string, creatorUID int, creatorName string, maxPlayers int,
 	// 生成私密房间访问密钥
 	var accessKey string
 	if isPrivate {
-		const charset = "abcdefghijklmnopqrstuvwxyz0123456789"
-		b := make([]byte, 8)
-		for i := range b {
-			b[i] = charset[rand.Intn(len(charset))]
+		if customKey != "" {
+			// 使用自定义密钥（需验证格式）
+			if len(customKey) < 4 || len(customKey) > 20 {
+				return nil, fmt.Errorf("访问密钥长度必须在4-20个字符之间")
+			}
+			accessKey = customKey
+		} else {
+			// 自动生成8位密钥
+			const charset = "abcdefghijklmnopqrstuvwxyz0123456789"
+			b := make([]byte, 8)
+			for i := range b {
+				b[i] = charset[rand.Intn(len(charset))]
+			}
+			accessKey = string(b)
 		}
-		accessKey = string(b)
 	}
 
 	room := &models.Room{
@@ -868,18 +882,34 @@ func JoinRoomWithKey(roomID string, uid int, username string, accessKey string) 
 		}
 	}
 
-	// 游戏已开始，自动进入观战模式
-	if gameRoom.Room.Status == "playing" {
+	// 游戏已开始或房间已满，自动进入观战模式
+	if gameRoom.Room.Status == "playing" || len(gameRoom.Room.Players) >= gameRoom.Room.MaxPlayers {
+		// 如果是私密房间，非房间成员需要密钥才能观战
+		if gameRoom.Room.IsPrivate && gameRoom.Room.AccessKey != "" {
+			isCreator := len(gameRoom.Room.Players) > 0 && gameRoom.Room.Players[0] == uid
+			alreadyInRoom := false
+			for _, pid := range gameRoom.Room.Players {
+				if pid == uid {
+					alreadyInRoom = true
+					break
+				}
+			}
+			// 观战者也需要验证密钥（除非是房主或已在房间）
+			if !isCreator && !alreadyInRoom && accessKey != gameRoom.Room.AccessKey {
+				if gameRoom.Room.Status == "playing" {
+					return errors.New("访问密钥错误，无法观战私密房间")
+				} else {
+					return errors.New("访问密钥错误，无法加入私密房间")
+				}
+			}
+		}
+
 		gameRoom.Room.Spectators = append(gameRoom.Room.Spectators, uid)
 		if gameRoom.GameState != nil {
 			gameRoom.GameState.Spectators = append(gameRoom.GameState.Spectators, uid)
 		}
 		gameRoom.broadcastRoomUpdate()
 		return nil
-	}
-
-	if len(gameRoom.Room.Players) >= gameRoom.Room.MaxPlayers {
-		return errors.New("房间已满")
 	}
 
 	// 检查是否已在房间中
@@ -1353,6 +1383,8 @@ func GetRoomState(roomID string, uid int) (map[string]interface{}, error) {
 		"status":         gameRoom.Room.Status,
 		"is_points_mode": gameRoom.Room.IsPointsMode,
 		"deck_config":    gameRoom.Room.DeckConfig,
+		"is_private":     gameRoom.Room.IsPrivate,
+		"access_key":     gameRoom.Room.AccessKey,
 	}
 
 	if gameRoom.GameState != nil {

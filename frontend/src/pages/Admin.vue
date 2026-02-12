@@ -1471,6 +1471,128 @@ const filteredHistory = computed(() => {
         </div>
       </div>
     </div>
+
+    <!-- 编辑公告模态框 -->
+    <div v-if="showEditAnnouncementModal && editingAnnouncement" class="fixed inset-0 bg-slate-900/40 dark:bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+      <div class="bg-white dark:bg-[#0c0c0e] border border-slate-200 dark:border-white/10 rounded-[2.5rem] p-10 max-w-lg w-full shadow-[0_50px_100px_-20px_rgba(6,182,212,0.2)] animate-in zoom-in relative overflow-hidden">
+        <div class="absolute top-0 right-0 w-40 h-40 bg-cyan-500/5 blur-[60px] -mr-20 -mt-20" />
+
+        <h3 class="text-xl font-black italic uppercase text-slate-900 dark:text-white mb-8 flex items-center gap-4 relative z-10">
+          <Edit2 class="w-6 h-6 text-cyan-500" />
+          编辑广播 <span class="text-[10px] text-slate-400 font-mono not-italic tracking-normal">/ EDIT_BROADCAST</span>
+        </h3>
+
+        <div class="space-y-6 relative z-10">
+          <div>
+            <label class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] block mb-3 ml-1">Title / 标题 (可选)</label>
+            <input
+              v-model="editingAnnouncement.title"
+              type="text"
+              placeholder="ENTER BROADCAST TITLE..."
+              class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-2xl px-5 py-4 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500/50 transition-all"
+            />
+          </div>
+
+          <div>
+            <label class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] block mb-3 ml-1">Broadcast Content / 内容</label>
+            <textarea
+              v-model="editingAnnouncement.content"
+              rows="3"
+              placeholder="ENTER MESSAGE TO RESEARCHERS..."
+              class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-2xl px-5 py-4 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500/50 transition-all resize-none"
+            />
+          </div>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] block mb-3 ml-1">Priority / 优先级</label>
+              <select
+                v-model="editingAnnouncement.type"
+                class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500/30"
+              >
+                <option value="info">INFO / 公告</option>
+                <option value="maintenance">MAINTENANCE / 维护</option>
+                <option value="emergency">EMERGENCY / 紧急</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] block mb-3 ml-1">Format / 展现形式</label>
+              <select
+                v-model="editingAnnouncement.is_ticker"
+                class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500/30"
+              >
+                <option :value="true">TICKER / 跑马灯</option>
+                <option :value="false">MODAL / 强制弹窗</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+             <label class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] block mb-3 ml-1">TTL / 有效时长 (e.g. 24h, 7d, 30m)</label>
+             <input
+              v-model="editingAnnouncement.expires_in"
+              type="text"
+              placeholder="24h"
+              class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-5 py-3 text-xs font-bold font-mono text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500/50 tracking-widest uppercase"
+            />
+          </div>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div class="flex items-center gap-3 p-4 bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl">
+              <input
+                type="checkbox"
+                v-model="editingAnnouncement.on_join"
+                class="w-4 h-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
+              />
+              <label class="text-[10px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-widest">玩家加入时触发</label>
+            </div>
+            <div class="flex items-center gap-3 p-4 bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl">
+              <input
+                type="checkbox"
+                v-model="editingAnnouncement.is_persistent"
+                class="w-4 h-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
+              />
+              <label class="text-[10px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-widest">常驻显示</label>
+            </div>
+          </div>
+
+          <div>
+              <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">自动循环间隔 (分钟) / 0 = 禁止</label>
+              <input
+                v-model.number="editingAnnouncement.cron_interval"
+                type="number"
+                placeholder="0"
+                class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2 text-[10px] font-black text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500/30"
+              />
+          </div>
+
+          <div v-if="!editingAnnouncement.is_ticker">
+             <label class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] block mb-3 ml-1">Force Close Delay / 强制等待时间 (秒)</label>
+             <input
+              v-model.number="editingAnnouncement.close_delay"
+              type="number"
+              placeholder="0 = 立即关闭"
+              class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-5 py-3 text-xs font-bold font-mono text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500/50 tracking-widest uppercase"
+            />
+          </div>
+        </div>
+
+        <div class="flex gap-4 mt-10 relative z-10">
+          <button
+            @click="showEditAnnouncementModal = false"
+            class="flex-1 px-6 py-4 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-500 rounded-[1.25rem] font-black text-[10px] uppercase tracking-widest transition-all"
+          >
+            Cancel
+          </button>
+          <button
+            @click="handleUpdateAnnouncement"
+            class="flex-1 px-6 py-4 bg-cyan-600 hover:bg-cyan-500 text-white rounded-[1.25rem] font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-cyan-500/20 active:scale-95 border border-cyan-500/20"
+          >
+            Update
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 

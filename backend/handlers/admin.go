@@ -869,6 +869,13 @@ func DeleteReaction(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "删除失败"})
 			return
 		}
+	} else {
+		// 如果没有 group_id，直接按 ID 删除
+		err = database.DB.Delete(&database.Reaction{}, uint(id)).Error
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "删除失败"})
+			return
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "已从实验室档案中抹除"})

@@ -448,8 +448,9 @@ const isBanned = (u: any) => {
 
 const filteredUsers = computed(() => {
   return users.value.filter(u =>
-    u.nickname.includes(searchTerm.value) ||
-    u.uid.toString().includes(searchTerm.value)
+    (u.nickname && u.nickname.includes(searchTerm.value)) ||
+    (u.username && u.username.includes(searchTerm.value)) ||
+    (u.uid && u.uid.toString().includes(searchTerm.value))
   )
 })
 
@@ -666,7 +667,7 @@ const filteredHistory = computed(() => {
                         </div>
                         <div class="flex flex-col">
                           <span class="group-hover:text-cyan-600 transition-colors uppercase tracking-tight text-[10px] font-black flex items-center gap-1.5">
-                            {{ u.nickname }}
+                            {{ u.nickname || u.username }}
                             <span v-if="isBanned(u)" class="text-[7px] bg-rose-600 px-1.5 py-0.5 rounded uppercase font-black tracking-widest text-white animate-pulse">BANNED</span>
                           </span>
                           <span class="text-[8px] text-slate-400 font-mono tracking-tighter">ONLINE@OP-NODE</span>

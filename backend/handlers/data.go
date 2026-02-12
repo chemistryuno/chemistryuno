@@ -6,6 +6,7 @@ import (
 	"chemistryuno/backend/middleware"
 	"chemistryuno/backend/repository"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -69,12 +70,20 @@ func SubmitSubstanceUpdate(c *gin.Context) {
 		elements = fmt.Sprintf("%v", elementsArr)
 	}
 
+	// 安全获取 userID
+	uID := uint(0)
+	if u, ok := userID.(int); ok {
+		uID = uint(u)
+	} else if u, ok := userID.(uint); ok {
+		uID = u
+	}
+
 	// 创建新的更新建议
 	newSubstance := &database.Substance{
 		Name:         req.Name,
 		Formula:      req.Formula,
 		Elements:     elements,
-		CreatedByUID: userID.(uint),
+		CreatedByUID: uID,
 		Status:       "pending",
 		GroupID:      groupID,
 	}
@@ -85,7 +94,7 @@ func SubmitSubstanceUpdate(c *gin.Context) {
 	}
 
 	// 如果原创建者不是当前用户，标记该组需要完善
-	if creatorUID != userID.(uint) {
+	if creatorUID != uID {
 		substanceRepo.MarkNeedsImprovement(*groupID, true)
 	}
 
@@ -161,8 +170,10 @@ func ApproveSubstanceUpdate(c *gin.Context) {
 	}
 
 	if groupID == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "该物质没有关联的组"})
-		return
+		gid := uint(id)
+		groupID = &gid
+		// 补全 group_id 以免下次失效
+		database.DB.Model(&database.Substance{}).Where("id = ?", id).Update("group_id", gid)
 	}
 
 	// 批准整个组
@@ -200,8 +211,8 @@ func RejectSubstanceUpdate(c *gin.Context) {
 	}
 
 	if groupID == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "该物质没有关联的组"})
-		return
+		gid := uint(id)
+		groupID = &gid
 	}
 
 	// 删除整个组
@@ -210,6 +221,8 @@ func RejectSubstanceUpdate(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "删除失败"})
 		return
 	}
+	// 如果是 NULL 情况，确保也删除了自己（以防 repo 里的 DeleteByGroupID 没查到）
+	database.DB.Delete(&database.Substance{}, id)
 
 	// 重建物质缓存
 	game.RebuildSubstanceCache()
@@ -236,8 +249,8 @@ func GetSubstancesByGroup(c *gin.Context) {
 	}
 
 	if groupID == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "该物质没有关联的组"})
-		return
+		gid := uint(id)
+		groupID = &gid
 	}
 
 	// 获取组内所有物质
@@ -247,7 +260,15 @@ func GetSubstancesByGroup(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": substances})
+	// 如果本来就没有组，至少返回它自己
+	if len(substances) == 0 {
+		var sub database.Substance
+		if err := database.DB.First(&sub, id).Error; err == nil {
+			substances = append(substances, sub)
+		}
+	}
+
+	c.JSON(http.StatusOK, substances)
 }
 
 // GetAllSubstancesGrouped 获取所有物质（分组显示）
@@ -259,8 +280,9 @@ func GetAllSubstancesGrouped(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "查询失败"})
 		return
 	}
+	log.Printf("[Substances] Found %d substances for grouped view", len(substances))
 
-	c.JSON(http.StatusOK, gin.H{"data": substances})
+	c.JSON(http.StatusOK, substances)
 }
 
 // GetMySubstances 获取我提交的物质
@@ -271,15 +293,21 @@ func GetMySubstances(c *gin.Context) {
 		return
 	}
 
-	substanceRepo := repository.NewSubstanceRepository()
+	// 安全执行转换
+	uID := uint(0)
+	if u, ok := userID.(int); ok {
+		uID = uint(u)
+	} else if u, ok := userID.(uint); ok {
+		uID = u
+	}
 
-	substances, err := substanceRepo.FindMySubstances(userID.(uint))
+	substances, err := substanceRepo.FindMySubstances(uID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "查询失败"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": substances})
+	c.JSON(http.StatusOK, substances)
 }
 
 // GetSubstanceNames 获取物质名称映射（用于游戏中显示）
@@ -301,7 +329,7 @@ func GetSubstanceNames(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": nameMap})
+	c.JSON(http.StatusOK, nameMap)
 }
 
 // SubmitNewSubstance 用户提交新物质建议
@@ -349,12 +377,20 @@ func SubmitNewSubstance(c *gin.Context) {
 		elements = fmt.Sprintf("%v", elementsArr)
 	}
 
+	// 安全执行转换
+	uID := uint(0)
+	if u, ok := userID.(int); ok {
+		uID = uint(u)
+	} else if u, ok := userID.(uint); ok {
+		uID = u
+	}
+
 	// 创建新的物质建议
 	newSubstance := &database.Substance{
 		Name:         req.Name,
 		Formula:      req.Formula,
 		Elements:     elements,
-		CreatedByUID: userID.(uint),
+		CreatedByUID: uID,
 		Status:       "pending",
 		GroupID:      groupID,
 	}

@@ -426,7 +426,7 @@ const loadSubstanceNames = async () => {
   try {
     const response = await fetch('/api/substances/names')
     const data = await response.json()
-    substanceNames.value = data.data || {}
+    substanceNames.value = data || {}
     console.log('[GameRoom] Loaded substance names:', Object.keys(substanceNames.value).length)
   } catch (error) {
     console.error('[GameRoom] Failed to load substance names:', error)

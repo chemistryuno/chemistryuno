@@ -884,6 +884,12 @@ func SearchUsers(c *gin.Context) {
 			isOnline = websocket.GlobalHub.IsUIDOnline(int(user.UID))
 		}
 
+		// 计算排名
+		var rank int64
+		database.DB.Model(&database.User{}).Where("points > ?", user.Points).Count(&rank)
+		var monthlyRank int64
+		database.DB.Model(&database.User{}).Where("monthly_points > ?", user.MonthlyPoints).Count(&monthlyRank)
+
 		result = append(result, map[string]interface{}{
 			"uid":            user.UID,
 			"username":       user.Username,
@@ -895,6 +901,8 @@ func SearchUsers(c *gin.Context) {
 			"total_games":    user.TotalGames,
 			"bounty":         totalBounty,
 			"is_online":      isOnline,
+			"rank":           rank + 1,
+			"monthly_rank":   monthlyRank + 1,
 		})
 	}
 

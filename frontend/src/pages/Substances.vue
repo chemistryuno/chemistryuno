@@ -160,18 +160,19 @@
                     <div class="flex justify-end gap-1">
                       <!-- 审批按钮 -->
                       <template v-if="canApprove(sub.status)">
-                        <button @click="approveSub(sub)" class="p-1.5 hover:bg-emerald-500/10 text-emerald-500/50 hover:text-emerald-400 rounded-lg transition-all" title="Approve">
+                        <button @click="approveSub(sub)" class="p-1.5 hover:bg-emerald-500/10 text-emerald-500/50 hover:text-emerald-400 rounded-lg transition-all" title="批准建议 / Approve">
                           <Check class="w-3.5 h-3.5" />
-                        </button>
-                        <button @click="rejectSub(sub)" class="p-1.5 hover:bg-red-500/10 text-red-500/50 hover:text-red-500 rounded-lg transition-all" title="Reject">
-                          <X class="w-3.5 h-3.5" />
                         </button>
                       </template>
                       
-                      <button @click="editSub(sub)" class="p-1.5 hover:bg-emerald-500/10 text-slate-500 hover:text-emerald-400 rounded-lg transition-all">
+                      <button @click="editSub(sub)" class="p-1.5 hover:bg-emerald-500/10 text-slate-500 hover:text-emerald-400 rounded-lg transition-all" title="编辑详情 / Edit">
                         <Edit class="w-3.5 h-3.5" />
                       </button>
-                      <button v-if="user?.role === 'admin'" @click="deleteSub(sub.id)" class="p-1.5 hover:bg-red-500/10 text-slate-500 hover:text-red-500 rounded-lg transition-all">
+
+                      <button v-if="canDeleteSub(sub)" 
+                              @click="deleteSub(sub.id)" 
+                              class="p-1.5 hover:bg-red-500/10 text-red-500/50 hover:text-red-500 rounded-lg transition-all" 
+                              :title="sub.status === 'approved' ? '从百科中删除 / Delete from Wiki' : '拒绝该建议 / Reject Suggestion'">
                         <Trash2 class="w-3.5 h-3.5" />
                       </button>
                     </div>
@@ -210,7 +211,6 @@ import {
   Trash2, 
   Edit,
   Check,
-  X,
   User as UserIcon,
   AlertTriangle
 } from 'lucide-vue-next'
@@ -249,7 +249,7 @@ const fetchSubstances = async () => {
   loading.value = true
   try {
     const res = await substanceAPI.getSubstances()
-    substances.value = res.data
+    substances.value = res.data || []
   } catch (e) {
     console.error('Failed to fetch substances')
   } finally {
@@ -294,11 +294,8 @@ const editSub = (sub: Substance) => {
 }
 
 const canApprove = (status: string) => {
-  if (user.value?.role === 'admin') {
-    return status === 'pending_admin' || status === 'pending_coworker'
-  }
-  if (user.value?.role === 'co-worker') {
-    return status === 'pending_coworker'
+  if (user.value?.role === 'admin' || user.value?.role === 'co-worker') {
+    return status === 'pending'
   }
   return false
 }
@@ -313,17 +310,7 @@ const approveSub = async (sub: Substance) => {
   }
 }
 
-const rejectSub = async (sub: Substance) => {
-  const confirmed = await showConfirm('确定要拒绝此物质建议吗？', '拒绝确认')
-  if (!confirmed) return
-  try {
-    await substanceAPI.rejectSubstance(sub.id)
-    showAlert('物质建议已拒绝', '系统')
-    fetchSubstances()
-  } catch (e: any) {
-    showAlert(e.response?.data?.error || '操作失败', '错误')
-  }
-}
+
 
 const deleteSub = async (id: number) => {
   const confirmed = await showConfirm('确定要删除此记录吗？', '警告')
@@ -341,6 +328,12 @@ const deleteSub = async (id: number) => {
 const closeModal = () => {
   editingId.value = null
   form.value = { formula: '', name: '' }
+}
+
+const canDeleteSub = (sub: Substance) => {
+  if (user.value?.role === 'admin') return true
+  if (sub.status === 'approved') return false
+  return user.value?.role === 'co-worker'
 }
 
 const filteredSubstances = computed(() => {

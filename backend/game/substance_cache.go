@@ -217,6 +217,8 @@ func EnsureSubstancesExist(tx *gorm.DB, formulas []string, creatorUID uint) {
 			if err := tx.Create(substance).Error; err != nil {
 				log.Printf("[自动录入] 为 %s 创建物质失败: %v", f, err)
 			} else {
+				// 为新物质设置 group_id
+				tx.Model(&database.Substance{}).Where("id = ?", substance.ID).Update("group_id", substance.ID)
 				log.Printf("[自动录入] 成功将 %s 录入物质百科", f)
 			}
 		}

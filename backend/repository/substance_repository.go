@@ -207,13 +207,10 @@ type SubstanceWithCreatorExtended struct {
 func (r *SubstanceRepository) FindAllGroupedWithCreator() ([]SubstanceWithCreatorExtended, error) {
 	var results []SubstanceWithCreatorExtended
 
-	// 子查询找到每个group_id的第一条记录
-	subQuery := r.db.Table("substances").Select("MIN(id)").Group("group_id")
-
 	err := r.db.Table("substances").
 		Select("substances.id, substances.formula, substances.name, substances.elements, substances.status, substances.group_id, substances.needs_improvement, substances.created_by_uid, users.username as creator_name, substances.created_at").
 		Joins("LEFT JOIN users ON substances.created_by_uid = users.uid").
-		Where("substances.id IN (?)", subQuery).
+		Where("substances.id IN (SELECT MAX(id) FROM substances GROUP BY COALESCE(group_id, id))").
 		Order("substances.needs_improvement DESC, substances.created_at DESC").
 		Scan(&results).Error
 
@@ -224,16 +221,10 @@ func (r *SubstanceRepository) FindAllGroupedWithCreator() ([]SubstanceWithCreato
 func (r *SubstanceRepository) FindApprovedGrouped() ([]SubstanceWithCreatorExtended, error) {
 	var results []SubstanceWithCreatorExtended
 
-	// 子查询找到每个已批准组的第一条记录
-	subQuery := r.db.Table("substances").
-		Select("MIN(id)").
-		Where("status = ?", "approved").
-		Group("group_id")
-
 	err := r.db.Table("substances").
 		Select("substances.id, substances.formula, substances.name, substances.elements, substances.status, substances.group_id, substances.needs_improvement, substances.created_by_uid, users.username as creator_name, substances.created_at").
 		Joins("LEFT JOIN users ON substances.created_by_uid = users.uid").
-		Where("substances.status = ? AND substances.id IN (?)", "approved", subQuery).
+		Where("substances.status = ? AND substances.id IN (SELECT MAX(id) FROM substances WHERE status = ? GROUP BY COALESCE(group_id, id))", "approved", "approved").
 		Order("substances.needs_improvement DESC, substances.created_at DESC").
 		Scan(&results).Error
 
@@ -244,16 +235,10 @@ func (r *SubstanceRepository) FindApprovedGrouped() ([]SubstanceWithCreatorExten
 func (r *SubstanceRepository) FindMySubstances(uid uint) ([]SubstanceWithCreatorExtended, error) {
 	var results []SubstanceWithCreatorExtended
 
-	// 子查询找到该用户每个组的第一条记录
-	subQuery := r.db.Table("substances").
-		Select("MIN(id)").
-		Where("created_by_uid = ?", uid).
-		Group("group_id")
-
 	err := r.db.Table("substances").
 		Select("substances.id, substances.formula, substances.name, substances.elements, substances.status, substances.group_id, substances.needs_improvement, substances.created_by_uid, users.username as creator_name, substances.created_at").
 		Joins("LEFT JOIN users ON substances.created_by_uid = users.uid").
-		Where("substances.created_by_uid = ? AND substances.id IN (?)", uid, subQuery).
+		Where("substances.created_by_uid = ? AND substances.id IN (SELECT MAX(id) FROM substances WHERE created_by_uid = ? GROUP BY COALESCE(group_id, id))", uid, uid).
 		Order("substances.created_at DESC").
 		Scan(&results).Error
 

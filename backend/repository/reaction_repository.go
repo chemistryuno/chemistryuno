@@ -144,7 +144,7 @@ func (r *ReactionRepository) FindAllGroupedWithCreator() ([]ReactionWithCreator,
 	var results []ReactionWithCreator
 
 	// 子查询找到每个group_id的第一条记录
-	subQuery := r.db.Table("reactions").Select("MIN(id)").Group("group_id")
+	subQuery := r.db.Table("reactions").Select("MIN(id)").Group("COALESCE(group_id, id)")
 
 	err := r.db.Table("reactions").
 		Select("reactions.id, reactions.display, reactions.r1, reactions.r2, reactions.status, reactions.group_id, reactions.created_by_uid, users.username as creator_name, reactions.created_at").
@@ -164,7 +164,7 @@ func (r *ReactionRepository) FindApprovedGrouped() ([]ReactionWithCreator, error
 	subQuery := r.db.Table("reactions").
 		Select("MIN(id)").
 		Where("status = ?", "approved").
-		Group("group_id")
+		Group("COALESCE(group_id, id)")
 
 	err := r.db.Table("reactions").
 		Select("reactions.id, reactions.display, reactions.r1, reactions.r2, reactions.status, reactions.group_id, reactions.created_by_uid, users.username as creator_name, reactions.created_at").
@@ -184,7 +184,7 @@ func (r *ReactionRepository) FindMyReactions(uid uint) ([]ReactionWithCreator, e
 	subQuery := r.db.Table("reactions").
 		Select("MIN(id)").
 		Where("created_by_uid = ?", uid).
-		Group("group_id")
+		Group("COALESCE(group_id, id)")
 
 	err := r.db.Table("reactions").
 		Select("reactions.id, reactions.display, reactions.r1, reactions.r2, reactions.status, reactions.group_id, reactions.created_by_uid, users.username as creator_name, reactions.created_at").

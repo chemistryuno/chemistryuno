@@ -142,9 +142,15 @@
                         </span>
                       </template>
                       <template v-else>
-                        <div class="w-6 h-6 bg-blue-500/10 text-blue-500 rounded-lg flex items-center justify-center">
-                          <Target class="w-2.5 h-2.5" />
-                        </div>
+                        <span :class="cn(
+                          'w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black italic shadow-lg',
+                          (rankingMode === 'monthly' ? player.monthly_rank : player.rank) === 1 ? 'bg-amber-500 text-amber-950 dark:text-black' :
+                          (rankingMode === 'monthly' ? player.monthly_rank : player.rank) === 2 ? 'bg-slate-300 text-slate-900 dark:text-black' :
+                          (rankingMode === 'monthly' ? player.monthly_rank : player.rank) === 3 ? 'bg-amber-700 text-white' :
+                          'bg-slate-100 dark:bg-white/5 text-slate-500'
+                        )">
+                          {{ rankingMode === 'monthly' ? player.monthly_rank : player.rank }}
+                        </span>
                       </template>
                     </div>
                   </td>
@@ -402,7 +408,15 @@ try {
 } catch (e) {
   console.error('Failed to parse user in Ranking:', e)
 }
-const user = ref(initialUser)
+interface User {
+  uid?: number;
+  username?: string;
+  nickname?: string;
+  avatar?: string;
+  is_admin?: boolean;
+}
+
+const user = ref<User>(initialUser)
 
 // Missing reactive variables
 const selectedTarget = ref<any>(null)

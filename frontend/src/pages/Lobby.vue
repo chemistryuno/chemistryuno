@@ -13,7 +13,7 @@ const props = defineProps<{
 }>()
 
 const router = useRouter()
-const { showAlert } = useDialog()
+const { showAlert, showConfirm } = useDialog()
 const user = ref<any>({})
 try {
   const userData = JSON.parse(localStorage.getItem('user') || '{}')
@@ -226,6 +226,19 @@ const handleJoinRoom = async (roomId: string) => {
   }
 }
 
+const handleLeaveRoom = async (roomId: string) => {
+  const ok = await showConfirm('确定要中止并退出当前的实验吗？如果你正在游戏中，系统将按逃跑处理。')
+  if (!ok) return
+
+  try {
+    await gameAPI.leaveRoom(roomId)
+    loadRooms()
+    showAlert('已成功从核心节点撤离。', '实验中止')
+  } catch (error: any) {
+    showAlert(error.response?.data?.error || '退出失败', '链路故障')
+  }
+}
+
 const handleLogout = () => {
   localStorage.removeItem('token')
   localStorage.removeItem('user')
@@ -234,6 +247,15 @@ const handleLogout = () => {
 }
 
 const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'playing').length)
+
+const copyToClipboard = (text: string) => {
+  if (window.navigator && window.navigator.clipboard) {
+    window.navigator.clipboard.writeText(text)
+    showAlert('复制成功', '成功')
+  } else {
+    showAlert('当前环境不支持剪贴板操作', '错误')
+  }
+}
 </script>
 
 <template>
@@ -473,12 +495,22 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
                      <h3 class="text-lg font-black text-white uppercase tracking-wider">{{ activeRoom.name }}</h3>
                   </div>
                </div>
-               <button 
-                  @click="router.push(`/room/${activeRoom.id}`)"
-                  class="px-6 py-3 bg-white text-blue-600 rounded-xl text-[11px] font-black uppercase tracking-widest hover:scale-105 hover:bg-blue-50 transition-all shadow-lg active:scale-95"
-               >
-                  重连
-               </button>
+               <div class="flex items-center gap-3">
+                  <button 
+                    @click="handleLeaveRoom(activeRoom.id)"
+                    class="px-5 py-3 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-xl text-[11px] font-black uppercase tracking-widest transition-all border border-red-500/20 active:scale-95 flex items-center gap-2"
+                  >
+                    <X class="w-4 h-4" />
+                    中止实验
+                  </button>
+                  <button 
+                    @click="router.push(`/room/${activeRoom.id}`)"
+                    class="px-6 py-3 bg-white text-blue-600 rounded-xl text-[11px] font-black uppercase tracking-widest hover:scale-105 hover:bg-blue-50 transition-all shadow-lg active:scale-95 flex items-center gap-2"
+                  >
+                    <Play class="w-4 h-4 fill-current" />
+                    重连
+                  </button>
+               </div>
             </div>
 
             <!-- Experimental Nodes (Room List Table) -->
@@ -913,7 +945,7 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
                     {{ createdRoomInfo.access_key }}
                   </div>
                   <button
-                    @click="navigator.clipboard.writeText(createdRoomInfo.access_key); showAlert('访问密钥已复制', '成功')"
+                    @click="copyToClipboard(createdRoomInfo.access_key)"
                     class="px-4 py-3 bg-green-500/10 hover:bg-green-500/20 border border-green-500/20 text-green-600 dark:text-green-400 rounded-xl transition-all font-black text-[10px] uppercase tracking-widest"
                     title="复制密钥"
                   >
@@ -930,7 +962,7 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
                     {{ currentOrigin }}/room/{{ createdRoomInfo.id }}?key={{ createdRoomInfo.access_key }}
                   </div>
                   <button
-                    @click="navigator.clipboard.writeText(`${currentOrigin}/room/${createdRoomInfo.id}?key=${createdRoomInfo.access_key}`); showAlert('分享链接已复制', '成功')"
+                    @click="copyToClipboard(`${currentOrigin}/room/${createdRoomInfo.id}?key=${createdRoomInfo.access_key}`)"
                     class="px-4 py-3 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 text-blue-600 dark:text-blue-400 rounded-xl transition-all font-black text-[10px] uppercase tracking-widest"
                     title="复制链接"
                   >

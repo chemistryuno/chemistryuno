@@ -238,16 +238,30 @@ export const reactionAPI = {
 
 // 物质管理API
 export const substanceAPI = {
+  // 获取所有物质（分组）
   getSubstances: () =>
-    api.get('/substances'),
-  addSubstance: (formula: string, name: string) =>
-    api.post('/substances', { formula, name }),
-  updateSubstance: (id: number, formula: string, name: string) =>
-    api.put(`/substances/${id}`, { formula, name }),
-  approveSubstance: (id: number, data: { formula?: string, name?: string, reject?: boolean }) =>
-    api.put(`/substances/approve/${id}`, data),
-  deleteSubstance: (id: number) =>
-    api.delete(`/substances/${id}`),
+    api.get('/data/substances'),
+  // 获取我的物质
+  getMySubstances: () =>
+    api.get('/data/substances/my'),
+  // 获取物质组内所有版本
+  getSubstanceGroup: (id: number) =>
+    api.get(`/data/substances/${id}/group`),
+  // 提交新物质建议
+  submitNewSubstance: (formula: string, name: string, elements?: string) =>
+    api.post('/data/substances/new', { formula, name, elements }),
+  // 提交物质更新建议
+  submitSubstanceUpdate: (id: number, formula: string, name: string, elements?: string) =>
+    api.post(`/data/substances/${id}/update`, { formula, name, elements }),
+  // 管理员直接更新物质
+  updateSubstance: (id: number, formula: string, name: string, elements?: string) =>
+    api.put(`/data/substances/${id}`, { formula, name, elements }),
+  // 管理员批准物质更新
+  approveSubstance: (id: number) =>
+    api.post(`/data/substances/${id}/approve`),
+  // 管理员拒绝物质更新
+  rejectSubstance: (id: number) =>
+    api.delete(`/data/substances/${id}/reject`),
 }
 
 // 好友系统API

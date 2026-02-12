@@ -136,15 +136,18 @@
                       <span class="text-[10px] font-bold text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors">{{ sub.name }}</span>
                     </div>
                   </td>
-                  <td class="px-4 py-3">
+                  <td class="px-4 py-3 flex flex-col gap-1 items-start">
                     <span :class="[
                       'px-1.5 py-0.5 rounded text-[8px] font-black uppercase letter-spacing-widest border',
                       sub.status === 'approved' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
-                      sub.status === 'pending_admin' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
-                      sub.status === 'pending_coworker' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
+                      sub.status === 'pending' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
                       'bg-red-500/10 text-red-400 border-red-500/20'
                     ]">
-                      {{ sub.status.replace('_', ' ') }}
+                      {{ sub.status }}
+                    </span>
+                    <span v-if="sub.needs_improvement" class="px-1.5 py-0.5 rounded text-[8px] font-black uppercase letter-spacing-widest bg-amber-500/10 text-amber-500 border border-amber-500/20 flex items-center gap-1">
+                      <AlertTriangle class="w-2.5 h-2.5" />
+                      需完善
                     </span>
                   </td>
                   <td class="px-4 py-3">
@@ -208,7 +211,8 @@ import {
   Edit,
   Check,
   X,
-  User as UserIcon
+  User as UserIcon,
+  AlertTriangle
 } from 'lucide-vue-next'
 
 interface Substance {
@@ -217,6 +221,7 @@ interface Substance {
   name: string
   elements: string
   status: string
+  needs_improvement: boolean
   creator_name: string
   created_at: string
 }
@@ -257,16 +262,27 @@ const saveSub = async () => {
   loading.value = true
   try {
     if (editingId.value) {
-      await substanceAPI.updateSubstance(editingId.value, form.value.formula, form.value.name)
-      showAlert('Entry updated successfully', 'Success')
+      // 如果是管理员，直接更新；否则提交更新建议
+      if (user.value?.role === 'admin' || user.value?.role === 'co-worker') {
+        await substanceAPI.updateSubstance(editingId.value, form.value.formula, form.value.name)
+        showAlert('物质已更新', '成功')
+      } else {
+        await substanceAPI.submitSubstanceUpdate(editingId.value, form.value.formula, form.value.name)
+        showAlert('更新建议已提交，等待管理员审核', '已提交')
+      }
     } else {
-      await substanceAPI.addSubstance(form.value.formula, form.value.name)
-      showAlert('New substance added to registry', 'Done')
+      // 提交新物质建议（所有用户都使用此接口）
+      await substanceAPI.submitNewSubstance(form.value.formula, form.value.name)
+      if (user.value?.role === 'admin' || user.value?.role === 'co-worker') {
+        showAlert('新物质已添加到数据库', '完成')
+      } else {
+        showAlert('物质建议已提交，等待管理员审核', '已提交')
+      }
     }
     closeModal()
     fetchSubstances()
   } catch (e: any) {
-    showAlert(e.response?.data?.error || 'Operation failed', 'Error')
+    showAlert(e.response?.data?.error || '操作失败', '错误')
   } finally {
     loading.value = false
   }
@@ -289,39 +305,36 @@ const canApprove = (status: string) => {
 
 const approveSub = async (sub: Substance) => {
   try {
-    const res = await substanceAPI.approveSubstance(sub.id, { 
-      formula: sub.formula, 
-      name: sub.name, 
-      reject: false 
-    })
-    showAlert(`Status updated to ${res.data.status}`, 'Success')
+    await substanceAPI.approveSubstance(sub.id)
+    showAlert('物质已批准', '成功')
     fetchSubstances()
   } catch (e: any) {
-    showAlert(e.response?.data?.error || 'Approval failed', 'Error')
+    showAlert(e.response?.data?.error || '批准失败', '错误')
   }
 }
 
 const rejectSub = async (sub: Substance) => {
-  const confirmed = await showConfirm('Are you sure you want to reject this entry?', 'Reject Request')
+  const confirmed = await showConfirm('确定要拒绝此物质建议吗？', '拒绝确认')
   if (!confirmed) return
   try {
-    await substanceAPI.approveSubstance(sub.id, { reject: true })
-    showAlert('Substance rejected', 'System')
+    await substanceAPI.rejectSubstance(sub.id)
+    showAlert('物质建议已拒绝', '系统')
     fetchSubstances()
   } catch (e: any) {
-    showAlert(e.response?.data?.error || 'Operation failed', 'Error')
+    showAlert(e.response?.data?.error || '操作失败', '错误')
   }
 }
 
 const deleteSub = async (id: number) => {
-  const confirmed = await showConfirm('Are you sure you want to purge this record?', 'Warning')
+  const confirmed = await showConfirm('确定要删除此记录吗？', '警告')
   if (!confirmed) return
   
   try {
-    await substanceAPI.deleteSubstance(id)
+    await substanceAPI.rejectSubstance(id)
+    showAlert('物质已删除', '成功')
     fetchSubstances()
-  } catch (e) {
-    showAlert('Deletion failed', 'Error')
+  } catch (e: any) {
+    showAlert(e.response?.data?.error || '删除失败', '错误')
   }
 }
 

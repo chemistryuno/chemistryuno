@@ -111,6 +111,7 @@ func IsValidSubstance(substance string) bool {
 	// 非化学物质的特殊功能卡牌直接放行
 	specialCards := map[string]bool{
 		"+2": true, "+4": true,
+		"He": true, "Ne": true, "Ar": true, "Kr": true, "Au": true,
 	}
 	if specialCards[substance] {
 		return true
@@ -173,7 +174,10 @@ func SyncSubstancesFromReactions() {
 				var elements []string
 				for cardType := range cardMap {
 					// 过滤掉非化学物质的特殊卡
-					if cardType != "+2" && cardType != "+4" {
+					isSpecial := cardType == "+2" || cardType == "+4" ||
+						cardType == "He" || cardType == "Ne" ||
+						cardType == "Ar" || cardType == "Kr" || cardType == "Au"
+					if !isSpecial {
 						elements = append(elements, cardType)
 					}
 				}

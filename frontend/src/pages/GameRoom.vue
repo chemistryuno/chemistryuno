@@ -418,11 +418,26 @@ const ELEMENTS_DATA: Record<string, { name: string, class: string }> = {
   'Cu': { name: '铜', class: 'element-Cu' },
 }
 
-const SUBSTANCE_NAMES: Record<string, string> = {
-  'H2O': '水', 'H2': '氢气', 'O2': '氧气', 'HCl': '盐酸', 'H2SO4': '硫酸',
-  'NaOH': '氢氧化钠', 'NaCl': '氯化钠', 'CO2': '二氧化碳', 'CaO': '氧化钙',
-  'CuO': '氧化铜', 'Fe2O3': '氧化铁', 'Fe': '铁', 'Cu': '铜', 'Zn': '锌',
-  'Mg': '镁', 'Al': '铝', 'C': '碳', 'S': '硫', 'Cl2': '氯气', 'AgNO3': '硝酸银'
+// 物质名称映射（从 API 加载）
+const substanceNames = ref<Record<string, string>>({})
+
+// 加载物质名称映射
+const loadSubstanceNames = async () => {
+  try {
+    const response = await fetch('/api/substances/names')
+    const data = await response.json()
+    substanceNames.value = data.data || {}
+    console.log('[GameRoom] Loaded substance names:', Object.keys(substanceNames.value).length)
+  } catch (error) {
+    console.error('[GameRoom] Failed to load substance names:', error)
+    // 使用默认映射作为后备
+    substanceNames.value = {
+      'H2O': '水', 'H2': '氢气', 'O2': '氧气', 'HCl': '盐酸', 'H2SO4': '硫酸',
+      'NaOH': '氢氧化钠', 'NaCl': '氯化钠', 'CO2': '二氧化碳', 'CaO': '氧化钙',
+      'CuO': '氧化铜', 'Fe2O3': '氧化铁', 'Fe': '铁', 'Cu': '铜', 'Zn': '锌',
+      'Mg': '镁', 'Al': '铝', 'C': '碳', 'S': '硫', 'Cl2': '氯气', 'AgNO3': '硝酸银'
+    }
+  }
 }
 
 const formatFormula = (formula: string) => {
@@ -431,7 +446,9 @@ const formatFormula = (formula: string) => {
 }
 
 const getSubstanceName = (formula: string) => {
-  if (SUBSTANCE_NAMES[formula]) return SUBSTANCE_NAMES[formula]
+  if (substanceNames.value[formula]) return substanceNames.value[formula]
+  // 回退到硬编码的元素数据
+  if (ELEMENTS_DATA[formula]) return ELEMENTS_DATA[formula].name
   return formula
 }
 
@@ -641,6 +658,8 @@ const loadGameState = async (silent = false) => {
   try {
     if (!silent && !roomInfo.value) {
       loading.value = true
+      // 首次加载时加载物质名称映射
+      await loadSubstanceNames()
     }
     console.log('[GameRoom] Loading game state for room:', id)
 
@@ -1345,8 +1364,7 @@ watch(() => gameState.value?.current_player, () => {
                          <div class="flex items-center justify-between">
                             <span class="text-[10px] font-black dark:text-white" v-html="formatFormula(hint.substance)"></span>
                             <div class="flex items-center gap-1.5">
-                              <span v-if="hint.name" class="text-[8px] font-bold text-slate-400 tracking-tighter">{{ hint.name }}</span>
-                              <span v-else-if="hint.source" class="text-[7px] font-mono text-emerald-500/60 tracking-tighter">← <span v-html="formatFormula(hint.source)"></span></span>
+                              <span class="text-[8px] font-bold text-slate-400 tracking-tighter">{{ getSubstanceName(hint.substance) }}</span>
                               <div class="w-1.5 h-1.5 rounded-full bg-emerald-500 group-hover:scale-125 transition-transform shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
                             </div>
                          </div>
@@ -1697,7 +1715,7 @@ watch(() => gameState.value?.current_player, () => {
                     {{ ['He','Ne','Ar','Kr'].includes(card.type) ? '转向' : card.effect === 'Au' ? '跳过' : card.effect === '+2' ? '+2' : card.effect === '+4' ? '+4' : card.effect }}
                   </div>
                   <div v-else-if="ELEMENTS_DATA[card.type]" class="text-xs-mobile sm:text-[8px] font-bold opacity-80 mt-0.5 uppercase tracking-tighter font-serif italic text-black/40">
-                    {{ ELEMENTS_DATA[card.type].name }}
+                    {{ getSubstanceName(card.type) }}
                   </div>
                 </div>
                 <div class="absolute bottom-1 right-1 text-xs-mobile sm:text-[6px] font-mono opacity-40 uppercase tracking-tighter">
@@ -1758,7 +1776,7 @@ watch(() => gameState.value?.current_player, () => {
                   )">
                     <FlaskConical :class="cn('w-3.5 h-3.5 sm:w-5 h-5', selectedSubstance === substance ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-600')" />
                   </div>
-                  <span :class="cn('font-black tracking-widest text-[8px] sm:text-[10px] truncate w-full text-center', selectedSubstance === substance ? 'text-blue-600 dark:text-white' : 'text-slate-500')">{{ substance }}</span>
+                  <span :class="cn('font-black tracking-widest text-[8px] sm:text-[10px] truncate w-full text-center', selectedSubstance === substance ? 'text-blue-600 dark:text-white' : 'text-slate-500')">{{ getSubstanceName(substance) }}</span>
                   <div v-if="selectedSubstance === substance" class="absolute inset-0 bg-blue-500/5 animate-pulse"></div>
                 </button>
              </div>

@@ -120,6 +120,9 @@ func main() {
 	// 自动同步物质百科（将反应中的物质录入百科）
 	game.SyncSubstancesFromReactions()
 
+	// 标记重复物质为待完善
+	game.MarkDuplicateSubstancesForImprovement()
+
 	// 记录启动时间
 	startTime := time.Now()
 
@@ -195,6 +198,9 @@ func main() {
 
 		// 版本信息接口
 		api.GET("/version", handlers.GetVersion)
+
+		// 数据管理路由（物质、反应等）
+		handlers.RegisterDataRoutes(r)
 
 		// 公开路由 - 认证组
 		authGroup := api.Group("/auth")
@@ -323,15 +329,6 @@ func main() {
 				reactions.DELETE("/:id", middleware.AdminMiddleware(), handlers.DeleteReaction)
 			}
 
-			// 物质管理路由
-			substances := auth.Group("/substances")
-			{
-				substances.GET("", handlers.GetSubstances)
-				substances.POST("", handlers.AddSubstance)
-				substances.PUT("/:id", middleware.CoWorkerMiddleware(), handlers.UpdateSubstance)
-				substances.PUT("/approve/:id", middleware.CoWorkerMiddleware(), handlers.ApproveSubstance)
-				substances.DELETE("/:id", middleware.AdminMiddleware(), handlers.DeleteSubstance)
-			}
 		}
 
 		// 管理员路由

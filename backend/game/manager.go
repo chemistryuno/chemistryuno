@@ -390,15 +390,33 @@ func StartDuel(challengerUID int, challengerName string, targetUID int, targetNa
 	return room, nil
 }
 
-// 获取所有房间
-func GetAllRooms() []*models.Room {
+// 获取所有房间（对于已加入的私密房间，也会返回）
+func GetAllRooms(uid int) []*models.Room {
 	roomMutex.RLock()
 	defer roomMutex.RUnlock()
 
 	result := []*models.Room{}
 	for _, gr := range rooms {
-		// 消除已结束的房间，且只展示非私有的房间在大厅
-		if gr.Room.Status != "finished" && !gr.Room.IsPrivate {
+		// 消除已结束的房间
+		if gr.Room.Status == "finished" {
+			continue
+		}
+
+		// 非私密房间：直接显示
+		if !gr.Room.IsPrivate {
+			result = append(result, gr.Room)
+			continue
+		}
+
+		// 私密房间：仅当用户在房间中时才显示（支持快速重连）
+		userInRoom := false
+		for _, pid := range gr.Room.Players {
+			if pid == uid {
+				userInRoom = true
+				break
+			}
+		}
+		if userInRoom {
 			result = append(result, gr.Room)
 		}
 	}

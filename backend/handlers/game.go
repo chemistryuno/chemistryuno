@@ -35,7 +35,8 @@ func broadcastPlayerJoint(roomID string) {
 
 // 获取房间列表
 func GetRooms(c *gin.Context) {
-	rooms := game.GetAllRooms()
+	uid := c.GetInt("uid")
+	rooms := game.GetAllRooms(uid)
 	c.JSON(http.StatusOK, rooms)
 }
 

@@ -60,10 +60,16 @@ func IsValidSubstance(substance string) bool {
 	validSubstancesMutex.RLock()
 	defer validSubstancesMutex.RUnlock()
 
+	// 如果缓存为 nil，说明未初始化，拒绝所有复杂物质
 	if validSubstances == nil {
-		// 缓存未初始化时放行，避免阻塞游戏
-		return true
+		log.Printf("[物质校验] ⚠️  缓存未初始化，拒绝物质: %s", substance)
+		return false
 	}
 
-	return validSubstances[substance]
+	// 查询缓存
+	isValid := validSubstances[substance]
+	if !isValid {
+		log.Printf("[物质校验] ❌ 物质未录入: %s", substance)
+	}
+	return isValid
 }

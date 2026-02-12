@@ -63,6 +63,8 @@ const tabs = [
 
 const searchTerm = ref('')
 const showCreateAnnouncementModal = ref(false)
+const showEditAnnouncementModal = ref(false)
+const editingAnnouncement = ref<any>(null)
 const newAnnouncement = ref({
   title: '',
   content: '',
@@ -234,12 +236,13 @@ const setBanDuration = (hours: number) => {
 }
 
 const handleKickPlayer = async (user: any) => {
-  const reason = await showPrompt(`踢出研究员 ${user.username} (UID: ${user.uid})\n请输入踢出原因:`, '违规行为...', '踢出玩家')
+  const displayName = user.nickname
+  const reason = await showPrompt(`踢出研究员 ${displayName} (UID: ${user.uid})\n请输入踢出原因:`, '违规行为...', '踢出玩家')
   if (reason === null) return
 
   try {
     await adminAPI.kickPlayer(user.uid, reason || '您由于不正当游戏而被踢出')
-    await showAlert(`已将 ${user.username} 踢出服务器`, '操作完成')
+    await showAlert(`已将 ${displayName} 踢出服务器`, '操作完成')
   } catch (error: any) {
     await showAlert(error.response?.data?.error || '踢出失败', '操作失败')
   }
@@ -327,6 +330,49 @@ const handleDeleteAnnouncement = async (id: number) => {
   }
 }
 
+const handleEditAnnouncement = (ann: any) => {
+  editingAnnouncement.value = {
+    id: ann.id,
+    title: ann.title || '',
+    content: ann.content,
+    type: ann.type,
+    is_ticker: ann.is_ticker,
+    is_persistent: ann.is_persistent,
+    on_join: ann.on_join,
+    cron_interval: ann.cron_interval,
+    close_delay: ann.close_delay,
+    expires_in: ann.expires_at ? '' : '24h'
+  }
+  showEditAnnouncementModal.value = true
+}
+
+const handleUpdateAnnouncement = async () => {
+  if (!editingAnnouncement.value.content) {
+    await showAlert('请输入公告内容')
+    return
+  }
+  try {
+    await adminAPI.updateAnnouncement(
+      editingAnnouncement.value.id,
+      editingAnnouncement.value.title,
+      editingAnnouncement.value.content,
+      editingAnnouncement.value.type,
+      editingAnnouncement.value.is_ticker,
+      editingAnnouncement.value.expires_in,
+      editingAnnouncement.value.on_join,
+      editingAnnouncement.value.cron_interval,
+      editingAnnouncement.value.close_delay,
+      editingAnnouncement.value.is_persistent
+    )
+    await showAlert('公告更新成功', '同步完成')
+    showEditAnnouncementModal.value = false
+    editingAnnouncement.value = null
+    loadData()
+  } catch (err: any) {
+    await showAlert(err.response?.data?.error || '更新失败')
+  }
+}
+
 const handleUpdateGameTimeConfig = async () => {
   try {
     const data = {
@@ -400,8 +446,8 @@ const isBanned = (u: any) => {
 }
 
 const filteredUsers = computed(() => {
-  return users.value.filter(u => 
-    u.username.includes(searchTerm.value) ||
+  return users.value.filter(u =>
+    u.nickname.includes(searchTerm.value) ||
     u.uid.toString().includes(searchTerm.value)
   )
 })
@@ -619,7 +665,7 @@ const filteredHistory = computed(() => {
                         </div>
                         <div class="flex flex-col">
                           <span class="group-hover:text-cyan-600 transition-colors uppercase tracking-tight text-[10px] font-black flex items-center gap-1.5">
-                            {{ u.username }}
+                            {{ u.nickname }}
                             <span v-if="isBanned(u)" class="text-[7px] bg-rose-600 px-1.5 py-0.5 rounded uppercase font-black tracking-widest text-white animate-pulse">BANNED</span>
                           </span>
                           <span class="text-[8px] text-slate-400 font-mono tracking-tighter">ONLINE@OP-NODE</span>
@@ -1119,13 +1165,16 @@ const filteredHistory = computed(() => {
                       </div>
                     </div>
                     <div class="flex items-center gap-2">
-                      <button @click="handleToggleAnnouncement(ann.id, !ann.active)" 
+                      <button @click="handleToggleAnnouncement(ann.id, !ann.active)"
                         :class="cn(
                           'px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all border',
                           ann.active ? 'bg-emerald-500 text-white border-emerald-600 shadow-lg shadow-emerald-500/20' : 'bg-slate-200 dark:bg-white/5 text-slate-500 border-slate-300 dark:border-white/10'
                         )"
                       >
                         {{ ann.active ? 'ACTIVE' : 'DISABLED' }}
+                      </button>
+                      <button @click="handleEditAnnouncement(ann)" class="p-2 bg-blue-500/10 text-blue-400 hover:bg-blue-500 hover:text-white rounded-lg transition-all border border-blue-500/10" title="编辑公告">
+                        <Edit2 class="w-3.5 h-3.5" />
                       </button>
                       <button @click="handleDeleteAnnouncement(ann.id)" class="p-2 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white rounded-lg transition-all border border-red-500/10">
                         <Trash2 class="w-3.5 h-3.5" />
@@ -1171,7 +1220,7 @@ const filteredHistory = computed(() => {
                             {{ fb.username[0].toUpperCase() }}
                          </div>
                          <div>
-                            <p class="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight">{{ fb.username }}</p>
+                            <p class="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight">{{ fb.nickname }}</p>
                             <p class="text-[8px] text-slate-400 dark:text-slate-500 font-mono font-bold uppercase">{{ new Date(fb.created_at).toLocaleString() }}</p>
                          </div>
                       </div>
@@ -1223,7 +1272,7 @@ const filteredHistory = computed(() => {
             </template>
           </div>
           <div>
-            <p class="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight">{{ banTarget.username }}</p>
+            <p class="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight">{{ banTarget.nickname }}</p>
             <p class="text-[9px] text-slate-400 font-mono">UID: {{ banTarget.uid }}</p>
           </div>
         </div>

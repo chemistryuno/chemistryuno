@@ -258,7 +258,7 @@ const activeNodesCount = computed(() => rooms.value.filter(r => r.status === 'pl
                  </template>
                </div>
                <div class="hidden sm:flex flex-col">
-                 <span class="text-xs-mobile font-black text-slate-900 dark:text-white">{{ user.nickname || user.username }}</span>
+                 <span class="text-xs-mobile font-black text-slate-900 dark:text-white">{{ user.nickname }}</span>
                  <span class="text-[9px] sm:text-[8px] text-slate-500 font-mono uppercase">
                    {{ user.is_admin ? 'Lead' : 'Researcher' }}
                  </span>

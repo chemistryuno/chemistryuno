@@ -36,6 +36,7 @@ type Room struct {
 	Status        string      `json:"status"` // "waiting", "playing", "finished"
 	IsPointsMode  bool        `json:"is_points_mode"`
 	IsPrivate     bool        `json:"is_private"`     // 是否为私密房间，不显示在大厅
+	AccessKey     string      `json:"access_key"`     // 私密房间访问密钥
 	IsDuel        bool        `json:"is_duel"`        // 是否是单挑模式
 	ChallengerUID int         `json:"challenger_uid"` // 发起者 UID
 	TargetUID     int         `json:"target_uid"`     // 被挑战者 UID

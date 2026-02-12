@@ -351,6 +351,7 @@ func main() {
 			// 公告管理
 			admin.GET("/announcements", handlers.GetAllAnnouncements)
 			admin.POST("/announcements", handlers.CreateAnnouncement)
+			admin.PUT("/announcements/:id", handlers.UpdateAnnouncement)
 			admin.PUT("/announcements/:id/status", handlers.UpdateAnnouncementStatus)
 			admin.DELETE("/announcements/:id", handlers.DeleteAnnouncement)
 		}

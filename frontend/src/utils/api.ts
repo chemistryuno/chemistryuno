@@ -201,6 +201,8 @@ export const adminAPI = {
     api.get('/admin/announcements'),
   createAnnouncement: (title: string, content: string, type: string, is_ticker: boolean, expires_in?: string, on_join: boolean = false, cron_interval: number = 0, close_delay: number = 0, is_persistent: boolean = false) =>
     api.post('/admin/announcements', { title, content, type, is_ticker, expires_in, on_join, cron_interval, close_delay, is_persistent }),
+  updateAnnouncement: (id: number, title: string, content: string, type: string, is_ticker: boolean, expires_in?: string, on_join: boolean = false, cron_interval: number = 0, close_delay: number = 0, is_persistent: boolean = false) =>
+    api.put(`/admin/announcements/${id}`, { title, content, type, is_ticker, expires_in, on_join, cron_interval, close_delay, is_persistent }),
   updateAnnouncementStatus: (id: number, active: boolean) =>
     api.put(`/admin/announcements/${id}/status`, { active }),
   deleteAnnouncement: (id: number) =>

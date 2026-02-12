@@ -72,7 +72,10 @@ func JoinRoom(c *gin.Context) {
 	uid := c.GetInt("uid")
 	username := c.GetString("username")
 
-	err := game.JoinRoom(roomID, uid, username)
+	// 从查询参数获取访问密钥
+	accessKey := c.Query("key")
+
+	err := game.JoinRoomWithKey(roomID, uid, username, accessKey)
 	if err != nil {
 		if err.Error() == "房间不存在" {
 			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})

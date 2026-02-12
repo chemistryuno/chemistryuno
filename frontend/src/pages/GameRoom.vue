@@ -181,8 +181,9 @@ const isFriend = (uid: number) => {
 
 const handleAddFriend = async (player: any) => {
   try {
+    const displayName = player.nickname || player.username
     await friendAPI.sendRequest(player.uid)
-    showAlert(`已向研究员 ${player.username} 发送同步请求，等待量子握手。`, '请求已发送')
+    showAlert(`已向研究员 ${displayName} 发送同步请求，等待量子握手。`, '请求已发送')
   } catch (error: any) {
     showAlert(error.response?.data?.error || '请求发送失败', '链路故障')
   }
@@ -202,8 +203,9 @@ const startPrivateChat = (player: any) => {
   }
   showChat.value = true
   hasNewMessage.value = false
+  const displayName = player.nickname || player.username
   window.dispatchEvent(new CustomEvent('start-private-chat', {
-    detail: { uid: player.uid, username: player.username }
+    detail: { uid: player.uid, username: displayName }
   }))
 }
 
@@ -988,9 +990,8 @@ const handleDrawCard = async () => {
 
 const handleLeaveRoom = async () => {
   try {
-    const confirmed = await showConfirm('确定要离开当前实验房间吗？', '中断实验')
+    const confirmed = await showConfirm('暂时离开实验室？你可以在被踢出前随时返回继续实验', '暂离实验')
     if (confirmed) {
-      await gameAPI.leaveRoom(id)
       router.push('/')
     }
   } catch (error) {
@@ -2061,7 +2062,7 @@ watch(() => gameState.value?.current_player, () => {
             </div>
             <div class="flex flex-col min-w-0 flex-1">
               <div class="flex items-center gap-1 leading-none">
-                <span class="text-[11px] font-black truncate max-w-[80px] tracking-tight" :class="gameState?.current_player === index ? 'text-white' : 'text-slate-700 dark:text-slate-300'">{{ player.username }}</span>
+                <span class="text-[11px] font-black truncate max-w-[80px] tracking-tight" :class="gameState?.current_player === index ? 'text-white' : 'text-slate-700 dark:text-slate-300'">{{ player.nickname || player.username }}</span>
                 <span class="text-[8px] font-mono opacity-40 shrink-0" :class="gameState?.current_player === index ? 'text-white' : 'text-slate-500'">#{{ player.uid }}</span>
                 <Zap v-if="player.double_action_available" :class="cn('w-2.5 h-2.5 fill-current', gameState?.current_player === index ? 'text-amber-300' : 'text-amber-500')" />
               </div>

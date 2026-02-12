@@ -107,6 +107,56 @@ func CreateAnnouncement(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"message": "公告发布成功", "id": announcement.ID})
 }
 
+// UpdateAnnouncement 更新公告完整信息
+func UpdateAnnouncement(c *gin.Context) {
+	id := c.Param("id")
+	var req struct {
+		Title        string `json:"title"`
+		Content      string `json:"content" binding:"required"`
+		Type         string `json:"type"`
+		IsTicker     bool   `json:"is_ticker"`
+		IsPersistent bool   `json:"is_persistent"`
+		OnJoin       bool   `json:"on_join"`
+		CronInterval int    `json:"cron_interval"`
+		CloseDelay   int    `json:"close_delay"`
+		ExpiresIn    string `json:"expires_in"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+
+	var expiresAt *time.Time
+	if req.ExpiresIn != "" {
+		duration, err := time.ParseDuration(req.ExpiresIn)
+		if err == nil {
+			t := time.Now().Add(duration)
+			expiresAt = &t
+		}
+	}
+
+	idUint, _ := strconv.ParseUint(id, 10, 32)
+	announcement := &repository.Announcement{
+		Title:        req.Title,
+		Content:      req.Content,
+		Type:         req.Type,
+		IsTicker:     req.IsTicker,
+		IsPersistent: req.IsPersistent,
+		OnJoin:       req.OnJoin,
+		CronInterval: req.CronInterval,
+		CloseDelay:   req.CloseDelay,
+		ExpiresAt:    expiresAt,
+	}
+
+	err := repository.AnnouncementRepo.Update(uint(idUint), announcement)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新失败: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "公告更新成功"})
+}
+
 // UpdateAnnouncementStatus 更新公告状态
 func UpdateAnnouncementStatus(c *gin.Context) {
 	id := c.Param("id")

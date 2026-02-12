@@ -98,7 +98,7 @@ onMounted(() => {
 
     messages.value.push({
       uid: msg.uid,
-      username: msg.data?.nickname || msg.data?.username || '研究员',
+      username: msg.data?.nickname || '研究员',
       avatar: msg.data?.avatar,
       text: msg.message,
       time: new Date(),
@@ -130,7 +130,7 @@ onMounted(() => {
     messages.value.push({
       uid: msg.uid,
       target_uid: msg.target_uid,
-      username: msg.data?.nickname || msg.data?.username || '研究员',
+      username: msg.data?.nickname || '研究员',
       avatar: msg.data?.avatar,
       text: isGameInvite ? '' : msg.message,
       time: new Date(),

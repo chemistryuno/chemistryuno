@@ -295,6 +295,17 @@ func CreateRoom(name string, creatorUID int, creatorName string, maxPlayers int,
 		}
 	}
 
+	// 生成私密房间访问密钥
+	var accessKey string
+	if isPrivate {
+		const charset = "abcdefghijklmnopqrstuvwxyz0123456789"
+		b := make([]byte, 8)
+		for i := range b {
+			b[i] = charset[rand.Intn(len(charset))]
+		}
+		accessKey = string(b)
+	}
+
 	room := &models.Room{
 		ID:           roomID,
 		Name:         name,
@@ -307,6 +318,7 @@ func CreateRoom(name string, creatorUID int, creatorName string, maxPlayers int,
 		Status:       "waiting",
 		IsPointsMode: isPointsMode,
 		IsPrivate:    isPrivate,
+		AccessKey:    accessKey,
 		CreatedAt:    time.Now(),
 	}
 
@@ -791,6 +803,11 @@ func ToggleReady(roomID string, uid int) error {
 
 // 加入房间
 func JoinRoom(roomID string, uid int, username string) error {
+	return JoinRoomWithKey(roomID, uid, username, "")
+}
+
+// JoinRoomWithKey 携带密钥加入房间
+func JoinRoomWithKey(roomID string, uid int, username string, accessKey string) error {
 	banned, until, reason, _ := isBanned(uid)
 	if banned {
 		if reason == "" {
@@ -809,6 +826,24 @@ func JoinRoom(roomID string, uid int, username string) error {
 
 	gameRoom.mutex.Lock()
 	defer gameRoom.mutex.Unlock()
+
+	// 验证私密房间密钥
+	if gameRoom.Room.IsPrivate && gameRoom.Room.AccessKey != "" {
+		// 房主不需要验证密钥
+		isCreator := len(gameRoom.Room.Players) > 0 && gameRoom.Room.Players[0] == uid
+		// 已在房间的玩家不需要验证密钥
+		alreadyInRoom := false
+		for _, pid := range gameRoom.Room.Players {
+			if pid == uid {
+				alreadyInRoom = true
+				break
+			}
+		}
+
+		if !isCreator && !alreadyInRoom && accessKey != gameRoom.Room.AccessKey {
+			return errors.New("访问密钥错误，无法加入私密房间")
+		}
+	}
 
 	// 已经在房间里或试图重新加入
 	for _, pid := range gameRoom.Room.Players {

@@ -57,6 +57,13 @@ func (r *AnnouncementRepository) Create(announcement *Announcement) error {
 	return r.db.Create(announcement).Error
 }
 
+// Update 更新公告完整信息
+func (r *AnnouncementRepository) Update(id uint, announcement *Announcement) error {
+	return r.db.Model(&Announcement{}).
+		Where("id = ?", id).
+		Updates(announcement).Error
+}
+
 // UpdateActive 更新公告激活状态
 func (r *AnnouncementRepository) UpdateActive(id uint, active bool) error {
 	return r.db.Model(&Announcement{}).

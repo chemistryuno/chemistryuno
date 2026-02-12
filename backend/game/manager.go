@@ -460,7 +460,7 @@ func handlePointsCalculation(gr *GameRoom) {
 
 	// 计算积分倍率：每有一个未完成玩家离开，结算减少 1/总人数
 	multiplier := 1.0
-	if gr.GameState.OriginalPlayerCount > 0 {
+	if configRepo.GetBoolValue("points_scaling_enabled", true) && gr.GameState.OriginalPlayerCount > 0 {
 		multiplier = 1.0 - (float64(gr.GameState.QuittedCount) / float64(gr.GameState.OriginalPlayerCount))
 		if multiplier < 0 {
 			multiplier = 0

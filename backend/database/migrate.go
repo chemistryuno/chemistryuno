@@ -143,10 +143,8 @@ func initDefaultData() error {
 		}
 	}
 
-	// 检查并初始化默认系统配置
-	if err := initDefaultConfigs(); err != nil {
-		log.Printf("⚠️  初始化默认系统配置失败: %v", err)
-	}
+	// 系统配置现在统一由 game.InitGameConfig -> configRepo.InitDefaultConfigs 处理
+	// 不再在 database 层级进行初始化，以防配置键名冲突
 
 	// // 初始化默认提示数据
 	// if err := initDefaultHints(); err != nil {
@@ -182,25 +180,6 @@ func initDefaultData() error {
 // 	log.Println("✅ 默认实验情报提示初始化成功")
 // 	return nil
 // }
-
-// initDefaultConfigs 初始化系统配置
-func initDefaultConfigs() error {
-	configs := []SystemConfig{
-		{Key: "game_turn_timeout", Value: "30"},
-		{Key: "reconnect_grace_period", Value: "30"},
-		{Key: "points_scaling_enabled", Value: "true"},
-	}
-
-	for _, cfg := range configs {
-		var existing SystemConfig
-		err := DB.Where("`key` = ?", cfg.Key).First(&existing).Error
-		if err != nil {
-			// 如果不存在，则创建
-			DB.Create(&cfg)
-		}
-	}
-	return nil
-}
 
 // createDefaultAdmin 创建默认管理员账户
 func createDefaultAdmin() error {

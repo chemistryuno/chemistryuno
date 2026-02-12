@@ -1069,10 +1069,12 @@ func GetGameTimeConfigs(c *gin.Context) {
 
 	// 返回游戏时间相关的配置
 	timeConfigs := map[string]string{
-		"player_kick_timeout":   configs["player_kick_timeout"],
-		"player_action_timeout": configs["player_action_timeout"],
-		"auto_start_timeout":    configs["auto_start_timeout"],
-		"half_ready_timeout":    configs["half_ready_timeout"],
+		"player_kick_timeout":    configs["player_kick_timeout"],
+		"player_action_timeout":  configs["player_action_timeout"],
+		"auto_start_timeout":     configs["auto_start_timeout"],
+		"half_ready_timeout":     configs["half_ready_timeout"],
+		"reconnect_grace_period": configs["reconnect_grace_period"],
+		"points_scaling_enabled": configs["points_scaling_enabled"],
 	}
 
 	c.JSON(http.StatusOK, gin.H{"configs": timeConfigs})
@@ -1081,10 +1083,12 @@ func GetGameTimeConfigs(c *gin.Context) {
 // UpdateGameTimeConfig 更新游戏时间配置
 func UpdateGameTimeConfig(c *gin.Context) {
 	var req struct {
-		PlayerKickTimeout   int `json:"player_kick_timeout"`
-		PlayerActionTimeout int `json:"player_action_timeout"`
-		AutoStartTimeout    int `json:"auto_start_timeout"`
-		HalfReadyTimeout    int `json:"half_ready_timeout"`
+		PlayerKickTimeout    int    `json:"player_kick_timeout"`
+		PlayerActionTimeout  int    `json:"player_action_timeout"`
+		AutoStartTimeout     int    `json:"auto_start_timeout"`
+		HalfReadyTimeout     int    `json:"half_ready_timeout"`
+		ReconnectGracePeriod int    `json:"reconnect_grace_period"`
+		PointsScalingEnabled string `json:"points_scaling_enabled"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -1114,10 +1118,12 @@ func UpdateGameTimeConfig(c *gin.Context) {
 
 	// 更新配置
 	updates := map[string]string{
-		"player_kick_timeout":   fmt.Sprintf("%d", req.PlayerKickTimeout),
-		"player_action_timeout": fmt.Sprintf("%d", req.PlayerActionTimeout),
-		"auto_start_timeout":    fmt.Sprintf("%d", req.AutoStartTimeout),
-		"half_ready_timeout":    fmt.Sprintf("%d", req.HalfReadyTimeout),
+		"player_kick_timeout":    fmt.Sprintf("%d", req.PlayerKickTimeout),
+		"player_action_timeout":  fmt.Sprintf("%d", req.PlayerActionTimeout),
+		"auto_start_timeout":     fmt.Sprintf("%d", req.AutoStartTimeout),
+		"half_ready_timeout":     fmt.Sprintf("%d", req.HalfReadyTimeout),
+		"reconnect_grace_period": fmt.Sprintf("%d", req.ReconnectGracePeriod),
+		"points_scaling_enabled": req.PointsScalingEnabled,
 	}
 
 	for key, value := range updates {

@@ -42,7 +42,9 @@ const gameTimeConfigs = ref<any>({
   player_kick_timeout: '30',
   player_action_timeout: '30',
   auto_start_timeout: '10',
-  half_ready_timeout: '60'
+  half_ready_timeout: '60',
+  reconnect_grace_period: '30',
+  points_scaling_enabled: 'true'
 })
 const deckConfig = ref<any>(null)
 const editingDeck = ref(false)
@@ -88,7 +90,7 @@ const loadData = async () => {
     } else if (activeTab.value === 'history') {
       const response = await adminAPI.getGameHistory()
       gameHistory.value = response.data || []
-    } else if (activeTab.value === 'deck') {
+    } else if (activeTab.value === 'deck' || activeTab.value === 'special') {
       const response = await adminAPI.getGlobalDeckConfig()
       deckConfig.value = response.data
     } else if (activeTab.value === 'feedbacks') {
@@ -102,9 +104,6 @@ const loadData = async () => {
       if (response.data?.configs) {
         gameTimeConfigs.value = response.data.configs
       }
-    } else if (activeTab.value === 'game-time') {
-      const response = await adminAPI.getGameTimeConfigs()
-      gameTimeConfigs.value = response.data.configs || gameTimeConfigs.value
     }
   } catch (error) {
     console.error('加载数据失败:', error)
@@ -379,7 +378,9 @@ const handleUpdateGameTimeConfig = async () => {
       player_kick_timeout: parseInt(gameTimeConfigs.value.player_kick_timeout),
       player_action_timeout: parseInt(gameTimeConfigs.value.player_action_timeout),
       auto_start_timeout: parseInt(gameTimeConfigs.value.auto_start_timeout),
-      half_ready_timeout: parseInt(gameTimeConfigs.value.half_ready_timeout)
+      half_ready_timeout: parseInt(gameTimeConfigs.value.half_ready_timeout),
+      reconnect_grace_period: parseInt(gameTimeConfigs.value.reconnect_grace_period),
+      points_scaling_enabled: String(gameTimeConfigs.value.points_scaling_enabled)
     }
 
     await adminAPI.updateGameTimeConfig(data)
@@ -1022,6 +1023,50 @@ const filteredHistory = computed(() => {
                         class="w-full bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 text-lg font-black text-slate-900 dark:text-white focus:outline-none focus:border-orange-500/50 transition-all"
                       />
                       <div class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-2 opacity-70">秒 (范围: 30-120)</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="flex items-center gap-2 mb-2 mt-6">
+                  <div class="h-px flex-1 bg-slate-200 dark:bg-white/5"></div>
+                  <span class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">进阶系统参数 / ADVANCED_SYSTEM_PARAMS</span>
+                  <div class="h-px flex-1 bg-slate-200 dark:bg-white/5"></div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <!-- Reconnect Grace Period -->
+                  <div class="bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 p-6 rounded-[2rem] shadow-sm relative overflow-hidden">
+                    <div class="absolute top-0 right-0 w-32 h-32 bg-rose-500/[0.03] blur-[50px] -mr-16 -mt-16" />
+                    <div class="relative z-10">
+                      <label class="text-[10px] font-mono text-rose-600 dark:text-rose-400 uppercase tracking-widest font-black flex items-center gap-2 mb-3">
+                        <Activity class="w-4 h-4" /> 掉线重连宽限期
+                      </label>
+                      <input
+                        v-model="gameTimeConfigs.reconnect_grace_period"
+                        type="number"
+                        min="0"
+                        max="300"
+                        class="w-full bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 text-lg font-black text-slate-900 dark:text-white focus:outline-none focus:border-rose-500/50 transition-all"
+                      />
+                      <div class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-2 opacity-70">秒 (0-300，目前作为预留参数)</div>
+                    </div>
+                  </div>
+
+                  <!-- Points Scaling Enabled -->
+                  <div class="bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 p-6 rounded-[2rem] shadow-sm relative overflow-hidden">
+                    <div class="absolute top-0 right-0 w-32 h-32 bg-amber-500/[0.03] blur-[50px] -mr-16 -mt-16" />
+                    <div class="relative z-10">
+                      <label class="text-[10px] font-mono text-amber-600 dark:text-amber-400 uppercase tracking-widest font-black flex items-center gap-2 mb-3">
+                        <Trophy class="w-4 h-4" /> 积分动态缩放系统
+                      </label>
+                      <select
+                        v-model="gameTimeConfigs.points_scaling_enabled"
+                        class="w-full bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 text-lg font-black text-slate-900 dark:text-white focus:outline-none focus:border-amber-500/50 transition-all"
+                      >
+                        <option value="true">ENABLED / 启用</option>
+                        <option value="false">DISABLED / 禁用</option>
+                      </select>
+                      <div class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-2 opacity-70">根据房间人数和离线率自动调整积分获取量</div>
                     </div>
                   </div>
                 </div>

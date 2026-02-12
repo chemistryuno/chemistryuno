@@ -70,6 +70,7 @@ func canFormSubstance(substance string, elements map[string]int) bool {
 
 // 解析物质化学式，返回所需元素及数量
 func parseSubstance(substance string) map[string]int {
+	substance = NormalizeSubscripts(substance)
 	result := make(map[string]int)
 	stack := []map[string]int{result}
 

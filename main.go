@@ -114,6 +114,12 @@ func main() {
 		log.Printf("⚠️  游戏配置初始化失败: %v (将使用默认配置)", err)
 	}
 
+	// 初始化合法物质缓存
+	game.RebuildSubstanceCache()
+
+	// 自动同步物质百科（将反应中的物质录入百科）
+	game.SyncSubstancesFromReactions()
+
 	// 记录启动时间
 	startTime := time.Now()
 

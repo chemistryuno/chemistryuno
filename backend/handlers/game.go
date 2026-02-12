@@ -259,7 +259,10 @@ func VerifyReaction(c *gin.Context) {
 		return
 	}
 
-	canReact := game.CanReact(req.R1, req.R2)
+	r1 := game.NormalizeSubscripts(req.R1)
+	r2 := game.NormalizeSubscripts(req.R2)
+
+	canReact := game.CanReact(r1, r2)
 	c.JSON(http.StatusOK, gin.H{
 		"can_react": canReact,
 	})

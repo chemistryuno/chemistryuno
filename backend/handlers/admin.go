@@ -534,6 +534,15 @@ func ApproveReaction(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "状态已更新", "status": newStatus})
 	if newStatus == "approved" {
+		// 审核通过时，确保反应物已入库（百科）
+		var reactions []database.Reaction
+		if err := database.DB.Where("group_id = ?", groupID).Find(&reactions).Error; err == nil {
+			var formulas []string
+			for _, r := range reactions {
+				formulas = append(formulas, r.R1, r.R2)
+			}
+			game.EnsureSubstancesExist(database.DB, formulas, 100000000) // 使用系统管理员UID
+		}
 		game.RebuildSubstanceCache()
 	}
 }
@@ -698,29 +707,22 @@ func saveReactionToDBGorm(tx *gorm.DB, reactants []string, display, status strin
 		CreatedByUID: creatorID,
 	}
 
-	return tx.Create(&reaction).Error
+	if err := tx.Create(&reaction).Error; err != nil {
+		return err
+	}
+
+	// 自动录入物质到百科 (仅当反应被批准时)
+	if status == "approved" {
+		game.EnsureSubstancesExist(tx, []string{r1, r2}, creatorID)
+	}
+
+	return nil
 }
 
 // 内部校验逻辑
-func normalizeSubscripts(s string) string {
-	subs := map[rune]rune{
-		'₀': '0', '₁': '1', '₂': '2', '₃': '3', '₄': '4',
-		'₅': '5', '₆': '6', '₇': '7', '₈': '8', '₉': '9',
-	}
-	var res strings.Builder
-	for _, r := range s {
-		if v, ok := subs[r]; ok {
-			res.WriteRune(v)
-		} else {
-			res.WriteRune(r)
-		}
-	}
-	return res.String()
-}
-
 func countElements(expr string) map[string]int {
 	counts := make(map[string]int)
-	expr = normalizeSubscripts(expr)
+	expr = game.NormalizeSubscripts(expr)
 	parts := strings.Split(expr, "+")
 	for _, part := range parts {
 		part = strings.TrimSpace(part)
@@ -1170,7 +1172,7 @@ func AddSubstance(c *gin.Context) {
 	}
 
 	// 自动分析元素
-	elementsMap := parseSubstanceForElements(req.Formula)
+	elementsMap := game.ParseSubstanceForElements(req.Formula)
 	var elementsArr []string
 	for e := range elementsMap {
 		elementsArr = append(elementsArr, e)
@@ -1202,6 +1204,7 @@ func AddSubstance(c *gin.Context) {
 	msg := "物质已提交，等待审核"
 	if status == "approved" {
 		msg = "物质已成功添加到百科"
+		game.RebuildSubstanceCache()
 	}
 	c.JSON(http.StatusCreated, gin.H{"message": msg, "status": status})
 }
@@ -1259,7 +1262,7 @@ func ApproveSubstance(c *gin.Context) {
 
 	// 如果提供了修改内容
 	if !req.Reject && (req.Formula != "" || req.Name != "") {
-		elementsMap := parseSubstanceForElements(req.Formula)
+		elementsMap := game.ParseSubstanceForElements(req.Formula)
 		var elementsArr []string
 		for e := range elementsMap {
 			elementsArr = append(elementsArr, e)
@@ -1277,6 +1280,9 @@ func ApproveSubstance(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "审批已处理", "status": newStatus})
+	if newStatus == "approved" {
+		game.RebuildSubstanceCache()
+	}
 }
 
 // UpdateSubstance 更新物质
@@ -1300,7 +1306,7 @@ func UpdateSubstance(c *gin.Context) {
 		return
 	}
 
-	elementsMap := parseSubstanceForElements(req.Formula)
+	elementsMap := game.ParseSubstanceForElements(req.Formula)
 	var elementsArr []string
 	for e := range elementsMap {
 		elementsArr = append(elementsArr, e)
@@ -1314,6 +1320,7 @@ func UpdateSubstance(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "更新成功"})
+	game.RebuildSubstanceCache()
 }
 
 // DeleteSubstance 删除物质
@@ -1337,25 +1344,5 @@ func DeleteSubstance(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "删除成功"})
-}
-
-// 内部工具：解析化学式获取涉及的元素
-func parseSubstanceForElements(substance string) map[string]bool {
-	result := make(map[string]bool)
-	i := 0
-	for i < len(substance) {
-		c := substance[i]
-		if c >= 'A' && c <= 'Z' {
-			start := i
-			i++
-			for i < len(substance) && substance[i] >= 'a' && substance[i] <= 'z' {
-				i++
-			}
-			element := substance[start:i]
-			result[element] = true
-		} else {
-			i++
-		}
-	}
-	return result
+	game.RebuildSubstanceCache()
 }

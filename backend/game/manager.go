@@ -1478,6 +1478,7 @@ func getCardEffect(cardType string) string {
 
 // 出牌
 func PlayCard(roomID string, uid int, card models.Card, substance string) error {
+	substance = NormalizeSubscripts(substance)
 	roomMutex.RLock()
 	gameRoom, exists := rooms[roomID]
 	roomMutex.RUnlock()
@@ -1531,11 +1532,18 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 	// 若未指定substance，自动用单质（如H->H2、O->O2等，或直接元素符号）
 	if substance == "" {
 		substance = card.Type
+		// 自动转换常见双原子分子
+		diatomic := map[string]string{
+			"H": "H2", "O": "O2", "N": "N2", "Cl": "Cl2", "F": "F2", "Br": "Br2", "I": "I2",
+		}
+		if mapped, ok := diatomic[substance]; ok {
+			substance = mapped
+		}
 	}
 
 	// 校验物质是否已录入
 	if !IsValidSubstance(substance) {
-		return errors.New("该物质未录入")
+		return errors.New("该物质非法，请先在百科中录入: " + substance)
 	}
 
 	requiredElements := parseSubstance(substance)
@@ -2112,10 +2120,6 @@ func InitGameConfig() error {
 	if err := configRepo.InitDefaultConfigs(); err != nil {
 		return fmt.Errorf("初始化默认配置失败: %v", err)
 	}
-	log.Println("✅ 游戏时间配置初始化成功")
-
-	// 初始化物质缓存
-	RebuildSubstanceCache()
 
 	return nil
 }
@@ -2169,6 +2173,8 @@ func checkRoomsTimeout() {
 
 // 双联反应行动
 func DoublePlay(roomID string, uid int, sub1 string, sub2 string) error {
+	sub1 = NormalizeSubscripts(sub1)
+	sub2 = NormalizeSubscripts(sub2)
 	roomMutex.RLock()
 	gameRoom, exists := rooms[roomID]
 	roomMutex.RUnlock()
@@ -2224,10 +2230,10 @@ func DoublePlay(roomID string, uid int, sub1 string, sub2 string) error {
 
 	// 校验物质是否已录入
 	if !IsValidSubstance(sub1) {
-		return errors.New("该物质未录入: " + sub1)
+		return errors.New("该物质非法，请先在百科中录入: " + sub1)
 	}
 	if !IsValidSubstance(sub2) {
-		return errors.New("该物质未录入: " + sub2)
+		return errors.New("该物质非法，请先在百科中录入: " + sub2)
 	}
 
 	// 校验两物质是否能反应

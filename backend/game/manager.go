@@ -469,19 +469,31 @@ func handlePointsCalculation(gr *GameRoom) {
 
 	changes := make(map[int]int)
 
+	// 基础分 100，名次越靠前分越高
+	// 第1名: 100
+	// 第2名: 50
+	// 第3名: 33
+	// ...
+	// 最后一名: 5 (参与奖)
+
 	for i, uid := range finished {
 		points := 0
+		rank := i + 1
+
+		// 如果是最后一名且总人数大于1，给予固定参与分
 		if i == count-1 && count > 1 {
-			// 最后一名得5分
 			points = 5
 		} else {
-			// 100 / 名次
-			rank := i + 1
 			points = 100 / rank
 		}
 
-		// 应用倍率
+		// 应用倍率 (如果有中途退出的人，倍率会降低)
+		// 但对于已完成比赛的前几名，通常应该获得全额奖励，
+		// 这里暂且保留原逻辑：倍率影响所有人
 		points = int(float64(points) * multiplier)
+		if points < 1 {
+			points = 1
+		}
 
 		changes[uid] = points
 		repository.UserRepo.IncrementPoints(uint(uid), points)
@@ -991,8 +1003,6 @@ func LeaveRoom(roomID string, uid int) error {
 
 	// 如果游戏正在进行，也从 GameState 中移除
 	if gameRoom.GameState != nil {
-		newPS := []*models.PlayerState{}
-		leftIndex := -1
 		isFinished := false
 		for _, fuid := range gameRoom.GameState.FinishedPlayers {
 			if fuid == uid {
@@ -1001,6 +1011,8 @@ func LeaveRoom(roomID string, uid int) error {
 			}
 		}
 
+		newPS := []*models.PlayerState{}
+		leftIndex := -1
 		for i, ps := range gameRoom.GameState.Players {
 			if ps.UID != uid {
 				newPS = append(newPS, ps)
@@ -1009,6 +1021,7 @@ func LeaveRoom(roomID string, uid int) error {
 			}
 		}
 
+		// 只有未完成比赛的玩家离开才算作中途退出
 		if !isFinished && leftIndex != -1 {
 			gameRoom.GameState.QuittedCount++
 		}
@@ -1729,9 +1742,12 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 	}
 
 	// 5. 若玩家已获胜，检查整体游戏是否结束
+	// 5. 若玩家已获胜，检查整体游戏是否结束
 	if isWinner {
 		activeCount := 0
 		var lastPlayerUID int
+
+		// 重新计算剩余活跃玩家
 		for _, p := range gameRoom.GameState.Players {
 			isFinished := false
 			for _, fuid := range gameRoom.GameState.FinishedPlayers {
@@ -1746,12 +1762,18 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 			}
 		}
 
+		// 当仅剩1名玩家或更少时，游戏结束
 		if activeCount <= 1 {
+			// 将最后一名玩家也加入完成列表（作为最后一名）
 			if activeCount == 1 {
 				gameRoom.GameState.FinishedPlayers = append(gameRoom.GameState.FinishedPlayers, lastPlayerUID)
 			}
+
 			gameRoom.GameState.Status = "finished"
 			gameRoom.Room.Status = "finished"
+
+			// 此时 FinishedPlayers 包含了所有玩家的排名顺序
+			// 第一名是 winnerUID
 			winnerUID := gameRoom.GameState.FinishedPlayers[0]
 			saveGameHistory(roomID, winnerUID, gameRoom.Room.Players, gameRoom.GameState.OriginalPlayerCount, gameRoom.GameState.QuittedCount)
 
@@ -1763,6 +1785,10 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 			if gameRoom.Room.IsPointsMode {
 				handlePointsCalculation(gameRoom)
 			}
+		} else {
+			// 游戏继续，广播更新包含 finished_players
+			// 前端需要根据 finished_players 列表展示"已完成"状态
+			log.Printf("玩家 %d 完成游戏，剩余活跃玩家: %d", uid, activeCount)
 		}
 	}
 

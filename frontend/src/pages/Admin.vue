@@ -681,7 +681,7 @@ const filteredHistory = computed(() => {
                       </td>
                       <td class="px-6 py-4 text-[9px] text-slate-500 uppercase font-bold">{{ new Date(u.created_at).toLocaleDateString() }}</td>
                       <td class="px-6 py-4 text-right">
-                        <div v-if="!u.is_admin" class="flex items-center gap-2 justify-end opacity-0 group-hover:opacity-100 transition-all scale-95 group-hover:scale-100">
+                        <div v-if="!u.is_admin" class="flex items-center gap-2 justify-end transition-all">
                           <button
                             @click="handlePromoteUser(u.uid, u.role)"
                             class="p-2.5 bg-slate-100 dark:bg-white/5 hover:bg-violet-500/10 text-slate-400 hover:text-violet-600 rounded-xl transition-all border border-transparent hover:border-violet-500/20"

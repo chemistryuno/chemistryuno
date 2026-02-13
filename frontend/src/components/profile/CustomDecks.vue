@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { Plus, Minus, Trash2, Edit2, Hexagon, Save, AlertCircle, X } from 'lucide-vue-next'
+import { Plus, Minus, Trash2, Edit2, Hexagon, Save, X } from 'lucide-vue-next'
 import { gameAPI } from '../../utils/api'
 import { useDialog } from '../../utils/dialog'
 
@@ -125,7 +125,7 @@ onMounted(loadDecks)
       <div v-for="deck in decks" :key="deck.id" 
         class="p-4 bg-white dark:bg-black/40 border border-slate-200 dark:border-white/5 rounded-2xl group relative overflow-hidden"
       >
-        <div class="absolute top-0 left-0 w-1 h-full bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+        <div class="absolute top-0 left-0 w-1 h-full bg-blue-500 transition-opacity"></div>
         
         <div class="flex items-center justify-between mb-3">
           <div class="flex items-center gap-3">
@@ -141,7 +141,7 @@ onMounted(loadDecks)
             </div>
           </div>
           
-          <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div class="flex items-center gap-1 transition-opacity">
             <button v-if="!deck.is_global" @click="openEdit(deck)" class="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-500/10 rounded-lg transition-all" title="编辑序列">
               <Edit2 class="w-4 h-4" />
             </button>

@@ -48,7 +48,7 @@ defineEmits<{
           </h2>
           <button 
             @click="$emit('changeNickname')"
-            class="p-1 px-1.5 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 rounded-md opacity-0 group-hover/avatar:opacity-100 group-hover/nick:opacity-100 transition-all text-slate-400 hover:text-blue-500"
+            class="p-1 px-1.5 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 rounded-md transition-all text-slate-400 hover:text-blue-500"
             title="修改昵称"
           >
             <Edit2 class="w-2.5 h-2.5" />

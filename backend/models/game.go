@@ -73,7 +73,6 @@ func (r *Room) MarshalJSON() ([]byte, error) {
 	})
 }
 
-
 // 游戏状态
 type GameState struct {
 	RoomID              string         `json:"room_id"`
@@ -101,6 +100,7 @@ type GameState struct {
 type PlayerState struct {
 	UID                   int    `json:"uid"`
 	Username              string `json:"username"`
+	Nickname              string `json:"nickname"`
 	Avatar                string `json:"avatar"`
 	HandCards             []Card `json:"hand_cards"` // 手牌
 	CardCount             int    `json:"card_count"` // 手牌数量（其他玩家只能看到数量）

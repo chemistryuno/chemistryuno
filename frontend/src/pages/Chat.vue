@@ -456,10 +456,9 @@ const formatTime = (date: Date) => {
               </div>
             </div>
 
-            <!-- Context Action -->
             <button
               @click.stop="deleteFriend(friend.uid)"
-              class="opacity-0 group-hover:opacity-100 p-1 sm:p-1.5 hover:bg-rose-500/20 hover:text-rose-500 rounded-lg transition-all shrink-0"
+              class="p-1 sm:p-1.5 hover:bg-rose-500/20 hover:text-rose-500 rounded-lg transition-all shrink-0"
             >
               <Trash2 class="w-3 h-3 sm:w-3.5 sm:h-3.5" />
             </button>

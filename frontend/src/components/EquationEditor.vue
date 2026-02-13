@@ -78,7 +78,7 @@ defineExpose({ reset })
             placeholder="H2"
             class="flex-1 px-2 py-1 bg-slate-100 dark:bg-black/20 border border-blue-400/10 rounded-lg text-slate-900 dark:text-white font-mono text-xs placeholder:text-slate-400 dark:placeholder:text-slate-600 outline-none focus:border-blue-500/40 transition-all"
           />
-          <button @click.prevent="removeSubstance('reactants', index)" class="p-1.5 text-slate-400 hover:text-red-400 dark:text-slate-500 opacity-0 group-hover/item:opacity-100 transition-all">
+          <button @click.prevent="removeSubstance('reactants', index)" class="p-1.5 text-slate-400 hover:text-red-400 dark:text-slate-500 transition-all">
             <Trash2 class="w-3.5 h-3.5" />
           </button>
         </div>
@@ -122,7 +122,7 @@ defineExpose({ reset })
             placeholder="H2O"
             class="flex-1 px-2 py-1 bg-slate-100 dark:bg-black/20 border border-green-400/10 rounded-lg text-slate-900 dark:text-white font-mono text-xs placeholder:text-slate-400 dark:placeholder:text-slate-600 outline-none focus:border-green-500/40 transition-all"
           />
-          <button @click.prevent="removeSubstance('products', index)" class="p-1.5 text-slate-400 hover:text-red-400 dark:text-slate-500 opacity-0 group-hover/item:opacity-100 transition-all">
+          <button @click.prevent="removeSubstance('products', index)" class="p-1.5 text-slate-400 hover:text-red-400 dark:text-slate-500 transition-all">
             <Trash2 class="w-3.5 h-3.5" />
           </button>
         </div>

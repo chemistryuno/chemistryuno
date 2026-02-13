@@ -1146,18 +1146,25 @@ func StartGame(roomID string, uid int) error {
 	for _, pid := range shuffledPlayers {
 		user, err := repository.UserRepo.FindByUID(uint(pid))
 		username := ""
+		nickname := ""
 		avatar := ""
 		if err != nil {
 			username = fmt.Sprintf("研究员_%d", pid)
+			nickname = username
 			avatar = "🧪"
 		} else {
 			username = user.Username
+			nickname = user.Nickname
+			if nickname == "" {
+				nickname = username
+			}
 			avatar = user.Avatar
 		}
 
 		player := &models.PlayerState{
 			UID:                   pid,
 			Username:              username,
+			Nickname:              nickname,
 			Avatar:                avatar,
 			HandCards:             []models.Card{},
 			CardCount:             0,
@@ -1367,9 +1374,14 @@ func GetRoomState(roomID string, uid int) (map[string]interface{}, error) {
 	for _, pid := range gameRoom.Room.Players {
 		user, err := repository.UserRepo.FindByUID(uint(pid))
 		username := fmt.Sprintf("研究员_%d", pid)
+		nickname := username
 		avatar := "🧪"
 		if err == nil {
 			username = user.Username
+			nickname = user.Nickname
+			if nickname == "" {
+				nickname = username
+			}
 			avatar = user.Avatar
 		}
 		offline := false
@@ -1379,6 +1391,7 @@ func GetRoomState(roomID string, uid int) (map[string]interface{}, error) {
 		playersInfo = append(playersInfo, map[string]interface{}{
 			"uid":        pid,
 			"username":   username,
+			"nickname":   nickname,
 			"avatar":     avatar,
 			"is_offline": offline,
 		})

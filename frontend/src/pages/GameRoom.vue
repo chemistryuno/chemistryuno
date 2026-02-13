@@ -49,7 +49,6 @@ const reactionHints = ref<any[]>([])
 
 // UI State
 const isMobile = ref(false)
-const showLogs = ref(false)
 const showHints = ref(true)
 const showDeckDetailModal = ref(false)
 const handContainer = ref<HTMLElement | null>(null)
@@ -196,18 +195,8 @@ const hasNewMessage = ref(false)
 const showQrModal = ref(false)
 const showInviteFriendsModal = ref(false)
 
-const startPrivateChat = (player: any) => {
-  if (!isFriend(player.uid)) {
-    showAlert('只有互为好友的研究员才能开启单向加密传输。', '权限受限')
-    return
-  }
-  showChat.value = true
-  hasNewMessage.value = false
-  const displayName = player.nickname || player.username
-  window.dispatchEvent(new CustomEvent('start-private-chat', {
-    detail: { uid: player.uid, username: displayName }
-  }))
-}
+// startPrivateChat 已被弃用，实验室内禁止私聊
+
 
 const sendGameInvite = async (friend: any) => {
   const inviteData = {
@@ -359,7 +348,8 @@ const allPlayers = computed(() => {
       return {
         ...p,
         avatar: p.avatar || baseInfo?.avatar,
-        username: p.username || baseInfo?.username,
+        // 强制显示昵称，回退到用户名
+        username: p.nickname || baseInfo?.nickname || p.username || baseInfo?.username,
         is_ready: roomInfo.value?.ready_uids?.includes(Number(p.uid)),
         is_offline: baseInfo?.is_offline
       }
@@ -367,6 +357,7 @@ const allPlayers = computed(() => {
   }
   return playersInfo.value.map(p => ({
     ...p,
+    username: p.nickname || p.username,
     is_ready: roomInfo.value?.ready_uids?.includes(Number(p.uid)),
     is_offline: p.is_offline
   }))
@@ -1648,8 +1639,8 @@ watch(() => gameState.value?.current_player, () => {
                       firstDoubleSubstance ? 'bg-blue-500/20 border-blue-500 shadow-md cursor-pointer hover:border-red-500/50' : 'bg-slate-800/50 border-white/10 opacity-50'
                     )"
                   >
-                    <span v-if="firstDoubleSubstance" class="text-[9px] font-black group-hover/sub:opacity-20 transition-opacity" v-html="formatFormula(firstDoubleSubstance)"></span>
-                    <X v-if="firstDoubleSubstance" class="w-3 h-3 text-red-500 absolute opacity-0 group-hover/sub:opacity-100 transition-opacity" />
+                    <span v-if="firstDoubleSubstance" class="text-[9px] font-black transition-opacity" v-html="formatFormula(firstDoubleSubstance)"></span>
+                    <X v-if="firstDoubleSubstance" class="w-2.5 h-2.5 text-red-500 absolute top-0.5 right-0.5 transition-opacity" />
                     <FlaskConical v-else class="w-3 h-3 text-slate-500" />
                   </div>
                   <div class="w-3 h-0.5 bg-blue-500/30"></div>
@@ -1660,8 +1651,8 @@ watch(() => gameState.value?.current_player, () => {
                       secondDoubleSubstance ? 'bg-blue-500/20 border-blue-500 shadow-md cursor-pointer hover:border-red-500/50' : 'bg-slate-800/50 border-white/10 opacity-50'
                     )"
                   >
-                    <span v-if="secondDoubleSubstance" class="text-[9px] font-black group-hover/sub:opacity-20 transition-opacity" v-html="formatFormula(secondDoubleSubstance)"></span>
-                    <X v-if="secondDoubleSubstance" class="w-3 h-3 text-red-500 absolute opacity-0 group-hover/sub:opacity-100 transition-opacity" />
+                    <span v-if="secondDoubleSubstance" class="text-[9px] font-black transition-opacity" v-html="formatFormula(secondDoubleSubstance)"></span>
+                    <X v-if="secondDoubleSubstance" class="w-2.5 h-2.5 text-red-500 absolute top-0.5 right-0.5 transition-opacity" />
                     <FlaskConical v-else class="w-3 h-3 text-slate-500" />
                   </div>
                 </div>
@@ -1834,7 +1825,7 @@ watch(() => gameState.value?.current_player, () => {
                   反应终止
                 </h2>
                 <p class="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed max-w-xs mx-auto">
-                  实验由 <span class="text-slate-900 dark:text-white font-black">{{ winner?.username }}</span> 成功收官。
+                  实验由 <span class="text-slate-900 dark:text-white font-black">{{ winner?.nickname || winner?.username }}</span> 成功收官。
                 </p>
               </template>
 
@@ -2130,13 +2121,7 @@ watch(() => gameState.value?.current_player, () => {
               >
                 <UserPlus class="w-3 h-3" />
               </button>
-              <button v-if="Number(player.uid) !== Number(user.uid) && isFriend(player.uid)"
-                      @click.stop="startPrivateChat(player)"
-                      :class="cn('p-1 rounded-lg transition-colors touch-feedback', gameState?.current_player === index ? 'hover:bg-white/20 text-white' : 'hover:bg-blue-500/20 text-blue-500')"
-                      title="私聊"
-              >
-                <MessageCircle class="w-3 h-3" />
-              </button>
+              <!-- 私聊按钮已禁用于实验室内 -->
               <button v-if="Number(player.uid) !== Number(user.uid)"
                       @click.stop="handleReportPlayer(player)"
                       :class="cn('p-1 rounded-lg transition-colors touch-feedback', gameState?.current_player === index ? 'hover:bg-white/20 text-white' : 'hover:bg-rose-500/20 text-rose-500')"

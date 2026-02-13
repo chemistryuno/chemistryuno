@@ -174,6 +174,14 @@ func (c *Client) handleMessage(msg *Message) {
 		})
 
 	case "private_chat":
+		// 禁止游戏内（房间内）私聊
+		if c.roomID != "" && c.roomID != "lobby" {
+			c.hub.SendToUID(c.uid, Message{
+				Type:    "error",
+				Message: "量子纠缠协议异常：实验室内禁止开启加密私聊频道。",
+			})
+			return
+		}
 		if msg.TargetUID != 0 {
 			// 检查是否是好友
 			isFriend, err := repository.FriendshipRepo.IsFriend(uint(c.uid), uint(msg.TargetUID))

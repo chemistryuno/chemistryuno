@@ -162,6 +162,12 @@ const handleSend = () => {
   if (!newMessage.value.trim()) return
 
   if (chatMode.value === 'private' && privateTarget.value) {
+    if (props.roomId) {
+      // 实验室室内禁止私聊，强制切换回公聊
+      chatMode.value = 'normal'
+      privateTarget.value = null
+      return
+    }
     websocket.send({
       type: 'private_chat',
       target_uid: privateTarget.value.uid,
@@ -190,7 +196,7 @@ const formatTime = (date: Date) => {
 
 <template>
   <div
-    :class="cn('flex flex-col bg-white/95 dark:bg-slate-900/60 backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-[28px] overflow-hidden shadow-2xl', $attrs.class)"
+    :class="cn('flex flex-col bg-white/95 dark:bg-slate-900/60 backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-[28px] overflow-hidden shadow-2xl', $attrs.class as string)"
     :style="maxHeight ? { height: maxHeight } : {}"
   >
     <!-- Header - 移动端优化 -->

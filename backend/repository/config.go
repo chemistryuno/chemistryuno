@@ -17,7 +17,7 @@ func NewConfigRepository() *ConfigRepository {
 // GetValue 获取配置值
 func (r *ConfigRepository) GetValue(key string) (string, error) {
 	var config database.SystemConfig
-	err := database.DB.Where("key = ?", key).First(&config).Error
+	err := database.DB.Where("`key` = ?", key).Take(&config).Error
 	if err != nil {
 		return "", err
 	}
@@ -93,10 +93,10 @@ func (r *ConfigRepository) InitDefaultConfigs() error {
 
 	for oldKey, newKey := range migrationMap {
 		var oldConfig database.SystemConfig
-		if err := database.DB.Where("`key` = ?", oldKey).First(&oldConfig).Error; err == nil {
+		if err := database.DB.Where("`key` = ?", oldKey).Take(&oldConfig).Error; err == nil {
 			// 如果旧键存在，检查新键是否存在
 			var newConfig database.SystemConfig
-			if err := database.DB.Where("`key` = ?", newKey).First(&newConfig).Error; err != nil {
+			if err := database.DB.Where("`key` = ?", newKey).Take(&newConfig).Error; err != nil {
 				// 新键不存在，则迁移
 				database.DB.Create(&database.SystemConfig{
 					Key:   newKey,
@@ -120,7 +120,7 @@ func (r *ConfigRepository) InitDefaultConfigs() error {
 	for key, value := range defaults {
 		var existing database.SystemConfig
 		// 使用原生 SQL 查询键，确保兼容性
-		err := database.DB.Where("`key` = ?", key).First(&existing).Error
+		err := database.DB.Where("`key` = ?", key).Take(&existing).Error
 		if err != nil {
 			// 配置不存在，创建默认值
 			config := database.SystemConfig{

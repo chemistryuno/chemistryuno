@@ -26,7 +26,7 @@ func (r *SubstanceRepository) FindApproved() ([]database.Substance, error) {
 func (r *SubstanceRepository) FindRandomApproved() (*database.Substance, error) {
 	var substance database.Substance
 	// 使用 SQLite 的 RANDOM() 函数
-	err := r.db.Where("status = ?", "approved").Order("RANDOM()").First(&substance).Error
+	err := r.db.Where("status = ?", "approved").Order(randomOrder(r.db)).First(&substance).Error
 	if err != nil {
 		return nil, err
 	}
@@ -207,10 +207,11 @@ type SubstanceWithCreatorExtended struct {
 func (r *SubstanceRepository) FindAllGroupedWithCreator() ([]SubstanceWithCreatorExtended, error) {
 	var results []SubstanceWithCreatorExtended
 
+	subQuery := r.db.Table("substances").Select("MAX(id)").Group("COALESCE(group_id, id)")
 	err := r.db.Table("substances").
 		Select("substances.id, substances.formula, substances.name, substances.elements, substances.status, substances.group_id, substances.needs_improvement, substances.created_by_uid, users.username as creator_name, substances.created_at").
 		Joins("LEFT JOIN users ON substances.created_by_uid = users.uid").
-		Where("substances.id IN (SELECT MAX(id) FROM substances GROUP BY COALESCE(group_id, id))").
+		Where("substances.id IN (?)", subQuery).
 		Order("substances.needs_improvement DESC, substances.created_at DESC").
 		Scan(&results).Error
 
@@ -221,10 +222,14 @@ func (r *SubstanceRepository) FindAllGroupedWithCreator() ([]SubstanceWithCreato
 func (r *SubstanceRepository) FindApprovedGrouped() ([]SubstanceWithCreatorExtended, error) {
 	var results []SubstanceWithCreatorExtended
 
+	subQuery := r.db.Table("substances").
+		Select("MAX(id)").
+		Where("status = ?", "approved").
+		Group("COALESCE(group_id, id)")
 	err := r.db.Table("substances").
 		Select("substances.id, substances.formula, substances.name, substances.elements, substances.status, substances.group_id, substances.needs_improvement, substances.created_by_uid, users.username as creator_name, substances.created_at").
 		Joins("LEFT JOIN users ON substances.created_by_uid = users.uid").
-		Where("substances.status = ? AND substances.id IN (SELECT MAX(id) FROM substances WHERE status = ? GROUP BY COALESCE(group_id, id))", "approved", "approved").
+		Where("substances.status = ? AND substances.id IN (?)", "approved", subQuery).
 		Order("substances.needs_improvement DESC, substances.created_at DESC").
 		Scan(&results).Error
 
@@ -235,10 +240,14 @@ func (r *SubstanceRepository) FindApprovedGrouped() ([]SubstanceWithCreatorExten
 func (r *SubstanceRepository) FindMySubstances(uid uint) ([]SubstanceWithCreatorExtended, error) {
 	var results []SubstanceWithCreatorExtended
 
+	subQuery := r.db.Table("substances").
+		Select("MAX(id)").
+		Where("created_by_uid = ?", uid).
+		Group("COALESCE(group_id, id)")
 	err := r.db.Table("substances").
 		Select("substances.id, substances.formula, substances.name, substances.elements, substances.status, substances.group_id, substances.needs_improvement, substances.created_by_uid, users.username as creator_name, substances.created_at").
 		Joins("LEFT JOIN users ON substances.created_by_uid = users.uid").
-		Where("substances.created_by_uid = ? AND substances.id IN (SELECT MAX(id) FROM substances WHERE created_by_uid = ? GROUP BY COALESCE(group_id, id))", uid, uid).
+		Where("substances.created_by_uid = ? AND substances.id IN (?)", uid, subQuery).
 		Order("substances.created_at DESC").
 		Scan(&results).Error
 

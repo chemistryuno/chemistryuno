@@ -314,7 +314,7 @@ func (Announcement) TableName() string {
 
 // SystemConfig GORM模型 - 系统配置表
 type SystemConfig struct {
-	Key       string    `gorm:"primaryKey;size:100" json:"key"`
+	Key       string    `gorm:"primaryKey;column:key;size:100" json:"key"`
 	Value     string    `gorm:"not null;type:text" json:"value"`
 	UpdatedAt time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 }

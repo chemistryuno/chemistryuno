@@ -264,7 +264,7 @@ func (r *UserRepository) DecayTopPlayersPoints(topCount int) error {
 	return r.db.Model(&database.User{}).
 		Where("points >= ? AND points > 0", threshold).
 		Updates(map[string]interface{}{
-			"points":               gorm.Expr("CAST(points * 0.9 AS INTEGER)"),
+			"points":               gorm.Expr("points * 0.9"),
 			"last_weekly_decay_at": now,
 		}).Error
 }
@@ -375,22 +375,24 @@ func (r *UserRepository) DeductPointsPercentage(uid uint, percentage int) error 
 	multiplier := float64(100-percentage) / 100.0
 	return r.db.Model(&database.User{}).Where("uid = ?", uid).
 		Updates(map[string]interface{}{
-			"points":         gorm.Expr("CAST(points * ? AS INTEGER)", multiplier),
-			"monthly_points": gorm.Expr("CAST(monthly_points * ? AS INTEGER)", multiplier),
+			"points":         gorm.Expr("points * ?", multiplier),
+			"monthly_points": gorm.Expr("monthly_points * ?", multiplier),
 		}).Error
 }
 
 // MultiplyPoints 积分乘以系数
 func (r *UserRepository) MultiplyPoints(uid uint, multiplier float64) error {
 	return r.db.Model(&database.User{}).Where("uid = ?", uid).
-		Update("points", gorm.Expr("CAST(points * ? AS INTEGER)", multiplier)).Error
+		Update("points", gorm.Expr("points * ?", multiplier)).Error
 }
 
 // ResetMonthlyPoints 重置月度积分 (设为初始1000)
 func (r *UserRepository) ResetMonthlyPoints() error {
 	now := time.Now()
+	// 获取本月第一天
+	beginningOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
 	return r.db.Model(&database.User{}).
-		Where("strftime('%Y-%m', last_monthly_reset_at) != ?", now.Format("2006-01")).
+		Where("last_monthly_reset_at < ?", beginningOfMonth).
 		Updates(map[string]interface{}{
 			"points":                1000,
 			"monthly_points":        1000,
@@ -416,7 +418,7 @@ func (r *UserRepository) DecayPointsForLowRankers(threshold int) error {
 	return r.db.Model(&database.User{}).
 		Where("points < ? AND points > 0", threshold).
 		Updates(map[string]interface{}{
-			"points":               gorm.Expr("CAST(points * 0.9 AS INTEGER)"),
+			"points":               gorm.Expr("points * 0.9"),
 			"last_weekly_decay_at": now,
 		}).Error
 }

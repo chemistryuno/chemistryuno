@@ -120,6 +120,6 @@ func (r *AnnouncementRepository) FindRandomHints() ([]Announcement, error) {
 	query := r.db.Where("active = ? AND type = ?", true, "hint")
 
 	// 在 SQLite 中是 RANDOM()
-	err := query.Order("RANDOM()").Limit(3).Find(&announcements).Error
+	err := query.Order(randomOrder(r.db)).Limit(3).Find(&announcements).Error
 	return announcements, err
 }

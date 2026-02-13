@@ -1,5 +1,9 @@
 package repository
 
+import (
+	"gorm.io/gorm"
+)
+
 var (
 	UserRepo         *UserRepository
 	SessionRepo      *SessionRepository
@@ -28,4 +32,12 @@ func InitRepositories() {
 	BountyRepo = NewBountyRepository()
 	FriendshipRepo = NewFriendshipRepository()
 	ChatRepo = NewChatRepository()
+}
+
+// randomOrder 根据数据库类型返回随机排序的 SQL 片段
+func randomOrder(db *gorm.DB) string {
+	if db.Dialector.Name() == "mysql" {
+		return "RAND()"
+	}
+	return "RANDOM()"
 }

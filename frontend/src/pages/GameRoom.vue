@@ -2330,12 +2330,10 @@ watch(() => gameState.value?.current_player, () => {
         </div>
 
         <div class="p-6 border-t border-slate-200 dark:border-white/5 bg-white dark:bg-[#121216] flex flex-col gap-3">
-           <button @click="router.push('/lobby')" class="w-full py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-[24px] font-black uppercase tracking-widest hover:scale-[1.02] active:scale-95 transition-all shadow-xl">
+           <button @click="router.push('/')" class="w-full py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-[24px] font-black uppercase tracking-widest hover:scale-[1.02] active:scale-95 transition-all shadow-xl">
              返回大厅
            </button>
-           <button @click="router.push(`/room-history/${id}`)" class="w-full py-4 bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 rounded-[24px] font-bold uppercase tracking-widest hover:bg-slate-200 dark:hover:bg-white/10 transition-all">
-             查看详细战报
-           </button>
+
         </div>
       </div>
     </div>

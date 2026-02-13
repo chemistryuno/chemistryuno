@@ -252,19 +252,36 @@ func (r *UserRepository) ResetMonthlyPointsIfNeeded() error {
 }
 
 // DecayTopPlayersPoints 对排名前列的用户进行积分衰减
-func (r *UserRepository) DecayTopPlayersPoints(topCount int) error {
-	// 获取排名阈值
+func (r *UserRepository) DecayTopPlayersPoints(percentage int) error {
+	// 1. 获取用户总数来计算百分比对应的实际人数
+	totalCount, err := r.GetUserCount()
+	if err != nil {
+		return err
+	}
+	if totalCount == 0 {
+		return nil
+	}
+
+	// 计算前 N% 的实际人数 (至少1人)
+	topCount := int(totalCount * int64(percentage) / 100)
+	if topCount == 0 {
+		topCount = 1
+	}
+
+	// 2. 获取排名阈值
 	threshold, err := r.GetTopPointsThreshold(topCount)
 	if err != nil {
 		return err
 	}
 
-	// 对排名前列的用户积分衰减10%
+	// 3. 对排名前列且超过一周未衰减的用户积分衰减 2%
 	now := time.Now()
+	oneWeekAgo := now.AddDate(0, 0, -7)
+
 	return r.db.Model(&database.User{}).
-		Where("points >= ? AND points > 0", threshold).
+		Where("points >= ? AND points > 0 AND last_weekly_decay_at < ?", threshold, oneWeekAgo).
 		Updates(map[string]interface{}{
-			"points":               gorm.Expr("points * 0.9"),
+			"points":               gorm.Expr("points * 0.98"),
 			"last_weekly_decay_at": now,
 		}).Error
 }

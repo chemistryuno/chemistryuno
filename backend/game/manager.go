@@ -1655,18 +1655,68 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 		Substance: substance,
 		PlayerUID: uid,
 	}
+	// 1. 更新场面状态
 	// 如果是反转牌，不更新场上的物质（不更新 LastCard），使下家仍需与之前的物质反应
 	if activeEffect != "reverse" {
 		gameRoom.GameState.LastCard = &playedCard
 	}
 	gameRoom.GameState.DiscardPile = append(gameRoom.GameState.DiscardPile, playedCard)
 
-	// 检查是否获胜
+	// 2. 检查并注册获胜（先注册，以便 getNextPlayer 能正确跳过已完成玩家）
+	isWinner := false
 	if currentPlayer.CardCount == 0 {
-		// 进入完成状态
 		gameRoom.GameState.FinishedPlayers = append(gameRoom.GameState.FinishedPlayers, uid)
+		isWinner = true
+	}
 
-		// 检查是否场上只剩一人（或更少）未完成
+	// 3. 处理卡牌效果及回合转移
+	if activeEffect == "+2" || activeEffect == "+4" {
+		// 叠加加牌累计
+		gameRoom.GameState.PendingDrawCount += map[string]int{"+2": 2, "+4": 4}[activeEffect]
+		gameRoom.GameState.PendingDrawTypes = append(gameRoom.GameState.PendingDrawTypes, activeEffect)
+		// 传递至下家
+		gameRoom.GameState.CurrentPlayer = getNextPlayer(gameRoom.GameState)
+	} else if activeEffect == "Au" {
+		// Au 效果：清空场面且跳过一人
+		gameRoom.GameState.LastCard = nil
+		skippedIdx := getNextPlayer(gameRoom.GameState)
+		gameRoom.GameState.CurrentPlayer = skippedIdx
+		targetIdx := getNextPlayer(gameRoom.GameState)
+		gameRoom.GameState.CurrentPlayer = targetIdx
+		gameRoom.GameState.AllowedAnyPlayer = targetIdx
+
+		if websocket.GlobalHub != nil {
+			skippedPlayer := gameRoom.GameState.Players[skippedIdx].Username
+			nextPlayer := gameRoom.GameState.Players[targetIdx].Username
+			websocket.GlobalHub.BroadcastToRoom(gameRoom.Room.ID, websocket.Message{
+				Type: "action_toast",
+				Data: fmt.Sprintf("Au 金元素触发！跳过研究员 %s，等待 %s 出牌...", skippedPlayer, nextPlayer),
+			})
+		}
+	} else {
+		// 转向效果及常规回合转移
+		if activeEffect == "reverse" {
+			gameRoom.GameState.Direction *= -1
+		}
+		gameRoom.GameState.CurrentPlayer = getNextPlayer(gameRoom.GameState)
+	}
+
+	// 4. 更新行动进度与通用状态
+	currentPlayer.ActionProgress++
+	if currentPlayer.ActionProgress >= 2 {
+		currentPlayer.DoubleActionAvailable = true
+	}
+
+	gameRoom.recordTurnStart()
+	gameRoom.GameState.TurnEndTime = time.Now().Add(getPlayerActionTimeout()).UnixNano() / int64(time.Millisecond)
+
+	// 清除消费掉的 AllowedAnyPlayer 标记
+	if gameRoom.GameState.AllowedAnyPlayer == curIdx {
+		gameRoom.GameState.AllowedAnyPlayer = -1
+	}
+
+	// 5. 若玩家已获胜，检查整体游戏是否结束
+	if isWinner {
 		activeCount := 0
 		var lastPlayerUID int
 		for _, p := range gameRoom.GameState.Players {
@@ -1684,17 +1734,14 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 		}
 
 		if activeCount <= 1 {
-			// 最后一名也将加入列表
 			if activeCount == 1 {
 				gameRoom.GameState.FinishedPlayers = append(gameRoom.GameState.FinishedPlayers, lastPlayerUID)
 			}
-
 			gameRoom.GameState.Status = "finished"
 			gameRoom.Room.Status = "finished"
 			winnerUID := gameRoom.GameState.FinishedPlayers[0]
 			saveGameHistory(roomID, winnerUID, gameRoom.Room.Players, gameRoom.GameState.OriginalPlayerCount, gameRoom.GameState.QuittedCount)
 
-			// 清理该房间的游戏邀请消息
 			privateChatRepo := repository.NewPrivateChatRepository()
 			if err := privateChatRepo.DeleteGameInvitesByRoom(roomID); err != nil {
 				log.Printf("清理房间 %s 的游戏邀请失败: %v", roomID, err)
@@ -1703,84 +1750,9 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 			if gameRoom.Room.IsPointsMode {
 				handlePointsCalculation(gameRoom)
 			}
-			return nil
-		}
-
-		gameRoom.GameState.CurrentPlayer = getNextPlayer(gameRoom.GameState)
-		gameRoom.recordTurnStart()
-		gameRoom.GameState.TurnEndTime = time.Now().Add(getPlayerActionTimeout()).UnixNano() / int64(time.Millisecond)
-		return nil
-	}
-
-	// 加牌叠加规则
-	if activeEffect == "+2" || activeEffect == "+4" {
-		// 叠加pending
-		gameRoom.GameState.PendingDrawCount += map[string]int{"+2": 2, "+4": 4}[activeEffect]
-		gameRoom.GameState.PendingDrawTypes = append(gameRoom.GameState.PendingDrawTypes, activeEffect)
-		// 传递到下家
-		gameRoom.GameState.CurrentPlayer = getNextPlayer(gameRoom.GameState)
-		gameRoom.recordTurnStart()
-		gameRoom.GameState.TurnEndTime = time.Now().Add(getPlayerActionTimeout()).UnixNano() / int64(time.Millisecond)
-		// 如果之前允许任意出牌的标记被消费（且未产生新转移），清除
-		if gameRoom.GameState.AllowedAnyPlayer == curIdx {
-			gameRoom.GameState.AllowedAnyPlayer = -1
-		}
-		return nil
-	} else if gameRoom.GameState.PendingDrawCount > 0 {
-		// 不能继续叠加时，强制摸pending
-		drawCardsForPlayer(gameRoom, gameRoom.GameState.CurrentPlayer, gameRoom.GameState.PendingDrawCount)
-		gameRoom.GameState.PendingDrawCount = 0
-		gameRoom.GameState.PendingDrawTypes = nil
-		// 回合传递
-		gameRoom.GameState.CurrentPlayer = getNextPlayer(gameRoom.GameState)
-		gameRoom.recordTurnStart()
-		gameRoom.GameState.TurnEndTime = time.Now().Add(getPlayerActionTimeout()).UnixNano() / int64(time.Millisecond)
-
-		// 结算罚牌后清空场面并允许下家随意出牌
-		gameRoom.GameState.LastCard = nil
-		gameRoom.GameState.AllowedAnyPlayer = gameRoom.GameState.CurrentPlayer
-
-		return nil
-	}
-	// 其他效果
-	switch activeEffect {
-	case "reverse":
-		gameRoom.GameState.Direction *= -1
-	case "Au":
-		// 使得跳过下一位玩家，并允许下下家任意出牌，同时清空场面
-		gameRoom.GameState.LastCard = nil
-		// 1. 先跳过第一个人 (考虑到已完成玩家)
-		skippedIdx := getNextPlayer(gameRoom.GameState)
-		gameRoom.GameState.CurrentPlayer = skippedIdx
-		// 2. 找到真正该出牌的人
-		targetIdx := getNextPlayer(gameRoom.GameState)
-		gameRoom.GameState.AllowedAnyPlayer = targetIdx
-
-		// 显式广播跳过信息
-		if websocket.GlobalHub != nil {
-			skippedPlayer := gameRoom.GameState.Players[skippedIdx].Username
-			nextPlayer := gameRoom.GameState.Players[targetIdx].Username
-			websocket.GlobalHub.BroadcastToRoom(gameRoom.Room.ID, websocket.Message{
-				Type: "action_toast",
-				Data: fmt.Sprintf("Au 金元素触发！跳过研究员 %s，等待 %s 出牌...", skippedPlayer, nextPlayer),
-			})
 		}
 	}
 
-	// 行动进度更新
-	currentPlayer.ActionProgress++
-	if currentPlayer.ActionProgress >= 2 {
-		currentPlayer.DoubleActionAvailable = true
-	}
-
-	// 下一位玩家（大多数情况均走到这里）
-	gameRoom.GameState.CurrentPlayer = getNextPlayer(gameRoom.GameState)
-	gameRoom.recordTurnStart()
-	// 如果之前允许任意出牌的标记被消费（且未在此处产生新的转移，如 Au 效果），清除
-	if gameRoom.GameState.AllowedAnyPlayer == curIdx {
-		gameRoom.GameState.AllowedAnyPlayer = -1
-	}
-	gameRoom.GameState.TurnEndTime = time.Now().Add(getPlayerActionTimeout()).UnixNano() / int64(time.Millisecond)
 	return nil
 }
 

@@ -109,11 +109,11 @@ func (r *ConfigRepository) InitDefaultConfigs() error {
 	}
 
 	defaults := map[string]string{
-		"player_kick_timeout":    "30",   // 玩家离线踢出时间（秒）
-		"player_action_timeout":  "30",   // 玩家操作时间（秒）
+		"player_kick_timeout":    "300",  // 玩家离线踢出时间（秒）
+		"player_action_timeout":  "45",   // 玩家操作时间（秒）
 		"auto_start_timeout":     "10",   // 自动开始倒计时（秒）
 		"half_ready_timeout":     "60",   // 半数准备倒计时（秒）
-		"reconnect_grace_period": "30",   // 掉线重连宽限期（秒）- 预留
+		"reconnect_grace_period": "300",  // 掉线重连宽限期（秒）- 预留
 		"points_scaling_enabled": "true", // 积分动态缩放 - 预留
 	}
 

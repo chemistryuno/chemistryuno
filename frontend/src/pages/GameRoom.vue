@@ -390,6 +390,7 @@ const allowedAny = computed(() => {
 })
 const winner = computed(() => gameState.value?.players?.find((p: any) => p.card_count === 0))
 
+
 const ELEMENTS_DATA: Record<string, { name: string, class: string }> = {
   'H': { name: '氢', class: 'element-H' },
   'O': { name: '氧', class: 'element-O' },
@@ -609,7 +610,10 @@ const handleGameUpdate = (message: any) => {
 }
 
 const handleActionToast = (msg: any) => {
-  showAlert(msg.data, '实验状态变更')
+  const content = msg.data || msg.message
+  if (content) {
+    showAlert(content, '实验动态')
+  }
 }
 
 const handleRoomTerminated = async (msg: any) => {

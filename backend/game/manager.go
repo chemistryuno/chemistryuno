@@ -1218,23 +1218,46 @@ func StartGame(roomID string, uid int) error {
 	}
 	log.Printf("[初始手牌] 🎴 牌堆组成：%v", cardTypeCount)
 
+	// 准备 AI 昵称列表
+	aiNames := []string{
+		"安托万-洛朗·拉瓦锡", "德米特里·伊万诺维奇·门捷列夫", "玛丽·斯克沃多夫斯卡-居里",
+		"约翰·道尔顿", "莱纳斯·卡尔·鲍林", "雅各布斯·亨里克斯·范托夫",
+		"卡尔·威廉·舍勒", "弗里德里希·维勒", "侯德榜", "唐敖庆",
+	}
+	rand.Shuffle(len(aiNames), func(i, j int) {
+		aiNames[i], aiNames[j] = aiNames[j], aiNames[i]
+	})
+	aiNameIdx := 0
+
 	// 初始化玩家
 	for _, pid := range shuffledPlayers {
-		user, err := repository.UserRepo.FindByUID(uint(pid))
 		username := ""
 		nickname := ""
 		avatar := ""
-		if err != nil {
-			username = fmt.Sprintf("研究员_%d", pid)
-			nickname = username
-			avatar = "🧪"
-		} else {
-			username = user.Username
-			nickname = user.Nickname
-			if nickname == "" {
-				nickname = username
+		if pid < 0 {
+			// AI 玩家
+			username = fmt.Sprintf("AI_%d", -pid)
+			if aiNameIdx < len(aiNames) {
+				nickname = aiNames[aiNameIdx]
+				aiNameIdx++
+			} else {
+				nickname = fmt.Sprintf("AI研究员_%d", -pid)
 			}
-			avatar = user.Avatar
+			avatar = "🤖"
+		} else {
+			user, err := repository.UserRepo.FindByUID(uint(pid))
+			if err != nil {
+				username = fmt.Sprintf("研究员_%d", pid)
+				nickname = username
+				avatar = "🧪"
+			} else {
+				username = user.Username
+				nickname = user.Nickname
+				if nickname == "" {
+					nickname = username
+				}
+				avatar = user.Avatar
+			}
 		}
 
 		player := &models.PlayerState{
@@ -1451,21 +1474,52 @@ func GetRoomState(roomID string, uid int) (map[string]interface{}, error) {
 	// 获取玩家详细信息（用于准备页面）
 	playersInfo := []map[string]interface{}{}
 	for _, pid := range gameRoom.Room.Players {
-		user, err := repository.UserRepo.FindByUID(uint(pid))
-		username := fmt.Sprintf("研究员_%d", pid)
-		nickname := username
-		avatar := "🧪"
-		if err == nil {
-			username = user.Username
-			nickname = user.Nickname
-			if nickname == "" {
-				nickname = username
+		username := ""
+		nickname := ""
+		avatar := ""
+
+		// 先从 GameState.Players 中寻找（如果游戏已开始）
+		foundInState := false
+		if gameRoom.GameState != nil {
+			for _, ps := range gameRoom.GameState.Players {
+				if ps.UID == pid {
+					username = ps.Username
+					nickname = ps.Nickname
+					avatar = ps.Avatar
+					foundInState = true
+					break
+				}
 			}
-			avatar = user.Avatar
 		}
+
+		if !foundInState {
+			user, err := repository.UserRepo.FindByUID(uint(pid))
+			if pid < 0 {
+				// AI 玩家（游戏未开始时的默认信息）
+				username = fmt.Sprintf("AI_%d", -pid)
+				nickname = "AI 研究员"
+				avatar = "🤖"
+			} else if err != nil {
+				username = fmt.Sprintf("研究员_%d", pid)
+				nickname = username
+				avatar = "🧪"
+			} else {
+				username = user.Username
+				nickname = user.Nickname
+				if nickname == "" {
+					nickname = username
+				}
+				avatar = user.Avatar
+			}
+		}
+
 		offline := false
 		if _, exists := gameRoom.OfflineAt[pid]; exists {
 			offline = true
+		}
+		// AI 玩家（UID < 0）永远被视为在线
+		if pid < 0 {
+			offline = false
 		}
 		playersInfo = append(playersInfo, map[string]interface{}{
 			"uid":        pid,
@@ -1633,13 +1687,29 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 		}
 	}
 
-	// 校验物质是否已录入
+	// +2/4/Au/换向牌可随意打出，无需反应条件
+	nobleGases := map[string]bool{"He": true, "Ne": true, "Ar": true, "Kr": true}
+	specialTypes := map[string]bool{"+2": true, "+4": true, "Au": true}
+	isSpecial := specialTypes[card.Type] || specialTypes[card.Effect] || nobleGases[card.Type]
+
+	// 无论是否为特殊牌，所有出牌物质均需经过 substances 表校验（纯功能牌在 IsValidSubstance 中有白名单放行）
 	if !IsValidSubstance(substance) {
 		return errors.New("该物质非法，请先在百科中录入: " + substance)
 	}
 
 	requiredElements := parseSubstance(substance)
 	usedCards := []int{} // 记录将要从手牌中移除的索引
+
+	// 如果是功能牌且 substance 无法解析出元素（即不是反应），则通过 card.Type 直接定位手牌
+	if isSpecial && len(requiredElements) == 0 {
+		for i, hCard := range currentPlayer.HandCards {
+			if hCard.Type == card.Type {
+				usedCards = append(usedCards, i)
+				break
+			}
+		}
+	}
+
 	for elemName := range requiredElements {
 		// 普通反应时，仅考虑元素种类，不考虑元素系数
 		count := 1
@@ -1671,10 +1741,6 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 		}
 	}
 
-	// +2/4/Au/换向牌可随意打出，无需反应条件
-	nobleGases := map[string]bool{"He": true, "Ne": true, "Ar": true, "Kr": true}
-	specialTypes := map[string]bool{"+2": true, "+4": true, "Au": true}
-	isSpecial := specialTypes[card.Type] || specialTypes[card.Effect] || nobleGases[card.Type]
 	// 如果当前玩家被允许无视反应条件出牌，则跳过反应检查
 	allowAny := gameRoom.GameState.AllowedAnyPlayer == gameRoom.GameState.CurrentPlayer
 	if !isSpecial && gameRoom.GameState.LastCard != nil && !allowAny {
@@ -2457,6 +2523,9 @@ func DoublePlay(roomID string, uid int, sub1 string, sub2 string) error {
 		gameRoom.GameState.AllowedAnyPlayer = -1
 	}
 	gameRoom.GameState.TurnEndTime = time.Now().Add(getPlayerActionTimeout()).UnixNano() / int64(time.Millisecond)
+
+	// 检查下一位是否是 AI
+	go gameRoom.CheckNextTurnAI()
 
 	return nil
 }

@@ -537,7 +537,7 @@ const copyToClipboard = (text: string) => {
                <div class="flex items-center gap-3">
                   <button 
                     @click="handleLeaveRoom(activeRoom.id)"
-                    class="px-5 py-3 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-xl text-[11px] font-black uppercase tracking-widest transition-all border border-red-500/20 active:scale-95 flex items-center gap-2"
+                    class="px-5 py-3 bg-red-500 text-white rounded-xl text-[11px] font-black uppercase tracking-widest border border-red-500/20 transition-all hover:scale-105 active:scale-95 flex items-center gap-2"
                   >
                     <X class="w-4 h-4" />
                     中止实验
@@ -861,6 +861,9 @@ const copyToClipboard = (text: string) => {
         </form>
       </div>
 
+      </div>
+    </div>
+
     <!-- AI Arena Modal -->
     <div v-if="showAIArenaModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div class="absolute inset-0 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md animate-in fade-in" @click="showAIArenaModal = false" />
@@ -978,7 +981,7 @@ const copyToClipboard = (text: string) => {
         </form>
       </div>
     </div>
-    </div>
+
 
     <!-- 牌组详情查看模态框 -->
     <div v-if="showDeckDetailModal && selectedDeckConfig" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -1155,5 +1158,4 @@ const copyToClipboard = (text: string) => {
          </div>
       </div>
     </div>
-  </div>
 </template>

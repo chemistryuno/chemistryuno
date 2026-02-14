@@ -1,6 +1,7 @@
 ﻿package game
 
 import (
+	"chemistryuno/backend/database"
 	"strings"
 )
 
@@ -29,98 +30,24 @@ type SubstanceInfo struct {
 
 // 获取物质分类信息
 func getSubstanceInfo(name string) SubstanceInfo {
-	// 简单的硬编码数据库
-	db := map[string]SubstanceInfo{
-		// 单质 - 金属
-		"K":  {Name: "钾", Type: TypeMetal, Tags: []string{"active_metal", "metal_before_h"}},
-		"Na": {Name: "钠", Type: TypeMetal, Tags: []string{"active_metal", "metal_before_h"}},
-		"Ca": {Name: "钙", Type: TypeMetal, Tags: []string{"active_metal", "metal_before_h"}},
-		"Mg": {Name: "镁", Type: TypeMetal, Tags: []string{"metal_before_h"}},
-		"Al": {Name: "铝", Type: TypeMetal, Tags: []string{"metal_before_h"}},
-		"Zn": {Name: "锌", Type: TypeMetal, Tags: []string{"metal_before_h"}},
-		"Fe": {Name: "铁", Type: TypeMetal, Tags: []string{"metal_before_h"}},
-		"Sn": {Name: "锡", Type: TypeMetal, Tags: []string{"metal_before_h"}},
-		"Pb": {Name: "铅", Type: TypeMetal, Tags: []string{"metal_before_h"}},
-		"Cu": {Name: "铜", Type: TypeMetal, Tags: []string{"metal_after_h"}},
-		"Hg": {Name: "汞", Type: TypeMetal, Tags: []string{"metal_after_h"}},
-		"Ag": {Name: "银", Type: TypeMetal, Tags: []string{"metal_after_h"}},
-		"Pt": {Name: "铂", Type: TypeMetal, Tags: []string{"noble_metal"}},
-		"Au": {Name: "金", Type: TypeMetal, Tags: []string{"noble_metal"}},
-
-		// 单质 - 非金属
-		"H2":  {Name: "氢气", Type: TypeNonMetal, Tags: []string{"reducing"}},
-		"O2":  {Name: "氧气", Type: TypeNonMetal, Tags: []string{"oxidizing"}},
-		"Cl2": {Name: "氯气", Type: TypeNonMetal, Tags: []string{"oxidizing"}},
-		"Br2": {Name: "溴", Type: TypeNonMetal, Tags: []string{"oxidizing"}},
-		"I2":  {Name: "碘", Type: TypeNonMetal, Tags: []string{"oxidizing"}},
-		"C":   {Name: "碳", Type: TypeNonMetal, Tags: []string{"reducing"}},
-		"S":   {Name: "硫", Type: TypeNonMetal, Tags: []string{"reducing"}},
-		"P":   {Name: "磷", Type: TypeNonMetal, Tags: []string{"reducing"}},
-		"N2":  {Name: "氮气", Type: TypeNonMetal, Tags: []string{"stable"}},
-
-		// 水
-		"H2O": {Name: "水", Type: TypeWater, Tags: []string{"solvent"}},
-
-		// 惰性气体
-		"He": {Name: "氦气", Type: TypeInertGas},
-		"Ne": {Name: "氖气", Type: TypeInertGas},
-		"Ar": {Name: "氩气", Type: TypeInertGas},
-		"Kr": {Name: "氪气", Type: TypeInertGas},
-
-		// 酸
-		"HCl":   {Name: "盐酸", Type: TypeAcid, Tags: []string{"strong_acid"}},
-		"H2SO4": {Name: "硫酸", Type: TypeAcid, Tags: []string{"strong_acid"}},
-		"HNO3":  {Name: "硝酸", Type: TypeAcid, Tags: []string{"strong_acid", "oxidizing"}},
-		"H2CO3": {Name: "碳酸", Type: TypeAcid, Tags: []string{"weak_acid", "instable"}},
-
-		// 碱
-		"NaOH":    {Name: "氢氧化钠", Type: TypeBase, Tags: []string{"strong_base", "soluble"}},
-		"KOH":     {Name: "氢氧化钾", Type: TypeBase, Tags: []string{"strong_base", "soluble"}},
-		"Ca(OH)2": {Name: "氢氧化钙", Type: TypeBase, Tags: []string{"strong_base", "slightly_soluble"}},
-		"Ba(OH)2": {Name: "氢氧化钡", Type: TypeBase, Tags: []string{"strong_base", "soluble"}},
-		"Mg(OH)2": {Name: "氢氧化镁", Type: TypeBase, Tags: []string{"weak_base", "insoluble"}},
-		"Al(OH)3": {Name: "氢氧化铝", Type: TypeBase, Tags: []string{"amphoteric", "insoluble"}},
-		"Cu(OH)2": {Name: "氢氧化铜", Type: TypeBase, Tags: []string{"weak_base", "insoluble"}},
-		"Fe(OH)3": {Name: "氢氧化铁", Type: TypeBase, Tags: []string{"weak_base", "insoluble"}},
-
-		// 氧化物
-		"CO2":   {Name: "二氧化碳", Type: TypeAcidicOxide},
-		"SO2":   {Name: "二氧化硫", Type: TypeAcidicOxide},
-		"SO3":   {Name: "三氧化硫", Type: TypeAcidicOxide},
-		"P2O5":  {Name: "五氧化二磷", Type: TypeAcidicOxide},
-		"Na2O":  {Name: "氧化钠", Type: TypeBasicOxide},
-		"K2O":   {Name: "氧化钾", Type: TypeBasicOxide},
-		"CaO":   {Name: "氧化钙", Type: TypeBasicOxide},
-		"MgO":   {Name: "氧化镁", Type: TypeBasicOxide},
-		"CuO":   {Name: "氧化铜", Type: TypeBasicOxide},
-		"Fe2O3": {Name: "氧化铁", Type: TypeBasicOxide},
-
-		// 盐
-		"NaCl":   {Name: "氯化钠", Type: TypeSalt, Tags: []string{"soluble"}},
-		"Na2CO3": {Name: "碳酸钠", Type: TypeSalt, Tags: []string{"soluble"}},
-		"Na2SO4": {Name: "硫酸钠", Type: TypeSalt, Tags: []string{"soluble"}},
-		"NaNO3":  {Name: "硝酸钠", Type: TypeSalt, Tags: []string{"soluble"}},
-		"KCl":    {Name: "氯化钾", Type: TypeSalt, Tags: []string{"soluble"}},
-		"K2CO3":  {Name: "碳酸钾", Type: TypeSalt, Tags: []string{"soluble"}},
-		"K2SO4":  {Name: "硫酸钾", Type: TypeSalt, Tags: []string{"soluble"}},
-		"KNO3":   {Name: "硝酸钾", Type: TypeSalt, Tags: []string{"soluble"}},
-		"CaCl2":  {Name: "氯化钙", Type: TypeSalt, Tags: []string{"soluble"}},
-		"CaCO3":  {Name: "碳酸钙", Type: TypeSalt, Tags: []string{"insoluble"}},
-		"BaCl2":  {Name: "氯化钡", Type: TypeSalt, Tags: []string{"soluble"}},
-		"BaSO4":  {Name: "硫酸钡", Type: TypeSalt, Tags: []string{"insoluble"}},
-		"CuSO4":  {Name: "硫酸铜", Type: TypeSalt, Tags: []string{"soluble"}},
-		"AgNO3":  {Name: "硝酸银", Type: TypeSalt, Tags: []string{"soluble"}},
-		"AgCl":   {Name: "氯化银", Type: TypeSalt, Tags: []string{"insoluble"}},
-		"FeCl3":  {Name: "氯化铁", Type: TypeSalt, Tags: []string{"soluble"}},
-		"FeCl2":  {Name: "氯化亚铁", Type: TypeSalt, Tags: []string{"soluble"}},
-		"FeSO4":  {Name: "硫酸亚铁", Type: TypeSalt, Tags: []string{"soluble"}},
-	}
-
-	if info, ok := db[name]; ok {
+	// 1. 尝试从硬编码库获取
+	if info, ok := substanceDB[name]; ok {
 		return info
 	}
 
-	// 动态类型检测助力
+	// 2. 尝试从数据库获取基本信息
+	var sub database.Substance
+	err := database.DB.Where("formula = ? OR name = ?", name, name).First(&sub).Error
+	if err == nil {
+		// 数据库中现在没有 Category 和 Tags 字段了，只能返回基础信息
+		return SubstanceInfo{
+			Name: sub.Name,
+			Type: TypeUnknown, // 默认为未知，靠后续动态检测
+			Tags: []string{},
+		}
+	}
+
+	// 3. 动态类型检测助力
 	_, anion := getIons(name)
 	if anion != "" {
 		// 判断是否是酸 (H开头的非括号结构通常是酸)
@@ -147,6 +74,27 @@ func getSubstanceInfo(name string) SubstanceInfo {
 
 	return SubstanceInfo{Name: name, Type: TypeUnknown}
 }
+
+
+func mapCategoryToType(cat string) SubstanceType {
+	switch cat {
+	case "metal":
+		return TypeMetal
+	case "nonmetal":
+		return TypeNonMetal
+	case "acid":
+		return TypeAcid
+	case "base":
+		return TypeBase
+	case "acidic_oxide":
+		return TypeAcidicOxide
+	case "basic_oxide":
+		return TypeBasicOxide
+	default:
+		return TypeUnknown
+	}
+}
+
 
 // JudgeReaction 判断两个物质是否能反应
 func JudgeReaction(s1, s2 string) bool {
@@ -373,4 +321,214 @@ func getIons(formula string) (cation, anion string) {
 	}
 	// 默认处理
 	return formula, ""
+}
+
+var substanceDB = map[string]SubstanceInfo{
+	// 基础单质和常见物质
+	"H2O":       {Name: "水", Type: TypeWater, Tags: []string{"solvent"}},
+	"CO2":       {Name: "二氧化碳", Type: TypeAcidicOxide},
+	"HCl":       {Name: "盐酸", Type: TypeAcid, Tags: []string{"strong_acid"}},
+	"NaOH":      {Name: "氢氧化钠", Type: TypeBase, Tags: []string{"strong_base", "soluble"}},
+	"NaCl":      {Name: "氯化钠", Type: TypeSalt, Tags: []string{"soluble"}},
+	"H2SO4":     {Name: "硫酸", Type: TypeAcid, Tags: []string{"strong_acid"}},
+	"O2":        {Name: "氧气", Type: TypeNonMetal, Tags: []string{"oxidizing"}},
+	"H2":        {Name: "氢气", Type: TypeNonMetal, Tags: []string{"reducing"}},
+	"Fe":        {Name: "铁", Type: TypeMetal, Tags: []string{"metal_before_h"}},
+	"CuSO4":     {Name: "硫酸铜", Type: TypeSalt, Tags: []string{"soluble"}},
+	"Cu":        {Name: "铜", Type: TypeMetal, Tags: []string{"metal_after_h"}},
+	"Zn":        {Name: "锌", Type: TypeMetal, Tags: []string{"metal_before_h"}},
+	"CO":        {Name: "一氧化碳", Type: TypeNonMetal, Tags: []string{"reducing"}},
+	"CaCO3":     {Name: "碳酸钙", Type: TypeSalt, Tags: []string{"insoluble"}},
+	"CaO":       {Name: "氧化钙", Type: TypeBasicOxide},
+	"Ca(OH)2":   {Name: "氢氧化钙", Type: TypeBase, Tags: []string{"strong_base", "slightly_soluble"}},
+	"NH3":       {Name: "氨气", Type: TypeBase, Tags: []string{"weak_base", "soluble"}},
+	"HNO3":      {Name: "硝酸", Type: TypeAcid, Tags: []string{"strong_acid", "oxidizing"}},
+	"AgNO3":     {Name: "硝酸银", Type: TypeSalt, Tags: []string{"soluble"}},
+	"AgCl":      {Name: "氯化银", Type: TypeSalt, Tags: []string{"insoluble"}},
+	"MgO":       {Name: "氧化镁", Type: TypeBasicOxide},
+	"Mg":        {Name: "镁", Type: TypeMetal, Tags: []string{"metal_before_h"}},
+	"Al":        {Name: "铝", Type: TypeMetal, Tags: []string{"metal_before_h"}},
+	"Al2O3":     {Name: "氧化铝", Type: TypeBasicOxide},
+	"Fe2O3":     {Name: "氧化铁", Type: TypeBasicOxide},
+	"Fe3O4":     {Name: "四氧化三铁", Type: TypeBasicOxide},
+	"Na2CO3":    {Name: "碳酸钠", Type: TypeSalt, Tags: []string{"soluble"}},
+	"NaHCO3":    {Name: "碳酸氢钠", Type: TypeSalt, Tags: []string{"soluble"}},
+	"KClO3":     {Name: "氯酸钾", Type: TypeSalt, Tags: []string{"soluble"}},
+	"KCl":       {Name: "氯化钾", Type: TypeSalt, Tags: []string{"soluble"}},
+	"H2O2":      {Name: "过氧化氢", Type: TypeNonMetal, Tags: []string{"oxidizing"}},
+	"SO2":       {Name: "二氧化硫", Type: TypeAcidicOxide},
+	"BaCl2":     {Name: "氯化钡", Type: TypeSalt, Tags: []string{"soluble"}},
+	"BaSO4":     {Name: "硫酸钡", Type: TypeSalt, Tags: []string{"insoluble"}},
+	"C":         {Name: "碳", Type: TypeNonMetal, Tags: []string{"reducing"}},
+	"S":         {Name: "硫", Type: TypeNonMetal, Tags: []string{"reducing"}},
+	"P":         {Name: "磷", Type: TypeNonMetal, Tags: []string{"reducing"}},
+	"P2O5":      {Name: "五氧化二磷", Type: TypeAcidicOxide},
+	"CuO":       {Name: "氧化铜", Type: TypeBasicOxide},
+	"FeCl3":     {Name: "氯化铁", Type: TypeSalt, Tags: []string{"soluble"}},
+	"FeSO4":     {Name: "硫酸亚铁", Type: TypeSalt, Tags: []string{"soluble"}},
+	"KOH":       {Name: "氢氧化钾", Type: TypeBase, Tags: []string{"strong_base", "soluble"}},
+	"MgCl2":     {Name: "氯化镁", Type: TypeSalt, Tags: []string{"soluble"}},
+	"CaCl2":     {Name: "氯化钙", Type: TypeSalt, Tags: []string{"soluble"}},
+	"NH4Cl":     {Name: "氯化铵", Type: TypeSalt, Tags: []string{"soluble"}},
+	"Na2SO4":    {Name: "硫酸钠", Type: TypeSalt, Tags: []string{"soluble"}},
+	"NO":        {Name: "一氧化氮", Type: TypeNonMetal, Tags: []string{"reducing"}},
+	"NO2":       {Name: "二氧化氮", Type: TypeNonMetal, Tags: []string{"oxidizing"}},
+	"N2":        {Name: "氮气", Type: TypeNonMetal, Tags: []string{"stable"}},
+	"Hg":        {Name: "汞", Type: TypeMetal, Tags: []string{"metal_after_h"}},
+	"HgO":       {Name: "氧化汞", Type: TypeBasicOxide},
+	"Na2O":      {Name: "氧化钠", Type: TypeBasicOxide},
+	"K2O":       {Name: "氧化钾", Type: TypeBasicOxide},
+	"SO3":       {Name: "三氧化硫", Type: TypeAcidicOxide},
+	"BaO":       {Name: "氧化钡", Type: TypeBasicOxide},
+	"CuCl2":     {Name: "氯化铜", Type: TypeSalt, Tags: []string{"soluble"}},
+	"Cu(OH)2":   {Name: "氢氧化铜", Type: TypeBase, Tags: []string{"weak_base", "insoluble"}},
+	"Fe(OH)3":   {Name: "氢氧化铁", Type: TypeBase, Tags: []string{"weak_base", "insoluble"}},
+	"NH4NO3":    {Name: "硝酸铵", Type: TypeSalt, Tags: []string{"soluble"}},
+	"ZnCl2":     {Name: "氯化锌", Type: TypeSalt, Tags: []string{"soluble"}},
+	"ZnSO4":     {Name: "硫酸锌", Type: TypeSalt, Tags: []string{"soluble"}},
+	"AlCl3":     {Name: "氯化铝", Type: TypeSalt, Tags: []string{"soluble"}},
+	"Ag":        {Name: "银", Type: TypeMetal, Tags: []string{"metal_after_h"}},
+	"H3PO4":     {Name: "磷酸", Type: TypeAcid, Tags: []string{"weak_acid"}},
+	"Na3PO4":    {Name: "磷酸钠", Type: TypeSalt, Tags: []string{"soluble"}},
+	"Cl2":       {Name: "氯气", Type: TypeNonMetal, Tags: []string{"oxidizing"}},
+	"Br2":       {Name: "溴单质", Type: TypeNonMetal, Tags: []string{"oxidizing"}},
+	"I2":        {Name: "碘单质", Type: TypeNonMetal, Tags: []string{"oxidizing"}},
+	"HI":        {Name: "碘化氢", Type: TypeAcid, Tags: []string{"strong_acid"}},
+	"HBr":       {Name: "溴化氢", Type: TypeAcid, Tags: []string{"strong_acid"}},
+	"K2SO4":     {Name: "硫酸钾", Type: TypeSalt, Tags: []string{"soluble"}},
+	"MgSO4":     {Name: "硫酸镁", Type: TypeSalt, Tags: []string{"soluble"}},
+	"CaSO4":     {Name: "硫酸钙", Type: TypeSalt, Tags: []string{"slightly_soluble"}},
+	"Na2O2":     {Name: "过氧化钠", Type: TypeBasicOxide, Tags: []string{"oxidizing"}},
+	"Na":        {Name: "钠", Type: TypeMetal, Tags: []string{"active_metal", "metal_before_h"}},
+	"K":         {Name: "钾", Type: TypeMetal, Tags: []string{"active_metal", "metal_before_h"}},
+	"Ca":        {Name: "钙", Type: TypeMetal, Tags: []string{"active_metal", "metal_before_h"}},
+	"NaAlO2":    {Name: "偏铝酸钠", Type: TypeSalt, Tags: []string{"soluble"}},
+	"K2CO3":     {Name: "碳酸钾", Type: TypeSalt, Tags: []string{"soluble"}},
+	"NaH":       {Name: "氢化钠", Type: TypeSalt, Tags: []string{"reducing"}},
+	"KH":        {Name: "氢化钾", Type: TypeSalt, Tags: []string{"reducing"}},
+	"MgH2":      {Name: "氢化镁", Type: TypeSalt, Tags: []string{"reducing"}},
+	"BaH2":      {Name: "氢化钡", Type: TypeSalt, Tags: []string{"reducing"}},
+	"KO2":       {Name: "超氧化钾", Type: TypeBasicOxide, Tags: []string{"oxidizing"}},
+	"CaH2":      {Name: "氢化钙", Type: TypeSalt, Tags: []string{"reducing"}},
+	"Na2SO3":    {Name: "亚硫酸钠", Type: TypeSalt, Tags: []string{"soluble"}},
+	"K2SO3":     {Name: "亚硫酸钾", Type: TypeSalt, Tags: []string{"soluble"}},
+	"NaHSO4":    {Name: "硫酸氢钠", Type: TypeSalt, Tags: []string{"soluble"}},
+	"NaHSO3":    {Name: "亚硫酸氢钠", Type: TypeSalt, Tags: []string{"soluble"}},
+	"CaSO3":     {Name: "亚硫酸钙", Type: TypeSalt, Tags: []string{"insoluble"}},
+	"BaCO3":     {Name: "碳酸钡", Type: TypeSalt, Tags: []string{"insoluble"}},
+	"NaBr":      {Name: "溴化钠", Type: TypeSalt, Tags: []string{"soluble"}},
+	"NaI":       {Name: "碘化钠", Type: TypeSalt, Tags: []string{"soluble"}},
+	"KBr":       {Name: "溴化钾", Type: TypeSalt, Tags: []string{"soluble"}},
+	"AgBr":      {Name: "溴化银", Type: TypeSalt, Tags: []string{"insoluble"}},
+	"AgI":       {Name: "碘化银", Type: TypeSalt, Tags: []string{"insoluble"}},
+	"F2":        {Name: "氟气", Type: TypeNonMetal, Tags: []string{"oxidizing"}},
+	"HF":        {Name: "氢氟酸", Type: TypeAcid, Tags: []string{"weak_acid"}},
+	"NaF":       {Name: "氟化钠", Type: TypeSalt, Tags: []string{"soluble"}},
+	"CaF2":      {Name: "氟化钙", Type: TypeSalt, Tags: []string{"insoluble"}},
+	"HClO":      {Name: "次氯酸", Type: TypeAcid, Tags: []string{"weak_acid", "oxidizing"}},
+	"NaClO":     {Name: "次氯酸钠", Type: TypeSalt, Tags: []string{"soluble", "oxidizing"}},
+	"H2S":       {Name: "硫化氢", Type: TypeAcid, Tags: []string{"weak_acid"}},
+	"Na2S":      {Name: "硫化钠", Type: TypeSalt, Tags: []string{"soluble"}},
+	"FeS":       {Name: "硫化亚铁", Type: TypeSalt, Tags: []string{"insoluble"}},
+	"CuS":       {Name: "硫化铜", Type: TypeSalt, Tags: []string{"insoluble"}},
+	"ZnS":       {Name: "硫化锌", Type: TypeSalt, Tags: []string{"insoluble"}},
+	"Ag2S":      {Name: "硫化银", Type: TypeSalt, Tags: []string{"insoluble"}},
+	"H2SO3":     {Name: "亚硫酸", Type: TypeAcid, Tags: []string{"weak_acid"}},
+	"BaSO3":     {Name: "亚硫酸钡", Type: TypeSalt, Tags: []string{"insoluble"}},
+	"MgBr2":     {Name: "溴化镁", Type: TypeSalt, Tags: []string{"soluble"}},
+	"MgI2":      {Name: "碘化镁", Type: TypeSalt, Tags: []string{"soluble"}},
+	"AlBr3":     {Name: "溴化铝", Type: TypeSalt, Tags: []string{"soluble"}},
+	"AlI3":      {Name: "碘化铝", Type: TypeSalt, Tags: []string{"soluble"}},
+	"ZnBr2":     {Name: "溴化锌", Type: TypeSalt, Tags: []string{"soluble"}},
+	"ZnI2":      {Name: "碘化锌", Type: TypeSalt, Tags: []string{"soluble"}},
+	"CuBr2":     {Name: "溴化铜", Type: TypeSalt, Tags: []string{"soluble"}},
+	"FeBr3":     {Name: "溴化铁", Type: TypeSalt, Tags: []string{"soluble"}},
+	"FeI2":      {Name: "碘化亚铁", Type: TypeSalt, Tags: []string{"soluble"}},
+	"CaBr2":     {Name: "溴化钙", Type: TypeSalt, Tags: []string{"soluble"}},
+	"CaI2":      {Name: "碘化钙", Type: TypeSalt, Tags: []string{"soluble"}},
+	"KF":        {Name: "氟化钾", Type: TypeSalt, Tags: []string{"soluble"}},
+	"BaF2":      {Name: "氟化钡", Type: TypeSalt, Tags: []string{"insoluble"}},
+	"MgF2":      {Name: "氟化镁", Type: TypeSalt, Tags: []string{"insoluble"}},
+	"AlF3":      {Name: "氟化铝", Type: TypeSalt, Tags: []string{"insoluble"}},
+	"FeF3":      {Name: "氟化铁", Type: TypeSalt, Tags: []string{"insoluble"}},
+	"CuF2":      {Name: "氟化铜", Type: TypeSalt, Tags: []string{"insoluble"}},
+	"AgF":       {Name: "氟化银", Type: TypeSalt, Tags: []string{"soluble"}},
+	"HgF2":      {Name: "氟化汞", Type: TypeSalt, Tags: []string{"insoluble"}},
+	"ZnF2":      {Name: "氟化锌", Type: TypeSalt, Tags: []string{"insoluble"}},
+	"SiO2":      {Name: "二氧化硅", Type: TypeAcidicOxide},
+	"SiF4":      {Name: "四氟化硅", Type: TypeNonMetal},
+	"ZnO":       {Name: "氧化锌", Type: TypeBasicOxide},
+	"Cu2O":      {Name: "氧化亚铜", Type: TypeBasicOxide},
+	"FeO":       {Name: "氧化亚铁", Type: TypeBasicOxide},
+	"Ag2O":      {Name: "氧化银", Type: TypeBasicOxide},
+	"N2O":       {Name: "一氧化二氮", Type: TypeNonMetal},
+	"Cl2O7":     {Name: "七氧化二氯", Type: TypeAcidicOxide, Tags: []string{"oxidizing"}},
+	"K2S":       {Name: "硫化钾", Type: TypeSalt, Tags: []string{"soluble"}},
+	"MgS":       {Name: "硫化镁", Type: TypeSalt, Tags: []string{"soluble"}},
+	"CaS":       {Name: "硫化钙", Type: TypeSalt, Tags: []string{"soluble"}},
+	"BaS":       {Name: "硫化钡", Type: TypeSalt, Tags: []string{"soluble"}},
+	"MgSO3":     {Name: "亚硫酸镁", Type: TypeSalt, Tags: []string{"insoluble"}},
+	"Al2S3":     {Name: "硫化铝", Type: TypeSalt, Tags: []string{"insoluble"}},
+	"Al2(SO3)3": {Name: "亚硫酸铝", Type: TypeSalt, Tags: []string{"insoluble"}},
+	"FeSO3":     {Name: "亚硫酸亚铁", Type: TypeSalt, Tags: []string{"insoluble"}},
+	"KI":        {Name: "碘化钾", Type: TypeSalt, Tags: []string{"soluble"}},
+	"BaBr2":     {Name: "溴化钡", Type: TypeSalt, Tags: []string{"soluble"}},
+	"BaI2":      {Name: "碘化钡", Type: TypeSalt, Tags: []string{"soluble"}},
+	"FeCl2":     {Name: "氯化亚铁", Type: TypeSalt, Tags: []string{"soluble"}},
+	"Al2(SO4)3": {Name: "硫酸铝", Type: TypeSalt, Tags: []string{"soluble"}},
+	"Ba(OH)2":   {Name: "氢氧化钡", Type: TypeBase, Tags: []string{"strong_base", "soluble"}},
+	"Ba":        {Name: "钡", Type: TypeMetal, Tags: []string{"active_metal", "metal_before_h"}},
+	"KHCO3":     {Name: "碳酸氢钾", Type: TypeSalt, Tags: []string{"soluble"}},
+	"Ca(HCO3)2": {Name: "碳酸氢钙", Type: TypeSalt, Tags: []string{"soluble"}},
+	"Mg(OH)2":   {Name: "氢氧化镁", Type: TypeBase, Tags: []string{"weak_base", "insoluble"}},
+	"PCl3":      {Name: "三氯化磷", Type: TypeNonMetal},
+	"P2S5":      {Name: "五硫化二磷", Type: TypeNonMetal},
+	"PF5":       {Name: "五氟化磷", Type: TypeNonMetal},
+	"CF4":       {Name: "四氟化碳", Type: TypeNonMetal},
+	"SF6":       {Name: "六氟化硫", Type: TypeNonMetal},
+	"Na2S2O3":   {Name: "硫代硫酸钠", Type: TypeSalt, Tags: []string{"soluble"}},
+	"K2S2O3":    {Name: "硫代硫酸钾", Type: TypeSalt, Tags: []string{"soluble"}},
+	"Hg2O":      {Name: "氧化亚汞", Type: TypeBasicOxide},
+	"HgCl2":     {Name: "氯化汞", Type: TypeSalt, Tags: []string{"soluble"}},
+	"HgBr2":     {Name: "溴化汞", Type: TypeSalt, Tags: []string{"soluble"}},
+	"HgI2":      {Name: "碘化汞", Type: TypeSalt, Tags: []string{"insoluble"}},
+	"Hg(NO3)2":  {Name: "硝酸汞", Type: TypeSalt, Tags: []string{"soluble"}},
+	"Al(OH)3":   {Name: "氢氧化铝", Type: TypeBase, Tags: []string{"amphoteric", "insoluble"}},
+	"Zn(OH)2":   {Name: "氢氧化锌", Type: TypeBase, Tags: []string{"amphoteric", "insoluble"}},
+	"KNO3":      {Name: "硝酸钾", Type: TypeSalt, Tags: []string{"soluble"}},
+	"Si":        {Name: "硅", Type: TypeNonMetal},
+	"Na2SiO3":   {Name: "硅酸钠", Type: TypeSalt, Tags: []string{"soluble"}},
+	"CaSiO3":    {Name: "硅酸钙", Type: TypeSalt, Tags: []string{"insoluble"}},
+	"H2SiO3":    {Name: "硅酸", Type: TypeAcid, Tags: []string{"weak_acid", "insoluble"}},
+	"SiCl4":     {Name: "四氯化硅", Type: TypeNonMetal},
+	"Mn":        {Name: "锰", Type: TypeMetal, Tags: []string{"metal_before_h"}},
+	"MnO":       {Name: "一氧化锰", Type: TypeBasicOxide},
+	"MnO2":      {Name: "二氧化锰", Type: TypeBasicOxide, Tags: []string{"catalyst"}},
+	"MnCl2":     {Name: "氯化锰", Type: TypeSalt, Tags: []string{"soluble"}},
+	"MnSO4":     {Name: "硫酸锰", Type: TypeSalt, Tags: []string{"soluble"}},
+	"MnCO3":     {Name: "碳酸锰", Type: TypeSalt, Tags: []string{"insoluble"}},
+	"Mn(OH)2":   {Name: "氢氧化锰", Type: TypeBase, Tags: []string{"weak_base", "insoluble"}},
+	"MnS":       {Name: "硫化锰", Type: TypeSalt, Tags: []string{"insoluble"}},
+	"KMnO4":     {Name: "高锰酸钾", Type: TypeSalt, Tags: []string{"soluble", "oxidizing"}},
+	"Mn(NO3)2":  {Name: "硝酸锰", Type: TypeSalt, Tags: []string{"soluble"}},
+	"MnBr2":     {Name: "溴化锰", Type: TypeSalt, Tags: []string{"soluble"}},
+	"MnI2":      {Name: "碘化锰", Type: TypeSalt, Tags: []string{"soluble"}},
+	"MnF2":      {Name: "氟化锰", Type: TypeSalt, Tags: []string{"insoluble"}},
+	"H2SiF6":    {Name: "六氟硅酸", Type: TypeAcid, Tags: []string{"strong_acid"}},
+	"H4SiO4":    {Name: "原硅酸", Type: TypeAcid, Tags: []string{"weak_acid"}},
+	"PCl5":      {Name: "五氯化磷", Type: TypeNonMetal},
+	"H3PO3":     {Name: "亚磷酸", Type: TypeAcid, Tags: []string{"weak_acid"}},
+	"PH4Cl":     {Name: "氯化铵磷", Type: TypeSalt, Tags: []string{"soluble"}},
+	"PH3":       {Name: "磷化氢", Type: TypeNonMetal, Tags: []string{"toxic"}},
+	"Ca(H2PO4)2": {Name: "磷酸二氢钙", Type: TypeSalt, Tags: []string{"soluble"}},
+	"Ca3(PO4)2": {Name: "磷酸钙", Type: TypeSalt, Tags: []string{"insoluble"}},
+	"P2O3":      {Name: "三氧化二磷", Type: TypeAcidicOxide},
+	"Ag3PO4":    {Name: "磷酸银", Type: TypeSalt, Tags: []string{"insoluble"}},
+	"SiH4":      {Name: "硅化氢", Type: TypeNonMetal},
+	"He":        {Name: "氦气", Type: TypeInertGas},
+	"Ne":        {Name: "氖气", Type: TypeInertGas},
+	"Ar":        {Name: "氩气", Type: TypeInertGas},
+	"Kr":        {Name: "氪气", Type: TypeInertGas},
+	"Xe":        {Name: "氙气", Type: TypeInertGas},
+	"Rn":        {Name: "氡气", Type: TypeInertGas},
 }

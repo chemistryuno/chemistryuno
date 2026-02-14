@@ -14,71 +14,235 @@ import (
 func (gr *GameRoom) TriggerAITurn() {
 	gameRoom := gr
 
-	// 延时执行，模拟思考时间 (1.5秒)
-	time.AfterFunc(1500*time.Millisecond, func() {
-		gameRoom.mutex.Lock()
-		defer gameRoom.mutex.Unlock()
+	gr.mutex.RLock()
+	if gameRoom.GameState == nil || gameRoom.GameState.Status != "playing" {
+		gr.mutex.RUnlock()
+		return
+	}
+	targetUID := gameRoom.GameState.Players[gameRoom.GameState.CurrentPlayer].UID
+	gr.mutex.RUnlock()
 
-		// 再次检查是否仍是该 AI 的回合 (防止状态变更)
-		if gameRoom.GameState.Status != "playing" {
-			return
-		}
-		currentPlayer := gameRoom.GameState.Players[gameRoom.GameState.CurrentPlayer]
-		if currentPlayer.UID >= 0 { // 只有 UID < 0 才是 AI
-			return
-		}
+	// 增加 1 秒模拟思考/等待时间，让玩家看清操作
+	time.Sleep(1 * time.Second)
 
-		log.Printf("[AI] 🤖 AI %d 正在思考... (难度: %d)", currentPlayer.UID, gameRoom.Room.PvEDifficulty)
+	gameRoom.mutex.Lock()
+	defer gameRoom.mutex.Unlock()
 
-		// 1. 难度判定：决定是否"尝试"寻找最优解
-		// 难度 hitRate = PvEDifficulty (1-100)
-		// r <= Difficulty: AI 尝试寻找可出的反应牌或功能牌
-		// r > Difficulty: AI "犯错"，只尝试打出无脑牌(功能牌)或者直接摸牌，即使手里有能反应的牌也不出
-		shouldTryBest := rand.Intn(100) < gameRoom.Room.PvEDifficulty
+	// 再次检查是否仍是该同一个 AI 的回合（由于 Sleep 期间可能已经发生了变化）
+	if gameRoom.GameState.Status != "playing" {
+		return
+	}
+	currentPlayer := gameRoom.GameState.Players[gameRoom.GameState.CurrentPlayer]
+	if currentPlayer.UID != targetUID || currentPlayer.UID >= 0 {
+		return
+	}
 
-		if shouldTryBest {
-			// 尝试寻找出牌
-			if played := gr.aiTryPlayCard(currentPlayer); played {
+	log.Printf("[AI] 🤖 AI %d 立即行动... (难度: %d)", currentPlayer.UID, gameRoom.Room.PvEDifficulty)
+
+	// 1. 难度判定：决定是否"尝试"寻找最优解
+	difficulty := gameRoom.Room.PvEDifficulty
+	if gameRoom.Room.IsPointsMode {
+		difficulty += 10 // 积分模式更加激进
+	}
+	if difficulty > 100 {
+		difficulty = 100
+	}
+
+	shouldTryBest := rand.Intn(100) < difficulty
+
+	if shouldTryBest {
+		// 如果是积分模式且双联反应就绪，优先尝试双联
+		if currentPlayer.DoubleActionAvailable {
+			if played := gr.aiTryDoublePlay(currentPlayer); played {
 				return
 			}
-		} else {
-			log.Printf("[AI] 🎲 AI %d 判定为失误/消极操作", currentPlayer.UID)
-			// 即使失误，如果有 +2/+4/Au 这种无脑牌，也有一定概率打出 (50%)
-			if rand.Intn(100) < 50 {
-				if played := gr.aiTryPlaySpecialOnly(currentPlayer); played {
-					return
-				}
-			}
 		}
 
-		// 摸牌逻辑
-		log.Printf("[AI] 🛑 AI %d 决定摸/无法出牌", currentPlayer.UID)
-		gr.aiDrawCard(currentPlayer.UID)
-	})
+		// 尝试寻找出牌
+		if played := gr.aiTryPlayCard(currentPlayer); played {
+			return
+		}
+	} else {
+		log.Printf("[AI] 🎲 AI %d 判定为非最优决策，尝试随机出牌", currentPlayer.UID)
+		// 非最优决策时：随机打出一张可出的牌，不考虑反应链条最长或攻击性
+		if played := gr.aiTryPlayRandom(currentPlayer); played {
+			return
+		}
+	}
+
+	// 摸牌逻辑 (摸2张并过牌)
+	log.Printf("[AI] 🛑 AI %s (%d) 摸牌", currentPlayer.Nickname, currentPlayer.UID)
+	gr.aiDrawCard(currentPlayer.UID)
+}
+
+// aiTryPlayRandom 随机尝试出牌（低难度逻辑）
+func (gr *GameRoom) aiTryPlayRandom(player *models.PlayerState) bool {
+	// 1. 打乱手牌顺序进行随机尝试
+	hand := make([]models.Card, len(player.HandCards))
+	copy(hand, player.HandCards)
+	rand.Shuffle(len(hand), func(i, j int) { hand[i], hand[j] = hand[j], hand[i] })
+
+	// 2. 依次尝试每一张牌
+	for _, card := range hand {
+		if isSpecialCard(card) {
+			gr.aiExecutePlay(player.UID, card, "")
+			return true
+		}
+
+		// 普通牌，尝试作为单质出牌（最简单逻辑）
+		substance := card.Type
+		diatomic := map[string]string{
+			"H": "H2", "O": "O2", "N": "N2", "Cl": "Cl2", "F": "F2", "Br": "Br2", "I": "I2",
+		}
+		if s, ok := diatomic[substance]; ok {
+			substance = s
+		}
+
+		// 校验是否能出
+		if gr.canAIPlaySubstance(substance) {
+			gr.aiExecutePlay(player.UID, card, substance)
+			return true
+		}
+	}
+	return false
+}
+
+func (gr *GameRoom) canAIPlaySubstance(substance string) bool {
+	if gr.GameState.LastCard == nil || gr.GameState.AllowedAnyPlayer == gr.GameState.CurrentPlayer {
+		return true
+	}
+
+	// 检查是否能与场上物质反应
+	lastSub := gr.GameState.LastCard.Substance
+	// 如果是双联，LastCard.Reactants 会有值
+	if len(gr.GameState.LastCard.Reactants) > 0 {
+		for _, r := range gr.GameState.LastCard.Reactants {
+			if CanReact(r, substance) {
+				return true
+			}
+		}
+		return false
+	}
+
+	return CanReact(lastSub, substance)
 }
 
 // aiDrawCard AI 摸牌/过牌
 func (gr *GameRoom) aiDrawCard(uid int) {
+	// 获取 AI 昵称
+	displayName := fmt.Sprintf("AI 研究员 %d", -uid)
+	for _, p := range gr.GameState.Players {
+		if p.UID == uid {
+			displayName = p.Nickname
+			break
+		}
+	}
+
 	// 释放锁，调用 DrawCard (它会重新加锁)
 	gr.mutex.Unlock()
-	err := DrawCard(gr.Room.ID, uid, 0) // 0 表示按规则默认数量
+	err := DrawCard(gr.Room.ID, uid, 2) // AI 不出牌时立即摸 2 张并自动过牌
 	gr.mutex.Lock()
 
 	if err != nil {
-		log.Printf("[AI] ❌ AI 摸牌失败: %v", err)
+		log.Printf("[AI] ❌ AI %s 摸牌失败: %v", displayName, err)
 	} else {
+		log.Printf("[AI] 🛑 AI %s 摸牌结束回合", displayName)
+		// 摸牌不再通过弹窗告知，直接通过桌面状态同步
 		// DrawCard 内部会处理 NextTurn，这里不需要额外操作
-		// 注意：DrawCard 可能会导致下家也是 AI，会递归调用 TriggerAITurn (通过 broadcastUpdate -> 前端? 不，后端自循环最好)
-		// 我们需要在 DrawCard 结束时检查下家
-		// 由于 DrawCard 是公共方法，最好在 DrawCard 逻辑末尾统一处理，或者依靠 broadcast
-		// 这里我们假设 DrawCard 后如果不切换回合（比如摸牌后），AI 还需要继续操作？
-		// 通常 UNO 规则：摸牌后如果能出可以出，不能出则过。
-		// 简化版：AI 摸牌后直接过回合。
+		gr.broadcastRoomUpdate()
 	}
+}
+
+// aiTryDoublePlay 尝试发动双联反应
+func (gr *GameRoom) aiTryDoublePlay(player *models.PlayerState) bool {
+	// ... (content omitted for j loop fix)
+	// 获取手牌能组成的所有物质
+	availableSubstances := GetSubstancesFromElements(player.HandCards)
+	if len(availableSubstances) < 2 {
+		return false
+	}
+
+	// 准备手牌元素映射以便快速校验
+	handElements := make(map[string]int)
+	for _, c := range player.HandCards {
+		if c.Effect == "" {
+			handElements[c.Type]++
+		}
+	}
+
+	// 尝试寻找两两反应的可能
+	for i := 0; i < len(availableSubstances); i++ {
+		for j := i + 1; j < len(availableSubstances); j++ {
+			s1, s2 := availableSubstances[i], availableSubstances[j]
+
+			// 排除特殊牌 (双联通常指化学反应)
+			if isNobleGas(s1) || isNobleGas(s2) || s1 == "Au" || s2 == "Au" {
+				continue
+			}
+
+			// 校验手牌资源是否同时满足 s1 和 s2
+			req1 := parseSubstance(s1)
+			req2 := parseSubstance(s2)
+			combinedReq := make(map[string]int)
+			for k, v := range req1 {
+				combinedReq[k] += v
+			}
+			for k, v := range req2 {
+				combinedReq[k] += v
+			}
+
+			enough := true
+			for k, v := range combinedReq {
+				if handElements[k] < v {
+					enough = false
+					break
+				}
+			}
+			if !enough {
+				continue
+			}
+
+			// 查询这两个物质是否能反应
+			canReact, err := repository.ReactionRepo.CheckReactionExists(s1, s2)
+			if err == nil && canReact {
+				// 发动双联！
+				log.Printf("[AI] ⚡ AI %d 发动双联反应: %s + %s", player.UID, s1, s2)
+
+				// 解锁，调用 DoublePlay
+				gr.mutex.Unlock()
+				err := DoublePlay(gr.Room.ID, player.UID, s1, s2)
+				gr.mutex.Lock()
+
+				if err == nil {
+					// 广播消息
+					if websocket.GlobalHub != nil {
+						websocket.GlobalHub.BroadcastToRoom(gr.Room.ID, websocket.Message{
+							Type: "action_toast",
+							Data: fmt.Sprintf("%s 发动了双联反应: %s + %s！", player.Nickname, s1, s2),
+						})
+					}
+					gr.broadcastRoomUpdate()
+					return true
+				} else {
+					log.Printf("[AI] ⚠️ AI 双联执行失败: %v", err)
+				}
+			}
+		}
+	}
+	return false
 }
 
 // aiTryPlayCard 尝试打出一张牌
 func (gr *GameRoom) aiTryPlayCard(player *models.PlayerState) bool {
+	// 0. 特殊情况判断：是否有玩家快赢了（手牌数 <= 2）
+	threatDetected := false
+	for _, p := range gr.GameState.Players {
+		if p.UID != player.UID && p.CardCount <= 2 {
+			threatDetected = true
+			break
+		}
+	}
+
 	// 1. 优先处理加牌堆叠 (+2/+4)
 	if gr.GameState.PendingDrawCount > 0 {
 		for _, card := range player.HandCards {
@@ -88,116 +252,81 @@ func (gr *GameRoom) aiTryPlayCard(player *models.PlayerState) bool {
 				return true
 			}
 		}
-		// 没加牌，只能摸牌（在 TriggerAITurn 的后续逻辑会处理）
+		// 没加牌，只能摸牌
 		return false
 	}
 
-	// 2. 也是优先打出加牌/功能牌 (攻击性策略)
-	// 只有当 AI 手牌数较多时才倾向于保留功能牌，否则尽快打出
-	for _, card := range player.HandCards {
-		if isSpecialCard(card) {
-			gr.aiExecutePlay(player.UID, card, "")
-			return true
+	// 2. 如果存在威胁，优先打出功能牌进行拦截
+	if threatDetected {
+		// 优先顺序：+4 > +2 > Au > Reverse
+		for _, effect := range []string{"+4", "+2", "Au", "reverse"} {
+			for _, card := range player.HandCards {
+				if card.Effect == effect {
+					gr.aiExecutePlay(player.UID, card, "")
+					return true
+				}
+			}
 		}
 	}
 
-	// 3. 寻找普通反应牌
-	// 获取场上物质
-	lastSubstance := ""
-	if gr.GameState.LastCard != nil {
-		lastSubstance = gr.GameState.LastCard.Substance
+	// 3. 也是优先打出加牌/功能牌 (攻击性策略)
+	// 如果是积分模式，更加倾向于使用功能牌消耗对手
+	if gr.Room.IsPointsMode || player.CardCount < 5 {
+		for _, card := range player.HandCards {
+			if isSpecialCard(card) {
+				gr.aiExecutePlay(player.UID, card, "")
+				return true
+			}
+		}
 	}
 
-	// 如果没有场上物质（例如刚开始或被 Au 清空），任意非功能牌都可（通常规则）
-	// 但我们的 PlayCard 逻辑需要 ValidReaction
-	// 如果 LastCard 为 nil，PlayCard 允许任意牌吗？看代码逻辑：allowAny logic.
-	// 假设 LastCard != nil
+	// 4. 寻找普通反应牌
+	// 获取所有已批准的反应，用于全局检索
+	allReactions, err := repository.ReactionRepo.FindApprovedReactions()
+	if err != nil {
+		log.Printf("[AI] ⚠️ 获取反应表失败: %v", err)
+	}
 
-	if lastSubstance != "" {
-		// 遍历手牌，寻找能与 lastSubstance 反应的组合
-		// 简单起见，我们只能出一张牌 + lastSubstance = NewSubstance
-		// 复杂逻辑：Query DB
+	// 收集场上所有可能的反应物来源
+	lastSubstances := []string{}
+	if gr.GameState.LastCard != nil {
+		if len(gr.GameState.LastCard.Reactants) > 0 {
+			// 如果是双联反应，收集所有反应物
+			lastSubstances = append(lastSubstances, gr.GameState.LastCard.Reactants...)
+		} else if gr.GameState.LastCard.Substance != "" {
+			// 普通反应
+			lastSubstances = append(lastSubstances, gr.GameState.LastCard.Substance)
+		}
+	}
 
-		// 优化：先筛选出手牌中可能的元素
-		for _, card := range player.HandCards {
-			if card.Effect != "" || isNobleGas(card.Type) {
-				continue
-			}
-
-			// 尝试查询数据库：(lastSubstance) + (card.Type) = ?
-			// 或者是 (lastSubstance) + (card.Type * 2) = ? (虽然我们一次只出一张，在此简化模型下)
-			// 注意：PlayCard 逻辑是：Card + LastSubstance -> NewSubstance
-			// 我们需要找到一个 Target Substance，它由 LastSubstance 和 Card 组成
-
-			// 这里有个难点：PlayCard 需要传入 `substance` (结果物质)
-			// 我们不知道结果物质是什么，只知道反应物。
-			// 所以我们需要查询 repository: FindReactionByReactants(r1, r2)
-
-			// 构造查询：R1 = lastSubstance AND R2 = card.Type (或者反过来)
-			// 且 status = approved
-			// 如果能找到，说明可以反应
-
-			// 处理化学式下标，数据库存的是带下标的吗？repository.CheckReactionExists 做了双向查
-			// 但是我们需要知道生成的 substance (Display?) 还是 R1+R2 组合？
-			// PlayCard 逻辑：
-			// requiredElements := parseSubstance(substance)
-			// 检查手牌是否有 requiredElements
-			// 检查 substance 是否能与 LastCard 反应 (CanReact)
-
-			// 这里的 AI 思路反了：
-			// AI 应该遍历所有已知的 "Approved Reactions"，看看哪一个能用 "LastSubstance" 和 "手牌" 凑出来。
-
-			// 方案：
-			// 1. 获取包含 LastSubstance 的所有反应： SELECT * FROM reactions WHERE r1=Last OR r2=Last
-			// 2. 遍历这些反应，看另一半 (NewR) 是否在手牌里
-
-			reactionRepo := repository.NewReactionRepository()
-			possibleReactions, err := reactionRepo.FindReactionsBySubstance(lastSubstance)
-			if err != nil {
-				continue
-			}
-
-			for _, reaction := range possibleReactions {
+	if len(lastSubstances) > 0 {
+		// 遍历场上物质，在全局反应表中寻找能反应的组合
+		for _, ls := range lastSubstances {
+			for _, reaction := range allReactions {
 				var neededComponent string
-				if reaction.R1 == lastSubstance {
+				if reaction.R1 == ls {
 					neededComponent = reaction.R2
-				} else {
+				} else if reaction.R2 == ls {
 					neededComponent = reaction.R1
+				} else {
+					continue
 				}
 
-				// 检查 neededComponent 是否在手牌里
-				// neededComponent 可能是 "O2", "H2", "Cl" 等
-				// 手牌是 "O", "H", "Cl"
-				// 需要解析 neededComponent 需要几张什么牌
+				// 检查 neededComponent 是否能由手牌中的元素组成
 				neededElements := parseSubstance(neededComponent)
-
 				if hasCards(player.HandCards, neededElements) {
-					// 找到了！
-					// 结果物质应该是 reaction.Display 吗？
-					// 不，PlayCard 的 substance 参数是指 "打出的牌组成的物质" 还是 "反应生成的物质"？
-					// 回看 PlayCard:
-					// substance = NormalizeSubscripts(substance)
-					// Verify ValidSubstance(substance)
-					// parseSubstance(substance) -> check hand cards
-					// CanReact(LastCard.Substance, substance)
-
-					// 所以 `substance` 参数是 AI 要打出的牌组成的物质（例如 "H2"）
-					// 它必须能与 LastCard 反应。
-					// 也就是说 reaction.R1/R2 中的 neededComponent 就是我们要打出的 substance。
-
-					targetSubstance := neededComponent
-					// 执行出牌
-					log.Printf("[AI] 💡 AI %d 发现反应: %s + %s -> %s", player.UID, lastSubstance, targetSubstance, reaction.Display)
-					gr.aiExecutePlay(player.UID, models.Card{Type: "AI_PlaceHolder"}, targetSubstance) // Card 参数在 aiExecutePlay 会自动找
+					// 找到了匹配的反应！AI 将打出该反应物
+					log.Printf("[AI] 💡 AI %d 发现反应: %s + %s -> %s", player.UID, ls, neededComponent, reaction.Display)
+					gr.aiExecutePlay(player.UID, models.Card{Type: "AI_React_Card"}, neededComponent)
 					return true
 				}
 			}
 		}
 	} else {
-		// 场上无物质（Au 后），随便出一张普通牌
+		// 场上无物质（如 Au 效果后），AI 随机打出一张非特殊牌作为单质
 		for _, card := range player.HandCards {
 			if !isSpecialCard(card) {
-				gr.aiExecutePlay(player.UID, card, card.Type) // 单质
+				gr.aiExecutePlay(player.UID, card, card.Type)
 				return true
 			}
 		}
@@ -219,15 +348,18 @@ func (gr *GameRoom) aiTryPlaySpecialOnly(player *models.PlayerState) bool {
 
 // aiExecutePlay 执行出牌 (封装 PlayCard 调用)
 func (gr *GameRoom) aiExecutePlay(uid int, card models.Card, substance string) {
-	// 需要找到真实的手牌对象（PlayCard 逻辑需要精确匹配吗？PlayCard 会根据 substance 自动找牌，或者根据 card.Type）
+	// 需要找到真实的手牌对象
 	// PlayCard 逻辑：
 	// if substance == "" -> substance = card.Type
 	// parseSubstance(substance) -> 找手牌
-	// 所以如果我们传了 substance (比如 "H2")，PlayCard 会自动去手牌找 2 张 H。
-	// 这里的 card 参数主要是为了 passed if substance is empty, or for logging.
 
 	// 解锁，调用 PlayCard
 	gr.mutex.Unlock()
+
+	cardName := card.Type
+	if card.Effect != "" {
+		cardName = card.Effect
+	}
 
 	// 如果是功能牌，substance 为空
 	if isSpecialCard(card) {
@@ -242,12 +374,35 @@ func (gr *GameRoom) aiExecutePlay(uid int, card models.Card, substance string) {
 		// 失败回退：摸牌
 		gr.aiDrawCard(uid)
 	} else {
-		log.Printf("[AI] ✅ AI %d 成功出牌: %s / %s", uid, card.Type, substance)
+		// 获取 AI 昵称用于广播
+		displayName := fmt.Sprintf("AI 研究员 %d", -uid)
+		for _, p := range gr.GameState.Players {
+			if p.UID == uid {
+				displayName = p.Nickname
+				break
+			}
+		}
+
+		log.Printf("[AI] ✅ AI %s 成功出牌: %s / %s", displayName, card.Type, substance)
+		// 必须触发广播更新，否则玩家看不到 AI 的最新操作
+		gr.broadcastRoomUpdate()
+
 		if websocket.GlobalHub != nil {
-			websocket.GlobalHub.BroadcastToRoom(gr.Room.ID, websocket.Message{
-				Type: "action_toast",
-				Data: fmt.Sprintf("AI 研究员 %d 打出了 %s", uid, substance),
-			})
+			// 只有特殊卡牌（功能牌、金、稀有气体等）才通过弹窗告知
+			// 普通化学反应直接在右侧弃牌堆显示，不再消耗弹窗配额
+			if isSpecialCard(card) || substance == "Au" || isNobleGas(substance) {
+				msg := ""
+				if substance != "" {
+					msg = fmt.Sprintf("%s 打出了 %s", displayName, substance)
+				} else {
+					msg = fmt.Sprintf("%s 打出了特殊牌 %s", displayName, cardName)
+				}
+
+				websocket.GlobalHub.BroadcastToRoom(gr.Room.ID, websocket.Message{
+					Type: "action_toast",
+					Data: msg,
+				})
+			}
 		}
 	}
 }
@@ -262,17 +417,17 @@ func isNobleGas(t string) bool {
 	return t == "He" || t == "Ne" || t == "Ar" || t == "Kr"
 }
 
-// hasCards 检查手牌是否满足需求 (简单的计数检查)
+// hasCards 检查手牌是否满足需求 (只需包含相关元素即可，不限制数量)
 func hasCards(hand []models.Card, needed map[string]int) bool {
-	// 统计手牌
-	counts := make(map[string]int)
+	// 统计手牌中的元素种类
+	handElements := make(map[string]bool)
 	for _, c := range hand {
-		counts[c.Type]++
+		handElements[c.Type] = true
 	}
 
-	// 比较
-	for elem, count := range needed {
-		if counts[elem] < count {
+	// 检查所需的所有元素是否都在手牌中
+	for elem := range needed {
+		if !handElements[elem] {
 			return false
 		}
 	}

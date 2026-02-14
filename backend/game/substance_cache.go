@@ -108,12 +108,11 @@ func IsValidSubstance(substance string) bool {
 	// 归一化下标数字（如 H₂O -> H2O）
 	substance = NormalizeSubscripts(substance)
 
-	// 非化学物质的特殊功能卡牌直接放行
-	specialCards := map[string]bool{
-		"+2": true, "+4": true,
-		"He": true, "Ne": true, "Ar": true, "Kr": true, "Au": true,
+	// 仅对于纯游戏机制牌（非化学物质）直接放行，其他均需通过 substances 表校验
+	gameMechanics := map[string]bool{
+		"+2": true, "+4": true, "reverse": true,
 	}
-	if specialCards[substance] {
+	if gameMechanics[substance] {
 		return true
 	}
 

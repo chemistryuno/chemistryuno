@@ -164,7 +164,11 @@ func SyncSubstancesFromReactions() {
 		EnsureSubstancesExist(database.DB, formulas, 100000000) // 使用系统管理员UID
 	}
 
-	// 除了从反应中同步，还确保牌组配置中出现的所有元素都被视为合法物质（作为单质）
+	// 除了从反应中同步，还确保牌组配置中出现的所有元素都被视为合法物质（映射到其稳定单质形式）
+	diatomic := map[string]string{
+		"H": "H2", "O": "O2", "N": "N2", "Cl": "Cl2", "F": "F2", "Br": "Br2", "I": "I2",
+	}
+
 	var deckConfigs []database.DeckConfig
 	if err := database.DB.Find(&deckConfigs).Error; err == nil {
 		for _, config := range deckConfigs {
@@ -172,13 +176,17 @@ func SyncSubstancesFromReactions() {
 			if err := json.Unmarshal(config.Cards, &cardMap); err == nil {
 				var elements []string
 				for cardType := range cardMap {
-					// 过滤掉非化学物质的特殊卡
-					isSpecial := cardType == "+2" || cardType == "+4" ||
-						cardType == "He" || cardType == "Ne" ||
-						cardType == "Ar" || cardType == "Kr" || cardType == "Au"
-					if !isSpecial {
-						elements = append(elements, cardType)
+					// 过滤掉非化学物质的功能牌 (+2, +4, reverse)
+					// 稀有气体 He, Ne, Ar, Kr 和 Au 也是卡牌类型，应当作为物质同步
+					if cardType == "+2" || cardType == "+4" || cardType == "reverse" {
+						continue
 					}
+
+					formula := cardType
+					if mapped, ok := diatomic[cardType]; ok {
+						formula = mapped
+					}
+					elements = append(elements, formula)
 				}
 				EnsureSubstancesExist(database.DB, elements, 100000000)
 			}

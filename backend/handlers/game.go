@@ -56,6 +56,11 @@ func CreateRoom(c *gin.Context) {
 		return
 	}
 
+	if req.IsPointsMode && req.IsPrivate {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "积分模式下不可创建私密房间"})
+		return
+	}
+
 	uid := c.GetInt("uid")
 	username := c.GetString("username")
 

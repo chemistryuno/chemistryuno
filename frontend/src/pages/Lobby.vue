@@ -695,7 +695,7 @@ const copyToClipboard = (text: string) => {
                <label class="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">核心配置</label>
                <span class="text-[8px] text-blue-500/40 font-mono">PROTOCOL</span>
             </div>
-            <div class="flex items-center gap-3 p-3 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-xl group/toggle cursor-pointer transition-all hover:bg-slate-100 dark:hover:bg-white/10" @click="isPointsMode = !isPointsMode">
+            <div class="flex items-center gap-3 p-3 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-xl group/toggle cursor-pointer transition-all hover:bg-slate-100 dark:hover:bg-white/10" @click="isPointsMode = !isPointsMode; if(isPointsMode) isPrivate = false">
               <div :class="cn(
                 'w-8 h-4.5 rounded-full relative transition-colors duration-300',
                 isPointsMode ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-700'
@@ -715,7 +715,7 @@ const copyToClipboard = (text: string) => {
               </div>
             </div>
 
-            <div class="flex items-center gap-3 p-3 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-xl group/toggle cursor-pointer transition-all hover:bg-slate-100 dark:hover:bg-white/10" @click="isPrivate = !isPrivate">
+            <div class="flex items-center gap-3 p-3 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-xl group/toggle cursor-pointer transition-all hover:bg-slate-100 dark:hover:bg-white/10" @click="isPrivate = !isPrivate; if(isPrivate) isPointsMode = false">
               <div :class="cn(
                 'w-8 h-4.5 rounded-full relative transition-colors duration-300',
                 isPrivate ? 'bg-amber-600' : 'bg-slate-300 dark:bg-slate-700'

@@ -241,6 +241,9 @@ func CreateRoom(name string, creatorUID int, creatorName string, maxPlayers int,
 
 // 创建房间（支持自定义访问密钥）
 func CreateRoomWithKey(name string, creatorUID int, creatorName string, maxPlayers int, deckID int, isPointsMode bool, isPrivate bool, customKey string) (*models.Room, error) {
+	if isPointsMode && isPrivate {
+		return nil, errors.New("积分模式下不可创建私密房间")
+	}
 	banned, until, reason, _ := isBanned(creatorUID)
 	if banned {
 		if reason == "" {

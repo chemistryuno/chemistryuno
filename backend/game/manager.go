@@ -236,13 +236,23 @@ func getGlobalDeckConfigFromDB() (map[string]int, string, int) {
 
 // 创建房间
 func CreateRoom(name string, creatorUID int, creatorName string, maxPlayers int, deckID int, isPointsMode bool, isPrivate bool) (*models.Room, error) {
-	return CreateRoomWithKey(name, creatorUID, creatorName, maxPlayers, deckID, isPointsMode, isPrivate, "")
+	return CreateRoomWithKey(name, creatorUID, creatorName, maxPlayers, deckID, isPointsMode, isPrivate, "", false, 0, 0)
 }
 
 // 创建房间（支持自定义访问密钥）
-func CreateRoomWithKey(name string, creatorUID int, creatorName string, maxPlayers int, deckID int, isPointsMode bool, isPrivate bool, customKey string) (*models.Room, error) {
-	if isPointsMode && isPrivate {
+func CreateRoomWithKey(name string, creatorUID int, creatorName string, maxPlayers int, deckID int, isPointsMode bool, isPrivate bool, customKey string, isPvE bool, difficulty int, aiCount int) (*models.Room, error) {
+	if isPointsMode && isPrivate && !isPvE {
 		return nil, errors.New("积分模式下不可创建私密房间")
+	}
+	if isPvE {
+		if difficulty < 1 || difficulty > 100 {
+			return nil, errors.New("AI难度必须在1-100之间")
+		}
+		if aiCount < 1 || aiCount > 7 {
+			return nil, errors.New("AI数量必须在1-7之间")
+		}
+		// PvE 模式下，MaxPlayers 由 AI 数量决定 (1位玩家 + N位AI)
+		maxPlayers = 1 + aiCount
 	}
 	banned, until, reason, _ := isBanned(creatorUID)
 	if banned {
@@ -324,24 +334,37 @@ func CreateRoomWithKey(name string, creatorUID int, creatorName string, maxPlaye
 	}
 
 	room := &models.Room{
-		ID:           roomID,
-		Name:         name,
-		Players:      []int{creatorUID},
-		ReadyUIDs:    []int{},
-		Countdown:    0,
-		Spectators:   []int{},
-		MaxPlayers:   maxPlayers,
-		DeckConfig:   &deckConfig,
-		Status:       "waiting",
-		IsPointsMode: isPointsMode,
-		IsPrivate:    isPrivate,
-		AccessKey:    accessKey,
-		CreatedAt:    time.Now(),
+		ID:            roomID,
+		Name:          name,
+		Players:       []int{creatorUID},
+		ReadyUIDs:     []int{},
+		Countdown:     0,
+		Spectators:    []int{},
+		MaxPlayers:    maxPlayers,
+		DeckConfig:    &deckConfig,
+		Status:        "waiting",
+		IsPointsMode:  isPointsMode,
+		IsPrivate:     isPrivate,
+		AccessKey:     accessKey,
+		IsPvE:         isPvE,
+		PvEDifficulty: difficulty,
+		AICount:       aiCount,
+		CreatedAt:     time.Now(),
 	}
 
 	gameRoom := &GameRoom{
 		Room:      room,
 		OfflineAt: make(map[int]time.Time),
+	}
+
+	// 如果是 PvE 模式，立即初始化 AI 玩家
+	if isPvE {
+		// AI 玩家 UID 使用负数: -1, -2, -3...
+		for i := 1; i <= aiCount; i++ {
+			aiUID := -i
+			room.Players = append(room.Players, aiUID)
+			room.ReadyUIDs = append(room.ReadyUIDs, aiUID) // AI 默认已准备
+		}
 	}
 
 	roomMutex.Lock()
@@ -494,7 +517,19 @@ func handlePointsCalculation(gr *GameRoom) {
 		// 但对于已完成比赛的前几名，通常应该获得全额奖励，
 		// 这里暂且保留原逻辑：倍率影响所有人
 		points = int(float64(points) * multiplier)
-		if points < 1 {
+
+		// PvE 模式积分修正
+		if gr.Room.IsPvE {
+			// 难度 < 50，无法获得积分
+			if gr.Room.PvEDifficulty < 50 {
+				points = 0
+			} else {
+				// 积分 = 原始积分 * (难度 / 100)
+				points = int(float64(points) * float64(gr.Room.PvEDifficulty) / 100.0)
+			}
+		}
+
+		if points < 1 && (!gr.Room.IsPvE || gr.Room.PvEDifficulty >= 50) {
 			points = 1
 		}
 
@@ -671,6 +706,31 @@ func (gr *GameRoom) checkInactivity() {
 		return
 	}
 	gr.mutex.Unlock()
+}
+
+// CheckNextTurnAI 检查并触发 AI 回合
+func (gr *GameRoom) CheckNextTurnAI() {
+	gr.mutex.RLock()
+	// 如果房间已结束或未开始，忽略
+	if gr.Room.Status != "playing" || gr.GameState == nil {
+		gr.mutex.RUnlock()
+		return
+	}
+
+	currentPlayerIdx := gr.GameState.CurrentPlayer
+	if currentPlayerIdx < 0 || currentPlayerIdx >= len(gr.GameState.Players) {
+		gr.mutex.RUnlock()
+		return
+	}
+
+	currentPlayer := gr.GameState.Players[currentPlayerIdx]
+	isAI := currentPlayer.UID < 0
+	gr.mutex.RUnlock()
+
+	// 如果是 AI，触发思考逻辑
+	if isAI {
+		gr.TriggerAITurn()
+	}
 }
 
 func (gr *GameRoom) kickPlayer(uid int, reason string) {
@@ -1349,6 +1409,9 @@ func StartGame(roomID string, uid int) error {
 	log.Printf("[游戏开始] 牌堆剩余：%d张，弃牌堆：%d张，当前玩家索引：%d",
 		len(gameRoom.GameState.DrawPile), len(gameRoom.GameState.DiscardPile), gameRoom.GameState.CurrentPlayer)
 
+	// 检查第一位是否是 AI
+	go gameRoom.CheckNextTurnAI()
+
 	return nil
 }
 
@@ -1795,6 +1858,9 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 		}
 	}
 
+	// 检查下一位是否是 AI
+	go gameRoom.CheckNextTurnAI()
+
 	return nil
 }
 
@@ -1928,6 +1994,9 @@ func DrawCard(roomID string, uid int, count int) error {
 		// 普通摸牌清除可能存在的 allowAny 标记
 		gameRoom.GameState.AllowedAnyPlayer = -1
 	}
+
+	// 检查下一位是否是 AI
+	go gameRoom.CheckNextTurnAI()
 
 	return nil
 }

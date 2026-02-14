@@ -42,6 +42,7 @@ const decks = ref<any[]>([])
 const pendingFeedbacks = ref<any[]>([])
 const persistentAnnouncements = ref<any[]>([])
 const showCreateModal = ref(false)
+const showAIArenaModal = ref(false)
 const showDeckDetailModal = ref(false)
 const showAccessKeyModal = ref(false)
 const createdRoomInfo = ref<any>(null)
@@ -51,6 +52,9 @@ const maxPlayers = ref(4)
 const deckID = ref(0)
 const isPointsMode = ref(false)
 const isPrivate = ref(false)
+
+const pveDifficulty = ref(50)
+const aiCount = ref(1)
 const customAccessKey = ref('') // 自定义访问密钥
 const loading = ref(false)
 const currentTime = ref(new Date())
@@ -212,6 +216,30 @@ const handleCreateRoom = async () => {
     }
   } catch (error: any) {
     showAlert(error.response?.data?.error || '创建房间失败', '系统异常')
+  } finally {
+    loading.value = false
+  }
+}
+
+const handleCreateAIRoom = async () => {
+  loading.value = true
+  try {
+    const response = await gameAPI.createRoom(
+      roomName.value || `AI Challenge - ${pveDifficulty.value}`,
+      1 + aiCount.value, // MaxPlayers = 1 (Human) + AI Count
+      deckID.value,
+      isPointsMode.value,
+      true, // AI 房间强制私密/不公开
+      undefined,
+      true, // IsPvE
+      pveDifficulty.value,
+      aiCount.value
+    )
+    const room = response.data
+    showAIArenaModal.value = false
+    router.push(`/room/${room.id}`)
+  } catch (error: any) {
+    showAlert(error.response?.data?.error || '创建AI对战失败', '系统异常')
   } finally {
     loading.value = false
   }
@@ -439,6 +467,17 @@ const copyToClipboard = (text: string) => {
               <Plus class="w-3.5 h-3.5 group-hover:rotate-90 transition-transform duration-500" />
               <span class="uppercase tracking-widest text-[9px]">开启实验</span>
             </button>
+
+            <button 
+              @click="showAIArenaModal = true; isPointsMode = true; isPrivate = true" 
+              class="group relative flex items-center gap-2 bg-purple-600 hover:bg-purple-500 px-4 py-2.5 rounded-xl font-black text-white shadow-lg shadow-purple-500/10 transition-all active:scale-95 overflow-hidden ml-2"
+            >
+              <div class="relative">
+                <Beaker class="w-3.5 h-3.5" />
+                <div class="absolute -top-1 -right-1 w-2 h-2 bg-yellow-400 rounded-full animate-pulse border-2 border-purple-600"></div>
+              </div>
+              <span class="uppercase tracking-widest text-[9px]">AI 竞技场</span>
+            </button>
           </div>
         </div>
 
@@ -631,7 +670,7 @@ const copyToClipboard = (text: string) => {
     <!-- Modern Create Modal -->
     <div v-if="showCreateModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div class="absolute inset-0 bg-slate-900/40 dark:bg-black/80 backdrop-blur-md animate-in fade-in" @click="showCreateModal = false" />
-      <div class="relative w-full max-w-lg bg-white dark:bg-[#121216] border border-slate-200 dark:border-white/10 rounded-[40px] shadow-2xl overflow-hidden animate-in fade-in zoom-in slide-in-from-bottom-10 duration-500">
+      <div class="relative w-full max-w-lg bg-white dark:bg-[#121216] border border-slate-200 dark:border-white/10 rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in slide-in-from-bottom-10 duration-500">
          <!-- Modal Header -->
          <div class="px-6 py-5 border-b border-slate-100 dark:border-white/5 flex items-center justify-between">
             <div class="flex items-center gap-3">
@@ -651,8 +690,9 @@ const copyToClipboard = (text: string) => {
             </button>
          </div>
 
-        <form @submit.prevent="handleCreateRoom" class="p-6 space-y-5">
-          <div class="space-y-2">
+        <form @submit.prevent="handleCreateRoom" class="flex flex-col min-h-0">
+          <div class="p-6 space-y-5 overflow-y-auto custom-scrollbar flex-1">
+            <div class="space-y-2">
             <div class="flex justify-between items-center px-1">
                <label class="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">实验空间命名</label>
                <span class="text-[8px] text-blue-500/40 font-mono">IDENTIFIER</span>
@@ -794,7 +834,8 @@ const copyToClipboard = (text: string) => {
             </div>
           </div>
 
-          <div class="flex gap-3 pt-4">
+          </div>
+          <div class="p-6 border-t border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.02] flex gap-3 shrink-0">
             <button 
               type="button" 
               @click="showCreateModal = false" 
@@ -819,6 +860,124 @@ const copyToClipboard = (text: string) => {
           </div>
         </form>
       </div>
+
+    <!-- AI Arena Modal -->
+    <div v-if="showAIArenaModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <div class="absolute inset-0 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md animate-in fade-in" @click="showAIArenaModal = false" />
+      <div class="relative w-full max-w-lg bg-white dark:bg-[#121216] border border-purple-500/30 rounded-[40px] shadow-2xl shadow-purple-500/10 overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in slide-in-from-bottom-10 duration-500">
+         <!-- Modal Header -->
+         <div class="px-6 py-5 border-b border-slate-100 dark:border-white/5 flex items-center justify-between bg-purple-500/5">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 bg-purple-500/10 border border-purple-500/20 rounded-xl flex items-center justify-center text-purple-600 dark:text-purple-400">
+                <Beaker class="w-5 h-5" />
+              </div>
+              <div>
+                <h2 class="text-lg font-black text-slate-800 dark:text-white tracking-tight leading-none">人机竞技场</h2>
+                <p class="text-[9px] text-purple-500/60 font-mono uppercase tracking-widest mt-1">AI_Challenge_Mode</p>
+              </div>
+            </div>
+            <button 
+              @click="showAIArenaModal = false"
+              class="p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl transition-colors text-slate-400 hover:text-slate-900 dark:hover:text-white"
+            >
+              <X class="w-5 h-5" />
+            </button>
+         </div>
+
+        <form @submit.prevent="handleCreateAIRoom" class="flex flex-col min-h-0">
+          <div class="p-6 space-y-6 overflow-y-auto custom-scrollbar flex-1">
+            
+            <!-- Difficulty Slider -->
+            <div class="space-y-4">
+              <div class="flex justify-between items-end px-1">
+                 <div>
+                   <label class="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-1">AI 智能等级</label>
+                   <h3 class="text-2xl font-black text-slate-800 dark:text-white">{{ pveDifficulty }}<span class="text-sm text-slate-400 ml-1">%</span></h3>
+                 </div>
+                 <span class="text-[8px] text-purple-500/40 font-mono">DIFFICULTY</span>
+              </div>
+              <div class="relative h-6 flex items-center">
+                <input 
+                  type="range" 
+                  v-model.number="pveDifficulty" 
+                  min="1" 
+                  max="100" 
+                  class="w-full h-2 bg-slate-200 dark:bg-white/10 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                />
+              </div>
+              <div class="flex justify-between text-[10px] text-slate-400 font-mono">
+                <span>Rookie (1%)</span>
+                <span>Grandmaster (100%)</span>
+              </div>
+            </div>
+
+            <!-- AI Count -->
+            <div class="space-y-3">
+              <div class="flex justify-between items-center px-1">
+                 <label class="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">AI 对手数量</label>
+                 <span class="text-[8px] text-purple-500/40 font-mono">OPPONENTS</span>
+              </div>
+              <div class="grid grid-cols-4 gap-3">
+                <button
+                  v-for="num in [1, 2, 3, 7]"
+                  :key="num"
+                  type="button"
+                  @click="aiCount = num"
+                  :class="cn(
+                    'h-12 rounded-xl text-sm font-black border transition-all flex flex-col items-center justify-center relative group/opt overflow-hidden',
+                    aiCount === num 
+                      ? 'bg-purple-500/10 border-purple-500/50 text-purple-600 dark:text-purple-400 ring-1 ring-purple-500/20 shadow-[0_4px_12px_rgba(168,85,247,0.1)]' 
+                      : 'bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/5 text-slate-400 dark:text-slate-600 hover:bg-slate-100 dark:hover:bg-white/10'
+                  )"
+                >
+                  <span class="relative z-10">{{ num }} AI</span>
+                  <div v-if="aiCount === num" class="absolute inset-0 bg-purple-500/5 animate-pulse"></div>
+                </button>
+              </div>
+            </div>
+
+            <!-- Points Mode Toggle -->
+            <div class="flex items-center gap-3 p-4 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-xl group/toggle cursor-pointer transition-all hover:bg-slate-100 dark:hover:bg-white/10" @click="isPointsMode = !isPointsMode">
+              <div :class="cn(
+                'w-10 h-6 rounded-full relative transition-colors duration-300',
+                isPointsMode ? 'bg-purple-600' : 'bg-slate-300 dark:bg-slate-700'
+              )">
+                <div :class="cn(
+                  'absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform duration-300',
+                  isPointsMode ? 'translate-x-4' : 'translate-x-0'
+                )"></div>
+              </div>
+              <div class="flex flex-col">
+                <span :class="cn('text-[10px] font-black uppercase tracking-wider', isPointsMode ? 'text-purple-600 dark:text-purple-400' : 'text-slate-400 dark:text-slate-400')">
+                  积分结算
+                </span>
+                <span class="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5 leading-tight">
+                  难度 >= 50% 时可获得积分奖励，否则仅供练习
+                </span>
+              </div>
+            </div>
+
+          </div>
+          <div class="p-6 border-t border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.02] flex gap-3 shrink-0">
+            <button 
+              type="button"
+              @click="showAIArenaModal = false"
+              class="flex-1 px-4 py-3 border border-slate-200 dark:border-white/10 rounded-xl text-[11px] font-black uppercase tracking-widest hover:bg-slate-100 dark:hover:bg-white/5 transition-colors text-slate-500"
+            >
+              取消
+            </button>
+            <button 
+              type="submit" 
+              :disabled="loading"
+              class="flex-[2] px-6 py-3 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-[11px] font-black uppercase tracking-widest shadow-lg shadow-purple-500/20 hover:shadow-purple-500/40 hover:-translate-y-0.5 active:translate-y-0 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              <Loader2 v-if="loading" class="w-4 h-4 animate-spin" />
+              <span>开始挑战</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
     </div>
 
     <!-- 牌组详情查看模态框 -->

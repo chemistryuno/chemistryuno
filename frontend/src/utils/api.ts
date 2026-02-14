@@ -26,11 +26,11 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       localStorage.removeItem('token')
       localStorage.removeItem('user')
-      
+
       // 避免在登录页面或执行登录 API 时强制刷新/跳转
       const isLoginPage = window.location.pathname === '/login'
       const isAuthRequest = error.config.url.includes('/auth/login') || error.config.url.includes('/auth/webauthn/login')
-      
+
       if (!isLoginPage && !isAuthRequest) {
         window.location.href = '/login'
       }
@@ -41,9 +41,9 @@ api.interceptors.response.use(
 
 // 认证API
 export const authAPI = {
-  register: (data: any) => 
+  register: (data: any) =>
     api.post('/auth/register', data),
-  login: (data: any) => 
+  login: (data: any) =>
     api.post('/auth/login', data),
   getAuthConfig: () =>
     api.get('/auth/config'),
@@ -63,21 +63,21 @@ export const authAPI = {
     api.post('/auth/webauthn/reset-password/begin', { username }),
   finishResetPasswordWebAuthn: (username: string, newPassword: string, credential: any) =>
     api.post(`/auth/webauthn/reset-password/finish?username=${username}&new_password=${newPassword}`, credential),
-  getUserInfo: () => 
+  getUserInfo: () =>
     api.get('/user/info'),
-  changePassword: (oldPassword: string, newPassword: string, code: string = '', useEmail: boolean = false) => 
+  changePassword: (oldPassword: string, newPassword: string, code: string = '', useEmail: boolean = false) =>
     api.put('/user/password', { old_password: oldPassword, new_password: newPassword, code, use_email: useEmail }),
   beginChangePasswordWebAuthn: () =>
     api.post('/user/webauthn/change-password/begin'),
   finishChangePasswordWebAuthn: (newPassword: string, credential: any) =>
     api.post(`/user/webauthn/change-password/finish?newPassword=${newPassword}`, credential),
-  updateAvatar: (avatar: string) => 
+  updateAvatar: (avatar: string) =>
     api.put('/user/avatar', { avatar }),
   updateNickname: (nickname: string) =>
     api.put('/user/nickname', { nickname }),
   changeEmail: (data: { old_code: string, new_email: string, new_code: string }) =>
     api.post('/user/change-email', data),
-  deleteAccount: (code: string) => 
+  deleteAccount: (code: string) =>
     api.delete('/user/account', { data: { code } }),
   searchUsers: (query: string) =>
     api.get(`/users/search?q=${encodeURIComponent(query)}`),
@@ -111,17 +111,17 @@ export const authAPI = {
 
 // 游戏API
 export const gameAPI = {
-  getRooms: () => 
+  getRooms: () =>
     api.get('/rooms'),
-  createRoom: (name: string, maxPlayers: number, deckID: number, isPointsMode: boolean = false, isPrivate: boolean = false, accessKey?: string) =>
-    api.post('/rooms', { name, max_players: maxPlayers, deck_id: deckID, is_points_mode: isPointsMode, is_private: isPrivate, access_key: accessKey }),
+  createRoom: (name: string, maxPlayers: number, deckID: number, isPointsMode: boolean = false, isPrivate: boolean = false, accessKey?: string, isPvE: boolean = false, pveDifficulty: number = 0, aiCount: number = 0) =>
+    api.post('/rooms', { name, max_players: maxPlayers, deck_id: deckID, is_points_mode: isPointsMode, is_private: isPrivate, access_key: accessKey, is_pve: isPvE, pve_difficulty: pveDifficulty, ai_count: aiCount }),
   getRoomState: (roomId: string) =>
     api.get(`/rooms/${roomId}`),
   checkRoomStatus: (roomId: string) =>
     api.get(`/rooms/${roomId}/status`),
   joinRoom: (roomId: string, accessKey?: string) =>
     api.post(`/rooms/${roomId}/join${accessKey ? `?key=${accessKey}` : ''}`),
-  leaveRoom: (roomId: string) => 
+  leaveRoom: (roomId: string) =>
     api.post(`/rooms/${roomId}/leave`),
   ready: (roomId: string) =>
     api.post(`/rooms/${roomId}/ready`),
@@ -133,11 +133,11 @@ export const gameAPI = {
     api.post('/game/duel/respond', { target_uid, accept }),
   getMyGameHistory: () =>
     api.get('/user/game-history'),
-  playCard: (roomId: string, card: any, substance: string) => 
+  playCard: (roomId: string, card: any, substance: string) =>
     api.post(`/rooms/${roomId}/play`, { card, substance }),
   playDouble: (roomId: string, sub1: string, sub2: string) =>
     api.post(`/rooms/${roomId}/play-double`, { sub1, sub2 }),
-  drawCard: (roomId: string) => 
+  drawCard: (roomId: string) =>
     api.post(`/rooms/${roomId}/draw`),
   getAvailableSubstances: (roomId: string) =>
     api.get(`/rooms/${roomId}/substances`),
@@ -145,7 +145,7 @@ export const gameAPI = {
     api.get(`/rooms/${roomId}/reaction-hints`),
   checkReaction: (r1: string, r2: string) =>
     api.post('/game/check-reaction', { r1, r2 }),
-  getMyDecks: () => 
+  getMyDecks: () =>
     api.get('/my-decks'),
   createMyDeck: (name: string, cards: Record<string, number>, initialCards?: number) =>
     api.post('/my-decks', { name, cards, initial_cards: initialCards }),
@@ -157,31 +157,31 @@ export const gameAPI = {
 
 export const pointsAPI = {
   getLeaderboard: (mode: string = 'total') => api.get(`/points/leaderboard?mode=${mode}`),
-  createBounty: (target_uid: number, amount: number) => 
+  createBounty: (target_uid: number, amount: number) =>
     api.post('/points/bounty', { target_uid, amount }),
 }
 
 // 管理员API
 export const adminAPI = {
-  getAllUsers: () => 
+  getAllUsers: () =>
     api.get('/admin/users'),
   createUser: (username: string, password: string) =>
     api.post('/admin/users', { username, password }),
-  deleteUser: (uid: string) => 
+  deleteUser: (uid: string) =>
     api.delete(`/admin/users/${uid}`),
-  changeUserPassword: (uid: string, newPassword: string) => 
+  changeUserPassword: (uid: string, newPassword: string) =>
     api.put(`/admin/users/${uid}/password`, { new_password: newPassword }),
-  promoteUser: (uid: string, role: string) => 
+  promoteUser: (uid: string, role: string) =>
     api.put(`/admin/users/${uid}/role`, { role }),
   banUser: (targetUID: number, bannedUntil: string, reason: string) =>
     api.post('/admin/users/ban', { target_uid: targetUID, banned_until: bannedUntil, reason }),
   kickPlayer: (targetUID: number, reason: string) =>
     api.post('/admin/users/kick', { target_uid: targetUID, reason }),
-  getGlobalDeckConfig: () => 
+  getGlobalDeckConfig: () =>
     api.get('/admin/deck-config'),
-  updateGlobalDeckConfig: (name: string, cards: Record<string, number>, initialCards?: number) => 
+  updateGlobalDeckConfig: (name: string, cards: Record<string, number>, initialCards?: number) =>
     api.put('/admin/deck-config', { name, cards, initial_cards: initialCards }),
-  getGameHistory: () => 
+  getGameHistory: () =>
     api.get('/admin/game-history'),
   getFeedbacks: () =>
     api.get('/admin/feedbacks'),
@@ -195,7 +195,7 @@ export const adminAPI = {
     api.get('/admin/game-time-configs'),
   updateGameTimeConfig: (data: any) =>
     api.put('/admin/game-time-configs', data),
-  
+
   // 公告管理
   getAnnouncements: () =>
     api.get('/admin/announcements'),
@@ -218,21 +218,21 @@ export const commonAPI = {
 
 // 反应管理API
 export const reactionAPI = {
-  getReactions: () => 
+  getReactions: () =>
     api.get('/reactions'),
-  getAllReactions: () => 
+  getAllReactions: () =>
     api.get('/reactions/all'),
-  getMyReactions: () => 
+  getMyReactions: () =>
     api.get('/reactions/my'),
-  addReaction: (display: string) => 
+  addReaction: (display: string) =>
     api.post('/reactions', { display }),
   batchAddReactions: (reactions: { display: string }[]) =>
     api.post('/reactions/batch', reactions),
-  updateReaction: (id: number, display: string) => 
+  updateReaction: (id: number, display: string) =>
     api.put(`/reactions/${id}`, { display }),
   approveReaction: (groupId: string, display: string, reject: boolean = false) =>
     api.put(`/reactions/approve/${groupId}`, { display, reject }),
-  deleteReaction: (reactionId: number) => 
+  deleteReaction: (reactionId: number) =>
     api.delete(`/reactions/${reactionId}`),
 }
 

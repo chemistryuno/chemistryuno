@@ -41,6 +41,9 @@ type Room struct {
 	ChallengerUID int         `json:"challenger_uid"` // 发起者 UID
 	TargetUID     int         `json:"target_uid"`     // 被挑战者 UID
 	CreatedAt     time.Time   `json:"created_at"`
+	IsPvE         bool        `json:"is_pve"`         // 是否为人机对战模式
+	PvEDifficulty int         `json:"pve_difficulty"` // 人机难度 1-100
+	AICount       int         `json:"ai_count"`       // AI 数量
 }
 
 // MarshalJSON 自定义 JSON 序列化，确保 ready_uids 和其他切片字段永远不为 null
@@ -107,6 +110,7 @@ type PlayerState struct {
 	IsReady               bool   `json:"is_ready"`
 	DoubleActionAvailable bool   `json:"double_action_available"` // 是否可以使用双联反应（每2次普通行动可用1次）
 	ActionProgress        int    `json:"action_progress"`         // 行动进度（0->1->2(可用)）
+	IsAI                  bool   `json:"is_ai"`                   // 是否为 AI 玩家
 }
 
 // 已出牌

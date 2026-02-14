@@ -43,12 +43,15 @@ func GetRooms(c *gin.Context) {
 // 创建房间
 func CreateRoom(c *gin.Context) {
 	var req struct {
-		Name         string `json:"name"`
-		MaxPlayers   int    `json:"max_players" binding:"required,min=2,max=8"`
-		DeckID       int    `json:"deck_id"`
-		IsPointsMode bool   `json:"is_points_mode"`
-		IsPrivate    bool   `json:"is_private"`
-		AccessKey    string `json:"access_key"` // 自定义访问密钥（可选）
+		Name          string `json:"name"`
+		MaxPlayers    int    `json:"max_players" binding:"required,min=2,max=8"`
+		DeckID        int    `json:"deck_id"`
+		IsPointsMode  bool   `json:"is_points_mode"`
+		IsPrivate     bool   `json:"is_private"`
+		AccessKey     string `json:"access_key"`
+		IsPvE         bool   `json:"is_pve"`
+		PvEDifficulty int    `json:"pve_difficulty"`
+		AICount       int    `json:"ai_count"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -56,7 +59,9 @@ func CreateRoom(c *gin.Context) {
 		return
 	}
 
-	if req.IsPointsMode && req.IsPrivate {
+	// PvE 模式下私密性校验特殊处理：PvE 房间通常默认为私密或不公开，但这里沿用前段传参
+	// 如果是积分模式且是私密房间（非 PvE），则禁止
+	if req.IsPointsMode && req.IsPrivate && !req.IsPvE {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "积分模式下不可创建私密房间"})
 		return
 	}
@@ -64,7 +69,7 @@ func CreateRoom(c *gin.Context) {
 	uid := c.GetInt("uid")
 	username := c.GetString("username")
 
-	room, err := game.CreateRoomWithKey(req.Name, uid, username, req.MaxPlayers, req.DeckID, req.IsPointsMode, req.IsPrivate, req.AccessKey)
+	room, err := game.CreateRoomWithKey(req.Name, uid, username, req.MaxPlayers, req.DeckID, req.IsPointsMode, req.IsPrivate, req.AccessKey, req.IsPvE, req.PvEDifficulty, req.AICount)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

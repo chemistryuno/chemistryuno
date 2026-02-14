@@ -195,6 +195,22 @@ const hasNewMessage = ref(false)
 const showQrModal = ref(false)
 const showInviteFriendsModal = ref(false)
 
+// PvE Toasts
+const pveToasts = ref<{ id: number, text: string }[]>([])
+let toastIdCounter = 0
+
+const addPvEToast = (text: string) => {
+  const id = ++toastIdCounter
+  pveToasts.value.push({ id, text })
+  // 保持最多3个显示
+  if (pveToasts.value.length > 3) {
+    pveToasts.value.shift()
+  }
+  setTimeout(() => {
+    pveToasts.value = pveToasts.value.filter(t => t.id !== id)
+  }, 4000)
+}
+
 // startPrivateChat 已被弃用，实验室内禁止私聊
 
 
@@ -612,7 +628,11 @@ const handleGameUpdate = (message: any) => {
 const handleActionToast = (msg: any) => {
   const content = msg.data || msg.message
   if (content) {
-    showAlert(content, '实验动态')
+    if (roomInfo.value?.is_pve) {
+      addPvEToast(content)
+    } else {
+      showAlert(content, '实验动态')
+    }
   }
 }
 
@@ -703,7 +723,8 @@ const loadGameState = async (silent = false) => {
       is_points_mode: data.is_points_mode,
       deck_config: data.deck_config,
       is_private: data.is_private,
-      access_key: data.access_key
+      access_key: data.access_key,
+      is_pve: data.is_pve
     }
 
     console.log('[GameRoom] roomInfo updated, status:', roomInfo.value.status)
@@ -1269,6 +1290,18 @@ watch(() => gameState.value?.current_player, () => {
           </button>
         </div>
       </header>
+
+      <!-- PvE Experimental Dynamics Floating Window -->
+      <div v-if="roomInfo?.is_pve && pveToasts.length > 0" class="fixed top-14 sm:top-20 left-1/2 -translate-x-1/2 z-[60] flex flex-col items-center gap-2 pointer-events-none">
+        <div 
+          v-for="toast in pveToasts" 
+          :key="toast.id"
+          class="bg-blue-600/90 backdrop-blur-md text-white px-4 py-2 rounded-xl shadow-lg border border-white/20 text-[10px] sm:text-xs font-bold animate-in slide-in-from-top-2 fade-in duration-300 flex items-center gap-2"
+        >
+          <Activity class="w-3.5 h-3.5 text-blue-200" />
+          {{ toast.text }}
+        </div>
+      </div>
 
       <!-- Main Action Focus Area -->
       <div class="flex-1 relative flex flex-col items-center justify-center p-2 sm:p-4 mb-16 sm:mb-20 overflow-hidden">

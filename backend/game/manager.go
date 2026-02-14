@@ -37,6 +37,41 @@ func (gr *GameRoom) cancelStartTimer() {
 	gr.Room.Countdown = 0
 }
 
+func (gr *GameRoom) shouldTerminateRoom() bool {
+	if gr.Room.Status != "playing" {
+		return false
+	}
+
+	// 统计人类玩家数量
+	numHumans := 0
+	for _, pid := range gr.Room.Players {
+		if pid >= 0 {
+			numHumans++
+		}
+	}
+
+	if gr.Room.IsPvE {
+		// 人机模式：只要没有人类玩家了，就关闭
+		return numHumans == 0
+	}
+
+	// 多人模式：
+	// 1. 如果完全没人类了，关闭
+	// 2. 如果人类离开了（中途退出），导致只剩1个或更少人（含AI），且没有任何人完成比赛，关闭
+	// 注意：只要有人完成比赛，就说明游戏进入了结算流程或正在观战，应允许继续
+	if numHumans == 0 {
+		return true
+	}
+
+	// 如果人类玩家少于2个，且没有任何人（人类或AI）已经完成比赛
+	if numHumans < 2 {
+		if gr.GameState == nil || len(gr.GameState.FinishedPlayers) == 0 {
+			return true
+		}
+	}
+	return false
+}
+
 func (gr *GameRoom) checkAutoStart() {
 	roomID := gr.Room.ID
 	numPlayers := len(gr.Room.Players)
@@ -700,7 +735,7 @@ func (gr *GameRoom) checkInactivity() {
 	gr.mutex.Lock()
 	if gr.Room.Status == "waiting" {
 		gr.checkAutoStart()
-	} else if gr.Room.Status == "playing" && len(gr.Room.Players) < 2 {
+	} else if gr.shouldTerminateRoom() {
 		gr.mutex.Unlock()
 		gr.terminateRoom("由于玩家人数不足，房间已被关闭")
 		return
@@ -824,7 +859,7 @@ func (gr *GameRoom) kickPlayer(uid int, reason string) {
 	}
 
 	// 如果是正在游戏中且玩家少于2个，则解散
-	if gr.Room.Status == "playing" && len(gr.Room.Players) < 2 {
+	if gr.shouldTerminateRoom() {
 		gr.mutex.Unlock()
 		gr.terminateRoom("由于实验样本不足（少于2人），本次反应宣告失败，实验室已关闭")
 		return
@@ -1108,7 +1143,7 @@ func LeaveRoom(roomID string, uid int) error {
 	}
 
 	// 如果是正在游戏中且玩家少于2个，则解散
-	if gameRoom.Room.Status == "playing" && len(gameRoom.Room.Players) < 2 {
+	if gameRoom.shouldTerminateRoom() {
 		gameRoom.terminateRoom("由于实验样本不足（少于2人），本次反应宣告失败，实验室已关闭")
 		return nil
 	}
@@ -1549,6 +1584,7 @@ func GetRoomState(roomID string, uid int) (map[string]interface{}, error) {
 		"deck_config":    gameRoom.Room.DeckConfig,
 		"is_private":     gameRoom.Room.IsPrivate,
 		"access_key":     gameRoom.Room.AccessKey,
+		"is_pve":         gameRoom.Room.IsPvE, // 添加 is_pve 字段
 	}
 
 	if gameRoom.GameState != nil {

@@ -234,12 +234,21 @@ func (gr *GameRoom) aiTryDoublePlay(player *models.PlayerState) bool {
 
 // aiTryPlayCard 尝试打出一张牌
 func (gr *GameRoom) aiTryPlayCard(player *models.PlayerState) bool {
-	// 0. 特殊情况判断：是否有玩家快赢了（手牌数 <= 2）
-	threatDetected := false
-	for _, p := range gr.GameState.Players {
-		if p.UID != player.UID && p.CardCount <= 2 {
-			threatDetected = true
-			break
+	// 0. 威胁检测：是否有人类玩家快赢了（手牌数 <= 3）
+	humanThreatIdx := -1
+	for i, ps := range gr.GameState.Players {
+		if ps.UID > 0 { // 是真人玩家
+			isFinished := false
+			for _, fuid := range gr.GameState.FinishedPlayers {
+				if ps.UID == fuid {
+					isFinished = true
+					break
+				}
+			}
+			if !isFinished && ps.CardCount <= 3 {
+				humanThreatIdx = i
+				break
+			}
 		}
 	}
 
@@ -256,77 +265,163 @@ func (gr *GameRoom) aiTryPlayCard(player *models.PlayerState) bool {
 		return false
 	}
 
-	// 2. 如果存在威胁，优先打出功能牌进行拦截
-	if threatDetected {
-		// 优先顺序：+4 > +2 > Au > Reverse
-		for _, effect := range []string{"+4", "+2", "Au", "reverse"} {
-			for _, card := range player.HandCards {
-				if card.Effect == effect {
-					gr.aiExecutePlay(player.UID, card, "")
-					return true
-				}
+	// 合作逻辑所需数据
+	nextIdx := getNextPlayer(gr.GameState)
+	nextPlayer := gr.GameState.Players[nextIdx]
+	isNextAI := nextPlayer.UID < 0
+
+	// 2. 紧急防御逻辑：如果下一位是威胁中的人类玩家，优先打出功能牌进行拦截
+	if humanThreatIdx == nextIdx {
+		// 尝试打出功能牌拦截
+		for _, card := range player.HandCards {
+			// 优先级高的拦截牌
+			if card.Effect == "+4" || card.Effect == "+2" || card.Effect == "Au" {
+				log.Printf("[AI] 🛡️ AI %d 检测到人类威胁，执行顶级拦截: %s", player.UID, card.Effect)
+				gr.aiExecutePlay(player.UID, card, "")
+				return true
 			}
 		}
-	}
-
-	// 3. 也是优先打出加牌/功能牌 (攻击性策略)
-	// 如果是积分模式，更加倾向于使用功能牌消耗对手
-	if gr.Room.IsPointsMode || player.CardCount < 5 {
+		// 备选拦截牌：稀有气体 (Skip) 或 转向 (Reverse)
 		for _, card := range player.HandCards {
-			if isSpecialCard(card) {
-				gr.aiExecutePlay(player.UID, card, "")
+			if isNobleGas(card.Type) || card.Effect == "reverse" {
+				log.Printf("[AI] 🛡️ AI %d 检测到人类威胁，执行次级拦截: %s", player.UID, card.Type)
+				gr.aiExecutePlay(player.UID, card, card.Type)
 				return true
 			}
 		}
 	}
 
-	// 4. 寻找普通反应牌
-	// 获取所有已批准的反应，用于全局检索
-	allReactions, err := repository.ReactionRepo.FindApprovedReactions()
-	if err != nil {
-		log.Printf("[AI] ⚠️ 获取反应表失败: %v", err)
-	}
+	// 3. 核心决策逻辑：优先寻找能组成的最优物质
+	availableSubstances := GetSubstancesFromElements(player.HandCards)
 
-	// 收集场上所有可能的反应物来源
+	bestSub := ""
+	bestScore := -1
+
+	// 判断场上限制
+	isAllowedAny := gr.GameState.AllowedAnyPlayer == gr.GameState.CurrentPlayer
 	lastSubstances := []string{}
-	if gr.GameState.LastCard != nil {
+	if gr.GameState.LastCard != nil && !isAllowedAny {
 		if len(gr.GameState.LastCard.Reactants) > 0 {
-			// 如果是双联反应，收集所有反应物
 			lastSubstances = append(lastSubstances, gr.GameState.LastCard.Reactants...)
 		} else if gr.GameState.LastCard.Substance != "" {
-			// 普通反应
 			lastSubstances = append(lastSubstances, gr.GameState.LastCard.Substance)
 		}
 	}
 
-	if len(lastSubstances) > 0 {
-		// 遍历场上物质，在全局反应表中寻找能反应的组合
-		for _, ls := range lastSubstances {
-			for _, reaction := range allReactions {
-				var neededComponent string
-				if reaction.R1 == ls {
-					neededComponent = reaction.R2
-				} else if reaction.R2 == ls {
-					neededComponent = reaction.R1
-				} else {
-					continue
-				}
+	// 评分函数：基础分 = 复杂度 * 10
+	calculateScore := func(sub string) int {
+		score := getComplexity(sub) * 10
 
-				// 检查 neededComponent 是否能由手牌中的元素组成
-				neededElements := parseSubstance(neededComponent)
-				if hasCards(player.HandCards, neededElements) {
-					// 找到了匹配的反应！AI 将打出该反应物
-					log.Printf("[AI] 💡 AI %d 发现反应: %s + %s -> %s", player.UID, ls, neededComponent, reaction.Display)
-					gr.aiExecutePlay(player.UID, models.Card{Type: "AI_React_Card"}, neededComponent)
-					return true
+		// 配合逻辑：如果下一位是 AI 同伴
+		if isNextAI {
+			// 查看同伴手牌能组成的物质
+			allyAvailable := GetSubstancesFromElements(nextPlayer.HandCards)
+			canAllyReact := false
+			for _, as := range allyAvailable {
+				if CanReact(sub, as) {
+					canAllyReact = true
+					break
+				}
+			}
+			// 如果同伴能接上，加分（鼓励配合）
+			if canAllyReact {
+				score += 50
+			}
+			// 如果同伴快赢了，且当前物质不是 Au/特殊牌，进一步加分鼓励保持局面
+			if nextPlayer.CardCount <= 2 {
+				score += 30
+			}
+		} else {
+			// 如果下一位是人类对手
+			allyAvailable := GetSubstancesFromElements(nextPlayer.HandCards)
+			canHumanReact := false
+			for _, as := range allyAvailable {
+				if CanReact(sub, as) {
+					canHumanReact = true
+					break
+				}
+			}
+			// 如果人类接不上，加分（鼓励卡位）
+			if !canHumanReact {
+				score += 40
+			}
+
+			// 如果人类威胁在下家，且虽然接得上但 AI 想要强制重置（通过卡位或计谋），提升卡位权重
+			if humanThreatIdx == nextIdx && !canHumanReact {
+				score += 100 // 极力卡位
+			}
+		}
+		return score
+	}
+
+	if len(lastSubstances) > 0 {
+		// 有场上物质限制，必须能与其反应
+		for _, ls := range lastSubstances {
+			for _, sub := range availableSubstances {
+				if CanReact(ls, sub) {
+					score := calculateScore(sub)
+					if score > bestScore {
+						bestScore = score
+						bestSub = sub
+					}
 				}
 			}
 		}
 	} else {
-		// 场上无物质（如 Au 效果后），AI 随机打出一张非特殊牌作为单质
+		// 场上无物质 (开局/Au/AllowedAny)，尝试打出评分最高物质
+		for _, sub := range availableSubstances {
+			score := calculateScore(sub)
+			if score > bestScore {
+				bestScore = score
+				bestSub = sub
+			}
+		}
+	}
+
+	// 如果找到了最佳出牌物质
+	if bestSub != "" {
+		log.Printf("[AI] 🧠 AI %d 采用合作策略决策: %s (综合得分: %d)", player.UID, bestSub, bestScore)
+		gr.aiExecutePlay(player.UID, models.Card{Type: "AI_BEST_CHOICE_CARD"}, bestSub)
+		return true
+	}
+
+	// 4. 特殊功能牌优先级逻辑
+	// 在配合逻辑下，对攻击牌的打出时机进行微调
+	specialPriority := []string{"reverse", "Au"}
+
+	// 稀有气体也作为特殊优先级
+	nobleGases := []string{"He", "Ne", "Ar", "Kr"}
+
+	// 如果下家是人类，或者全场有人类威胁，将拦截/攻击牌加入优先级
+	if !isNextAI || humanThreatIdx != -1 {
+		specialPriority = append(specialPriority, "+2", "+4")
+		specialPriority = append(specialPriority, nobleGases...)
+	} else {
+		// 如果下家是 AI，除非没办法否则不打攻击牌
+		if player.CardCount <= 3 {
+			specialPriority = append(specialPriority, "+2", "+4")
+			specialPriority = append(specialPriority, nobleGases...)
+		}
+	}
+
+	for _, effect := range specialPriority {
 		for _, card := range player.HandCards {
-			if !isSpecialCard(card) {
-				gr.aiExecutePlay(player.UID, card, card.Type)
+			if card.Effect == effect || card.Type == effect {
+				sub := ""
+				if isNobleGas(card.Type) {
+					sub = card.Type
+				}
+				gr.aiExecutePlay(player.UID, card, sub)
+				return true
+			}
+		}
+	}
+
+	// 兜底：如果存在人类威胁且手中有转向牌，直接打出以自保/拦截
+	if humanThreatIdx != -1 {
+		for _, card := range player.HandCards {
+			if card.Effect == "reverse" {
+				gr.aiExecutePlay(player.UID, card, "")
 				return true
 			}
 		}
@@ -361,8 +456,9 @@ func (gr *GameRoom) aiExecutePlay(uid int, card models.Card, substance string) {
 		cardName = card.Effect
 	}
 
-	// 如果是功能牌，substance 为空
-	if isSpecialCard(card) {
+	// 如果没有提供 substance 且是功能牌，则保持为空让 PlayCard 自动处理
+	// 但如果提供了 (比如 Noble Gas)，则保留它
+	if substance == "" && isSpecialCard(card) {
 		substance = ""
 	}
 
@@ -390,7 +486,10 @@ func (gr *GameRoom) aiExecutePlay(uid int, card models.Card, substance string) {
 		if websocket.GlobalHub != nil {
 			// 只有特殊卡牌（功能牌、金、稀有气体等）才通过弹窗告知
 			// 普通化学反应直接在右侧弃牌堆显示，不再消耗弹窗配额
-			if isSpecialCard(card) || substance == "Au" || isNobleGas(substance) {
+			// 注意：Au, reverse, skip 已在 manager.go 中统一处理针对全房间的浮窗，此处 AI 仅处理其他特殊卡（如 +2, +4）
+			isHandledByManager := card.Effect == "Au" || card.Effect == "reverse" || card.Effect == "skip" || isNobleGas(substance) || isNobleGas(card.Type)
+
+			if (isSpecialCard(card) || substance == "Au" || isNobleGas(substance)) && !isHandledByManager {
 				msg := ""
 				if substance != "" {
 					msg = fmt.Sprintf("%s 打出了 %s", displayName, substance)
@@ -415,6 +514,21 @@ func isSpecialCard(card models.Card) bool {
 
 func isNobleGas(t string) bool {
 	return t == "He" || t == "Ne" || t == "Ar" || t == "Kr"
+}
+
+// getComplexity 计算物质的复杂度 (综合考量原子总数与元素多样性)
+func getComplexity(substance string) int {
+	req := parseSubstance(substance)
+	totalAtoms := 0
+	distinctElements := len(req)
+
+	for _, count := range req {
+		totalAtoms += count
+	}
+
+	// 复杂度公式：总原子数 + 元素种类 * 5
+	// 这样 C12H22O11 (45+3*5=60) 会远高于 O2 (2+1*5=7)
+	return totalAtoms + (distinctElements * 5)
 }
 
 // hasCards 检查手牌是否满足需求 (只需包含相关元素即可，不限制数量)

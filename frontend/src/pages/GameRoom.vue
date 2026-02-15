@@ -465,6 +465,36 @@ const getSubstanceName = (formula: string) => {
   return formula
 }
 
+const getDynamicWidthClass = (formula: string, type: 'single' | 'double' = 'single') => {
+  if (!formula) return type === 'single' ? 'w-40 sm:w-48' : 'w-28 sm:w-32'
+  const len = formula.length
+  if (type === 'single') {
+    if (len <= 3) return 'w-40 sm:w-48'
+    if (len <= 6) return 'w-48 sm:w-56'
+    if (len <= 9) return 'w-56 sm:w-64'
+    return 'w-64 sm:w-80'
+  } else {
+    if (len <= 3) return 'w-28 sm:w-32'
+    if (len <= 6) return 'w-32 sm:w-40'
+    return 'w-40 sm:w-48'
+  }
+}
+
+const getFormulaFontSize = (formula: string, type: 'single' | 'double' = 'single') => {
+  if (!formula) return ''
+  const len = formula.length
+  if (type === 'single') {
+    if (len > 12) return 'text-[20px] sm:text-[28px]'
+    if (len > 8) return 'text-[24px] sm:text-[32px]'
+    if (len > 5) return 'text-[28px] sm:text-[38px]'
+    return 'text-[32px] sm:text-[44px]'
+  } else {
+    if (len > 8) return 'text-[18px] sm:text-[24px]'
+    if (len > 5) return 'text-[22px] sm:text-[30px]'
+    return 'text-[28px] sm:text-[36px]'
+  }
+}
+
 // 解析化学式，返回元素及其数量（与后端 parseSubstance 逻辑一致）
 const parseSubstanceElements = (substance: string): Record<string, number> => {
   const result: Record<string, number> = {}
@@ -1036,7 +1066,18 @@ const handleDrawCard = async () => {
 
 const handleLeaveRoom = async () => {
   try {
-    const confirmed = await showConfirm('暂时离开实验室？你可以在被踢出前随时返回继续实验', '暂离实验')
+    let message = '暂时离开实验室？你可以在被踢出前随时返回继续实验'
+    let title = '暂离实验'
+    
+    // 如果玩家已完成实验且是积分模式，提示已获得分值并可直接安全离开
+    if (isSpectator.value) {
+      const rank = (gameState.value?.finished_players || []).indexOf(user.value?.uid) + 1
+      const points = rank === 1 ? 100 : (rank === 2 ? 50 : (rank === 3 ? 33 : 25))
+      message = `实验已完成！你获得了第 ${rank} 名，系统已为你发放约 ${points} 积分。确定现在结束这次实验吗？`
+      title = '实验结算'
+    }
+
+    const confirmed = await showConfirm(message, title)
     if (confirmed) {
       router.push('/')
     }
@@ -1435,10 +1476,11 @@ watch(() => gameState.value?.current_player, () => {
              <div v-if="gameState?.last_card?.reactants?.length > 0" class="flex items-center gap-6 sm:gap-10 relative z-10">
                 <div v-for="(sub, idx) in gameState.last_card.reactants" :key="idx" class="relative group/card">
                    <div :class="cn(
-                      'uno-card w-28 h-40 sm:w-32 h-48 rounded-[32px] flex flex-col items-center justify-center gap-4 hover:scale-105',
+                      'uno-card h-40 sm:h-48 rounded-[32px] flex flex-col items-center justify-center gap-4 hover:scale-105 transition-all duration-500',
+                      getDynamicWidthClass(sub, 'double'),
                       getDynamicCardClass(gameState?.last_card?.card, sub)
                    )">
-                      <span class="text-[28px] sm:text-[36px] font-black font-mono italic drop-shadow-lg" v-html="formatFormula(sub)"></span>
+                      <span :class="cn('font-black font-mono italic drop-shadow-lg', getFormulaFontSize(sub, 'double'))" v-html="formatFormula(sub)"></span>
                       <div class="px-3 py-1 bg-white/10 backdrop-blur-md rounded-lg border border-white/20 max-w-[85%]">
                          <span class="text-[8px] font-black tracking-widest truncate block text-center">{{ getSubstanceName(sub) }}</span>
                       </div>
@@ -1452,11 +1494,12 @@ watch(() => gameState.value?.current_player, () => {
 
              <!-- Single Play Display -->
              <div v-else :class="cn(
-                'uno-card w-40 h-56 sm:w-48 h-64 rounded-[32px] flex flex-col items-center justify-center gap-4 sm:gap-6 hover:scale-105',
+                'uno-card h-56 sm:h-64 rounded-[32px] flex flex-col items-center justify-center gap-4 sm:gap-6 hover:scale-105 transition-all duration-500',
+                getDynamicWidthClass(gameState?.last_card?.substance, 'single'),
                 getDynamicCardClass(gameState?.last_card?.card, gameState?.last_card?.substance)
               )">
                 <div class="absolute top-4 left-4 opacity-20 text-[8px] uppercase font-black tracking-widest leading-none">Result</div>
-                <span class="text-[32px] sm:text-[44px] font-black font-mono italic drop-shadow-lg leading-none" v-html="formatFormula(gameState?.last_card?.substance)"></span>
+                <span :class="cn('font-black font-mono italic drop-shadow-lg leading-none', getFormulaFontSize(gameState?.last_card?.substance, 'single'))" v-html="formatFormula(gameState?.last_card?.substance)"></span>
                 <div class="px-4 py-1.5 bg-white/10 backdrop-blur-md rounded-xl border border-white/20 max-w-[85%]">
                    <span class="text-[9px] sm:text-[10px] font-black tracking-widest text-center block leading-tight">{{ getSubstanceName(gameState?.last_card?.substance) }}</span>
                 </div>

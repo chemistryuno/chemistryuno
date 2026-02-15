@@ -130,7 +130,8 @@ func (gr *GameRoom) checkAutoStart() {
 			var playersToKeep []int
 			var playersToKick []int
 			for _, uid := range gr.Room.Players {
-				if readyMap[uid] {
+				// AI 玩家或已准备的玩家保留
+				if uid < 0 || readyMap[uid] {
 					playersToKeep = append(playersToKeep, uid)
 				} else {
 					playersToKick = append(playersToKick, uid)
@@ -679,6 +680,9 @@ func (gr *GameRoom) checkInactivity() {
 
 	// 2. 检测离线超过30秒的玩家
 	for _, uid := range gr.Room.Players {
+		if uid < 0 { // AI 玩家永远视为在线
+			continue
+		}
 		isOnline := false
 		if websocket.GlobalHub != nil {
 			isOnline = websocket.GlobalHub.IsUIDInRoom(roomID, uid)
@@ -769,6 +773,9 @@ func (gr *GameRoom) CheckNextTurnAI() {
 }
 
 func (gr *GameRoom) kickPlayer(uid int, reason string) {
+	if uid < 0 {
+		return // 不能踢出 AI 玩家
+	}
 	gr.mutex.Lock()
 	roomID := gr.Room.ID
 
@@ -931,11 +938,15 @@ func ToggleReady(roomID string, uid int) error {
 	if foundIdx >= 0 {
 		// 取消准备
 		gr.Room.ReadyUIDs = append(gr.Room.ReadyUIDs[:foundIdx], gr.Room.ReadyUIDs[foundIdx+1:]...)
-		repository.UserRepo.UpdateRoomReadyStatus(uint(uid), false)
+		if uid > 0 {
+			repository.UserRepo.UpdateRoomReadyStatus(uint(uid), false)
+		}
 	} else {
 		// 准备
 		gr.Room.ReadyUIDs = append(gr.Room.ReadyUIDs, uid)
-		repository.UserRepo.UpdateRoomReadyStatus(uint(uid), true)
+		if uid > 0 {
+			repository.UserRepo.UpdateRoomReadyStatus(uint(uid), true)
+		}
 	}
 
 	gr.checkAutoStart()
@@ -1048,7 +1059,9 @@ func JoinRoomWithKey(roomID string, uid int, username string, accessKey string) 
 	}
 
 	gameRoom.Room.Players = append(gameRoom.Room.Players, uid)
-	repository.UserRepo.UpdateRoomReadyStatus(uint(uid), false)
+	if uid > 0 {
+		repository.UserRepo.UpdateRoomReadyStatus(uint(uid), false)
+	}
 	gameRoom.checkAutoStart()
 	return nil
 }
@@ -1083,7 +1096,9 @@ func LeaveRoom(roomID string, uid int) error {
 		}
 	}
 	gameRoom.Room.ReadyUIDs = newReady
-	repository.UserRepo.UpdateRoomReadyStatus(uint(uid), false)
+	if uid > 0 {
+		repository.UserRepo.UpdateRoomReadyStatus(uint(uid), false)
+	}
 
 	// 移除观战者
 	newSpectators := []int{}
@@ -1805,6 +1820,11 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 		activeEffect = card.Effect
 	}
 
+	// 稀有气体效果处理：稀有气体具有逆转实验方向的效果
+	if nobleGases[substance] || nobleGases[card.Type] {
+		activeEffect = "reverse"
+	}
+
 	// 如果有累计加牌，本轮只能打出相同或更高数值的加牌进行叠加
 	if gameRoom.GameState.PendingDrawCount > 0 {
 		// 细化逻辑：必须打出加牌
@@ -1850,8 +1870,9 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 		PlayerUID: uid,
 	}
 	// 1. 更新场面状态
-	// 如果是反转牌，不更新场上的物质（不更新 LastCard），使下家仍需与之前的物质反应
-	if activeEffect != "reverse" {
+	// 转向牌、跳过牌、Au 不更新场上的物质（不更新 LastCard），使下家仍需与之前的物质反应
+	// 其中 Au 会在后续逻辑中显式清空 LastCard
+	if activeEffect != "reverse" && activeEffect != "skip" && activeEffect != "Au" {
 		gameRoom.GameState.LastCard = &playedCard
 	}
 	gameRoom.GameState.DiscardPile = append(gameRoom.GameState.DiscardPile, playedCard)
@@ -1861,6 +1882,38 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 	if currentPlayer.CardCount == 0 {
 		gameRoom.GameState.FinishedPlayers = append(gameRoom.GameState.FinishedPlayers, uid)
 		isWinner = true
+
+		// 实时结算积分：玩家完成即可获得部分积分并可随时离开
+		if gameRoom.Room.IsPointsMode && uid > 0 {
+			rank := len(gameRoom.GameState.FinishedPlayers)
+			earnedPoints := 0
+			if rank == 1 {
+				earnedPoints = 100
+			} else if rank == 2 {
+				earnedPoints = 50
+			} else if rank == 3 {
+				earnedPoints = 33
+			} else {
+				earnedPoints = 25
+			}
+
+			// PvE 难度修正
+			if gameRoom.Room.IsPvE && gameRoom.Room.PvEDifficulty >= 50 {
+				earnedPoints = earnedPoints * gameRoom.Room.PvEDifficulty / 100
+			}
+
+			if earnedPoints > 0 {
+				_ = repository.UserRepo.AddPoints(uint(uid), earnedPoints)
+				log.Printf("[实时结算] 玩家 %d (第 %d 名) 获得积分: %d", uid, rank, earnedPoints)
+
+				if websocket.GlobalHub != nil {
+					websocket.GlobalHub.SendToUID(uid, websocket.Message{
+						Type: "action_toast",
+						Data: fmt.Sprintf("恭喜完成实验！你是第 %d 名，获得 %d 积分。你可以继续观战或随时离开实验室。", rank, earnedPoints),
+					})
+				}
+			}
+		}
 	}
 
 	// 3. 处理卡牌效果及回合转移
@@ -1887,10 +1940,37 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 				Data: fmt.Sprintf("Au 金元素触发！跳过研究员 %s，等待 %s 出牌...", skippedPlayer, nextPlayer),
 			})
 		}
+	} else if activeEffect == "skip" {
+		// 稀有气体跳过效果
+		skippedIdx := getNextPlayer(gameRoom.GameState)
+		gameRoom.GameState.CurrentPlayer = skippedIdx
+		targetIdx := getNextPlayer(gameRoom.GameState)
+		gameRoom.GameState.CurrentPlayer = targetIdx
+
+		if websocket.GlobalHub != nil {
+			skippedPlayer := gameRoom.GameState.Players[skippedIdx].Username
+			nextPlayer := gameRoom.GameState.Players[targetIdx].Username
+			websocket.GlobalHub.BroadcastToRoom(gameRoom.Room.ID, websocket.Message{
+				Type: "action_toast",
+				Data: fmt.Sprintf("稀有气体具有稳定性！跳过研究员 %s，轮到 %s 出牌...", skippedPlayer, nextPlayer),
+			})
+		}
 	} else {
 		// 转向效果及常规回合转移
 		if activeEffect == "reverse" {
 			gameRoom.GameState.Direction *= -1
+
+			if websocket.GlobalHub != nil {
+				// 获取下一位玩家名称
+				nextIdx := getNextPlayer(gameRoom.GameState)
+				nextPlayer := gameRoom.GameState.Players[nextIdx].Username
+
+				msg := fmt.Sprintf("⚛️ 元素稳定性触发！实验方向发生逆转，现在轮到 %s 进行研究！", nextPlayer)
+				websocket.GlobalHub.BroadcastToRoom(gameRoom.Room.ID, websocket.Message{
+					Type: "action_toast",
+					Data: msg,
+				})
+			}
 		}
 		gameRoom.GameState.CurrentPlayer = getNextPlayer(gameRoom.GameState)
 	}
@@ -1950,6 +2030,8 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 				log.Printf("清理房间 %s 的游戏邀请失败: %v", roomID, err)
 			}
 
+			// 最终游戏结束时不再重复计算已实时结算过的玩家，
+			// handlePointsCalculation 函数内部会自动处理或是作为最终兜底
 			if gameRoom.Room.IsPointsMode {
 				handlePointsCalculation(gameRoom)
 			}

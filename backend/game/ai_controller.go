@@ -254,12 +254,40 @@ func (gr *GameRoom) aiTryPlayCard(player *models.PlayerState) bool {
 
 	// 1. 优先处理加牌堆叠 (+2/+4)
 	if gr.GameState.PendingDrawCount > 0 {
-		for _, card := range player.HandCards {
-			if card.Effect == "+2" || card.Effect == "+4" {
-				// 有加牌必跟
-				gr.aiExecutePlay(player.UID, card, "")
-				return true
+		// 针对性策略：如果下家是人类，检查其手牌中的加牌防御力
+		humanNextIdx := -1
+		humanDrawDefense := 0
+		nextIdx := getNextPlayer(gr.GameState)
+		nextPlayer := gr.GameState.Players[nextIdx]
+		if nextPlayer.UID > 0 {
+			humanNextIdx = nextIdx
+			for _, c := range nextPlayer.HandCards {
+				if c.Effect == "+2" || c.Effect == "+4" {
+					humanDrawDefense++
+				}
 			}
+		}
+
+		var bestDrawCard *models.Card
+		for i, card := range player.HandCards {
+			if card.Effect == "+2" || card.Effect == "+4" {
+				// 如果必须接牌，且下家是已经没防御牌的人类，优先打出 +4 扩大战果
+				if humanNextIdx != -1 && humanDrawDefense == 0 {
+					if card.Effect == "+4" {
+						bestDrawCard = &player.HandCards[i]
+						break
+					}
+				}
+				// 否则保留当前遍历到的最好的一张（优先打 +2 试探，高端玩家倾向于把 +4 留给绝杀）
+				if bestDrawCard == nil || (card.Effect == "+4" && bestDrawCard.Effect == "+2") {
+					bestDrawCard = &player.HandCards[i]
+				}
+			}
+		}
+
+		if bestDrawCard != nil {
+			gr.aiExecutePlay(player.UID, *bestDrawCard, "")
+			return true
 		}
 		// 没加牌，只能摸牌
 		return false
@@ -392,9 +420,24 @@ func (gr *GameRoom) aiTryPlayCard(player *models.PlayerState) bool {
 	// 稀有气体也作为特殊优先级
 	nobleGases := []string{"He", "Ne", "Ar", "Kr"}
 
+	// 获取人类玩家的加牌防御信息
+	humanDrawDefense := 0
+	if !isNextAI {
+		for _, c := range nextPlayer.HandCards {
+			if c.Effect == "+2" || c.Effect == "+4" {
+				humanDrawDefense++
+			}
+		}
+	}
+
 	// 如果下家是人类，或者全场有人类威胁，将拦截/攻击牌加入优先级
 	if !isNextAI || humanThreatIdx != -1 {
-		specialPriority = append(specialPriority, "+2", "+4")
+		// 针对性策略：如果下家人类手里没有加牌了，且我手里有加牌，极大提升加牌优先级
+		if !isNextAI && humanDrawDefense == 0 {
+			specialPriority = append([]string{"+4", "+2"}, specialPriority...)
+		} else {
+			specialPriority = append(specialPriority, "+2", "+4")
+		}
 		specialPriority = append(specialPriority, nobleGases...)
 	} else {
 		// 如果下家是 AI，除非没办法否则不打攻击牌

@@ -128,9 +128,9 @@ func (r *SessionRepository) ValidateSessionForUser(id string, uid uint) (bool, e
 	return count > 0, nil
 }
 
-// CleanupInactive 清理24小时未活动的会话
+// CleanupInactive 清理24小时未活动的会话（排除AI账号的会话，AI的SID永不过期）
 func (r *SessionRepository) CleanupInactive() (int64, error) {
-	result := r.db.Where("last_active < ?", time.Now().Add(-24*time.Hour)).
+	result := r.db.Where("last_active < ? AND uid >= 0", time.Now().Add(-24*time.Hour)).
 		Delete(&database.UserSession{})
 	return result.RowsAffected, result.Error
 }

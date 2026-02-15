@@ -53,6 +53,17 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
+		// AI账号（UID < 0）的会话永不过期，跳过会话验证
+		if claims.UID < 0 {
+			// 将用户信息存入上下文
+			c.Set("uid", claims.UID)
+			c.Set("username", claims.Username)
+			c.Set("is_admin", claims.IsAdmin)
+			c.Set("role", claims.Role)
+			c.Next()
+			return
+		}
+
 		// 验证会话是否依然有效
 		if !utils.IsSessionValid(claims.SID) {
 			log.Printf("[会话失效] UID=%d, SID=%s, IP=%s", claims.UID, claims.SID, c.ClientIP())

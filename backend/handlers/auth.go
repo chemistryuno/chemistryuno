@@ -7,6 +7,7 @@ import (
 	"chemistryuno/backend/utils"
 	"chemistryuno/backend/websocket"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -191,6 +192,13 @@ func Login(c *gin.Context) {
 	// 密码登录
 	if !utils.CheckPassword(req.Password, user.PasswordHash) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "用户名或密码错误"})
+		return
+	}
+
+	// 禁止AI账号登录（UID为负数的账号）
+	if user.UID < 0 {
+		log.Printf("[AI登录拦截] 尝试登录AI账号 UID=%d, IP=%s", user.UID, c.ClientIP())
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "AI账号无法登录"})
 		return
 	}
 

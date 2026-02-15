@@ -1,7 +1,7 @@
 # 🧪 Chemistry UNO (化学版 UNO)
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Go Version](https://img.shields.io/badge/Go-1.20+-00ADD8?logo=go)](https://golang.org)
+[![Go Version](https://img.shields.io/badge/Go-1.24+-00ADD8?logo=go)](https://golang.org)
 [![Vue Version](https://img.shields.io/badge/Vue-3.4-4FC08D?logo=vue.js)](https://vuejs.org)
 [![Vite](https://img.shields.io/badge/Vite-Latest-646CFF?logo=vite)](https://vitejs.dev)
 
@@ -25,20 +25,20 @@
   - **RBAC**: 完善的权限系统（Admin, Co-worker, User）。
 - 📊 **管理后台**:
   - **化学库管理**: 实时管理物质数据状态（草稿/已审核）。
-  - **全量审计**: [Admin.vue](frontend/src/pages/Admin.vue) 提供详尽的游戏历史溯源（Reactor Logs）。
+  - **全量审计**: 前端管理页提供详尽的游戏历史溯源（Reactor Logs）。
   - **反馈系统**: 玩家反馈实时收集与处理。
 - 🎨 **现代化体验**:
   - **Modern UI**: 使用 Tailwind CSS 4 构建的现代化响应式界面。
-  - **公式编辑器**: [EquationEditor.vue](frontend/src/components/EquationEditor.vue) 内置化学公式解析与渲染。
+  - **公式编辑器**: 内置化学公式解析与渲染。
 
 ## 🛠️ 技术栈
 
 ### 后端 (Backend)
 
-- **语言**: Go (1.20+)
+- **语言**: Go (1.24+)
 - **框架**: Gin Web Framework
-- **数据库**: SQLite (通过 CGO 连接)
-- **核心逻辑**: [judge.go](backend/game/judge.go) (化学反应逻辑), [chemistry.go](backend/game/chemistry.go) (物质解析)
+- **数据库**: SQLite（modernc 纯 Go 驱动，默认 WAL 模式）或 MySQL（可选）
+- **核心逻辑**: 化学反应裁判与物质解析模块（backend/game）
 - **安全安全**: WebAuthn (go-webauthn), TOTP (pquerna/otp), Argon2, JWT
 
 ### 前端 (Frontend)
@@ -51,7 +51,7 @@
 
 ## 🧬 化学逻辑引擎
 
-本项目包含一个独特的化学逻辑判断模块 [judge.go](backend/game/judge.go)，它模仿了真实的化学反应判定过程：
+本项目包含一个独特的化学逻辑判断模块，模仿了真实的化学反应判定过程：
 
 1. **动态解析**: 支持 `Fe(OH)3`、`Ca(HCO3)2` 等复杂化学式的原子统计与类型识别。
 2. **反应模拟**:
@@ -64,54 +64,57 @@
 ### 环境依赖
 
 - **Node.js**: >= 18
-- **Go**: >= 1.20
-- **GCC**: MinGW-w64 (建议版本 >= 8.0，用于编译 CGO 代码)
+- **Go**: >= 1.24
 - **pnpm**: `npm install -g pnpm`
 
-### 一键安装与启动
+### 一键安装与启动（开发）
 
-项目内置了便捷的初始化脚本，支持 Windows 环境：
+项目内置了便捷脚本（Windows/Linux/macOS 通用）：
 
 ```bash
 # 1. 克隆并进入目录
 git clone https://github.com/your-repo/chemistryuno.git
 cd chemistryuno
 
-# 2. 运行初始化脚本 (安装依赖 + 环境检查)
+# 2. 运行初始化脚本（安装依赖 + 环境检查）
 pnpm run init
 
-# 3. 启动全栈项目
+# 3. 启动全栈项目（后端 :8080 + 前端 :5000）
 pnpm start
 ```
 
 启动后：
 
-- 🌐 前端地址: `http://localhost:5173`
+- 🌐 前端地址: `http://localhost:5000`
 - ⚙️ 后端 API: `http://localhost:8080`
 
-### 🔧 常见问题解决 (GCC)
+### 常见问题
 
-如果在启动后端时遇到 `unrecognized option '--high-entropy-va'` 错误：
+- 默认数据库为 SQLite（单文件，免安装）。如需 MySQL，设置 `DB_TYPE=mysql` 并配置 `MYSQL_DSN` 或 `MYSQL_*` 相关环境变量。
+- Redis 为可选；未配置将自动降级但核心功能不受影响。
+- 如需更多命令与排错，请参见根目录的 COMMANDS 与部署文档。
 
-- 请运行根目录下的 [init.bat](init.bat) 进行修复。
-- 或执行 [start.js](start.js) 脚本，它会自动处理环境变量配置。
+> 详细命令与排错见：`COMMANDS.md`、`DEPLOYMENT.md`、`QUICKSTART.md`、`backend/API_DOCUMENTATION.md`
 
 ## 📂 目录结构
 
 ```text
 .
 ├── backend/            # Go 后端源码
-│   ├── game/           # 核心逻辑 (化学判定 [judge.go](backend/game/judge.go))
-│   ├── handlers/       # API 路由处理器 (WebAuthn, Game, Admin)
+│   ├── game/           # 核心逻辑（化学判定/裁判/定时任务）
+│   ├── handlers/       # API 路由处理器（Auth/WebAuthn/Game/Admin）
 │   ├── models/         # 数据库模型
-│   └── websocket/      # 通信层 [hub.go](backend/websocket/hub.go)
+│   └── websocket/      # 通信层（Hub/Client）
 ├── frontend/           # Vue 前端源码
 │   ├── src/
 │   │   ├── components/ # 基础组件
-│   │   ├── pages/      # 业务页面 ([Lobby.vue](frontend/src/pages/Lobby.vue))
-│   │   └── utils/      # [api.ts](frontend/src/utils/api.ts) & [websocket.ts](frontend/src/utils/websocket.ts)
-├── init.bat            # 环境修复脚本
-└── start.js            # Node.js 引导启动程序
+│   │   ├── pages/      # 业务页面（Lobby/GameRoom/Admin 等）
+│   │   └── utils/      # API/WS 工具
+├── start.js            # 开发环境一键启动脚本
+├── build.js            # 生产构建脚本（前后端）
+├── COMMANDS.md         # 命令速查表
+├── QUICKSTART.md       # Linux/面板快速部署
+└── DEPLOYMENT.md       # 完整部署指南
 ```
 
 ## 🛡️ 安全架构
@@ -124,11 +127,30 @@ pnpm start
 
 ## 📊 管理能力
 
-管理员通过 [Admin.vue](frontend/src/pages/Admin.vue) 可进行全方位管控：
+管理员可进行全方位管控：
 
 - **实时监控**: 追踪每一个 Reactor 实例的运行状态。
 - **物质审核**: 对玩家提交的新物质合成公式进行合规性审查。
 - **数据导出**: 支持游戏历史与积分排行的导出与可视化。
+
+## ⚙️ 基本配置
+
+- `.env`（根目录）：首次运行可复制 `.env.example`，关键变量：
+  - `DB_TYPE`：`sqlite`（默认）或 `mysql`
+  - `SQLITE_PATH`：SQLite 数据文件路径，默认 `./chemistryuno.db`
+  - `MYSQL_DSN` 或 `MYSQL_HOST/PORT/USER/PASSWORD/DATABASE`
+  - `JWT_SECRET`：JWT 签名密钥（首次启动会自动生成或覆盖）
+  - `REDIS_ADDR`：Redis 地址（可选）
+  - `APP_VERSION`、`APP_VERSION_NAME`：版本信息（可选）
+
+## 🏗️ 构建与发布
+
+- 开发构建前端：`pnpm -C frontend build`
+- 一体化构建（前后端）：`pnpm build`
+- 产物：
+  - 后端二进制：根目录 `chemistryuno(.exe)`
+  - 前端静态文件：`backend/static/dist`（构建时自动嵌入）
+  - 完整包：`dist/`（包含运行脚本 start.sh/.bat）
 
 ## 🤝 贡献与反馈
 
@@ -136,7 +158,7 @@ pnpm start
 
 ---
 
-**Chemistry UNO V1.0.0 "Mendeleef"** - 让化学学习变得更有趣。
+**Chemistry UNO V1.2.1 "Mendeleef"** - 让化学学习变得更有趣。
 
 ### TypeScript 类型检查
 
@@ -153,6 +175,13 @@ pnpm build
 ```
 
 ## 更新日志
+
+### v1.2.1
+
+- ✅ 默认使用 modernc 纯 Go SQLite（免 CGO）
+- ✅ 统一开发端口：前端 5000 / 后端 8080
+- ✅ 新增命令速查、部署与快速启动文档
+- ✅ 增强管理后台与化学引擎稳定性
 
 ### v1.0.0
 

@@ -105,16 +105,47 @@
               <Database class="w-5 h-5 text-blue-600 dark:text-blue-400" />
               DATABASE_ENTRIES <span class="text-slate-400 dark:text-slate-600 text-[10px] font-mono not-italic uppercase tracking-widest">/ Substances_Registry</span>
             </h3>
+
+            <!-- 批量操作工具栏 -->
+            <div v-if="(user.role === 'admin' || user.role === 'co-worker') && selectedSubstances.size > 0"
+                 class="flex items-center gap-2 px-4 py-2 bg-blue-500/10 rounded-xl border border-blue-500/20">
+              <span class="text-xs font-bold text-blue-600 dark:text-blue-400">
+                已选: {{ selectedSubstances.size }}
+              </span>
+              <button
+                @click="handleBatchApprove"
+                class="px-3 py-1.5 bg-emerald-600/10 hover:bg-emerald-600 text-emerald-600 hover:text-white rounded-lg text-xs font-black uppercase tracking-widest transition-all"
+              >
+                批准
+              </button>
+              <button
+                @click="handleBatchReject"
+                class="px-3 py-1.5 bg-red-600/10 hover:bg-red-600 text-red-600 hover:text-white rounded-lg text-xs font-black uppercase tracking-widest transition-all"
+              >
+                拒绝
+              </button>
+            </div>
+
             <div class="flex items-center gap-4">
               <div class="relative group">
                 <SearchIcon class="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-500 transition-colors" />
-                <input 
+                <input
                   v-model="searchTerm"
-                  type="text" 
+                  type="text"
                   placeholder="Search formula/name..."
                   class="bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500/50 w-full md:w-64 transition-all placeholder:text-slate-400"
                 />
               </div>
+              <!-- 导出按钮 -->
+              <button
+                v-if="user.role === 'admin' || user.role === 'co-worker'"
+                @click="handleExportSubstances"
+                class="flex items-center gap-2 px-3 py-2 bg-emerald-600/10 hover:bg-emerald-600 text-emerald-600 hover:text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all border border-emerald-600/20"
+                title="导出物质数据为Excel"
+              >
+                <Download class="w-3.5 h-3.5" />
+                Export
+              </button>
             </div>
           </div>
           
@@ -122,6 +153,16 @@
             <table class="w-full text-left">
               <thead>
                 <tr class="text-slate-400 dark:text-slate-600 text-[10px] font-black uppercase tracking-[0.2em] border-b border-slate-100 dark:border-white/5">
+                  <!-- 复选框列 -->
+                  <th v-if="user.role === 'admin' || user.role === 'co-worker'" class="px-4 py-2.5 w-12">
+                    <input
+                      type="checkbox"
+                      :checked="selectAll"
+                      @change="toggleSelectAll"
+                      :disabled="filteredSubstances.length === 0"
+                      class="w-4 h-4 rounded border-slate-300 dark:border-white/20 text-emerald-600 focus:ring-emerald-500"
+                    />
+                  </th>
                   <th class="px-4 py-2.5">Formula / Name</th>
                   <th class="px-4 py-2.5">Status</th>
                   <th class="px-4 py-2.5">Author</th>
@@ -130,6 +171,15 @@
               </thead>
               <tbody class="divide-y divide-slate-100 dark:divide-white/5 font-mono">
                 <tr v-for="sub in filteredSubstances" :key="sub.id" class="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors group">
+                  <!-- 复选框列 -->
+                  <td v-if="user.role === 'admin' || user.role === 'co-worker'" class="px-4 py-3">
+                    <input
+                      type="checkbox"
+                      :checked="selectedSubstances.has(sub.id)"
+                      @change="toggleSelect(sub.id)"
+                      class="w-4 h-4 rounded border-slate-300 dark:border-white/20 text-emerald-600 focus:ring-emerald-500"
+                    />
+                  </td>
                   <td class="px-4 py-3">
                     <div class="flex flex-col">
                       <span class="text-base font-black italic text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors tracking-tighter">{{ sub.formula }}</span>
@@ -200,19 +250,20 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
-import { substanceAPI } from '../utils/api'
+import { substanceAPI, adminAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
-import { 
-  FlaskConical, 
-  Database, 
-  Plus, 
-  ArrowLeft, 
-  Search as SearchIcon, 
-  Trash2, 
+import {
+  FlaskConical,
+  Database,
+  Plus,
+  ArrowLeft,
+  Search as SearchIcon,
+  Trash2,
   Edit,
   Check,
   User as UserIcon,
-  AlertTriangle
+  AlertTriangle,
+  Download
 } from 'lucide-vue-next'
 
 interface Substance {
@@ -244,6 +295,10 @@ const loading = ref(false)
 const searchTerm = ref('')
 const editingId = ref<number | null>(null)
 const form = ref({ formula: '', name: '' })
+
+// 批量选择状态
+const selectedSubstances = ref<Set<number>>(new Set())
+const selectAll = ref(false)
 
 const fetchSubstances = async () => {
   loading.value = true
@@ -334,6 +389,90 @@ const canDeleteSub = (sub: Substance) => {
   if (user.value?.role === 'admin') return true
   if (sub.status === 'approved') return false
   return user.value?.role === 'co-worker'
+}
+
+// 批量操作相关
+const toggleSelectAll = () => {
+  if (selectAll.value) {
+    selectedSubstances.value.clear()
+    selectAll.value = false
+  } else {
+    filteredSubstances.value.forEach(s => selectedSubstances.value.add(s.id))
+    selectAll.value = true
+  }
+}
+
+const toggleSelect = (id: number) => {
+  if (selectedSubstances.value.has(id)) {
+    selectedSubstances.value.delete(id)
+  } else {
+    selectedSubstances.value.add(id)
+  }
+  selectAll.value = selectedSubstances.value.size === filteredSubstances.value.length
+}
+
+// 导出物质数据
+const handleExportSubstances = async () => {
+  try {
+    const response = await adminAPI.exportSubstances()
+    const url = window.URL.createObjectURL(response.data)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `substances_${new Date().toISOString().replace(/[:.]/g, '-')}.xlsx`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    showAlert('物质数据已导出', '成功')
+  } catch (e: any) {
+    showAlert(e.response?.data?.error || '导出失败', '错误')
+  }
+}
+
+// 批量批准物质
+const handleBatchApprove = async () => {
+  if (selectedSubstances.value.size === 0) return
+  if (selectedSubstances.value.size > 100) {
+    showAlert('一次最多批准100条记录', '超出限制')
+    return
+  }
+
+  const confirmed = await showConfirm(`确定批准选中的 ${selectedSubstances.value.size} 条物质吗？`, '批量批准')
+  if (!confirmed) return
+
+  try {
+    const groupIDs = Array.from(selectedSubstances.value)
+    const response = await adminAPI.batchApproveSubstances(groupIDs)
+    showAlert(response.data.message || '批量批准成功', '完成')
+    selectedSubstances.value.clear()
+    selectAll.value = false
+    fetchSubstances()
+  } catch (e: any) {
+    showAlert(e.response?.data?.error || '批量批准失败', '错误')
+  }
+}
+
+// 批量拒绝物质
+const handleBatchReject = async () => {
+  if (selectedSubstances.value.size === 0) return
+  if (selectedSubstances.value.size > 100) {
+    showAlert('一次最多拒绝100条记录', '超出限制')
+    return
+  }
+
+  const confirmed = await showConfirm(`确定拒绝选中的 ${selectedSubstances.value.size} 条物质吗？此操作不可恢复！`, '批量拒绝')
+  if (!confirmed) return
+
+  try {
+    const groupIDs = Array.from(selectedSubstances.value)
+    const response = await adminAPI.batchRejectSubstances(groupIDs)
+    showAlert(response.data.message || '批量拒绝成功', '完成')
+    selectedSubstances.value.clear()
+    selectAll.value = false
+    fetchSubstances()
+  } catch (e: any) {
+    showAlert(e.response?.data?.error || '批量拒绝失败', '错误')
+  }
 }
 
 const filteredSubstances = computed(() => {

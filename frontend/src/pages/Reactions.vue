@@ -60,7 +60,7 @@
           <div class="flex items-center justify-between mb-5">
             <h3 class="text-base font-black text-slate-800 dark:text-white flex items-center gap-3 italic">
               <Plus class="w-5 h-5 text-blue-600 dark:text-blue-400" />
-              {{ editingId ? '编辑反应' : '发现新反应' }}
+              {{ editingReactionId ? '编辑反应' : '发现新反应' }}
             </h3>
             <button 
               v-if="user.role === 'admin'"
@@ -103,6 +103,27 @@
               <Database class="w-5 h-5 text-green-600 dark:text-green-400" />
               反应库索引 <span class="text-slate-400 dark:text-slate-600 text-[10px] font-mono not-italic uppercase tracking-widest">/ Global_Wiki</span>
             </h3>
+
+            <!-- 批量操作工具栏 -->
+            <div v-if="(user.role === 'admin' || user.role === 'co-worker') && selectedReactions.size > 0"
+                 class="flex items-center gap-2 px-4 py-2 bg-blue-500/10 rounded-xl border border-blue-500/20">
+              <span class="text-xs font-bold text-blue-600 dark:text-blue-400">
+                已选: {{ selectedReactions.size }}
+              </span>
+              <button
+                @click="handleBatchApproveReactions"
+                class="px-3 py-1.5 bg-emerald-600/10 hover:bg-emerald-600 text-emerald-600 hover:text-white rounded-lg text-xs font-black uppercase tracking-widest transition-all"
+              >
+                批准
+              </button>
+              <button
+                @click="handleBatchRejectReactions"
+                class="px-3 py-1.5 bg-red-600/10 hover:bg-red-600 text-red-600 hover:text-white rounded-lg text-xs font-black uppercase tracking-widest transition-all"
+              >
+                拒绝
+              </button>
+            </div>
+
             <div class="flex items-center gap-4">
               <div class="relative group">
                 <SearchIcon class="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-600 dark:group-focus-within:text-blue-400 transition-colors" />
@@ -116,6 +137,16 @@
               <div class="text-[8px] font-black text-blue-600 dark:text-white bg-blue-600/10 dark:bg-blue-600/20 px-2 py-1.5 rounded-lg border border-blue-600/20 dark:border-blue-600/30 whitespace-nowrap">
                 MATCHED: {{ filteredReactions.length }}
               </div>
+              <!-- 导出按钮 -->
+              <button
+                v-if="user.role === 'admin' || user.role === 'co-worker'"
+                @click="handleExportReactions"
+                class="flex items-center gap-2 px-3 py-2 bg-blue-600/10 hover:bg-blue-600 text-blue-600 hover:text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all border border-blue-600/20"
+                title="导出反应方程式为Excel"
+              >
+                <Download class="w-3.5 h-3.5" />
+                Export
+              </button>
             </div>
           </div>
           
@@ -123,6 +154,16 @@
             <table class="w-full text-left">
               <thead>
                 <tr class="text-slate-400 dark:text-slate-600 text-[10px] font-black uppercase tracking-[0.2em] border-b border-slate-100 dark:border-white/5">
+                  <!-- 复选框列 -->
+                  <th v-if="user.role === 'admin' || user.role === 'co-worker'" class="px-4 py-2.5 w-12">
+                    <input
+                      type="checkbox"
+                      :checked="selectAllReactions"
+                      @change="toggleSelectAllReactions"
+                      :disabled="filteredReactions.length === 0"
+                      class="w-4 h-4 rounded border-slate-300 dark:border-white/20 text-blue-600 focus:ring-blue-500"
+                    />
+                  </th>
                   <th class="px-4 py-2.5">Reaction Formula</th>
                   <th class="px-4 py-2.5">Status</th>
                   <th class="px-4 py-2.5">Creator</th>
@@ -131,6 +172,15 @@
               </thead>
               <tbody class="divide-y divide-slate-100 dark:divide-white/5 font-mono">
                 <tr v-for="reaction in filteredReactions" :key="reaction.id" class="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors group">
+                  <!-- 复选框列 -->
+                  <td v-if="user.role === 'admin' || user.role === 'co-worker'" class="px-4 py-3">
+                    <input
+                      type="checkbox"
+                      :checked="selectedReactions.has(reaction.id)"
+                      @change="toggleSelectReaction(reaction.id)"
+                      class="w-4 h-4 rounded border-slate-300 dark:border-white/20 text-blue-600 focus:ring-blue-500"
+                    />
+                  </td>
                   <td class="px-4 py-3 font-bold text-slate-900 dark:text-white text-[10px]">
                     <div class="flex items-center gap-4 border-l-2" 
                       :class="{
@@ -245,14 +295,14 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { reactionAPI, authAPI } from '../utils/api'
+import { reactionAPI, authAPI, adminAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
 import EquationEditor from '../components/EquationEditor.vue'
-import { 
-  ArrowLeft, 
-  Beaker, 
-  Plus, 
-  Database, 
+import {
+  ArrowLeft,
+  Beaker,
+  Plus,
+  Database,
   Trash2,
   Search as SearchIcon,
   CheckCircle,
@@ -261,7 +311,8 @@ import {
   Upload,
   MessageSquare,
   Edit,
-  Trophy
+  Trophy,
+  Download
 } from 'lucide-vue-next'
 
 const router = useRouter()
@@ -288,6 +339,10 @@ const editorRef = ref<any>(null)
 // 编辑与反馈逻辑
 const editingReactionId = ref<number | null>(null)
 const editForm = ref({ display: '' })
+
+// 批量选择状态
+const selectedReactions = ref<Set<number>>(new Set())
+const selectAllReactions = ref(false)
 
 const handleEdit = (reaction: any) => {
   editingReactionId.value = reaction.id
@@ -396,10 +451,94 @@ const handleFileUpload = async (event: Event) => {
 }
 
 const filteredReactions = computed(() => {
-  return reactions.value.filter(r => 
+  return reactions.value.filter(r =>
     r.display.toLowerCase().includes(searchTerm.value.toLowerCase())
   )
 })
+
+// 批量操作相关
+const toggleSelectAllReactions = () => {
+  if (selectAllReactions.value) {
+    selectedReactions.value.clear()
+    selectAllReactions.value = false
+  } else {
+    filteredReactions.value.forEach(r => selectedReactions.value.add(r.id))
+    selectAllReactions.value = true
+  }
+}
+
+const toggleSelectReaction = (id: number) => {
+  if (selectedReactions.value.has(id)) {
+    selectedReactions.value.delete(id)
+  } else {
+    selectedReactions.value.add(id)
+  }
+  selectAllReactions.value = selectedReactions.value.size === filteredReactions.value.length
+}
+
+// 导出反应方程式数据
+const handleExportReactions = async () => {
+  try {
+    const response = await adminAPI.exportReactions()
+    const url = window.URL.createObjectURL(response.data)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `reactions_${new Date().toISOString().replace(/[:.]/g, '-')}.xlsx`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    showAlert('反应方程式数据已导出', '成功')
+  } catch (e: any) {
+    showAlert(e.response?.data?.error || '导出失败', '错误')
+  }
+}
+
+// 批量批准反应
+const handleBatchApproveReactions = async () => {
+  if (selectedReactions.value.size === 0) return
+  if (selectedReactions.value.size > 100) {
+    showAlert('一次最多批准100条记录', '超出限制')
+    return
+  }
+
+  const confirmed = await showConfirm(`确定批准选中的 ${selectedReactions.value.size} 条反应吗？`, '批量批准')
+  if (!confirmed) return
+
+  try {
+    const groupIDs = Array.from(selectedReactions.value)
+    const response = await adminAPI.batchApproveReactions(groupIDs)
+    showAlert(response.data.message || '批量批准成功', '完成')
+    selectedReactions.value.clear()
+    selectAllReactions.value = false
+    loadReactions()
+  } catch (e: any) {
+    showAlert(e.response?.data?.error || '批量批准失败', '错误')
+  }
+}
+
+// 批量拒绝反应
+const handleBatchRejectReactions = async () => {
+  if (selectedReactions.value.size === 0) return
+  if (selectedReactions.value.size > 100) {
+    showAlert('一次最多拒绝100条记录', '超出限制')
+    return
+  }
+
+  const confirmed = await showConfirm(`确定拒绝选中的 ${selectedReactions.value.size} 条反应吗？此操作不可恢复！`, '批量拒绝')
+  if (!confirmed) return
+
+  try {
+    const groupIDs = Array.from(selectedReactions.value)
+    const response = await adminAPI.batchRejectReactions(groupIDs)
+    showAlert(response.data.message || '批量拒绝成功', '完成')
+    selectedReactions.value.clear()
+    selectAllReactions.value = false
+    loadReactions()
+  } catch (e: any) {
+    showAlert(e.response?.data?.error || '批量拒绝失败', '错误')
+  }
+}
 
 const loadReactions = async () => {
   loading.value = true

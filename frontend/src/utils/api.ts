@@ -196,6 +196,26 @@ export const adminAPI = {
   updateGameTimeConfig: (data: any) =>
     api.put('/admin/game-time-configs', data),
 
+  // Excel导出
+  exportSubstances: () =>
+    api.get('/admin/export/substances', { responseType: 'blob' }),
+  exportReactions: () =>
+    api.get('/admin/export/reactions', { responseType: 'blob' }),
+  exportAllData: () =>
+    api.get('/admin/export/all', { responseType: 'blob' }),
+
+  // 批量批准/拒绝物质
+  batchApproveSubstances: (groupIDs: number[]) =>
+    api.post('/admin/substances/batch-approve', { group_ids: groupIDs }),
+  batchRejectSubstances: (groupIDs: number[]) =>
+    api.post('/admin/substances/batch-reject', { group_ids: groupIDs }),
+
+  // 批量批准/拒绝反应
+  batchApproveReactions: (groupIDs: number[]) =>
+    api.post('/admin/reactions/batch-approve', { group_ids: groupIDs }),
+  batchRejectReactions: (groupIDs: number[]) =>
+    api.post('/admin/reactions/batch-reject', { group_ids: groupIDs }),
+
   // 公告管理
   getAnnouncements: () =>
     api.get('/admin/announcements'),

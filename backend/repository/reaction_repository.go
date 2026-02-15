@@ -205,3 +205,26 @@ func (r *ReactionRepository) CreateBatch(reactions []database.Reaction) error {
 	}
 	return r.db.Create(&reactions).Error
 }
+
+// BatchUpdateStatusByGroupIDs 批量更新反应组状态
+func (r *ReactionRepository) BatchUpdateStatusByGroupIDs(groupIDs []uint, status string) (int64, error) {
+	now := time.Now()
+	updates := map[string]interface{}{
+		"status": status,
+	}
+	if status == "approved" {
+		updates["approved_at"] = &now
+	}
+
+	result := r.db.Model(&database.Reaction{}).
+		Where("group_id IN ?", groupIDs).
+		Updates(updates)
+
+	return result.RowsAffected, result.Error
+}
+
+// BatchDeleteByGroupIDs 批量删除反应组
+func (r *ReactionRepository) BatchDeleteByGroupIDs(groupIDs []uint) (int64, error) {
+	result := r.db.Where("group_id IN ?", groupIDs).Delete(&database.Reaction{})
+	return result.RowsAffected, result.Error
+}

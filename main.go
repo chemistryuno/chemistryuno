@@ -123,6 +123,9 @@ func main() {
 	// 标记重复物质为待完善
 	game.MarkDuplicateSubstancesForImprovement()
 
+	// 标记名称等于化学式的物质为待完善
+	game.MarkIncompleteNameSubstances()
+
 	// 记录启动时间
 	startTime := time.Now()
 
@@ -357,6 +360,17 @@ func main() {
 			admin.PUT("/announcements/:id", handlers.UpdateAnnouncement)
 			admin.PUT("/announcements/:id/status", handlers.UpdateAnnouncementStatus)
 			admin.DELETE("/announcements/:id", handlers.DeleteAnnouncement)
+
+			// Excel导出路由（管理员专用）
+			admin.GET("/export/substances", handlers.ExportSubstancesToExcel)
+			admin.GET("/export/reactions", handlers.ExportReactionsToExcel)
+			admin.GET("/export/all", handlers.ExportAllDataToExcel)
+
+			// 批量审批路由（管理员专用）
+			admin.POST("/substances/batch-approve", handlers.BatchApproveSubstances)
+			admin.POST("/substances/batch-reject", handlers.BatchRejectSubstances)
+			admin.POST("/reactions/batch-approve", handlers.BatchApproveReactions)
+			admin.POST("/reactions/batch-reject", handlers.BatchRejectReactions)
 		}
 
 		// 积分和悬赏

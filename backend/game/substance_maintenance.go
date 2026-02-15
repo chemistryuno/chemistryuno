@@ -56,3 +56,40 @@ func MarkDuplicateSubstancesForImprovement() {
 
 	log.Println("[物质维护] 重复物质标记完成")
 }
+
+// MarkIncompleteNameSubstances 标记名称等于化学式的物质为待完善
+func MarkIncompleteNameSubstances() {
+	if database.DB == nil {
+		return
+	}
+
+	log.Println("[物质维护] 检查名称等于化学式的物质...")
+
+	substanceRepo := repository.NewSubstanceRepository()
+	substances, err := substanceRepo.FindSubstancesWhereNameEqualsFormula()
+
+	if err != nil {
+		log.Printf("[物质维护] 查询失败: %v", err)
+		return
+	}
+
+	if len(substances) == 0 {
+		log.Println("[物质维护] 未发现名称等于化学式的物质")
+		return
+	}
+
+	log.Printf("[物质维护] 发现 %d 个待完善物质，正在标记...", len(substances))
+
+	marked := 0
+	for _, sub := range substances {
+		if sub.GroupID != nil {
+			if err := substanceRepo.MarkNeedsImprovement(*sub.GroupID, true); err != nil {
+				log.Printf("[物质维护] 标记失败 (GroupID=%d): %v", *sub.GroupID, err)
+			} else {
+				marked++
+			}
+		}
+	}
+
+	log.Printf("[物质维护] 成功标记 %d/%d 个物质", marked, len(substances))
+}

@@ -282,3 +282,34 @@ func (r *SubstanceRepository) FindDuplicatesByNameFormula() ([]struct {
 
 	return results, err
 }
+
+// FindSubstancesWhereNameEqualsFormula 查找名称等于化学式的物质
+func (r *SubstanceRepository) FindSubstancesWhereNameEqualsFormula() ([]database.Substance, error) {
+	var substances []database.Substance
+	err := r.db.Where("name = formula AND status = ?", "approved").Find(&substances).Error
+	return substances, err
+}
+
+// BatchUpdateStatusByGroupIDs 批量更新物质组状态
+func (r *SubstanceRepository) BatchUpdateStatusByGroupIDs(groupIDs []uint, status string) (int64, error) {
+	now := time.Now()
+	updates := map[string]interface{}{
+		"status": status,
+	}
+	if status == "approved" {
+		updates["approved_at"] = &now
+		updates["needs_improvement"] = false // 批准时清除待完善标记
+	}
+
+	result := r.db.Model(&database.Substance{}).
+		Where("group_id IN ?", groupIDs).
+		Updates(updates)
+
+	return result.RowsAffected, result.Error
+}
+
+// BatchDeleteByGroupIDs 批量删除物质组
+func (r *SubstanceRepository) BatchDeleteByGroupIDs(groupIDs []uint) (int64, error) {
+	result := r.db.Where("group_id IN ?", groupIDs).Delete(&database.Substance{})
+	return result.RowsAffected, result.Error
+}

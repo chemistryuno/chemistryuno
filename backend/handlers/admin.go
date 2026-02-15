@@ -1359,3 +1359,167 @@ func DeleteSubstance(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "删除成功"})
 	game.RebuildSubstanceCache()
 }
+
+// BatchApproveSubstances 批量批准物质
+func BatchApproveSubstances(c *gin.Context) {
+	var req struct {
+		GroupIDs []uint `json:"group_ids" binding:"required,min=1"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误: " + err.Error()})
+		return
+	}
+
+	// 批量操作最大限制（防止DOS攻击）
+	const MAX_BATCH_SIZE = 100
+	if len(req.GroupIDs) > MAX_BATCH_SIZE {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "批量操作最多支持100条记录"})
+		return
+	}
+
+	// 批量更新状态
+	affected, err := substanceRepo.BatchUpdateStatusByGroupIDs(req.GroupIDs, "approved")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "批量批准失败: " + err.Error()})
+		return
+	}
+
+	// 重建物质缓存
+	game.RebuildSubstanceCache()
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": fmt.Sprintf("批量批准成功，共影响 %d 条记录", affected),
+		"count":   affected,
+	})
+}
+
+// BatchRejectSubstances 批量拒绝物质
+func BatchRejectSubstances(c *gin.Context) {
+	var req struct {
+		GroupIDs []uint `json:"group_ids" binding:"required,min=1"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误: " + err.Error()})
+		return
+	}
+
+	// 批量操作最大限制
+	const MAX_BATCH_SIZE = 100
+	if len(req.GroupIDs) > MAX_BATCH_SIZE {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "批量操作最多支持100条记录"})
+		return
+	}
+
+	// 批量删除
+	affected, err := substanceRepo.BatchDeleteByGroupIDs(req.GroupIDs)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "批量拒绝失败: " + err.Error()})
+		return
+	}
+
+	// 重建物质缓存
+	game.RebuildSubstanceCache()
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": fmt.Sprintf("批量拒绝成功，共删除 %d 条记录", affected),
+		"count":   affected,
+	})
+}
+
+// BatchApproveReactions 批量批准反应
+func BatchApproveReactions(c *gin.Context) {
+	var req struct {
+		GroupIDs []uint `json:"group_ids" binding:"required,min=1"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误: " + err.Error()})
+		return
+	}
+
+	// 批量操作最大限制
+	const MAX_BATCH_SIZE = 100
+	if len(req.GroupIDs) > MAX_BATCH_SIZE {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "批量操作最多支持100条记录"})
+		return
+	}
+
+	// 批量更新状态
+	affected, err := reactionRepo.BatchUpdateStatusByGroupIDs(req.GroupIDs, "approved")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "批量批准失败: " + err.Error()})
+		return
+	}
+
+	// 批准后自动将反应物录入物质百科
+	err = database.DB.Transaction(func(tx *gorm.DB) error {
+		var reactions []database.Reaction
+		if err := tx.Where("group_id IN ?", req.GroupIDs).Find(&reactions).Error; err != nil {
+			return err
+		}
+
+		// 收集所有涉及的物质化学式
+		formulaSet := make(map[string]bool)
+		for _, rxn := range reactions {
+			formulaSet[rxn.R1] = true
+			formulaSet[rxn.R2] = true
+		}
+
+		var formulas []string
+		for f := range formulaSet {
+			formulas = append(formulas, f)
+		}
+
+		// 确保物质已入库
+		game.EnsureSubstancesExist(tx, formulas, 100000000)
+		return nil
+	})
+
+	if err != nil {
+		log.Printf("[批量批准] 物质同步失败: %v", err)
+	}
+
+	// 重建物质缓存
+	game.RebuildSubstanceCache()
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": fmt.Sprintf("批量批准成功，共影响 %d 条记录", affected),
+		"count":   affected,
+	})
+}
+
+// BatchRejectReactions 批量拒绝反应
+func BatchRejectReactions(c *gin.Context) {
+	var req struct {
+		GroupIDs []uint `json:"group_ids" binding:"required,min=1"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误: " + err.Error()})
+		return
+	}
+
+	// 批量操作最大限制
+	const MAX_BATCH_SIZE = 100
+	if len(req.GroupIDs) > MAX_BATCH_SIZE {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "批量操作最多支持100条记录"})
+		return
+	}
+
+	// 批量删除
+	affected, err := reactionRepo.BatchDeleteByGroupIDs(req.GroupIDs)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "批量拒绝失败: " + err.Error()})
+		return
+	}
+
+	// 重建物质缓存
+	game.RebuildSubstanceCache()
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": fmt.Sprintf("批量拒绝成功，共删除 %d 条记录", affected),
+		"count":   affected,
+	})
+}

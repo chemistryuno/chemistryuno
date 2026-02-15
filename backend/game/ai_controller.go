@@ -12,6 +12,19 @@ import (
 
 // TriggerAITurn 触发 AI 回合逻辑
 func (gr *GameRoom) TriggerAITurn() {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("[AI] ❌ TriggerAITurn panic recovered: %v", r)
+			// 尝试释放可能持有的锁
+			defer func() {
+				if r2 := recover(); r2 != nil {
+					// 忽略双重 panic
+				}
+			}()
+			gr.mutex.Unlock()
+		}
+	}()
+
 	gameRoom := gr
 
 	gr.mutex.RLock()
@@ -128,8 +141,9 @@ func (gr *GameRoom) canAIPlaySubstance(substance string) bool {
 }
 
 // aiDrawCard AI 摸牌/过牌
+// 注意：此函数假设调用者持有 gr.mutex 锁，函数内部会释放锁但不会重新获取
 func (gr *GameRoom) aiDrawCard(uid int) {
-	// 获取 AI 昵称
+	// 获取 AI 昵称（在释放锁前获取，因为需要访问GameState）
 	displayName := fmt.Sprintf("AI 研究员 %d", -uid)
 	for _, p := range gr.GameState.Players {
 		if p.UID == uid {
@@ -139,17 +153,16 @@ func (gr *GameRoom) aiDrawCard(uid int) {
 	}
 
 	// 释放锁，调用 DrawCard (它会重新加锁)
+	// 注意：释放后不再重新获取锁，避免与调用者的 defer unlock 冲突
 	gr.mutex.Unlock()
 	err := DrawCard(gr.Room.ID, uid, 2) // AI 不出牌时立即摸 2 张并自动过牌
-	gr.mutex.Lock()
 
 	if err != nil {
 		log.Printf("[AI] ❌ AI %s 摸牌失败: %v", displayName, err)
 	} else {
 		log.Printf("[AI] 🛑 AI %s 摸牌结束回合", displayName)
-		// 摸牌不再通过弹窗告知，直接通过桌面状态同步
-		// DrawCard 内部会处理 NextTurn，这里不需要额外操作
-		gr.broadcastRoomUpdate()
+		// DrawCard 内部已经调用了 CheckNextTurnAI 和状态更新
+		// 不需要在这里额外操作
 	}
 }
 
@@ -208,23 +221,24 @@ func (gr *GameRoom) aiTryDoublePlay(player *models.PlayerState) bool {
 				// 发动双联！
 				log.Printf("[AI] ⚡ AI %d 发动双联反应: %s + %s", player.UID, s1, s2)
 
-				// 解锁，调用 DoublePlay
+				// 解锁，调用 DoublePlay（DoublePlay 会自己管理锁）
 				gr.mutex.Unlock()
 				err := DoublePlay(gr.Room.ID, player.UID, s1, s2)
-				gr.mutex.Lock()
 
 				if err == nil {
-					// 广播消息
+					// 广播消息（不需要锁）
 					if websocket.GlobalHub != nil {
 						websocket.GlobalHub.BroadcastToRoom(gr.Room.ID, websocket.Message{
 							Type: "action_toast",
 							Data: fmt.Sprintf("%s 发动了双联反应: %s + %s！", player.Nickname, s1, s2),
 						})
 					}
-					gr.broadcastRoomUpdate()
+					// 注意：成功后不重新获取锁，让调用者的 defer 处理
 					return true
 				} else {
 					log.Printf("[AI] ⚠️ AI 双联执行失败: %v", err)
+					// 失败后也不重新获取锁
+					return false
 				}
 			}
 		}
@@ -485,15 +499,8 @@ func (gr *GameRoom) aiTryPlaySpecialOnly(player *models.PlayerState) bool {
 }
 
 // aiExecutePlay 执行出牌 (封装 PlayCard 调用)
+// 注意：此函数假设调用者持有 gr.mutex 锁，函数内部会释放锁但不会重新获取
 func (gr *GameRoom) aiExecutePlay(uid int, card models.Card, substance string) {
-	// 需要找到真实的手牌对象
-	// PlayCard 逻辑：
-	// if substance == "" -> substance = card.Type
-	// parseSubstance(substance) -> 找手牌
-
-	// 解锁，调用 PlayCard
-	gr.mutex.Unlock()
-
 	cardName := card.Type
 	if card.Effect != "" {
 		cardName = card.Effect
@@ -505,15 +512,25 @@ func (gr *GameRoom) aiExecutePlay(uid int, card models.Card, substance string) {
 		substance = ""
 	}
 
+	// 解锁，调用 PlayCard（PlayCard 会自己管理锁）
+	gr.mutex.Unlock()
 	err := PlayCard(gr.Room.ID, uid, card, substance)
-	gr.mutex.Lock()
 
 	if err != nil {
 		log.Printf("[AI] ⚠️ AI %d 出牌失败 (%s): %v", uid, substance, err)
 		// 失败回退：摸牌
+		// aiDrawCard 也会释放锁，所以这里不需要重新获取锁
 		gr.aiDrawCard(uid)
-	} else {
-		// 获取 AI 昵称用于广播
+		return
+	}
+
+	// 成功出牌后的处理（不需要锁，因为只是日志和广播）
+	log.Printf("[AI] ✅ AI 成功出牌: %s / %s", card.Type, substance)
+
+	// 广播不需要锁
+	if websocket.GlobalHub != nil {
+		// 获取 AI 昵称用于广播（需要重新获取锁来访问GameState）
+		gr.mutex.RLock()
 		displayName := fmt.Sprintf("AI 研究员 %d", -uid)
 		for _, p := range gr.GameState.Players {
 			if p.UID == uid {
@@ -521,30 +538,25 @@ func (gr *GameRoom) aiExecutePlay(uid int, card models.Card, substance string) {
 				break
 			}
 		}
+		gr.mutex.RUnlock()
 
-		log.Printf("[AI] ✅ AI %s 成功出牌: %s / %s", displayName, card.Type, substance)
-		// 必须触发广播更新，否则玩家看不到 AI 的最新操作
-		gr.broadcastRoomUpdate()
+		// 只有特殊卡牌（功能牌、金、稀有气体等）才通过弹窗告知
+		// 普通化学反应直接在右侧弃牌堆显示，不再消耗弹窗配额
+		// 注意：Au, reverse, skip 已在 manager.go 中统一处理针对全房间的浮窗，此处 AI 仅处理其他特殊卡（如 +2, +4）
+		isHandledByManager := card.Effect == "Au" || card.Effect == "reverse" || card.Effect == "skip" || isNobleGas(substance) || isNobleGas(card.Type)
 
-		if websocket.GlobalHub != nil {
-			// 只有特殊卡牌（功能牌、金、稀有气体等）才通过弹窗告知
-			// 普通化学反应直接在右侧弃牌堆显示，不再消耗弹窗配额
-			// 注意：Au, reverse, skip 已在 manager.go 中统一处理针对全房间的浮窗，此处 AI 仅处理其他特殊卡（如 +2, +4）
-			isHandledByManager := card.Effect == "Au" || card.Effect == "reverse" || card.Effect == "skip" || isNobleGas(substance) || isNobleGas(card.Type)
-
-			if (isSpecialCard(card) || substance == "Au" || isNobleGas(substance)) && !isHandledByManager {
-				msg := ""
-				if substance != "" {
-					msg = fmt.Sprintf("%s 打出了 %s", displayName, substance)
-				} else {
-					msg = fmt.Sprintf("%s 打出了特殊牌 %s", displayName, cardName)
-				}
-
-				websocket.GlobalHub.BroadcastToRoom(gr.Room.ID, websocket.Message{
-					Type: "action_toast",
-					Data: msg,
-				})
+		if (isSpecialCard(card) || substance == "Au" || isNobleGas(substance)) && !isHandledByManager {
+			msg := ""
+			if substance != "" {
+				msg = fmt.Sprintf("%s 打出了 %s", displayName, substance)
+			} else {
+				msg = fmt.Sprintf("%s 打出了特殊牌 %s", displayName, cardName)
 			}
+
+			websocket.GlobalHub.BroadcastToRoom(gr.Room.ID, websocket.Message{
+				Type: "action_toast",
+				Data: msg,
+			})
 		}
 	}
 }

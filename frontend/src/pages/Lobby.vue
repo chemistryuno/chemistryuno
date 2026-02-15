@@ -56,6 +56,11 @@ const isPrivate = ref(false)
 const pveDifficulty = ref(50)
 const aiCount = ref(1)
 const customAccessKey = ref('') // 自定义访问密钥
+
+// AI补位功能配置
+const enableAIBackfill = ref(false)
+const aiBackfillDifficulty = ref(50)
+
 const loading = ref(false)
 const currentTime = ref(new Date())
 const onlineCount = ref(0)
@@ -193,13 +198,20 @@ const handleCreateRoom = async () => {
       deckID.value,
       isPointsMode.value,
       isPrivate.value,
-      customAccessKey.value || undefined
+      customAccessKey.value || undefined,
+      false, // isPvE
+      0, // pveDifficulty
+      0, // aiCount
+      enableAIBackfill.value, // 启用AI补位
+      aiBackfillDifficulty.value // AI补位难度
     )
     const room = response.data
     // 重置状态
     showCreateModal.value = false
     roomName.value = ''
     customAccessKey.value = ''
+    enableAIBackfill.value = false
+    aiBackfillDifficulty.value = 50
 
     // 如果是私密房间且有访问密钥，显示密钥模态框
     if (isPrivate.value && room.access_key) {
@@ -233,7 +245,9 @@ const handleCreateAIRoom = async () => {
       undefined,
       true, // IsPvE
       pveDifficulty.value,
-      aiCount.value
+      aiCount.value,
+      false, // PvE模式不需要补位
+      0 // AI补位难度（PvE模式忽略）
     )
     const room = response.data
     showAIArenaModal.value = false
@@ -668,59 +682,59 @@ const copyToClipboard = (text: string) => {
     </div>
 
     <!-- Modern Create Modal -->
-    <div v-if="showCreateModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
+    <div v-if="showCreateModal" class="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4">
       <div class="absolute inset-0 bg-slate-900/40 dark:bg-black/80 backdrop-blur-md animate-in fade-in" @click="showCreateModal = false" />
-      <div class="relative w-full max-w-lg bg-white dark:bg-[#121216] border border-slate-200 dark:border-white/10 rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in slide-in-from-bottom-10 duration-500">
+      <div class="relative w-full max-w-lg bg-white dark:bg-[#121216] border border-slate-200 dark:border-white/10 rounded-3xl sm:rounded-[40px] shadow-2xl overflow-hidden flex flex-col modal-mobile animate-in fade-in zoom-in slide-in-from-bottom-10 duration-500">
          <!-- Modal Header -->
-         <div class="px-6 py-5 border-b border-slate-100 dark:border-white/5 flex items-center justify-between">
-            <div class="flex items-center gap-3">
-              <div class="w-10 h-10 bg-blue-500/10 border border-blue-500/20 rounded-xl flex items-center justify-center text-blue-500 dark:text-blue-400">
+         <div class="px-5 py-4 sm:px-6 sm:py-5 border-b border-slate-100 dark:border-white/5 flex items-center justify-between">
+            <div class="flex items-center gap-2.5 sm:gap-3">
+              <div class="w-9 h-9 sm:w-10 sm:h-10 bg-blue-500/10 border border-blue-500/20 rounded-xl flex items-center justify-center text-blue-500 dark:text-blue-400">
                 <Plus class="w-5 h-5" />
               </div>
               <div>
-                <h2 class="text-lg font-black text-slate-800 dark:text-white tracking-tight leading-none">开启新实验</h2>
-                <p class="text-[9px] text-slate-400 dark:text-slate-500 font-mono uppercase tracking-widest mt-1">Setup_Experiment_Parameters</p>
+                <h2 class="text-base sm:text-lg font-black text-slate-800 dark:text-white tracking-tight leading-none">开启新实验</h2>
+                <p class="text-label-mobile text-slate-400 dark:text-slate-500 font-mono uppercase tracking-widest mt-0.5 sm:mt-1">Setup_Experiment</p>
               </div>
             </div>
-            <button 
+            <button
               @click="showCreateModal = false"
-              class="p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl transition-colors text-slate-400 hover:text-slate-900 dark:hover:text-white"
+              class="p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl transition-colors text-slate-400 hover:text-slate-900 dark:hover:text-white touch-feedback"
             >
               <X class="w-5 h-5" />
             </button>
          </div>
 
         <form @submit.prevent="handleCreateRoom" class="flex flex-col min-h-0">
-          <div class="p-6 space-y-5 overflow-y-auto custom-scrollbar flex-1">
+          <div class="modal-content-mobile space-y-4 sm:space-y-5 overflow-y-auto custom-scrollbar flex-1">
             <div class="space-y-2">
             <div class="flex justify-between items-center px-1">
-               <label class="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">实验空间命名</label>
-               <span class="text-[8px] text-blue-500/40 font-mono">IDENTIFIER</span>
+               <label class="text-label-mobile font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">实验空间命名</label>
+               <span class="text-caption-mobile text-blue-500/40 font-mono">IDENTIFIER</span>
             </div>
             <input
               v-model="roomName"
               type="text"
               autofocus
               placeholder="默认随机分配名称..."
-              class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/5 text-slate-900 dark:text-white px-4 py-3 rounded-xl focus:ring-1 focus:ring-blue-500/50 focus:border-blue-500/50 outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-700 font-mono text-xs"
+              class="w-full input-mobile bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/5 text-slate-900 dark:text-white px-4 sm:px-4 py-3 rounded-xl focus:ring-1 focus:ring-blue-500/50 focus:border-blue-500/50 outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-700 font-mono"
             />
           </div>
 
           <div class="space-y-2">
             <div class="flex justify-between items-center px-1">
-               <label class="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">研究员容量</label>
-               <span class="text-[8px] text-blue-500/40 font-mono">CAPACITY</span>
+               <label class="text-label-mobile font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">研究员容量</label>
+               <span class="text-caption-mobile text-blue-500/40 font-mono">CAPACITY</span>
             </div>
-            <div class="grid grid-cols-4 gap-3">
+            <div class="grid grid-cols-4 gap-2.5 sm:gap-3">
               <button
                 v-for="num in [2, 3, 4, 8]"
                 :key="num"
                 type="button"
                 @click="maxPlayers = num"
                 :class="cn(
-                  'h-10 rounded-xl text-[11px] font-black border transition-all flex items-center justify-center relative group/opt overflow-hidden',
-                  maxPlayers === num 
-                    ? 'bg-blue-500/10 border-blue-500/50 text-blue-600 dark:text-blue-400 ring-1 ring-blue-500/20 shadow-[0_4px_12px_rgba(59,130,246,0.1)]' 
+                  'h-11 sm:h-10 rounded-xl text-xs sm:text-[11px] font-black border transition-all flex items-center justify-center relative group/opt overflow-hidden touch-feedback',
+                  maxPlayers === num
+                    ? 'bg-blue-500/10 border-blue-500/50 text-blue-600 dark:text-blue-400 ring-1 ring-blue-500/20 shadow-[0_4px_12px_rgba(59,130,246,0.1)]'
                     : 'bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/5 text-slate-400 dark:text-slate-600 hover:bg-slate-100 dark:hover:bg-white/10'
                 )"
               >
@@ -732,75 +746,121 @@ const copyToClipboard = (text: string) => {
 
           <div class="space-y-2">
             <div class="flex justify-between items-center px-1">
-               <label class="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">核心配置</label>
-               <span class="text-[8px] text-blue-500/40 font-mono">PROTOCOL</span>
+               <label class="text-label-mobile font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">核心配置</label>
+               <span class="text-caption-mobile text-blue-500/40 font-mono">PROTOCOL</span>
             </div>
-            <div class="flex items-center gap-3 p-3 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-xl group/toggle cursor-pointer transition-all hover:bg-slate-100 dark:hover:bg-white/10" @click="isPointsMode = !isPointsMode; if(isPointsMode) isPrivate = false">
+            <div class="flex items-center gap-3 p-3.5 sm:p-3 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-xl group/toggle cursor-pointer transition-all hover:bg-slate-100 dark:hover:bg-white/10 touch-feedback" @click="isPointsMode = !isPointsMode; if(isPointsMode) isPrivate = false">
               <div :class="cn(
-                'w-8 h-4.5 rounded-full relative transition-colors duration-300',
+                'w-10 h-5 sm:w-8 sm:h-4.5 rounded-full relative transition-colors duration-300',
                 isPointsMode ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-700'
               )">
                 <div :class="cn(
-                  'absolute top-0.75 left-0.75 w-3 h-3 bg-white rounded-full transition-transform duration-300',
-                  isPointsMode ? 'translate-x-3.5' : 'translate-x-0'
+                  'absolute top-1 left-1 sm:top-0.75 sm:left-0.75 w-3 h-3 bg-white rounded-full transition-transform duration-300',
+                  isPointsMode ? 'translate-x-5 sm:translate-x-3.5' : 'translate-x-0'
                 )"></div>
               </div>
               <div class="flex flex-col">
-                <span :class="cn('text-[9px] font-black uppercase tracking-wider', isPointsMode ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-400')">
+                <span :class="cn('text-xs sm:text-[9px] font-black uppercase tracking-wider', isPointsMode ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-400')">
                   积分竞技模式
                 </span>
-                <span class="text-[8px] text-slate-400 dark:text-slate-500 mt-0.5 leading-tight">
+                <span class="text-caption-mobile text-slate-400 dark:text-slate-500 mt-0.5 leading-tight">
                   胜负将影响全球排名
                 </span>
               </div>
             </div>
 
-            <div class="flex items-center gap-3 p-3 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-xl group/toggle cursor-pointer transition-all hover:bg-slate-100 dark:hover:bg-white/10" @click="isPrivate = !isPrivate; if(isPrivate) isPointsMode = false">
+            <div class="flex items-center gap-3 p-3.5 sm:p-3 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-xl group/toggle cursor-pointer transition-all hover:bg-slate-100 dark:hover:bg-white/10 touch-feedback" @click="isPrivate = !isPrivate; if(isPrivate) isPointsMode = false">
               <div :class="cn(
-                'w-8 h-4.5 rounded-full relative transition-colors duration-300',
+                'w-10 h-5 sm:w-8 sm:h-4.5 rounded-full relative transition-colors duration-300',
                 isPrivate ? 'bg-amber-600' : 'bg-slate-300 dark:bg-slate-700'
               )">
                 <div :class="cn(
-                  'absolute top-0.75 left-0.75 w-3 h-3 bg-white rounded-full transition-transform duration-300',
-                  isPrivate ? 'translate-x-3.5' : 'translate-x-0'
+                  'absolute top-1 left-1 sm:top-0.75 sm:left-0.75 w-3 h-3 bg-white rounded-full transition-transform duration-300',
+                  isPrivate ? 'translate-x-5 sm:translate-x-3.5' : 'translate-x-0'
                 )"></div>
               </div>
               <div class="flex flex-col">
-                <span :class="cn('text-[9px] font-black uppercase tracking-wider', isPrivate ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400 dark:text-slate-400')">
+                <span :class="cn('text-xs sm:text-[9px] font-black uppercase tracking-wider', isPrivate ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400 dark:text-slate-400')">
                   私密隐藏频道
                 </span>
-                <span class="text-[8px] text-slate-400 dark:text-slate-500 mt-0.5 leading-tight">
+                <span class="text-caption-mobile text-slate-400 dark:text-slate-500 mt-0.5 leading-tight">
                   不显示在大厅，仅能通过二维码/链接加入
+                </span>
+              </div>
+            </div>
+
+            <!-- AI补位功能 -->
+            <div class="flex items-center gap-3 p-3.5 sm:p-3 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-xl group/toggle cursor-pointer transition-all hover:bg-slate-100 dark:hover:bg-white/10 touch-feedback" @click="enableAIBackfill = !enableAIBackfill">
+              <div :class="cn(
+                'w-10 h-5 sm:w-8 sm:h-4.5 rounded-full relative transition-colors duration-300',
+                enableAIBackfill ? 'bg-purple-600' : 'bg-slate-300 dark:bg-slate-700'
+              )">
+                <div :class="cn(
+                  'absolute top-1 left-1 sm:top-0.75 sm:left-0.75 w-3 h-3 bg-white rounded-full transition-transform duration-300',
+                  enableAIBackfill ? 'translate-x-5 sm:translate-x-3.5' : 'translate-x-0'
+                )"></div>
+              </div>
+              <div class="flex flex-col">
+                <span :class="cn('text-xs sm:text-[9px] font-black uppercase tracking-wider', enableAIBackfill ? 'text-purple-600 dark:text-purple-400' : 'text-slate-400 dark:text-slate-400')">
+                  AI智能补位
+                </span>
+                <span class="text-caption-mobile text-slate-400 dark:text-slate-500 mt-0.5 leading-tight">
+                  开始游戏时自动用AI填补空缺位置
                 </span>
               </div>
             </div>
           </div>
 
+          <!-- AI补位难度设置 -->
+          <div v-if="enableAIBackfill" class="space-y-2 animate-in slide-in-from-top-2 fade-in duration-300">
+            <div class="flex justify-between items-center px-1">
+               <label class="text-label-mobile font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">AI难度等级</label>
+               <span class="text-caption-mobile text-purple-500/40 font-mono">DIFFICULTY: {{ aiBackfillDifficulty }}</span>
+            </div>
+            <div class="p-4 bg-purple-50 dark:bg-purple-500/5 border border-purple-200 dark:border-purple-500/20 rounded-xl">
+              <input
+                v-model.number="aiBackfillDifficulty"
+                type="range"
+                min="1"
+                max="100"
+                class="w-full h-2 bg-purple-200 dark:bg-purple-500/20 rounded-lg appearance-none cursor-pointer accent-purple-600"
+              />
+              <div class="flex justify-between mt-2.5 sm:mt-2">
+                <span class="text-caption-mobile text-purple-600 dark:text-purple-400 font-mono">简单</span>
+                <span class="text-caption-mobile text-purple-600 dark:text-purple-400 font-mono">中等</span>
+                <span class="text-caption-mobile text-purple-600 dark:text-purple-400 font-mono">困难</span>
+              </div>
+            </div>
+            <p class="text-caption-mobile text-purple-600 dark:text-purple-500 px-1 leading-relaxed">
+              🤖 <span class="font-bold">提示：</span>AI难度越高，决策越优秀。建议积分模式下使用60+难度
+            </p>
+          </div>
+
           <!-- 私密房间密钥输入框 -->
           <div v-if="isPrivate" class="space-y-2 animate-in slide-in-from-top-2 fade-in duration-300">
             <div class="flex justify-between items-center px-1">
-               <label class="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">访问密钥</label>
-               <span class="text-[8px] text-amber-500/40 font-mono">ACCESS_KEY</span>
+               <label class="text-label-mobile font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">访问密钥</label>
+               <span class="text-caption-mobile text-amber-500/40 font-mono">ACCESS_KEY</span>
             </div>
             <input
               v-model="customAccessKey"
               type="text"
               placeholder="留空自动生成8位密钥..."
               maxlength="20"
-              class="w-full bg-amber-50 dark:bg-amber-500/5 border border-amber-200 dark:border-amber-500/20 text-slate-900 dark:text-white px-4 py-3 rounded-xl focus:ring-1 focus:ring-amber-500/50 focus:border-amber-500/50 outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-700 font-mono text-xs"
+              class="w-full input-mobile bg-amber-50 dark:bg-amber-500/5 border border-amber-200 dark:border-amber-500/20 text-slate-900 dark:text-white px-4 rounded-xl focus:ring-1 focus:ring-amber-500/50 focus:border-amber-500/50 outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-700 font-mono"
             />
-            <p class="text-[8px] text-amber-600 dark:text-amber-500 px-1 leading-relaxed">
+            <p class="text-caption-mobile text-amber-600 dark:text-amber-500 px-1 leading-relaxed">
               💡 <span class="font-bold">提示：</span>可自定义4-20位密钥，或留空由系统自动生成
             </p>
           </div>
 
           <div v-if="!isPointsMode" class="space-y-2">
             <div class="flex justify-between items-center px-1">
-               <label class="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">选择牌组</label>
-               <span class="text-[8px] text-blue-500/40 font-mono">DECK</span>
+               <label class="text-label-mobile font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">选择牌组</label>
+               <span class="text-caption-mobile text-blue-500/40 font-mono">DECK</span>
             </div>
             <div v-if="decks.length === 0" class="p-4 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-center">
-              <p class="text-[10px] text-slate-500 dark:text-slate-400 font-mono">暂无可用牌组，将使用默认全局牌组</p>
+              <p class="text-xs-mobile text-slate-500 dark:text-slate-400 font-mono">暂无可用牌组，将使用默认全局牌组</p>
             </div>
             <div v-else class="space-y-2">
               <button
@@ -809,44 +869,44 @@ const copyToClipboard = (text: string) => {
                 type="button"
                 @click="deckID = deck.id"
                 :class="cn(
-                  'w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left group/deck',
+                  'w-full flex items-center gap-3 p-3.5 sm:p-3 rounded-xl border transition-all text-left group/deck touch-feedback',
                   deckID === deck.id
                     ? 'bg-blue-600/5 dark:bg-blue-600/10 border-blue-500/50 shadow-[0_4px_12px_rgba(59,130,246,0.05)]'
                     : 'bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/5 hover:border-slate-300 dark:hover:border-white/10'
                 )"
               >
                 <div :class="cn(
-                  'w-9 h-9 rounded-lg flex items-center justify-center transition-colors',
+                  'w-10 h-10 sm:w-9 sm:h-9 rounded-lg flex items-center justify-center transition-colors',
                   deckID === deck.id ? 'bg-blue-500 text-white' : 'bg-slate-200 dark:bg-white/5 text-slate-400 dark:text-slate-500'
                 )">
-                   <Beaker class="w-4 h-4" />
+                   <Beaker class="w-5 h-5 sm:w-4 sm:h-4" />
                 </div>
                 <div class="flex-1">
-                  <p :class="cn('text-[11px] font-black uppercase tracking-wider', deckID === deck.id ? 'text-blue-600 dark:text-blue-400' : 'text-slate-700 dark:text-white')">
+                  <p :class="cn('text-xs sm:text-[11px] font-black uppercase tracking-wider', deckID === deck.id ? 'text-blue-600 dark:text-blue-400' : 'text-slate-700 dark:text-white')">
                     {{ deck.name }}
                   </p>
-                  <p class="text-[8px] text-slate-400 dark:text-slate-500 mt-0.5 font-mono uppercase tracking-tighter">
+                  <p class="text-caption-mobile text-slate-400 dark:text-slate-500 mt-0.5 font-mono uppercase tracking-tighter">
                     {{ Object.keys(deck.cards || {}).length }} Elements
                   </p>
                 </div>
-                <div v-if="deckID === deck.id" class="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse mr-1"></div>
+                <div v-if="deckID === deck.id" class="w-2 h-2 sm:w-1.5 sm:h-1.5 rounded-full bg-blue-500 animate-pulse mr-1"></div>
               </button>
             </div>
           </div>
 
           </div>
-          <div class="p-6 border-t border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.02] flex gap-3 shrink-0">
-            <button 
-              type="button" 
-              @click="showCreateModal = false" 
-              class="flex-1 h-11 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-500 dark:text-slate-400 font-bold rounded-xl transition-all uppercase tracking-widest text-[10px] border border-slate-200 dark:border-white/5"
+          <div class="p-5 sm:p-6 border-t border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.02] flex gap-3 shrink-0">
+            <button
+              type="button"
+              @click="showCreateModal = false"
+              class="flex-1 button-mobile bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-500 dark:text-slate-400 font-bold rounded-xl transition-all uppercase tracking-widest text-xs sm:text-[10px] border border-slate-200 dark:border-white/5 touch-feedback"
             >
               放弃
             </button>
-            <button 
-              type="submit" 
+            <button
+              type="submit"
               :disabled="loading"
-              class="flex-1 h-11 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-xl transition-all shadow-[0_8px_20px_rgba(37,99,235,0.2)] active:scale-95 disabled:grayscale flex items-center justify-center gap-2 group/sub relative overflow-hidden"
+              class="flex-1 button-mobile bg-blue-600 hover:bg-blue-500 text-white font-black rounded-xl transition-all shadow-[0_8px_20px_rgba(37,99,235,0.2)] touch-feedback disabled:grayscale flex items-center justify-center gap-2 group/sub relative overflow-hidden"
             >
               <template v-if="loading">
                 <Loader2 class="w-5 h-5 animate-spin" />

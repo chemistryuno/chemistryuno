@@ -44,6 +44,11 @@ type Room struct {
 	IsPvE         bool        `json:"is_pve"`         // 是否为人机对战模式
 	PvEDifficulty int         `json:"pve_difficulty"` // 人机难度 1-100
 	AICount       int         `json:"ai_count"`       // AI 数量
+
+	// AI补位功能配置
+	EnableAIBackfill     bool  `json:"enable_ai_backfill"`      // 是否启用AI补位
+	AIBackfillDifficulty int   `json:"ai_backfill_difficulty"`  // 补位AI难度（1-100）
+	BackfilledAIUIDs     []int `json:"backfilled_ai_uids"`      // 记录自动补充的AI UID列表
 }
 
 // MarshalJSON 自定义 JSON 序列化，确保 ready_uids 和其他切片字段永远不为 null
@@ -62,17 +67,23 @@ func (r *Room) MarshalJSON() ([]byte, error) {
 	if spectators == nil {
 		spectators = []int{}
 	}
+	backfilledAIUIDs := r.BackfilledAIUIDs
+	if backfilledAIUIDs == nil {
+		backfilledAIUIDs = []int{}
+	}
 
 	return json.Marshal(&struct {
-		Players    []int `json:"players"`
-		ReadyUIDs  []int `json:"ready_uids"`
-		Spectators []int `json:"spectators"`
+		Players          []int `json:"players"`
+		ReadyUIDs        []int `json:"ready_uids"`
+		Spectators       []int `json:"spectators"`
+		BackfilledAIUIDs []int `json:"backfilled_ai_uids"`
 		*Alias
 	}{
-		Players:    players,
-		ReadyUIDs:  readyUIDs,
-		Spectators: spectators,
-		Alias:      (*Alias)(r),
+		Players:          players,
+		ReadyUIDs:        readyUIDs,
+		Spectators:       spectators,
+		BackfilledAIUIDs: backfilledAIUIDs,
+		Alias:            (*Alias)(r),
 	})
 }
 

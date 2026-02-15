@@ -15,17 +15,30 @@ body {
 
   /* ========== 移动端优化工具类 ========== */
 
-  /* 响应式字体系统 - 移动端最小11px保证可读性 */
+  /* 响应式字体系统 - 移动端最小12px保证可读性 */
+  .text-tiny-mobile {
+    @apply text-[12px] sm:text-[10px] md:text-[9px];
+  }
+
   .text-xs-mobile {
-    @apply text-[11px] sm:text-xs;
+    @apply text-[13px] sm:text-xs;
   }
 
   .text-sm-mobile {
-    @apply text-[13px] sm:text-sm;
+    @apply text-sm sm:text-sm;
   }
 
   .text-base-mobile {
-    @apply text-[15px] sm:text-base;
+    @apply text-base sm:text-base;
+  }
+
+  /* 标签和辅助文字 - 移动端加大 */
+  .text-label-mobile {
+    @apply text-[11px] sm:text-[10px] md:text-[9px];
+  }
+
+  .text-caption-mobile {
+    @apply text-[10px] sm:text-[9px] md:text-[8px];
   }
 
   /* 触摸友好的最小目标尺寸 (44x44px标准) */
@@ -34,20 +47,38 @@ body {
   }
 
   .icon-touch {
-    @apply w-5 h-5 sm:w-4 sm:h-4;
+    @apply w-6 h-6 sm:w-5 sm:h-5 md:w-4 md:h-4;
   }
 
   /* 响应式Padding - 移动端更大的呼吸空间 */
   .p-mobile {
-    @apply p-4 sm:p-5 md:p-6;
+    @apply p-5 sm:p-5 md:p-6;
   }
 
   .px-mobile {
-    @apply px-4 sm:px-5 md:px-6;
+    @apply px-5 sm:px-5 md:px-6;
   }
 
   .py-mobile {
-    @apply py-3 sm:py-4 md:py-5;
+    @apply py-4 sm:py-4 md:py-5;
+  }
+
+  /* 模态框移动端优化 */
+  .modal-mobile {
+    @apply max-h-[85vh] sm:max-h-[90vh];
+  }
+
+  .modal-content-mobile {
+    @apply p-5 sm:p-6;
+  }
+
+  /* 表单控件移动端优化 */
+  .input-mobile {
+    @apply h-12 sm:h-11 md:h-10 text-base sm:text-sm;
+  }
+
+  .button-mobile {
+    @apply h-12 sm:h-11 md:h-10 px-5 sm:px-4 text-sm sm:text-sm;
   }
 
   /* 触摸反馈动画 */
@@ -57,7 +88,12 @@ body {
 
   /* 安全触摸间距 - 避免误触 */
   .gap-touch {
-    @apply gap-2 sm:gap-1.5;
+    @apply gap-3 sm:gap-2 md:gap-1.5;
+  }
+
+  /* 卡片间距优化 */
+  .space-y-mobile > * + * {
+    @apply mt-4 sm:mt-3;
   }
 
   /* ========== 原有Card样式 ========== */

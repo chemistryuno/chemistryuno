@@ -52,6 +52,10 @@ func CreateRoom(c *gin.Context) {
 		IsPvE         bool   `json:"is_pve"`
 		PvEDifficulty int    `json:"pve_difficulty"`
 		AICount       int    `json:"ai_count"`
+
+		// AI补位功能配置
+		EnableAIBackfill     bool `json:"enable_ai_backfill"`       // 是否启用AI补位
+		AIBackfillDifficulty int  `json:"ai_backfill_difficulty"`   // 补位AI难度
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -66,10 +70,24 @@ func CreateRoom(c *gin.Context) {
 		return
 	}
 
+	// AI补位参数验证
+	if req.EnableAIBackfill && !req.IsPvE {
+		if req.AIBackfillDifficulty < 1 || req.AIBackfillDifficulty > 100 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "AI难度必须在1-100之间"})
+			return
+		}
+	}
+
+	// PvE模式不允许同时启用补位功能（避免冲突）
+	if req.IsPvE && req.EnableAIBackfill {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "PvE模式不支持AI补位功能"})
+		return
+	}
+
 	uid := c.GetInt("uid")
 	username := c.GetString("username")
 
-	room, err := game.CreateRoomWithKey(req.Name, uid, username, req.MaxPlayers, req.DeckID, req.IsPointsMode, req.IsPrivate, req.AccessKey, req.IsPvE, req.PvEDifficulty, req.AICount)
+	room, err := game.CreateRoomWithKey(req.Name, uid, username, req.MaxPlayers, req.DeckID, req.IsPointsMode, req.IsPrivate, req.AccessKey, req.IsPvE, req.PvEDifficulty, req.AICount, req.EnableAIBackfill, req.AIBackfillDifficulty)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

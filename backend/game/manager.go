@@ -272,11 +272,11 @@ func getGlobalDeckConfigFromDB() (map[string]int, string, int) {
 
 // 创建房间
 func CreateRoom(name string, creatorUID int, creatorName string, maxPlayers int, deckID int, isPointsMode bool, isPrivate bool) (*models.Room, error) {
-	return CreateRoomWithKey(name, creatorUID, creatorName, maxPlayers, deckID, isPointsMode, isPrivate, "", false, 0, 0)
+	return CreateRoomWithKey(name, creatorUID, creatorName, maxPlayers, deckID, isPointsMode, isPrivate, "", false, 0, 0, false, 0)
 }
 
 // 创建房间（支持自定义访问密钥）
-func CreateRoomWithKey(name string, creatorUID int, creatorName string, maxPlayers int, deckID int, isPointsMode bool, isPrivate bool, customKey string, isPvE bool, difficulty int, aiCount int) (*models.Room, error) {
+func CreateRoomWithKey(name string, creatorUID int, creatorName string, maxPlayers int, deckID int, isPointsMode bool, isPrivate bool, customKey string, isPvE bool, difficulty int, aiCount int, enableAIBackfill bool, aiBackfillDifficulty int) (*models.Room, error) {
 	if isPointsMode && isPrivate && !isPvE {
 		return nil, errors.New("积分模式下不可创建私密房间")
 	}
@@ -370,22 +370,25 @@ func CreateRoomWithKey(name string, creatorUID int, creatorName string, maxPlaye
 	}
 
 	room := &models.Room{
-		ID:            roomID,
-		Name:          name,
-		Players:       []int{creatorUID},
-		ReadyUIDs:     []int{},
-		Countdown:     0,
-		Spectators:    []int{},
-		MaxPlayers:    maxPlayers,
-		DeckConfig:    &deckConfig,
-		Status:        "waiting",
-		IsPointsMode:  isPointsMode,
-		IsPrivate:     isPrivate,
-		AccessKey:     accessKey,
-		IsPvE:         isPvE,
-		PvEDifficulty: difficulty,
-		AICount:       aiCount,
-		CreatedAt:     time.Now(),
+		ID:                   roomID,
+		Name:                 name,
+		Players:              []int{creatorUID},
+		ReadyUIDs:            []int{},
+		Countdown:            0,
+		Spectators:           []int{},
+		MaxPlayers:           maxPlayers,
+		DeckConfig:           &deckConfig,
+		Status:               "waiting",
+		IsPointsMode:         isPointsMode,
+		IsPrivate:            isPrivate,
+		AccessKey:            accessKey,
+		IsPvE:                isPvE,
+		PvEDifficulty:        difficulty,
+		AICount:              aiCount,
+		EnableAIBackfill:     enableAIBackfill,
+		AIBackfillDifficulty: aiBackfillDifficulty,
+		BackfilledAIUIDs:     []int{},
+		CreatedAt:            time.Now(),
 	}
 
 	gameRoom := &GameRoom{
@@ -408,6 +411,46 @@ func CreateRoomWithKey(name string, creatorUID int, creatorName string, maxPlaye
 	roomMutex.Unlock()
 
 	return room, nil
+}
+
+// generateBackfillAIUID 为补位AI生成唯一的负数UID
+// 扫描房间中现有的所有玩家UID，找到最小的负数UID并递减1
+func generateBackfillAIUID(room *models.Room) int {
+	minUID := -1
+
+	// 检查现有玩家中的AI UID
+	for _, uid := range room.Players {
+		if uid < minUID {
+			minUID = uid
+		}
+	}
+
+	// 检查已记录的补位AI UID
+	for _, uid := range room.BackfilledAIUIDs {
+		if uid < minUID {
+			minUID = uid
+		}
+	}
+
+	return minUID - 1
+}
+
+// addBackfillAI 向房间添加指定数量的补位AI
+// count: 需要添加的AI数量
+func addBackfillAI(room *models.Room, count int) {
+	for i := 0; i < count; i++ {
+		// 生成唯一的AI UID
+		aiUID := generateBackfillAIUID(room)
+
+		// 添加到玩家列表
+		room.Players = append(room.Players, aiUID)
+
+		// AI默认处于准备状态
+		room.ReadyUIDs = append(room.ReadyUIDs, aiUID)
+
+		// 记录为补位AI
+		room.BackfilledAIUIDs = append(room.BackfilledAIUIDs, aiUID)
+	}
 }
 
 // StartDuel 创建单挑房间
@@ -749,6 +792,12 @@ func (gr *GameRoom) checkInactivity() {
 
 // CheckNextTurnAI 检查并触发 AI 回合
 func (gr *GameRoom) CheckNextTurnAI() {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("[AI] ❌ CheckNextTurnAI panic recovered: %v", r)
+		}
+	}()
+
 	gr.mutex.RLock()
 	// 如果房间已结束或未开始，忽略
 	if gr.Room.Status != "playing" || gr.GameState == nil {
@@ -1195,6 +1244,24 @@ func StartGame(roomID string, uid int) error {
 	if len(gameRoom.Room.Players) < 2 {
 		return errors.New("至少需要2名玩家")
 	}
+
+	// ===== AI补位逻辑 =====
+	if gameRoom.Room.EnableAIBackfill && !gameRoom.Room.IsPvE {
+		currentPlayerCount := len(gameRoom.Room.Players)
+		maxPlayers := gameRoom.Room.MaxPlayers
+
+		if currentPlayerCount < maxPlayers {
+			vacancies := maxPlayers - currentPlayerCount
+			log.Printf("[AI补位] 房间 %s 有 %d 个空位，添加AI玩家...", roomID, vacancies)
+
+			addBackfillAI(gameRoom.Room, vacancies)
+
+			log.Printf("[AI补位] 成功添加 %d 个AI玩家，当前玩家列表: %v", vacancies, gameRoom.Room.Players)
+		} else {
+			log.Printf("[AI补位] 房间 %s 已满员，无需补位", roomID)
+		}
+	}
+	// ===== AI补位逻辑结束 =====
 
 	if gameRoom.Room.Status != "waiting" {
 		return errors.New("游戏已开始")

@@ -1346,6 +1346,32 @@ watch(() => gameState.value?.current_player, () => {
 
       <!-- Main Action Focus Area -->
       <div class="flex-1 relative flex flex-col items-center justify-center p-2 sm:p-4 mb-16 sm:mb-20 overflow-hidden">
+          <!-- Top Turn Indicator -->
+          <div v-if="gameState?.status === 'playing'" class="absolute top-2 sm:top-6 left-1/2 -translate-x-1/2 z-30 animate-in slide-in-from-top-4 duration-500 pointer-events-none">
+             <div :class="cn(
+                'flex items-center gap-3 px-5 py-2.5 rounded-2xl border shadow-2xl backdrop-blur-xl transition-all duration-500',
+                isMyTurn 
+                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 border-blue-400 text-white ring-8 ring-blue-500/10' 
+                  : 'bg-white/90 dark:bg-slate-900/90 border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-200'
+             )">
+                <div class="relative flex items-center justify-center">
+                   <div v-if="isMyTurn" class="absolute inset-0 bg-white rounded-full blur-md animate-pulse"></div>
+                   <Zap v-if="isMyTurn" class="w-3.5 h-3.5 fill-current relative z-10" />
+                   <Timer v-else class="w-3.5 h-3.5 relative z-10" :class="timeRemaining <= 10 && 'text-rose-500 animate-spin-slow'" />
+                </div>
+                <div class="flex flex-col items-start leading-none gap-1">
+                   <span class="text-[10px] font-black uppercase tracking-[0.2em] opacity-80">{{ isMyTurn ? 'Your Operation' : 'Researcher Active' }}</span>
+                   <span class="text-xs font-black uppercase tracking-widest truncate max-w-[150px]">
+                      {{ isMyTurn ? '轮到你进行实验' : (currentPlayerObj?.nickname || currentPlayerObj?.username || '研究员') }}
+                   </span>
+                </div>
+                <div v-if="!isMyTurn" class="pl-3 ml-1 border-l border-slate-200 dark:border-white/10 flex flex-col items-center">
+                   <span class="text-[9px] font-mono font-bold">{{ timeRemaining }}S</span>
+                   <div class="w-1.5 h-1.5 rounded-full mt-1" :class="gameState?.direction === 1 ? 'bg-blue-500' : 'bg-amber-500'"></div>
+                </div>
+             </div>
+          </div>
+
           <!-- Left Sidebar: Hint & Status -->
           <div :class="cn(
             'fixed left-0 top-0 bottom-0 w-full lg:w-80 z-[100] bg-white/95 dark:bg-slate-900/60 backdrop-blur-3xl border-r lg:border border-slate-200 dark:border-white/10 lg:rounded-[40px] lg:top-6 lg:bottom-52 lg:left-6 shadow-3xl transition-all duration-500 flex flex-col overflow-hidden',

@@ -12,19 +12,6 @@ import (
 
 // TriggerAITurn 触发 AI 回合逻辑
 func (gr *GameRoom) TriggerAITurn() {
-	defer func() {
-		if r := recover(); r != nil {
-			log.Printf("[AI] ❌ TriggerAITurn panic recovered: %v", r)
-			// 尝试释放可能持有的锁
-			defer func() {
-				if r2 := recover(); r2 != nil {
-					// 忽略双重 panic
-				}
-			}()
-			gr.mutex.Unlock()
-		}
-	}()
-
 	gameRoom := gr
 
 	gr.mutex.RLock()
@@ -153,9 +140,10 @@ func (gr *GameRoom) aiDrawCard(uid int) {
 	}
 
 	// 释放锁，调用 DrawCard (它会重新加锁)
-	// 注意：释放后不再重新获取锁，避免与调用者的 defer unlock 冲突
+	// 注意：执行完后重新获取锁，保持与调用者的锁状态一致
 	gr.mutex.Unlock()
 	err := DrawCard(gr.Room.ID, uid, 2) // AI 不出牌时立即摸 2 张并自动过牌
+	gr.mutex.Lock()
 
 	if err != nil {
 		log.Printf("[AI] ❌ AI %s 摸牌失败: %v", displayName, err)
@@ -224,6 +212,7 @@ func (gr *GameRoom) aiTryDoublePlay(player *models.PlayerState) bool {
 				// 解锁，调用 DoublePlay（DoublePlay 会自己管理锁）
 				gr.mutex.Unlock()
 				err := DoublePlay(gr.Room.ID, player.UID, s1, s2)
+				gr.mutex.Lock() // 重新获取锁，保持与调用者一致
 
 				if err == nil {
 					// 广播消息（不需要锁）
@@ -233,11 +222,10 @@ func (gr *GameRoom) aiTryDoublePlay(player *models.PlayerState) bool {
 							Data: fmt.Sprintf("%s 发动了双联反应: %s + %s！", player.Nickname, s1, s2),
 						})
 					}
-					// 注意：成功后不重新获取锁，让调用者的 defer 处理
+					// 注意：已重新持有锁，让调用者的 defer 处理
 					return true
 				} else {
 					log.Printf("[AI] ⚠️ AI 双联执行失败: %v", err)
-					// 失败后也不重新获取锁
 					return false
 				}
 			}
@@ -410,9 +398,10 @@ func (gr *GameRoom) aiTryPlayCard(player *models.PlayerState) bool {
 			}
 		}
 	} else {
-		// 场上无物质 (开局/Au/AllowedAny)，尝试打出评分最高物质
+		// 场上无物质 (开局/Au/AllowedAny)，指令要求：优先打出自己能打出的最复杂的物质
 		for _, sub := range availableSubstances {
-			score := calculateScore(sub)
+			// 在无物质限制时，极大提高复杂度的权重，确保 AI 优先清理多张手牌
+			score := getComplexity(sub)*100 + calculateScore(sub)
 			if score > bestScore {
 				bestScore = score
 				bestSub = sub
@@ -515,22 +504,20 @@ func (gr *GameRoom) aiExecutePlay(uid int, card models.Card, substance string) {
 	// 解锁，调用 PlayCard（PlayCard 会自己管理锁）
 	gr.mutex.Unlock()
 	err := PlayCard(gr.Room.ID, uid, card, substance)
+	gr.mutex.Lock() // 重新获取锁，保持与调用者一致
 
 	if err != nil {
 		log.Printf("[AI] ⚠️ AI %d 出牌失败 (%s): %v", uid, substance, err)
 		// 失败回退：摸牌
-		// aiDrawCard 也会释放锁，所以这里不需要重新获取锁
 		gr.aiDrawCard(uid)
 		return
 	}
 
-	// 成功出牌后的处理（不需要锁，因为只是日志和广播）
+	// 成功出牌后的处理
 	log.Printf("[AI] ✅ AI 成功出牌: %s / %s", card.Type, substance)
 
-	// 广播不需要锁
+	// 广播不需要额外锁（已持有主锁）
 	if websocket.GlobalHub != nil {
-		// 获取 AI 昵称用于广播（需要重新获取锁来访问GameState）
-		gr.mutex.RLock()
 		displayName := fmt.Sprintf("AI 研究员 %d", -uid)
 		for _, p := range gr.GameState.Players {
 			if p.UID == uid {
@@ -538,7 +525,6 @@ func (gr *GameRoom) aiExecutePlay(uid int, card models.Card, substance string) {
 				break
 			}
 		}
-		gr.mutex.RUnlock()
 
 		// 只有特殊卡牌（功能牌、金、稀有气体等）才通过弹窗告知
 		// 普通化学反应直接在右侧弃牌堆显示，不再消耗弹窗配额
@@ -568,7 +554,7 @@ func isSpecialCard(card models.Card) bool {
 }
 
 func isNobleGas(t string) bool {
-	return t == "He" || t == "Ne" || t == "Ar" || t == "Kr"
+	return t == "He" || t == "Ne" || t == "Ar" || t == "Kr" || t == "Xe" || t == "Rn"
 }
 
 // getComplexity 计算物质的复杂度 (综合考量原子总数与元素多样性)

@@ -13,9 +13,9 @@ func GetSubstancesFromElements(cards []models.Card) []string {
 
 	// 统计每种元素的数量
 	for _, card := range cards {
-		if card.Effect == "" { // 只处理普通元素牌
-			elementMap[card.Type]++
-		}
+		// 无论是普通元素还是功能牌（如 Au），都将其名称作为元素存入 map
+		// 这样 AI 就能在计算可出物质时考虑功能牌
+		elementMap[card.Type]++
 	}
 
 	substanceSet := make(map[string]bool)

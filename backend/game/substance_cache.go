@@ -110,7 +110,8 @@ func IsValidSubstance(substance string) bool {
 
 	// 仅对于纯游戏机制牌（非化学物质）直接放行，其他均需通过 substances 表校验
 	gameMechanics := map[string]bool{
-		"+2": true, "+4": true, "reverse": true,
+		"+2": true, "+4": true, "reverse": true, "Au": true, "skip": true,
+		"He": true, "Ne": true, "Ar": true, "Kr": true, "Xe": true, "Rn": true,
 	}
 	if gameMechanics[substance] {
 		return true

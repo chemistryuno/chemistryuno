@@ -1112,6 +1112,7 @@ func JoinRoomWithKey(roomID string, uid int, username string, accessKey string) 
 		repository.UserRepo.UpdateRoomReadyStatus(uint(uid), false)
 	}
 	gameRoom.checkAutoStart()
+	gameRoom.broadcastRoomUpdate()
 	return nil
 }
 
@@ -1219,6 +1220,9 @@ func LeaveRoom(roomID string, uid int) error {
 		delete(rooms, roomID)
 		roomMutex.Unlock()
 		log.Printf("房间 %s 已空，已自动关闭并清理资源", roomID)
+	} else {
+		// 广播更新
+		gameRoom.broadcastRoomUpdate()
 	}
 
 	return nil
@@ -1806,8 +1810,8 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 	}
 
 	// +2/4/Au/换向牌可随意打出，无需反应条件
-	nobleGases := map[string]bool{"He": true, "Ne": true, "Ar": true, "Kr": true}
-	specialTypes := map[string]bool{"+2": true, "+4": true, "Au": true}
+	nobleGases := map[string]bool{"He": true, "Ne": true, "Ar": true, "Kr": true, "Xe": true, "Rn": true}
+	specialTypes := map[string]bool{"+2": true, "+4": true, "Au": true, "reverse": true, "skip": true}
 	isSpecial := specialTypes[card.Type] || specialTypes[card.Effect] || nobleGases[card.Type]
 
 	// 无论是否为特殊牌，所有出牌物质均需经过 substances 表校验（纯功能牌在 IsValidSubstance 中有白名单放行）
@@ -1883,18 +1887,21 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 
 	// 检查选中的卡牌中是否有带效果的
 	activeEffect := ""
+	if specialTypes[card.Type] {
+		activeEffect = card.Type
+	}
 	if card.Effect != "" {
 		activeEffect = card.Effect
 	}
 
-	// 稀有气体效果处理：稀有气体具有逆转实验方向的效果
+	// 稀有气体具有稳定性，能够逆转实验方向
 	if nobleGases[substance] || nobleGases[card.Type] {
 		activeEffect = "reverse"
 	}
 
-	// 如果有累计加牌，本轮只能打出相同或更高数值的加牌进行叠加
+	// +2/4/Au/换向牌可随意打出，无需反应条件
 	if gameRoom.GameState.PendingDrawCount > 0 {
-		// 细化逻辑：必须打出加牌
+		// 细化逻辑：必须打出加牌，Au 也无法在加牌挑战中生效 (因为它不是加牌防御)
 		if activeEffect != "+2" && activeEffect != "+4" {
 			return errors.New("当前累计加牌中，请打出加牌叠加或点摸牌结算")
 		}
@@ -1937,9 +1944,10 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 		PlayerUID: uid,
 	}
 	// 1. 更新场面状态
-	// 转向牌、跳过牌、Au 不更新场上的物质（不更新 LastCard），使下家仍需与之前的物质反应
+	// 转向牌、跳过牌、Au、+2、+4 不更新场上的物质（不更新 LastCard），使下家仍需与之前的物质反应
 	// 其中 Au 会在后续逻辑中显式清空 LastCard
-	if activeEffect != "reverse" && activeEffect != "skip" && activeEffect != "Au" {
+	isActionCard := activeEffect == "reverse" || activeEffect == "skip" || activeEffect == "Au" || activeEffect == "+2" || activeEffect == "+4"
+	if !isActionCard {
 		gameRoom.GameState.LastCard = &playedCard
 	}
 	gameRoom.GameState.DiscardPile = append(gameRoom.GameState.DiscardPile, playedCard)
@@ -1994,14 +2002,17 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 		// Au 效果：清空场面且跳过一人
 		gameRoom.GameState.LastCard = nil
 		skippedIdx := getNextPlayer(gameRoom.GameState)
+
+		// 暂时移动到被跳过的玩家，以便下一步 getNextPlayer 能找到正确的人
 		gameRoom.GameState.CurrentPlayer = skippedIdx
 		targetIdx := getNextPlayer(gameRoom.GameState)
+
 		gameRoom.GameState.CurrentPlayer = targetIdx
 		gameRoom.GameState.AllowedAnyPlayer = targetIdx
 
 		if websocket.GlobalHub != nil {
-			skippedPlayer := gameRoom.GameState.Players[skippedIdx].Username
-			nextPlayer := gameRoom.GameState.Players[targetIdx].Username
+			skippedPlayer := gameRoom.GameState.Players[skippedIdx].Nickname
+			nextPlayer := gameRoom.GameState.Players[targetIdx].Nickname
 			websocket.GlobalHub.BroadcastToRoom(gameRoom.Room.ID, websocket.Message{
 				Type: "action_toast",
 				Data: fmt.Sprintf("Au 金元素触发！跳过研究员 %s，等待 %s 出牌...", skippedPlayer, nextPlayer),
@@ -2015,8 +2026,8 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 		gameRoom.GameState.CurrentPlayer = targetIdx
 
 		if websocket.GlobalHub != nil {
-			skippedPlayer := gameRoom.GameState.Players[skippedIdx].Username
-			nextPlayer := gameRoom.GameState.Players[targetIdx].Username
+			skippedPlayer := gameRoom.GameState.Players[skippedIdx].Nickname
+			nextPlayer := gameRoom.GameState.Players[targetIdx].Nickname
 			websocket.GlobalHub.BroadcastToRoom(gameRoom.Room.ID, websocket.Message{
 				Type: "action_toast",
 				Data: fmt.Sprintf("稀有气体具有稳定性！跳过研究员 %s，轮到 %s 出牌...", skippedPlayer, nextPlayer),
@@ -2030,7 +2041,7 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 			if websocket.GlobalHub != nil {
 				// 获取下一位玩家名称
 				nextIdx := getNextPlayer(gameRoom.GameState)
-				nextPlayer := gameRoom.GameState.Players[nextIdx].Username
+				nextPlayer := gameRoom.GameState.Players[nextIdx].Nickname
 
 				msg := fmt.Sprintf("⚛️ 元素稳定性触发！实验方向发生逆转，现在轮到 %s 进行研究！", nextPlayer)
 				websocket.GlobalHub.BroadcastToRoom(gameRoom.Room.ID, websocket.Message{
@@ -2111,6 +2122,9 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 
 	// 检查下一位是否是 AI
 	go gameRoom.CheckNextTurnAI()
+
+	// 广播状态更新 (确保 AI 回合等非 HTTP 触发的消息能到达前端)
+	gameRoom.broadcastRoomUpdate()
 
 	return nil
 }
@@ -2248,6 +2262,9 @@ func DrawCard(roomID string, uid int, count int) error {
 
 	// 检查下一位是否是 AI
 	go gameRoom.CheckNextTurnAI()
+
+	// 广播状态更新
+	gameRoom.broadcastRoomUpdate()
 
 	return nil
 }
@@ -2546,13 +2563,24 @@ func DoublePlay(roomID string, uid int, sub1 string, sub2 string) error {
 	// 检查是否轮到该玩家
 	curIdx := gameRoom.GameState.CurrentPlayer
 	currentPlayer := gameRoom.GameState.Players[curIdx]
-	if currentPlayer.UID != uid {
+
+	isAllowedAnyPlayer := gameRoom.GameState.AllowedAnyPlayer != -1 && gameRoom.GameState.Players[gameRoom.GameState.AllowedAnyPlayer].UID == uid
+	if !isAllowedAnyPlayer && currentPlayer.UID != uid {
 		return errors.New("还没轮到你")
+	}
+
+	// 如果是 AllowedAnyPlayer 跳出顺序出牌逻辑
+	if isAllowedAnyPlayer {
+		curIdx = gameRoom.GameState.AllowedAnyPlayer
+		currentPlayer = gameRoom.GameState.Players[curIdx]
 	}
 
 	// 检查冷却
 	if !currentPlayer.DoubleActionAvailable {
-		return errors.New("双联反应尚未就绪（每行动2次可使用1次）")
+		// 如果是有权出牌的人（比如金卡触发），则无视此判定
+		if !isAllowedAnyPlayer {
+			return errors.New("双联反应尚未就绪（每行动2次可使用1次）")
+		}
 	}
 
 	// 当玩家选择自身两物质反应时，不考虑先前出牌（即跳过与场上 LastCard 的连接检查）
@@ -2575,22 +2603,56 @@ func DoublePlay(roomID string, uid int, sub1 string, sub2 string) error {
 		return errors.New(sub1 + " 与 " + sub2 + " 之间无法产生反应，不可发动双联行动")
 	}
 
-	// 准备所需元素
+	// 准备所需元素和特殊卡牌识别
+	specialTypes := map[string]bool{"+2": true, "+4": true, "Au": true, "reverse": true, "skip": true}
+	nobleGases := map[string]bool{"He": true, "Ne": true, "Ar": true, "Kr": true, "Xe": true, "Rn": true}
+
 	req1 := parseSubstance(sub1)
 	req2 := parseSubstance(sub2)
-	allReqs := make(map[string]int)
-	// 仅考虑元素种类，分别计算元素，若两物质中有相同元素，计算两次
-	for k := range req1 {
-		allReqs[k]++
-	}
-	for k := range req2 {
-		allReqs[k]++
+
+	usedCards := []int{} // 记录将要从手牌中移除的索引
+
+	// 处理特殊物质消耗 (白名单中的物质直接定位手牌，不通过元素解析)
+	for _, sub := range []string{sub1, sub2} {
+		if specialTypes[sub] || nobleGases[sub] {
+			found := false
+			for i, hCard := range currentPlayer.HandCards {
+				// 检查是否已被标记使用
+				alreadyUsed := false
+				for _, uIdx := range usedCards {
+					if uIdx == i {
+						alreadyUsed = true
+						break
+					}
+				}
+				if alreadyUsed || (hCard.Type != sub && hCard.Effect != sub) {
+					continue
+				}
+				usedCards = append(usedCards, i)
+				found = true
+				break
+			}
+			if !found {
+				return errors.New("手牌中缺少特殊卡牌: " + sub)
+			}
+		}
 	}
 
-	// 检查手牌
-	usedCards := []int{}
+	allReqs := make(map[string]int)
+	// 分别累加两物质所需的原子/卡牌数量
+	for k, v := range req1 {
+		if !specialTypes[sub1] && !nobleGases[sub1] {
+			allReqs[k] += v
+		}
+	}
+	for k, v := range req2 {
+		if !specialTypes[sub2] && !nobleGases[sub2] {
+			allReqs[k] += v
+		}
+	}
+
+	// 检查并记录元素消耗
 	for elemName, count := range allReqs {
-		foundCount := 0
 		for c := 0; c < count; c++ {
 			found := false
 			for i, hCard := range currentPlayer.HandCards {
@@ -2607,7 +2669,6 @@ func DoublePlay(roomID string, uid int, sub1 string, sub2 string) error {
 				if hCard.Type == elemName {
 					usedCards = append(usedCards, i)
 					found = true
-					foundCount++
 					break
 				}
 			}
@@ -2646,9 +2707,13 @@ func DoublePlay(roomID string, uid int, sub1 string, sub2 string) error {
 
 	// 处理特殊效果（如果双联中包含功能牌）
 	for _, c := range consumedCards {
-		effect := c.Type
-		if c.Effect != "" {
-			effect = c.Effect
+		effect := c.Effect
+		if effect == "" {
+			if nobleGases[c.Type] {
+				effect = "skip"
+			} else {
+				effect = c.Type
+			}
 		}
 		switch effect {
 		case "+2":
@@ -2659,6 +2724,25 @@ func DoublePlay(roomID string, uid int, sub1 string, sub2 string) error {
 			gameRoom.GameState.PendingDrawTypes = append(gameRoom.GameState.PendingDrawTypes, "+4")
 		case "reverse":
 			gameRoom.GameState.Direction *= -1
+			if websocket.GlobalHub != nil {
+				nextIdx := getNextPlayer(gameRoom.GameState)
+				nextPlayer := gameRoom.GameState.Players[nextIdx].Nickname
+				websocket.GlobalHub.BroadcastToRoom(gameRoom.Room.ID, websocket.Message{
+					Type: "action_toast",
+					Data: fmt.Sprintf("⚛️ 元素稳定性触发！实验方向发生逆转，现在轮到 %s 进行研究！", nextPlayer),
+				})
+			}
+		case "skip":
+			// 跳过下一位
+			skippedIdx := getNextPlayer(gameRoom.GameState)
+			gameRoom.GameState.CurrentPlayer = skippedIdx
+			if websocket.GlobalHub != nil {
+				skippedPlayer := gameRoom.GameState.Players[skippedIdx].Nickname
+				websocket.GlobalHub.BroadcastToRoom(gameRoom.Room.ID, websocket.Message{
+					Type: "action_toast",
+					Data: fmt.Sprintf("⚠️ 能量激增！禁制场域使研究员 %s 被迫暂离实验桌！", skippedPlayer),
+				})
+			}
 		case "Au":
 			// 双联中的 Au 效果：跳过下一位并清空场面
 			gameRoom.GameState.LastCard = nil
@@ -2670,8 +2754,8 @@ func DoublePlay(roomID string, uid int, sub1 string, sub2 string) error {
 			gameRoom.GameState.AllowedAnyPlayer = targetIdx
 
 			if websocket.GlobalHub != nil {
-				skippedPlayer := gameRoom.GameState.Players[skippedIdx].Username
-				nextPlayer := gameRoom.GameState.Players[targetIdx].Username
+				skippedPlayer := gameRoom.GameState.Players[skippedIdx].Nickname
+				nextPlayer := gameRoom.GameState.Players[targetIdx].Nickname
 				websocket.GlobalHub.BroadcastToRoom(gameRoom.Room.ID, websocket.Message{
 					Type: "action_toast",
 					Data: fmt.Sprintf("Au 金元素双联触发！跳过研究员 %s，等待 %s 出牌...", skippedPlayer, nextPlayer),
@@ -2711,6 +2795,9 @@ func DoublePlay(roomID string, uid int, sub1 string, sub2 string) error {
 
 	// 检查下一位是否是 AI
 	go gameRoom.CheckNextTurnAI()
+
+	// 广播状态更新
+	gameRoom.broadcastRoomUpdate()
 
 	return nil
 }

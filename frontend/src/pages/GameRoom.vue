@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { gameAPI, adminAPI, friendAPI, authAPI, commonAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
 import websocket from '../utils/websocket'
-import { ArrowLeft, Play, RefreshCw, Zap, Activity, FlaskConical, Trophy, ChevronRight, Loader2, Users, Timer, Plus, QrCode, Copy, Sparkles, ShieldAlert, Ban, UserMinus, X, MessageCircle, UserPlus, Flag, Send } from 'lucide-vue-next'
+import { ArrowLeft, Play, RefreshCw, Zap, Activity, FlaskConical, Trophy, ChevronRight, Loader2, Users, Timer, Plus, QrCode, Copy, Sparkles, ShieldAlert, Ban, UserMinus, X, MessageCircle, UserPlus, Flag, Send, Binary } from 'lucide-vue-next'
 import { cn } from '../utils/cn'
 import ChatBox from '../components/ChatBox.vue'
 import '../styles/mobile-game.css'
@@ -36,6 +36,7 @@ const loading = ref(true)
 const loadError = ref<string | null>(null)
 const isRedirecting = ref(false)
 const timeRemaining = ref(0)
+const timePercent = ref(100)
 let timerInterval: any = null
 const selectedCard = ref<any>(null)
 const selectedSubstance = ref<string | null>(null)
@@ -198,6 +199,25 @@ const showInviteFriendsModal = ref(false)
 // PvE Toasts
 const pveToasts = ref<{ id: number, text: string }[]>([])
 let toastIdCounter = 0
+
+// 动画状态管理
+const drawAnimatingUIDs = ref<Set<number>>(new Set())
+const playerCardCounts = ref<Record<number, number>>({})
+
+watch(() => gameState.value?.players, (newPlayers) => {
+  if (!newPlayers) return
+  newPlayers.forEach((p: any) => {
+    const oldVal = playerCardCounts.value[p.uid]
+    // 只有当牌数增加且不是初始发牌（处于游戏中）时触发
+    if (gameState.value?.status === 'playing' && typeof oldVal !== 'undefined' && p.card_count > oldVal) {
+      drawAnimatingUIDs.value.add(p.uid)
+      setTimeout(() => {
+        drawAnimatingUIDs.value.delete(p.uid)
+      }, 1000)
+    }
+    playerCardCounts.value[p.uid] = p.card_count
+  })
+}, { deep: true })
 
 const addPvEToast = (text: string) => {
   const id = ++toastIdCounter
@@ -595,11 +615,18 @@ watch(() => roomInfo.value?.is_points_mode, (val) => {
 const startTimer = () => {
   if (timerInterval) clearInterval(timerInterval)
   timerInterval = setInterval(() => {
-    if (!gameState.value || !gameState.value.turn_end_time) return
+    if (!gameState.value || !gameState.value.turn_end_time || gameState.value.status !== 'playing') {
+      timeRemaining.value = 0
+      timePercent.value = 0
+      return
+    }
     const now = Date.now()
-    const diff = Math.max(0, Math.floor((gameState.value.turn_end_time - now) / 1000))
+    const diffMs = gameState.value.turn_end_time - now
+    const diff = Math.max(0, Math.floor(diffMs / 1000))
     timeRemaining.value = diff
-  }, 1000)
+    // 假设总回合时长为 20s
+    timePercent.value = Math.max(0, Math.min(100, (diffMs / 30000) * 100))
+  }, 100)
 }
 
 watch(() => gameState.value?.turn_end_time, () => {
@@ -1306,8 +1333,63 @@ watch(() => gameState.value?.current_player, () => {
           </div>
         </div>
 
-        <!-- Spacer to push status buttons to right -->
-        <div class="flex-1"></div>
+        <!-- Center Area: Reaction Display & Turn Indicator -->
+        <div class="flex-1 flex justify-center items-center gap-1.5 sm:gap-4 overflow-hidden">
+            <!-- Reaction Widget - 反应记录监控 -->
+            <transition name="reaction-slide">
+              <div v-if="gameState?.current_reaction" class="flex items-center gap-1.5 sm:gap-3 px-2 sm:px-4 py-1 sm:py-1.5 rounded-lg sm:rounded-xl bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/20 dark:border-emerald-400/20 shadow-sm backdrop-blur-md shrink-0 max-w-[120px] xs:max-w-[180px] sm:max-w-none group hover:border-emerald-500/40 transition-colors">
+                  <div class="flex flex-col items-start leading-none gap-0.5 min-w-0">
+                    <span class="text-[5px] sm:text-[7px] font-black uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400 opacity-80 flex items-center gap-1">
+                      <Binary class="w-1.5 h-1.5 sm:w-2 sm:h-2" />
+                      REACTION_SYNC
+                    </span>
+                    <span class="text-[8px] sm:text-[11px] font-mono font-black text-slate-700 dark:text-emerald-300 drop-shadow-sm truncate">
+                      {{ gameState.current_reaction }}
+                    </span>
+                  </div>
+                  <div class="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
+              </div>
+            </transition>
+
+            <!-- Top Turn Indicator Inline -->
+            <div v-if="gameState?.status === 'playing'" class="animate-in fade-in zoom-in duration-500">
+              <div :class="cn(
+                'flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-1 sm:py-1.5 rounded-xl border shadow-sm backdrop-blur-xl transition-all duration-500 relative overflow-hidden',
+                isMyTurn 
+                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 border-blue-400 text-white ring-4 ring-blue-500/10' 
+                  : 'bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-200'
+              )">
+                <!-- Time Progress Bar -->
+                <div 
+                  class="absolute bottom-0 left-0 h-[3px] transition-all duration-100 ease-linear"
+                  :class="[
+                    isMyTurn ? 'bg-white/30' : 'bg-blue-500/30',
+                    timeRemaining <= 5 && 'bg-rose-500/50'
+                  ]"
+                  :style="{ width: `${timePercent}%` }"
+                ></div>
+
+                <div class="relative flex items-center justify-center shrink-0">
+                  <div v-if="isMyTurn" class="absolute inset-0 bg-white rounded-full blur-sm animate-pulse"></div>
+                  <Zap v-if="isMyTurn" class="w-3 sm:w-3.5 h-3 sm:h-3.5 fill-current relative z-10" />
+                  <Timer v-else class="w-2.5 sm:w-3 h-2.5 sm:h-3 relative z-10" :class="timeRemaining <= 10 && 'text-rose-500 animate-spin-slow'" />
+                </div>
+                <div class="flex flex-col items-start leading-none gap-0.5 min-w-0">
+                  <span class="text-[7px] sm:text-[9px] font-black uppercase tracking-widest opacity-70">{{ isMyTurn ? 'Your Operation' : 'Active' }}</span>
+                  <span class="text-[9px] sm:text-xs font-black uppercase tracking-tight truncate max-w-[80px] sm:max-w-[120px]">
+                    {{ isMyTurn ? '轮到你了' : (currentPlayerObj?.nickname || currentPlayerObj?.username || '研究员') }}
+                  </span>
+                </div>
+                <div v-if="isMyTurn" class="pl-2 border-l border-white/20">
+                  <span class="text-[10px] font-mono font-black">{{ timeRemaining }}S</span>
+                </div>
+                <!-- Mini Direction indicator -->
+                <div v-if="!isMyTurn" class="pl-2 ml-1 border-l border-slate-200 dark:border-white/10 shrink-0">
+                   <div class="w-1.5 h-1.5 rounded-full" :class="gameState?.direction === 1 ? 'bg-blue-500' : 'bg-amber-500'"></div>
+                </div>
+              </div>
+            </div>
+        </div>
 
         <!-- Global Status -->
         <div class="flex items-center gap-2 sm:gap-1.5 pl-3 border-l border-slate-200 dark:border-white/10 shrink-0">
@@ -1346,32 +1428,6 @@ watch(() => gameState.value?.current_player, () => {
 
       <!-- Main Action Focus Area -->
       <div class="flex-1 relative flex flex-col items-center justify-center p-2 sm:p-4 mb-16 sm:mb-20 overflow-hidden">
-          <!-- Top Turn Indicator -->
-          <div v-if="gameState?.status === 'playing'" class="absolute top-2 sm:top-6 left-1/2 -translate-x-1/2 z-30 animate-in slide-in-from-top-4 duration-500 pointer-events-none">
-             <div :class="cn(
-                'flex items-center gap-3 px-5 py-2.5 rounded-2xl border shadow-2xl backdrop-blur-xl transition-all duration-500',
-                isMyTurn 
-                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 border-blue-400 text-white ring-8 ring-blue-500/10' 
-                  : 'bg-white/90 dark:bg-slate-900/90 border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-200'
-             )">
-                <div class="relative flex items-center justify-center">
-                   <div v-if="isMyTurn" class="absolute inset-0 bg-white rounded-full blur-md animate-pulse"></div>
-                   <Zap v-if="isMyTurn" class="w-3.5 h-3.5 fill-current relative z-10" />
-                   <Timer v-else class="w-3.5 h-3.5 relative z-10" :class="timeRemaining <= 10 && 'text-rose-500 animate-spin-slow'" />
-                </div>
-                <div class="flex flex-col items-start leading-none gap-1">
-                   <span class="text-[10px] font-black uppercase tracking-[0.2em] opacity-80">{{ isMyTurn ? 'Your Operation' : 'Researcher Active' }}</span>
-                   <span class="text-xs font-black uppercase tracking-widest truncate max-w-[150px]">
-                      {{ isMyTurn ? '轮到你进行实验' : (currentPlayerObj?.nickname || currentPlayerObj?.username || '研究员') }}
-                   </span>
-                </div>
-                <div v-if="!isMyTurn" class="pl-3 ml-1 border-l border-slate-200 dark:border-white/10 flex flex-col items-center">
-                   <span class="text-[9px] font-mono font-bold">{{ timeRemaining }}S</span>
-                   <div class="w-1.5 h-1.5 rounded-full mt-1" :class="gameState?.direction === 1 ? 'bg-blue-500' : 'bg-amber-500'"></div>
-                </div>
-             </div>
-          </div>
-
           <!-- Left Sidebar: Hint & Status -->
           <div :class="cn(
             'fixed left-0 top-0 bottom-0 w-full lg:w-80 z-[100] bg-white/95 dark:bg-slate-900/60 backdrop-blur-3xl border-r lg:border border-slate-200 dark:border-white/10 lg:rounded-[40px] lg:top-6 lg:bottom-52 lg:left-6 shadow-3xl transition-all duration-500 flex flex-col overflow-hidden',
@@ -1495,7 +1551,9 @@ watch(() => gameState.value?.current_player, () => {
           </div>
 
           <!-- Latest Reaction Display -->
-          <div v-if="gameState?.last_card" class="relative group scale-75 sm:scale-100 flex flex-col items-center justify-center">
+          <div v-if="gameState?.last_card" 
+               :key="gameState?.last_card?.substance + (gameState?.discard_pile?.length || 0)"
+               class="relative group scale-75 sm:scale-100 flex flex-col items-center justify-center animate-stamp">
              <div class="absolute -inset-16 bg-blue-600/10 rounded-full blur-[100px] opacity-50 group-hover:opacity-80 transition-opacity animate-pulse"></div>
              
              <!-- Double Play Display (Side by Side) -->
@@ -1553,7 +1611,7 @@ watch(() => gameState.value?.current_player, () => {
              </div>
              <div class="text-center relative z-10">
                 <h3 class="text-lg sm:text-xl font-black text-slate-800 dark:text-white uppercase tracking-[0.2em]">
-                   等待 {{ allPlayers[gameState?.current_player]?.username || '研究员' }} 出牌
+                   等待 {{ allPlayers[gameState?.current_player]?.nickname || allPlayers[gameState?.current_player]?.username || '研究员' }} 出牌
                 </h3>
                 <p class="text-[8px] font-bold text-slate-500 mt-1 uppercase italic tracking-tighter">
                    Reaction Reactor Reseted _ New Deployment Window Open
@@ -1931,7 +1989,7 @@ watch(() => gameState.value?.current_player, () => {
                  <span class="text-[7px] sm:text-[9px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest font-mono">Mission_Success</span>
               </div>
               <template v-if="winner?.uid === user.uid">
-                <h2 class="text-3xl sm:text-5xl font-black text-slate-900 dark:text-white tracking-tighter leading-none">
+                <h2 class="text-3xl sm:text-5xl font-black text-slate-900 dark:text-white tracking-tighter leading-none animate-bounce">
                   实验成功
                 </h2>
                 <p class="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed max-w-xs mx-auto">
@@ -1947,29 +2005,39 @@ watch(() => gameState.value?.current_player, () => {
                 </p>
               </template>
 
-              <div v-if="gameState?.points_changes" class="w-full mt-4 p-3 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl">
-                 <div class="flex items-center justify-between mb-2 border-b border-slate-200 dark:border-white/5 pb-1.5">
-                    <span class="text-[8px] font-black uppercase tracking-widest text-slate-500">Rankings</span>
-                    <span class="text-[8px] font-black uppercase tracking-widest text-blue-500">Points_Δ</span>
+              <div v-if="gameState?.points_changes" class="w-full mt-4 p-4 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-[24px] shadow-inner">
+                 <div class="flex items-center justify-between mb-3 border-b border-slate-200 dark:border-white/5 pb-2">
+                    <span class="text-[9px] font-black uppercase tracking-widest text-slate-500">Rankings & Points</span>
+                    <div class="flex items-center gap-1 px-2 py-0.5 bg-blue-500/10 rounded-full">
+                       <Sparkles class="w-2.5 h-2.5 text-blue-500" />
+                       <span class="text-[8px] font-black uppercase tracking-widest text-blue-500 font-mono">Quantum_Δ</span>
+                    </div>
                  </div>
-                 <div class="space-y-2">
+                 <div class="space-y-2.5">
                     <div 
                       v-for="(val, uid) in gameState.points_changes" 
                       :key="uid"
-                      class="flex items-center justify-between group"
+                      class="flex items-center justify-between group p-2 rounded-xl transition-all hover:bg-white dark:hover:bg-white/5 hover:scale-[1.02] hover:shadow-sm"
+                      :class="Number(uid) === user.uid ? 'bg-blue-500/5 ring-1 ring-blue-500/10' : ''"
                     >
-                       <div class="flex items-center gap-2">
-                          <div class="w-1.5 h-1.5 rounded-full bg-slate-400"></div>
-                          <span class="text-xs font-bold text-slate-600 dark:text-slate-300 text-left">
-                            {{ gameState.players.find((p: any) => String(p.uid) === String(uid))?.username || 'User' }}
-                          </span>
+                       <div class="flex items-center gap-3">
+                          <div class="w-2 h-2 rounded-full" :class="val >= 0 ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'"></div>
+                          <div class="flex flex-col items-start">
+                            <span class="text-xs font-black text-slate-700 dark:text-slate-200">
+                              {{ gameState.players.find((p: any) => String(p.uid) === String(uid))?.nickname || gameState.players.find((p: any) => String(p.uid) === String(uid))?.username || 'User' }}
+                            </span>
+                            <span v-if="Number(uid) === user.uid" class="text-[7px] font-black uppercase tracking-widest text-blue-400">Your Record</span>
+                          </div>
                        </div>
-                       <span :class="cn(
-                         'text-xs font-black font-mono',
-                         val >= 0 ? 'text-emerald-500' : 'text-rose-500'
-                       )">
-                         {{ val >= 0 ? '+' : '' }}{{ val }}
-                       </span>
+                       <div class="flex items-center gap-1">
+                          <span :class="cn(
+                            'text-sm font-black font-mono',
+                            val >= 0 ? 'text-emerald-500' : 'text-rose-500'
+                          )">
+                            {{ val >= 0 ? '+' : '' }}{{ val }}
+                          </span>
+                          <Trophy v-if="val >= 50" class="w-3 h-3 text-amber-500" />
+                       </div>
                     </div>
                  </div>
               </div>
@@ -2001,7 +2069,7 @@ watch(() => gameState.value?.current_player, () => {
               <X class="w-6 h-6 text-slate-400" />
             </button>
           </div>
-          <p class="text-[10px] text-slate-500 font-mono uppercase tracking-[0.2em]">Target: {{ adminTargetUser?.username }} (UID: {{ adminTargetUser?.uid }})</p>
+          <p class="text-[10px] text-slate-500 font-mono uppercase tracking-[0.2em]">Target: {{ adminTargetUser?.nickname || adminTargetUser?.username }} (UID: {{ adminTargetUser?.uid }})</p>
         </div>
 
         <div class="p-8 space-y-8">
@@ -2189,7 +2257,8 @@ watch(() => gameState.value?.current_player, () => {
               'flex items-center gap-2 px-3 py-2.5 rounded-xl border transition-all',
               gameState?.current_player === index
                 ? 'bg-blue-600 shadow-md shadow-blue-500/10 ring-1 ring-blue-500/20 border-blue-500'
-                : (gameState ? 'bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/5 opacity-70 hover:opacity-100' : 'bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/10')
+                : (gameState ? 'bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/5 opacity-70 hover:opacity-100' : 'bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/10'),
+              drawAnimatingUIDs.has(player.uid) && 'animate-card-draw ring-2 ring-rose-500 border-rose-500 opacity-100'
             )"
           >
             <div class="relative w-8 h-8 shrink-0">
@@ -2213,6 +2282,7 @@ watch(() => gameState.value?.current_player, () => {
             <div class="flex flex-col min-w-0 flex-1">
               <div class="flex items-center gap-1 leading-none">
                 <span class="text-[11px] font-black truncate max-w-[80px] tracking-tight" :class="gameState?.current_player === index ? 'text-white' : 'text-slate-700 dark:text-slate-300'">{{ player.nickname || player.username }}</span>
+                <span v-if="gameState?.current_player === index" class="text-[9px] font-mono font-black px-1 rounded" :class="isMyTurn ? 'bg-white/20 text-white' : 'bg-blue-500/10 text-blue-500'">{{ timeRemaining }}s</span>
                 <span class="text-[8px] font-mono opacity-40 shrink-0" :class="gameState?.current_player === index ? 'text-white' : 'text-slate-500'">#{{ player.uid }}</span>
                 <Zap v-if="player.double_action_available" :class="cn('w-2.5 h-2.5 fill-current', gameState?.current_player === index ? 'text-amber-300' : 'text-amber-500')" />
               </div>
@@ -2447,6 +2517,22 @@ watch(() => gameState.value?.current_player, () => {
 </template>
 
 <style scoped>
+/* 反应方程式滑动动画 */
+.reaction-slide-enter-active,
+.reaction-slide-leave-active {
+  transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.reaction-slide-enter-from {
+  opacity: 0;
+  transform: translateY(-20px) scale(0.9);
+}
+
+.reaction-slide-leave-to {
+  opacity: 0;
+  transform: translateY(10px) scale(0.95);
+}
+
 /* 游戏内特定滚动条隐藏 */
 :deep(.custom-scrollbar-hidden::-webkit-scrollbar) {
   display: none;

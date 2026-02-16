@@ -30,13 +30,14 @@ const handleDuelStart = (msg: any) => {
 
 const handleDuelInvite = (msg: any) => {
   activeDuelInvite.value = {
-    challenger_name: msg.data.challenger_name,
+    challenger_name: msg.data.challenger_nickname || msg.data.challenger_name,
     challenger_uid: msg.data.challenger_uid
   }
 }
 
 const handleDuelDeclined = (msg: any) => {
-  showAlert(`研究员 ${msg.data.username} 拒绝了你的挑战邀请。`, '挑战被拒绝')
+  const name = msg.data.nickname || msg.data.username || '研究员'
+  showAlert(`研究员 ${name} 拒绝了你的挑战邀请。`, '挑战被拒绝')
 }
 
 const handleForceLogout = async (msg: any) => {

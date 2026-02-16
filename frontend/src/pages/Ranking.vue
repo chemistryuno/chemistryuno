@@ -324,7 +324,7 @@
                    </div>
                 </div>
                 <p class="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">目标研究员</p>
-                <h3 class="text-xl font-black text-slate-900 dark:text-white mt-0.5">{{ selectedTarget?.username }}</h3>
+                <h3 class="text-xl font-black text-slate-900 dark:text-white mt-0.5">{{ selectedTarget?.nickname || selectedTarget?.username }}</h3>
              </div>
 
              <div class="space-y-3">

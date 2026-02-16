@@ -40,7 +40,7 @@ defineEmits<{
       <div class="text-center space-y-1 w-full relative">
         <div class="flex items-center justify-center gap-1.5 mb-0.5">
           <UserIcon class="w-3 h-3 text-blue-500 opacity-50" />
-          <span class="text-[8px] font-mono text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none">UID: {{ user.uid }} | {{ user.username }}</span>
+          <span class="text-[8px] font-mono text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none">UID: {{ user.uid }} | {{ user.nickname || user.username }}</span>
         </div>
         <div class="flex items-center justify-center gap-2 group/nick">
           <h2 class="text-xl font-black tracking-tight text-slate-900 dark:text-white group-hover:text-blue-500 transition-colors uppercase italic truncate px-2 leading-none">

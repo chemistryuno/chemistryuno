@@ -25,17 +25,35 @@ func GetSubstancesFromElements(cards []models.Card) []string {
 		substances, err := repository.SubstanceRepo.FindApproved()
 		if err == nil {
 			for _, sub := range substances {
-				if canFormSubstance(sub.Name, elementMap) {
-					substanceSet[sub.Name] = true
+				// 获取化学式进行校验（Name 通常是中文/英文名，Formula 才是 H2O 这种）
+				formula := sub.Formula
+				if formula == "" {
+					formula = sub.Name
+				}
+				if canFormSubstance(formula, elementMap) {
+					substanceSet[formula] = true
 				}
 			}
 		}
 	}
 
 	// 允许打出由单个原子组成的单质（直接使用手牌中的元素符号）
+	// 但仅当该单质被物质百科批准或属于特殊放行类（如 Au）时才允许
 	for elem, count := range elementMap {
 		if count > 0 {
-			substanceSet[elem] = true
+			// 自动尝试双原子分子转换
+			formula := elem
+			diatomic := map[string]string{
+				"H": "H2", "O": "O2", "N": "N2", "Cl": "Cl2", "F": "F2", "Br": "Br2", "I": "I2",
+			}
+			if d, ok := diatomic[elem]; ok {
+				if IsValidSubstance(d) {
+					substanceSet[d] = true
+				}
+			}
+			if IsValidSubstance(formula) {
+				substanceSet[formula] = true
+			}
 		}
 	}
 
@@ -138,7 +156,7 @@ func CanReact(substance1, substance2 string) bool {
 	// 特殊卡牌逻辑：稀有气体和功能牌可以与任何物质反应（即可以接在任何牌后面）
 	specialSubstances := map[string]bool{
 		"He": true, "Ne": true, "Ar": true, "Kr": true, "Xe": true, "Rn": true,
-		"Au": true, "+2": true, "+4": true,
+		"Au": true, "+2": true, "+4": true, "reverse": true, "skip": true,
 	}
 	if specialSubstances[s1] || specialSubstances[s2] {
 		return true

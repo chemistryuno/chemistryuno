@@ -52,6 +52,7 @@ func GetAllFeedbacks(c *gin.Context) {
 		ID             uint       `json:"id"`
 		UserUID        uint       `json:"user_uid"`
 		Username       string     `json:"username"`
+		Nickname       string     `json:"nickname"`
 		Type           string     `json:"type"`
 		Page           string     `json:"page"` // page 字段映射到 type
 		Content        string     `json:"content"`
@@ -70,14 +71,17 @@ func GetAllFeedbacks(c *gin.Context) {
 		// 查询用户信息
 		user, err := repository.UserRepo.FindByUID(fb.UserUID)
 		username := "未知用户"
+		nickname := "未知用户"
 		if err == nil && user != nil {
 			username = user.Username
+			nickname = user.Nickname
 		}
 
 		result = append(result, FeedbackWithUser{
 			ID:             fb.ID,
 			UserUID:        fb.UserUID,
 			Username:       username,
+			Nickname:       nickname,
 			Type:           fb.Type,
 			Page:           fb.Type, // page 字段使用 type 的值
 			Content:        fb.Content,

@@ -1391,6 +1391,7 @@ func StartGame(roomID string, uid int) error {
 			IsReady:               true,
 			DoubleActionAvailable: false,
 			ActionProgress:        0,
+			IsAI:                  pid < 0,
 		}
 
 		// 从洗好的牌堆顶部抽取初始手牌（按配置的比例随机分配）
@@ -1700,12 +1701,14 @@ func GetRoomState(roomID string, uid int) (map[string]interface{}, error) {
 				filteredPlayer := &models.PlayerState{
 					UID:                   player.UID,
 					Username:              player.Username,
+					Nickname:              player.Nickname,
 					Avatar:                player.Avatar,
 					HandCards:             nil, // 不显示具体手牌
 					CardCount:             player.CardCount,
 					IsReady:               player.IsReady,
 					DoubleActionAvailable: player.DoubleActionAvailable,
 					ActionProgress:        player.ActionProgress,
+					IsAI:                  player.IsAI,
 				}
 				filteredPlayers = append(filteredPlayers, filteredPlayer)
 			}
@@ -1867,21 +1870,40 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 	allowAny := gameRoom.GameState.AllowedAnyPlayer == gameRoom.GameState.CurrentPlayer
 	if !isSpecial && gameRoom.GameState.LastCard != nil && !allowAny {
 		canReact := false
+		reactionDisplay := ""
+
 		if len(gameRoom.GameState.LastCard.Reactants) > 0 {
 			// 如果上一次是双联反应，则只需与其中任一物质反应即可
 			for _, r := range gameRoom.GameState.LastCard.Reactants {
-				if CanReact(r, substance) {
+				react, err := repository.ReactionRepo.GetReaction(r, substance)
+				if err == nil && react != nil {
 					canReact = true
+					reactionDisplay = react.Display
 					break
 				}
 			}
-		} else if CanReact(gameRoom.GameState.LastCard.Substance, substance) {
-			canReact = true
+		} else {
+			react, err := repository.ReactionRepo.GetReaction(gameRoom.GameState.LastCard.Substance, substance)
+			if err == nil && react != nil {
+				canReact = true
+				reactionDisplay = react.Display
+			}
 		}
 
 		if !canReact {
 			return errors.New("无法与上一张牌反应: " + substance)
 		}
+
+		// 更新当前反应方程式
+		if reactionDisplay != "" {
+			gameRoom.GameState.CurrentReaction = reactionDisplay
+		} else {
+			// 如果不是反应（如无视条件出牌），清空显示
+			gameRoom.GameState.CurrentReaction = ""
+		}
+	} else if isSpecial {
+		// 特殊卡牌操作结束后，清空反应显示
+		gameRoom.GameState.CurrentReaction = ""
 	}
 	// nobleGases 作为换向牌
 
@@ -1949,6 +1971,11 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 	isActionCard := activeEffect == "reverse" || activeEffect == "skip" || activeEffect == "Au" || activeEffect == "+2" || activeEffect == "+4"
 	if !isActionCard {
 		gameRoom.GameState.LastCard = &playedCard
+	} else if activeEffect == "+2" || activeEffect == "+4" {
+		// 当打出加牌时，将场上显示物质改为具体的加牌张数
+		displayPlayedCard := playedCard
+		displayPlayedCard.Substance = activeEffect
+		gameRoom.GameState.LastCard = &displayPlayedCard
 	}
 	gameRoom.GameState.DiscardPile = append(gameRoom.GameState.DiscardPile, playedCard)
 
@@ -2130,12 +2157,18 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 }
 
 func getNextPlayer(state *models.GameState) int {
+	playersLen := len(state.Players)
+	if playersLen == 0 {
+		return 0
+	}
+
 	next := state.CurrentPlayer
-	for {
+	// 最多尝试寻找玩家总次数，防止所有玩家都已完成导致的死循环
+	for i := 0; i < playersLen; i++ {
 		next = next + state.Direction
 		if next < 0 {
-			next = len(state.Players) - 1
-		} else if next >= len(state.Players) {
+			next = playersLen - 1
+		} else if next >= playersLen {
 			next = 0
 		}
 
@@ -2153,6 +2186,9 @@ func getNextPlayer(state *models.GameState) int {
 			return next
 		}
 	}
+
+	// 极端兜底：如果找不到未完成的玩家，返回当前索引
+	return state.CurrentPlayer
 }
 
 func reshuffleDeck(gameRoom *GameRoom) {
@@ -2248,6 +2284,9 @@ func DrawCard(roomID string, uid int, count int) error {
 
 	// 摸牌后跳过回合
 	gameRoom.GameState.CurrentPlayer = getNextPlayer(gameRoom.GameState)
+	// 摸牌操作结束，更新反应显示为无
+	gameRoom.GameState.CurrentReaction = ""
+
 	gameRoom.recordTurnStart()
 	gameRoom.GameState.TurnEndTime = time.Now().Add(getPlayerActionTimeout()).UnixNano() / int64(time.Millisecond)
 
@@ -2598,57 +2637,33 @@ func DoublePlay(roomID string, uid int, sub1 string, sub2 string) error {
 		return errors.New("该物质非法，请先在百科中录入: " + sub2)
 	}
 
-	// 校验两物质是否能反应
-	if !CanReact(sub1, sub2) {
-		return errors.New(sub1 + " 与 " + sub2 + " 之间无法产生反应，不可发动双联行动")
-	}
-
 	// 准备所需元素和特殊卡牌识别
 	specialTypes := map[string]bool{"+2": true, "+4": true, "Au": true, "reverse": true, "skip": true}
 	nobleGases := map[string]bool{"He": true, "Ne": true, "Ar": true, "Kr": true, "Xe": true, "Rn": true}
+
+	// 禁止功能牌参与双联反应
+	if specialTypes[sub1] || nobleGases[sub1] || specialTypes[sub2] || nobleGases[sub2] {
+		return errors.New("功能牌或稀有气体性质稳定，无法参与双联反应")
+	}
+
+	// 校验两物质是否能反应
+	reaction, err := repository.ReactionRepo.GetReaction(sub1, sub2)
+	if err != nil || reaction == nil {
+		return errors.New(sub1 + " 与 " + sub2 + " 之间无法产生反应，不可发动双联行动")
+	}
 
 	req1 := parseSubstance(sub1)
 	req2 := parseSubstance(sub2)
 
 	usedCards := []int{} // 记录将要从手牌中移除的索引
 
-	// 处理特殊物质消耗 (白名单中的物质直接定位手牌，不通过元素解析)
-	for _, sub := range []string{sub1, sub2} {
-		if specialTypes[sub] || nobleGases[sub] {
-			found := false
-			for i, hCard := range currentPlayer.HandCards {
-				// 检查是否已被标记使用
-				alreadyUsed := false
-				for _, uIdx := range usedCards {
-					if uIdx == i {
-						alreadyUsed = true
-						break
-					}
-				}
-				if alreadyUsed || (hCard.Type != sub && hCard.Effect != sub) {
-					continue
-				}
-				usedCards = append(usedCards, i)
-				found = true
-				break
-			}
-			if !found {
-				return errors.New("手牌中缺少特殊卡牌: " + sub)
-			}
-		}
-	}
-
 	allReqs := make(map[string]int)
-	// 分别累加两物质所需的原子/卡牌数量
-	for k, v := range req1 {
-		if !specialTypes[sub1] && !nobleGases[sub1] {
-			allReqs[k] += v
-		}
+	// 仅考虑元素种类，不考虑系数
+	for k := range req1 {
+		allReqs[k] = 1
 	}
-	for k, v := range req2 {
-		if !specialTypes[sub2] && !nobleGases[sub2] {
-			allReqs[k] += v
-		}
+	for k := range req2 {
+		allReqs[k] = 1
 	}
 
 	// 检查并记录元素消耗
@@ -2673,7 +2688,7 @@ func DoublePlay(roomID string, uid int, sub1 string, sub2 string) error {
 				}
 			}
 			if !found {
-				return errors.New("手牌对应元素牌不足: " + elemName + " (需要 " + fmt.Sprint(count) + " 张)")
+				return errors.New("手牌对应元素牌不足: " + elemName + " (需要 1 张)")
 			}
 		}
 	}
@@ -2702,6 +2717,7 @@ func DoublePlay(roomID string, uid int, sub1 string, sub2 string) error {
 		PlayerUID: uid,
 		Reactants: []string{sub1, sub2}, // 标记下家可接其中任一
 	}
+	gameRoom.GameState.CurrentReaction = reaction.Display
 	gameRoom.GameState.LastCard = &playedCard
 	gameRoom.GameState.DiscardPile = append(gameRoom.GameState.DiscardPile, playedCard)
 

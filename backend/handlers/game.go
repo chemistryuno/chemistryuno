@@ -54,8 +54,8 @@ func CreateRoom(c *gin.Context) {
 		AICount       int    `json:"ai_count"`
 
 		// AI补位功能配置
-		EnableAIBackfill     bool `json:"enable_ai_backfill"`       // 是否启用AI补位
-		AIBackfillDifficulty int  `json:"ai_backfill_difficulty"`   // 补位AI难度
+		EnableAIBackfill     bool `json:"enable_ai_backfill"`     // 是否启用AI补位
+		AIBackfillDifficulty int  `json:"ai_backfill_difficulty"` // 补位AI难度
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -334,6 +334,13 @@ func InitiateDuel(c *gin.Context) {
 
 	challengerUID := c.GetInt("uid")
 	challengerName := c.GetString("username")
+	challengerNickname := challengerName
+
+	// 获取挑战者完整信息
+	cUser, err := repository.UserRepo.FindByUID(uint(challengerUID))
+	if err == nil && cUser != nil {
+		challengerNickname = cUser.Nickname
+	}
 
 	if challengerUID == req.TargetUID {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "不能挑战自己"})
@@ -352,13 +359,14 @@ func InitiateDuel(c *gin.Context) {
 		return
 	}
 
-	// 获取目标用户名
+	// 获取目标用户信息
 	user, err := repository.UserRepo.FindByUID(uint(req.TargetUID))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "目标用户不存在"})
 		return
 	}
 	targetName := user.Username
+	targetNickname := user.Nickname
 
 	// 生成挑战 ID
 	challengeID := fmt.Sprintf("challenge_%d_%d", time.Now().Unix(), rand.Intn(1000))
@@ -370,11 +378,13 @@ func InitiateDuel(c *gin.Context) {
 	msg := websocket.Message{
 		Type: "duel_invite",
 		Data: gin.H{
-			"challenge_id":    challengeID,
-			"challenger_uid":  challengerUID,
-			"challenger_name": challengerName,
-			"target_name":     targetName,
-			"timeout":         20,
+			"challenge_id":        challengeID,
+			"challenger_uid":      challengerUID,
+			"challenger_name":     challengerName,
+			"challenger_nickname": challengerNickname,
+			"target_name":         targetName,
+			"target_nickname":     targetNickname,
+			"timeout":             20,
 		},
 	}
 
@@ -401,13 +411,24 @@ func RespondToDuel(c *gin.Context) {
 
 	responderUID := c.GetInt("uid")
 	responderName := c.GetString("username")
+	responderNickname := responderName // 默认使用用户名
+
+	// 获取完整用户信息以获取昵称
+	user, err := repository.UserRepo.FindByUID(uint(responderUID))
+	if err == nil && user != nil {
+		responderNickname = user.Nickname
+	}
+
 	challengerUID := req.TargetUID
 
 	if !req.Accept {
 		// 通知挑战者被拒绝
 		websocket.GlobalHub.SendToUID(challengerUID, websocket.Message{
 			Type: "duel_declined",
-			Data: gin.H{"username": responderName},
+			Data: gin.H{
+				"username": responderName,
+				"nickname": responderNickname,
+			},
 		})
 		c.JSON(http.StatusOK, gin.H{"message": "已拒绝挑战"})
 		return

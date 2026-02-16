@@ -15,10 +15,11 @@ func NewChatRepository() *ChatRepository {
 	return &ChatRepository{db: database.DB}
 }
 
-func (r *ChatRepository) SaveChatMessage(uid uint, username, avatar, message string) error {
+func (r *ChatRepository) SaveChatMessage(uid uint, username, nickname, avatar, message string) error {
 	chat := database.GlobalChat{
 		UserUID:  uid,
 		Username: username,
+		Nickname: nickname,
 		Avatar:   avatar,
 		Message:  message,
 	}

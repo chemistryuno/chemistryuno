@@ -124,6 +124,7 @@ type GlobalChat struct {
 	ID        uint      `gorm:"primaryKey;autoIncrement" json:"id"`
 	UserUID   uint      `gorm:"not null;index" json:"user_uid"`
 	Username  string    `gorm:"size:50" json:"username"`
+	Nickname  string    `gorm:"size:50" json:"nickname"`
 	Avatar    string    `gorm:"type:text" json:"avatar"`
 	Message   string    `gorm:"type:text;not null" json:"message"`
 	CreatedAt time.Time `gorm:"autoCreateTime;index" json:"created_at"`

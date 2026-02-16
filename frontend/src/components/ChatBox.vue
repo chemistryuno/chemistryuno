@@ -263,7 +263,7 @@ const formatTime = (date: Date) => {
         )">
           <div class="flex items-center gap-1 px-0.5">
             <span v-if="msg.uid !== currentUID" class="text-[9px] sm:text-[8px] font-black text-slate-400 uppercase tracking-tighter">
-              {{ msg.username }}
+              {{ msg.nickname || msg.username }}
               <span v-if="msg.type === 'private'" class="text-rose-500 ml-1">(私语)</span>
               <span v-if="msg.type === 'game_invite'" class="text-blue-500 ml-1">(游戏邀请)</span>
             </span>
@@ -360,7 +360,7 @@ const formatTime = (date: Date) => {
       <div v-if="chatMode === 'private'" class="flex items-center gap-2 animate-in slide-in-from-bottom-1">
         <div class="flex items-center gap-2 px-3 py-1.5 sm:py-1 rounded-lg text-xs-mobile font-black uppercase tracking-widest transition-all bg-rose-500 text-white shadow-lg shadow-rose-500/20">
           <User class="w-3 h-3 sm:w-2.5 sm:h-2.5" />
-          {{ `私密传输: ${privateTarget?.username}` }}
+          {{ `私密传输: ${privateTarget?.nickname || privateTarget?.username}` }}
         </div>
         <button @click="chatMode = 'normal'; privateTarget = null" class="p-1.5 sm:p-1 px-2.5 sm:px-2 rounded-lg bg-slate-200 dark:bg-white/10 text-slate-500 hover:text-slate-700 dark:hover:text-white transition-all uppercase text-[9px] sm:text-[8px] font-black touch-feedback">
           取消

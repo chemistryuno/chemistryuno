@@ -505,7 +505,7 @@ const formatTime = (date: Date) => {
               </div>
               <div class="min-w-0 flex-1">
                 <h2 class="text-[10px] sm:text-xs font-black text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-1 sm:gap-1.5">
-                  <span class="truncate">{{ activeChat.username }}</span>
+                  <span class="truncate">{{ activeChat.nickname || activeChat.username }}</span>
                   <span class="text-[7px] sm:text-[8px] font-mono text-slate-400 bg-slate-100 dark:bg-white/5 px-1 py-0.5 rounded shrink-0">UID:{{ activeChat.uid }}</span>
                 </h2>
                 <div class="flex items-center gap-1 mt-0.5">
@@ -543,7 +543,7 @@ const formatTime = (date: Date) => {
                 <span :class="cn(
                   'text-[7px] sm:text-[8px] font-black uppercase tracking-widest',
                   msg.uid === currentUser.uid ? 'order-last text-blue-500' : 'text-slate-400'
-                )">{{ msg.username }}</span>
+                )">{{ msg.nickname || msg.username }}</span>
                 <span class="text-[6px] sm:text-[7px] font-mono text-slate-500">{{ formatTime(msg.time) }}</span>
               </div>
 
@@ -726,7 +726,7 @@ const formatTime = (date: Date) => {
                       <span v-if="result.is_online" class="px-1.5 py-0.5 bg-emerald-500/10 text-emerald-500 text-[7px] font-black rounded uppercase tracking-widest">Active</span>
                     </div>
                     <div class="flex items-center gap-2 mt-1 grayscale opacity-60">
-                      <span class="text-[8px] text-slate-400 font-mono tracking-tight uppercase">UID: {{ result.uid }} | {{ result.username }}</span>
+                      <span class="text-[8px] text-slate-400 font-mono tracking-tight uppercase">UID: {{ result.uid }} | {{ result.nickname || result.username }}</span>
                       <span class="text-[8px] text-blue-500 font-black uppercase tracking-widest">{{ result.points }}PT</span>
                       <span v-if="result.bounty > 0" class="text-[8px] text-rose-500 font-black uppercase tracking-widest">赏: {{ result.bounty }}</span>
                     </div>

@@ -24,14 +24,24 @@ func (r *ReactionRepository) FindApprovedReactions() ([]database.Reaction, error
 
 // CheckReactionExists 检查反应是否存在
 func (r *ReactionRepository) CheckReactionExists(r1, r2 string) (bool, error) {
-	// 双向查询：同时检查 (r1,r2) 和 (r2,r1) 两种顺序
-	// 确保即使数据库存储顺序不一致也能查询到
 	var count int64
 	err := r.db.Model(&database.Reaction{}).
 		Where("((r1 = ? AND r2 = ?) OR (r1 = ? AND r2 = ?)) AND status = ?",
 			r1, r2, r2, r1, "approved").
 		Count(&count).Error
 	return count > 0, err
+}
+
+// GetReaction 获取反应详情
+func (r *ReactionRepository) GetReaction(r1, r2 string) (*database.Reaction, error) {
+	var reaction database.Reaction
+	err := r.db.Where("((r1 = ? AND r2 = ?) OR (r1 = ? AND r2 = ?)) AND status = ?",
+		r1, r2, r2, r1, "approved").
+		First(&reaction).Error
+	if err != nil {
+		return nil, err
+	}
+	return &reaction, nil
 }
 
 // FindReactionsBySubstance 查找包含指定物质的反应

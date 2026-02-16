@@ -275,7 +275,7 @@ const handleBanUser = async () => {
   }
   try {
     await adminAPI.banUser(banTarget.value.uid, until.toISOString(), banReason.value || '违规行为')
-    await showAlert(`已封禁 ${banTarget.value.username} 至 ${until.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}（UTC+8）`, '封禁执行完成')
+    await showAlert(`已封禁 ${banTarget.value.nickname || banTarget.value.username} 至 ${until.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}（UTC+8）`, '封禁执行完成')
     showBanModal.value = false
     banTarget.value = null
   } catch (error: any) {
@@ -1263,10 +1263,10 @@ const filteredHistory = computed(() => {
                    <div class="flex items-center justify-between relative z-10">
                       <div class="flex items-center gap-3">
                          <div class="w-10 h-10 rounded-xl bg-sky-500/10 flex items-center justify-center text-sky-600 dark:text-sky-400 font-black border border-sky-500/20">
-                            {{ fb.username[0].toUpperCase() }}
+                            {{ (fb.nickname || fb.username)[0].toUpperCase() }}
                          </div>
                          <div>
-                            <p class="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight">{{ fb.nickname }}</p>
+                            <p class="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight">{{ fb.nickname || fb.username }}</p>
                             <p class="text-[8px] text-slate-400 dark:text-slate-500 font-mono font-bold uppercase">{{ new Date(fb.created_at).toLocaleString() }}</p>
                          </div>
                       </div>

@@ -159,7 +159,7 @@ func (c *Client) handleMessage(msg *Message) {
 
 		// 如果是大厅对话，保存到数据库
 		if targetRoom == "lobby" {
-			repository.ChatRepo.SaveChatMessage(uint(c.uid), c.username, c.avatar, msg.Message)
+			repository.ChatRepo.SaveChatMessage(uint(c.uid), c.username, c.nickname, c.avatar, msg.Message)
 		}
 
 		c.hub.BroadcastToRoom(targetRoom, Message{

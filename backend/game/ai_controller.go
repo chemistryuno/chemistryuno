@@ -39,6 +39,16 @@ func (gr *GameRoom) TriggerAITurn() {
 
 	log.Printf("[AI] 🤖 AI %d 立即行动... (难度: %d)", currentPlayer.UID, gameRoom.Room.PvEDifficulty)
 
+	// 0. 特殊情况：如果场上没牌 (开局或金卡)，强制打出最复杂的可能物质
+	// 这不计入难度概率，是硬性指令，确保 AI 开局有气势
+	isAllowedAny := gr.GameState.AllowedAnyPlayer == gr.GameState.CurrentPlayer
+	if gr.GameState.LastCard == nil || isAllowedAny {
+		log.Printf("[AI] 🏗️ 场面为空或拥有特权，AI %d 执行开局最优策略", currentPlayer.UID)
+		if played := gr.aiTryPlayCard(currentPlayer); played {
+			return
+		}
+	}
+
 	// 1. 难度判定：决定是否"尝试"寻找最优解
 	difficulty := gameRoom.Room.PvEDifficulty
 	if gameRoom.Room.IsPointsMode {
@@ -176,25 +186,28 @@ func (gr *GameRoom) aiTryDoublePlay(player *models.PlayerState) bool {
 		for j := i + 1; j < len(availableSubstances); j++ {
 			s1, s2 := availableSubstances[i], availableSubstances[j]
 
-			// 排除特殊牌 (双联通常指化学反应)
-			if isNobleGas(s1) || isNobleGas(s2) || s1 == "Au" || s2 == "Au" {
+			// 排除特殊牌 (双联必须是普通物质化学反应，禁止功能牌和稀有气体)
+			if isNobleGas(s1) || isNobleGas(s2) || s1 == "Au" || s1 == "+2" || s1 == "+4" || s1 == "reverse" || s1 == "skip" ||
+				s2 == "Au" || s2 == "+2" || s2 == "+4" || s2 == "reverse" || s2 == "skip" {
 				continue
 			}
 
-			// 校验手牌资源是否同时满足 s1 和 s2
+			// 校验手牌资源：现在 DoublePlay 只要求有对应元素种类，不计系数
 			req1 := parseSubstance(s1)
 			req2 := parseSubstance(s2)
-			combinedReq := make(map[string]int)
-			for k, v := range req1 {
-				combinedReq[k] += v
+
+			// 合并所有需要的元素种类
+			allReqs := make(map[string]int)
+			for k := range req1 {
+				allReqs[k] = 1
 			}
-			for k, v := range req2 {
-				combinedReq[k] += v
+			for k := range req2 {
+				allReqs[k] = 1
 			}
 
 			enough := true
-			for k, v := range combinedReq {
-				if handElements[k] < v {
+			for k := range allReqs {
+				if handElements[k] <= 0 {
 					enough = false
 					break
 				}
@@ -421,7 +434,7 @@ func (gr *GameRoom) aiTryPlayCard(player *models.PlayerState) bool {
 	specialPriority := []string{"reverse", "Au"}
 
 	// 稀有气体也作为特殊优先级
-	nobleGases := []string{"He", "Ne", "Ar", "Kr"}
+	nobleGases := []string{"He", "Ne", "Ar", "Kr", "Xe", "Rn"}
 
 	// 获取人类玩家的加牌防御信息
 	humanDrawDefense := 0
@@ -441,12 +454,19 @@ func (gr *GameRoom) aiTryPlayCard(player *models.PlayerState) bool {
 		} else {
 			specialPriority = append(specialPriority, "+2", "+4")
 		}
+		// 稀有气体随后
 		specialPriority = append(specialPriority, nobleGases...)
 	} else {
-		// 如果下家是 AI，除非没办法否则不打攻击牌
+		// 如果下家是 AI 队友
+		// 情况 A：我快赢了（手牌少），为了出完牌清空手牌，必须打出功能牌
 		if player.CardCount <= 3 {
 			specialPriority = append(specialPriority, "+2", "+4")
 			specialPriority = append(specialPriority, nobleGases...)
+		} else {
+			// 情况 B：我手牌还多，将攻击性牌（+2, +4）优先级调到最低，避免误伤队友
+			// 但仍需包含在内作为最后的出牌手段，否则 AI 会因"不想误伤"而被迫摸牌
+			specialPriority = append(specialPriority, nobleGases...)
+			specialPriority = append(specialPriority, "+2", "+4")
 		}
 	}
 

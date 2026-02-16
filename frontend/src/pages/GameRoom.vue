@@ -963,9 +963,15 @@ const handleCardClick = async (card: any) => {
       addExp(10)
       checkAchievements(matchingSubs[0])
     } else {
-      // 多种可能（且不含默认单质），显示选择器
-      selectedCard.value = card
-      availableSubstances.value = matchingSubs
+      // 多种可能（且不含默认单质），直接取第一个反应产物
+      const targetSub = matchingSubs[0]
+      await gameAPI.playCard(id, card, targetSub)
+      selectedCard.value = null
+      selectedSubstance.value = null
+      availableSubstances.value = []
+      // 增加经验值
+      addExp(10)
+      checkAchievements(targetSub)
     }
   } catch (error: any) {
     showAlert(error.response?.data?.error || '出牌失败', '反应中断')
@@ -1894,76 +1900,6 @@ watch(() => gameState.value?.current_player, () => {
               <FlaskConical class="w-10 h-10 sm:w-12 sm:h-12 mb-1" />
               <p class="font-black uppercase tracking-widest text-xs-mobile">Inventory_Empty</p>
             </div>
-           </div>
-        </div>
-      </div>
-
-      <!-- Modern Substance Recombinator (Selection Modal) -->
-      <div v-if="selectedCard && availableSubstances.length > 0" class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
-        <div class="absolute inset-0 bg-slate-900/40 dark:bg-black/90 backdrop-blur-xl animate-in fade-in" @click="selectedCard = null" />
-        <div class="relative w-full max-w-2xl max-h-[90vh] bg-white dark:bg-[#0d0d10] border border-slate-200 dark:border-white/10 rounded-[32px] sm:rounded-[48px] shadow-2xl flex flex-col">
-           <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-600 via-purple-600 to-blue-600 opacity-50"></div>
-           
-           <div class="p-5 sm:p-8">
-             <div class="flex flex-col md:flex-row justify-between items-start gap-4 sm:gap-6 mb-6 sm:mb-8">
-               <div class="space-y-1.5 sm:space-y-3">
-                  <div class="inline-flex items-center gap-1.5 px-2 py-0.5 bg-blue-500/10 border border-blue-500/20 rounded-full">
-                     <Zap class="w-2.5 h-2.5 text-blue-600 dark:text-blue-400" />
-                     <span class="text-[7px] sm:text-[9px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest">Protocol_Active</span>
-                  </div>
-                  <h3 class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tighter leading-none">
-                    化学物质重组
-                  </h3>
-                  <p class="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 max-w-xs font-medium leading-relaxed">
-                    请选择一个与 <span class="text-slate-900 dark:text-white font-black underline decoration-blue-500 underline-offset-4">{{ selectedCard.type }}</span> 兼容的目标物质。
-                  </p>
-               </div>
-               
-               <div class="relative group self-center md:self-auto hidden sm:block text-white">
-                  <div class="absolute -inset-6 bg-blue-600/10 rounded-full blur-xl group-hover:bg-blue-600/20 transition-all"></div>
-                  <div :class="cn('uno-card w-16 sm:w-24 h-22 sm:h-34 rounded-xl flex flex-col items-center justify-center scale-110 !cursor-default', getDynamicCardClass(selectedCard))">
-                     <div class="text-xl sm:text-2xl font-black tracking-tighter">{{ selectedCard.type }}</div>
-                  </div>
-               </div>
-             </div>
-
-             <div class="substances-container-mobile custom-scrollbar mb-6 sm:mb-8">
-                <button
-                  v-for="(substance, index) in availableSubstances"
-                  :key="index"
-                  @click="selectedSubstance = substance"
-                  :class="cn(
-                    'substance-card-mobile border overflow-hidden',
-                    selectedSubstance === substance ? 'bg-blue-600/10 border-blue-400 dark:border-blue-500 text-blue-600 dark:text-white shadow-md' : 'bg-slate-50/80 dark:bg-white/[0.03] border-slate-200 dark:border-white/5 text-slate-500 hover:bg-blue-50/50 dark:hover:bg-white/[0.05]'
-                  )"
-                >
-                  <div :class="cn(
-                    'w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl flex items-center justify-center border transition-all duration-500',
-                    selectedSubstance === substance ? 'bg-blue-500/20 border-blue-500/30 rotate-12' : 'bg-slate-100 dark:bg-black/40 border-slate-200 dark:border-white/5 opacity-60'
-                  )">
-                    <FlaskConical :class="cn('w-3.5 h-3.5 sm:w-5 h-5', selectedSubstance === substance ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-600')" />
-                  </div>
-                  <span :class="cn('font-black tracking-widest text-[8px] sm:text-[10px] truncate w-full text-center', selectedSubstance === substance ? 'text-blue-600 dark:text-white' : 'text-slate-500')">{{ getSubstanceName(substance) }}</span>
-                  <div v-if="selectedSubstance === substance" class="absolute inset-0 bg-blue-500/5 animate-pulse"></div>
-                </button>
-             </div>
-
-             <div class="flex gap-2 sm:gap-3">
-                <button 
-                  @click="selectedCard = null; selectedSubstance = null;" 
-                  class="flex-1 h-10 sm:h-12 bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-black rounded-xl transition-all uppercase tracking-widest text-[8px] sm:text-[10px] border border-slate-200 dark:border-white/5"
-                >
-                  终止
-                </button>
-                <button 
-                  @click="handlePlayCard"
-                  :disabled="!selectedSubstance"
-                  class="flex-[2] h-10 sm:h-12 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-xl transition-all shadow-lg disabled:opacity-50 disabled:grayscale flex items-center justify-center gap-2 group/confirm relative overflow-hidden"
-                >
-                  <span class="uppercase tracking-widest sm:tracking-[0.1em] text-[10px] sm:text-xs">执行反应</span>
-                  <ChevronRight class="w-4 h-4 text-white group-hover/confirm:translate-x-1 transition-transform" />
-                </button>
-             </div>
            </div>
         </div>
       </div>

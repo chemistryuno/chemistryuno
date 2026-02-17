@@ -380,6 +380,9 @@ func main() {
 			points.GET("/leaderboard", handlers.GetLeaderboard)
 			points.POST("/bounty", handlers.CreateBounty)
 		}
+
+		// 等级系统路由
+		handlers.RegisterLevelRoutes(r, middleware.AuthMiddleware())
 	}
 
 	// 服务前端静态文件（使用 embed 嵌入）

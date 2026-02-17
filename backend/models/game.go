@@ -49,6 +49,13 @@ type Room struct {
 	EnableAIBackfill     bool  `json:"enable_ai_backfill"`     // 是否启用AI补位
 	AIBackfillDifficulty int   `json:"ai_backfill_difficulty"` // 补位AI难度（1-100）
 	BackfilledAIUIDs     []int `json:"backfilled_ai_uids"`     // 记录自动补充的AI UID列表
+
+	// 等级匹配系统
+	IsRanked   bool `json:"is_ranked"`    // 是否为排位模式（启用严格等级匹配）
+	LevelRange int  `json:"level_range"`  // 允许的等级范围（±N级）
+	MinLevel   int  `json:"min_level"`    // 允许的最低等级
+	MaxLevel   int  `json:"max_level"`    // 允许的最高等级
+	CreatedByUID int `json:"created_by_uid"` // 房主UID（用于计算等级范围）
 }
 
 // MarshalJSON 自定义 JSON 序列化，确保 ready_uids 和其他切片字段永远不为 null
@@ -108,6 +115,7 @@ type GameState struct {
 	PendingDrawTypes    []string       `json:"pending_draw_types"`    // 当前累计加牌类型（如["+2","+4"]）
 	AllowedAnyPlayer    int            `json:"allowed_any_player"`    // 允许无视反应条件直接出牌的玩家索引，-1 表示无
 	PointsChanges       map[int]int    `json:"points_changes"`        // 回合结束时的积分变动 (UID -> points)
+	XPChanges           map[int]int    `json:"xp_changes"`            // 回合结束时的经验变动 (UID -> xp)
 	CurrentReaction     string         `json:"current_reaction"`      // 当前/最近发生的反应方程式
 }
 

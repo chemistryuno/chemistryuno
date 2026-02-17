@@ -268,6 +268,7 @@ func (gr *GameRoom) aiTryDoublePlay(player *models.PlayerState) bool {
 func (gr *GameRoom) aiTryPlayCard(player *models.PlayerState) bool {
 	// 0. 威胁检测：是否有人类玩家快赢了（手牌数 <= 3）
 	humanThreatIdx := -1
+	minHumanCards := 999
 	for i, ps := range gr.GameState.Players {
 		if ps.UID > 0 { // 是真人玩家
 			isFinished := false
@@ -277,9 +278,14 @@ func (gr *GameRoom) aiTryPlayCard(player *models.PlayerState) bool {
 					break
 				}
 			}
-			if !isFinished && ps.CardCount <= 3 {
-				humanThreatIdx = i
-				break
+			if !isFinished {
+				if ps.CardCount < minHumanCards {
+					minHumanCards = ps.CardCount
+				}
+				if ps.CardCount <= 3 {
+					humanThreatIdx = i
+					break
+				}
 			}
 		}
 	}
@@ -325,10 +331,55 @@ func (gr *GameRoom) aiTryPlayCard(player *models.PlayerState) bool {
 		return false
 	}
 
+	// 获取难度参数
+	difficulty := gr.Room.PvEDifficulty
+	if !gr.Room.IsPvE {
+		if gr.Room.EnableAIBackfill {
+			difficulty = gr.Room.AIBackfillDifficulty
+		} else {
+			difficulty = 70 // 托管默认难度
+		}
+	}
+
+	// 难度影响权重因子（难度越高，协作和卡位策略越强）
+	difficultyFactor := float64(difficulty) / 100.0
+
 	// 合作逻辑所需数据
 	nextIdx := getNextPlayer(gr.GameState)
 	nextPlayer := gr.GameState.Players[nextIdx]
 	isNextAI := nextPlayer.UID < 0
+
+	// 统计所有AI队友的信息
+	aiTeammates := []struct {
+		index          int
+		player         *models.PlayerState
+		availableSubst []string
+		cardCount      int
+	}{}
+	for i, ps := range gr.GameState.Players {
+		if ps.UID < 0 && ps.UID != player.UID {
+			isFinished := false
+			for _, fuid := range gr.GameState.FinishedPlayers {
+				if ps.UID == fuid {
+					isFinished = true
+					break
+				}
+			}
+			if !isFinished {
+				aiTeammates = append(aiTeammates, struct {
+					index          int
+					player         *models.PlayerState
+					availableSubst []string
+					cardCount      int
+				}{
+					index:          i,
+					player:         ps,
+					availableSubst: GetSubstancesFromElements(ps.HandCards),
+					cardCount:      ps.CardCount,
+				})
+			}
+		}
+	}
 
 	// 2. 紧急防御逻辑：如果下一位是威胁中的人类玩家，优先打出功能牌进行拦截
 	if humanThreatIdx == nextIdx {
@@ -368,31 +419,45 @@ func (gr *GameRoom) aiTryPlayCard(player *models.PlayerState) bool {
 		}
 	}
 
-	// 评分函数：基础分 = 复杂度 * 10
+	// 增强评分函数：更智能的协作和卡位策略
 	calculateScore := func(sub string) int {
 		score := getComplexity(sub) * 10
 
-		// 配合逻辑：如果下一位是 AI 同伴
-		if isNextAI {
-			// 查看同伴手牌能组成的物质
-			allyAvailable := GetSubstancesFromElements(nextPlayer.HandCards)
-			canAllyReact := false
-			for _, as := range allyAvailable {
-				if CanReact(sub, as) {
-					canAllyReact = true
-					break
+		// === 队友协作逻辑（难度越高协作越强） ===
+		teamCoopBonus := 0
+		if len(aiTeammates) > 0 {
+			// 检查所有AI队友能否接上
+			canCoopCount := 0
+			closestAllyCards := 999
+			for _, ally := range aiTeammates {
+				canReact := false
+				for _, as := range ally.availableSubst {
+					if CanReact(sub, as) {
+						canReact = true
+						break
+					}
+				}
+				if canReact {
+					canCoopCount++
+					if ally.cardCount < closestAllyCards {
+						closestAllyCards = ally.cardCount
+					}
 				}
 			}
-			// 如果同伴能接上，加分（鼓励配合）
-			if canAllyReact {
-				score += 50
+
+			// 协作加分：能与更多队友配合，分数越高
+			teamCoopBonus = canCoopCount * int(50*difficultyFactor)
+
+			// 如果有队友快赢了（手牌<=3），极大提升协作权重
+			if closestAllyCards <= 3 && canCoopCount > 0 {
+				teamCoopBonus += int(100 * difficultyFactor)
+				log.Printf("[AI协作] AI %d 检测到队友快赢（%d张牌），提升协作权重: %s", player.UID, closestAllyCards, sub)
 			}
-			// 如果同伴快赢了，且当前物质不是 Au/特殊牌，进一步加分鼓励保持局面
-			if nextPlayer.CardCount <= 2 {
-				score += 30
-			}
-		} else {
-			// 如果下一位是人类对手
+		}
+
+		// === 对手卡位逻辑（难度越高卡位越精准） ===
+		enemyBlockBonus := 0
+		if !isNextAI {
 			allyAvailable := GetSubstancesFromElements(nextPlayer.HandCards)
 			canHumanReact := false
 			for _, as := range allyAvailable {
@@ -403,15 +468,26 @@ func (gr *GameRoom) aiTryPlayCard(player *models.PlayerState) bool {
 			}
 			// 如果人类接不上，加分（鼓励卡位）
 			if !canHumanReact {
-				score += 40
+				enemyBlockBonus = int(60 * difficultyFactor)
 			}
 
 			// 如果人类威胁在下家，且虽然接得上但 AI 想要强制重置（通过卡位或计谋），提升卡位权重
 			if humanThreatIdx == nextIdx && !canHumanReact {
-				score += 100 // 极力卡位
+				enemyBlockBonus += int(150 * difficultyFactor) // 极力卡位
+				log.Printf("[AI卡位] AI %d 极力卡位威胁人类(%d张牌): %s", player.UID, nextPlayer.CardCount, sub)
 			}
 		}
-		return score
+
+		// === 全局战术加分 ===
+		// 如果人类整体威胁较大（最少手牌数<=3），AI应该更激进
+		globalTacticBonus := 0
+		if minHumanCards <= 3 {
+			// 倾向于打出更复杂的物质（清理手牌）和功能牌
+			globalTacticBonus = int(30 * difficultyFactor)
+		}
+
+		totalScore := score + teamCoopBonus + enemyBlockBonus + globalTacticBonus
+		return totalScore
 	}
 
 	if len(lastSubstances) > 0 {
@@ -441,7 +517,7 @@ func (gr *GameRoom) aiTryPlayCard(player *models.PlayerState) bool {
 
 	// 如果找到了最佳出牌物质
 	if bestSub != "" {
-		log.Printf("[AI] 🧠 AI %d 采用合作策略决策: %s (综合得分: %d)", player.UID, bestSub, bestScore)
+		log.Printf("[AI] 🧠 AI %d 采用智能协作策略: %s (综合得分: %d, 难度: %d)", player.UID, bestSub, bestScore, difficulty)
 		gr.aiExecutePlay(player.UID, models.Card{Type: "AI_BEST_CHOICE_CARD"}, bestSub)
 		return true
 	}

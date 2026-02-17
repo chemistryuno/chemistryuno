@@ -117,6 +117,19 @@ func IsValidSubstance(substance string) bool {
 		return true
 	}
 
+	// 支持由单个原子组成的单质（如 H、O、N、P 等）
+	// 这些元素卡点击时应该优先打出单原子形式
+	singleAtomElements := map[string]bool{
+		"H": true, "O": true, "N": true, "P": true, "S": true,
+		"C": true, "Cl": true, "F": true, "Br": true, "I": true,
+		"Na": true, "K": true, "Ca": true, "Mg": true, "Al": true,
+		"Fe": true, "Cu": true, "Zn": true, "Ag": true, "Ba": true,
+		"Hg": true, "Si": true,
+	}
+	if singleAtomElements[substance] {
+		return true
+	}
+
 	validSubstancesMutex.RLock()
 	defer validSubstancesMutex.RUnlock()
 

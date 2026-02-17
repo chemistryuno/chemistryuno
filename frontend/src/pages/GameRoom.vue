@@ -7,6 +7,8 @@ import websocket from '../utils/websocket'
 import { ArrowLeft, Play, RefreshCw, Zap, Activity, FlaskConical, Trophy, ChevronRight, Loader2, Users, Timer, Plus, QrCode, Copy, Sparkles, ShieldAlert, Ban, UserMinus, X, MessageCircle, UserPlus, Flag, Send, Binary, Star } from 'lucide-vue-next'
 import { cn } from '../utils/cn'
 import ChatBox from '../components/ChatBox.vue'
+import LevelBadge from '../components/LevelBadge.vue'
+import LevelUpAnimation from '../components/LevelUpAnimation.vue'
 import '../styles/mobile-game.css'
 
 const route = useRoute()
@@ -55,6 +57,7 @@ const showDeckDetailModal = ref(false)
 const handContainer = ref<HTMLElement | null>(null)
 const substancesContainer = ref<HTMLElement | null>(null)
 const playersContainer = ref<HTMLElement | null>(null)
+const levelUpAnimationRef = ref<InstanceType<typeof LevelUpAnimation> | null>(null)
 
 // 移动端自动全屏
 const requestFullscreen = () => {
@@ -442,6 +445,7 @@ const sortedPointsChanges = computed(() => {
     .map(([uid, points]) => ({
       uid: Number(uid),
       points: Number(points),
+      xp: gameState.value.xp_changes?.[uid] || 0,
       player: gameState.value.players.find((p: any) => String(p.uid) === String(uid))
     }))
     .sort((a, b) => b.points - a.points)
@@ -704,6 +708,14 @@ const handleGameUpdate = (message: any) => {
   }
 }
 
+// 处理升级事件
+const handleLevelUp = (data: any) => {
+  console.log('[LevelUp] 收到升级通知:', data)
+  if (levelUpAnimationRef.value) {
+    levelUpAnimationRef.value.show(data)
+  }
+}
+
 const handleActionToast = (msg: any) => {
   const content = msg.data || msg.message
   if (content) {
@@ -903,6 +915,7 @@ onMounted(() => {
       websocket.on('player_kicked', handlePlayerKicked)
       websocket.on('chat', handleChatNotify)
       websocket.on('private_chat', handleChatNotify)
+      websocket.on('level_up', handleLevelUp)
     })
     .catch(err => {
       clearTimeout(safetyTimeout) // 捕获错误后也清除超时
@@ -2065,7 +2078,7 @@ watch(() => gameState.value?.current_player, () => {
                    <div class="flex items-center justify-between mb-3 sm:mb-4 px-1 sm:px-2 relative z-10">
                       <div class="flex items-center gap-1.5 sm:gap-2">
                         <div class="w-1 h-3 sm:w-1.5 sm:h-4 bg-blue-500 rounded-full"></div>
-                        <span class="text-[9px] sm:text-[11px] font-black uppercase tracking-[0.1em] sm:tracking-[0.15em] text-slate-500">积分变动与排名</span>
+                        <span class="text-[9px] sm:text-[11px] font-black uppercase tracking-[0.1em] sm:tracking-[0.15em] text-slate-500">积分与经验变动</span>
                       </div>
                       <div class="flex items-center gap-1 px-2 py-0.5 sm:py-1 bg-blue-500/10 rounded-lg sm:rounded-xl border border-blue-500/20">
                          <Sparkles class="w-2.5 h-2.5 sm:w-3 sm:h-3 text-blue-500" />
@@ -2109,6 +2122,12 @@ watch(() => gameState.value?.current_player, () => {
                                item.points >= 0 ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-500 border border-rose-500/20'
                             )">
                               {{ item.points >= 0 ? '+' : '' }}{{ item.points }}
+                            </div>
+                            <div v-if="item.xp > 0" :class="cn(
+                               'px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl font-black font-mono text-[10px] sm:text-sm shadow-sm transition-all group-hover/row:scale-110',
+                               'bg-blue-500/10 text-blue-500 border border-blue-500/20'
+                            )">
+                              +{{ item.xp }} XP
                             </div>
                             <Trophy v-if="index === 0" class="w-3 h-3 sm:w-4 sm:h-4 text-yellow-500 animate-pulse" />
                          </div>
@@ -2518,6 +2537,9 @@ watch(() => gameState.value?.current_player, () => {
       </div>
     </div>
   </div>
+
+  <!-- Level Up Animation -->
+  <LevelUpAnimation ref="levelUpAnimationRef" />
 </template>
 
 <style scoped>

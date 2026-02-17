@@ -516,3 +516,21 @@ func (r *UserRepository) GetLeaderboard(orderBy string, limit int) ([]database.U
 	err := r.db.Order(orderBy + " DESC").Limit(limit).Find(&users).Error
 	return users, err
 }
+
+// UpdateXP 更新经验值和等级
+func (r *UserRepository) UpdateXP(uid uint, xp int, totalXP int, level int) error {
+	return r.db.Model(&database.User{}).Where("uid = ?", uid).Updates(map[string]interface{}{
+		"xp":       xp,
+		"total_xp": totalXP,
+		"level":    level,
+	}).Error
+}
+
+// AddXP 增加经验值
+func (r *UserRepository) AddXP(uid uint, xp int) error {
+	return r.db.Model(&database.User{}).Where("uid = ?", uid).
+		Updates(map[string]interface{}{
+			"xp":       gorm.Expr("xp + ?", xp),
+			"total_xp": gorm.Expr("total_xp + ?", xp),
+		}).Error
+}

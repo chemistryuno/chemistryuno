@@ -36,6 +36,7 @@ func autoMigrate() error {
 		&Announcement{},
 		&SystemConfig{},
 		&VerificationCode{},
+		&LevelConfig{},
 	)
 
 	if err != nil {
@@ -54,6 +55,11 @@ func autoMigrate() error {
 	// 修复可能存在的 R1/R2 顺序问题
 	if err := fixReactionOrdering(); err != nil {
 		log.Printf("⚠️  修复反应顺序失败: %v", err)
+	}
+
+	// 迁移等级系统
+	if err := MigrateLevelSystem(DB); err != nil {
+		log.Printf("⚠️  等级系统迁移失败: %v", err)
 	}
 
 	log.Println("✅ 数据库迁移完成")

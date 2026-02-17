@@ -24,6 +24,7 @@ import TwoFactorSetupModal from '../components/profile/TwoFactorSetupModal.vue'
 import HardwareKeyModal from '../components/profile/HardwareKeyModal.vue'
 import DeviceManagementModal from '../components/profile/DeviceManagementModal.vue'
 import ChangeEmailModal from '../components/profile/ChangeEmailModal.vue'
+import LevelProgress from '../components/LevelProgress.vue'
 import { LayoutDashboard, ShieldCheck, FlaskConical, History, Sliders, Menu, X as CloseIcon, LogOut } from 'lucide-vue-next'
 
 const router = useRouter()
@@ -373,8 +374,11 @@ const handleOAuthUnbind = async (provider: 'github' | 'ms' | 'google' | 'apple')
 
         <!-- Dynamic Content Area -->
         <div class="flex-1 w-full space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          
+
           <div v-if="currentCategory === 'overview'" class="space-y-6">
+            <!-- Level Progress Section -->
+            <LevelProgress />
+
             <!-- Achievements Section -->
             <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 rounded-2xl p-8 shadow-sm">
               <h3 class="text-base font-black uppercase tracking-widest mb-5 flex items-center gap-2 text-slate-400">

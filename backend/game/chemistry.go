@@ -38,21 +38,22 @@ func GetSubstancesFromElements(cards []models.Card) []string {
 	}
 
 	// 允许打出由单个原子组成的单质（直接使用手牌中的元素符号）
-	// 但仅当该单质被物质百科批准或属于特殊放行类（如 Au）时才允许
+	// 优先返回单原子形式（如 H、O、N、P），而不是双原子分子（如 H2、O2等）
 	for elem, count := range elementMap {
 		if count > 0 {
-			// 自动尝试双原子分子转换
-			formula := elem
-			diatomic := map[string]string{
-				"H": "H2", "O": "O2", "N": "N2", "Cl": "Cl2", "F": "F2", "Br": "Br2", "I": "I2",
-			}
-			if d, ok := diatomic[elem]; ok {
-				if IsValidSubstance(d) {
-					substanceSet[d] = true
+			// 优先尝试单原子形式
+			if IsValidSubstance(elem) {
+				substanceSet[elem] = true
+			} else {
+				// 如果单原子形式无效，才尝试双原子分子转换
+				diatomic := map[string]string{
+					"H": "H2", "O": "O2", "N": "N2", "Cl": "Cl2", "F": "F2", "Br": "Br2", "I": "I2",
 				}
-			}
-			if IsValidSubstance(formula) {
-				substanceSet[formula] = true
+				if d, ok := diatomic[elem]; ok {
+					if IsValidSubstance(d) {
+						substanceSet[d] = true
+					}
+				}
 			}
 		}
 	}

@@ -56,6 +56,10 @@ func CreateRoom(c *gin.Context) {
 		// AI补位功能配置
 		EnableAIBackfill     bool `json:"enable_ai_backfill"`     // 是否启用AI补位
 		AIBackfillDifficulty int  `json:"ai_backfill_difficulty"` // 补位AI难度
+
+		// 等级匹配系统
+		IsRanked   bool `json:"is_ranked"`    // 是否为排位模式
+		LevelRange int  `json:"level_range"`  // 允许的等级范围（默认5）
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -84,10 +88,22 @@ func CreateRoom(c *gin.Context) {
 		return
 	}
 
+	// 等级匹配验证
+	if req.IsRanked {
+		// 排位模式下，等级范围必须在3-10之间
+		if req.LevelRange < 3 || req.LevelRange > 10 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "排位模式等级范围必须在3-10之间"})
+			return
+		}
+	} else if req.LevelRange == 0 {
+		// 如果未指定，默认等级范围为5
+		req.LevelRange = 5
+	}
+
 	uid := c.GetInt("uid")
 	username := c.GetString("username")
 
-	room, err := game.CreateRoomWithKey(req.Name, uid, username, req.MaxPlayers, req.DeckID, req.IsPointsMode, req.IsPrivate, req.AccessKey, req.IsPvE, req.PvEDifficulty, req.AICount, req.EnableAIBackfill, req.AIBackfillDifficulty)
+	room, err := game.CreateRoomWithKey(req.Name, uid, username, req.MaxPlayers, req.DeckID, req.IsPointsMode, req.IsPrivate, req.AccessKey, req.IsPvE, req.PvEDifficulty, req.AICount, req.EnableAIBackfill, req.AIBackfillDifficulty, req.IsRanked, req.LevelRange)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

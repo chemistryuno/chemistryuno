@@ -1,5 +1,8 @@
 <script setup lang="ts">
+import { ref, onMounted } from 'vue'
 import { Shield, Fingerprint, Calendar, Award, User as UserIcon, RefreshCw, Zap, Edit2 } from 'lucide-vue-next'
+import LevelBadge from '../LevelBadge.vue'
+import { api } from '@/utils/api'
 
 defineProps<{
   user: any
@@ -9,6 +12,22 @@ defineEmits<{
   (e: 'changeAvatar'): void
   (e: 'changeNickname'): void
 }>()
+
+const levelInfo = ref<any>(null)
+
+// 获取等级信息
+async function fetchLevelInfo() {
+  try {
+    const response = await api.get('/level/info')
+    levelInfo.value = response.data
+  } catch (error) {
+    console.error('获取等级信息失败:', error)
+  }
+}
+
+onMounted(() => {
+  fetchLevelInfo()
+})
 </script>
 
 <template>
@@ -66,20 +85,21 @@ defineEmits<{
 
       <div class="w-full mt-4 pt-4 border-t border-slate-200 dark:border-white/5 space-y-2">
         <div class="flex justify-between items-center text-[10px]">
-          <span class="text-slate-400 font-bold uppercase tracking-widest flex items-center gap-1"><Award class="w-2.5 h-2.5" /> Exp Level</span>
-          <div class="flex items-center gap-2">
-            <div class="w-16 h-1 bg-slate-200 dark:bg-white/5 rounded-full overflow-hidden">
-              <div class="w-1/3 h-full bg-blue-500" />
+          <span class="text-slate-400 font-bold uppercase tracking-widest flex items-center gap-1"><Award class="w-2.5 h-2.5" /> 研究员等级</span>
+          <div v-if="levelInfo" class="flex items-center gap-2">
+            <div class="flex-1 h-1 bg-slate-200 dark:bg-white/5 rounded-full overflow-hidden min-w-[64px]">
+              <div class="h-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all duration-500" :style="{ width: levelInfo.progress_percent + '%' }" />
             </div>
-            <span class="text-blue-600 dark:text-blue-500 font-black">LV.01</span>
+            <LevelBadge :level="levelInfo.level" :tier="levelInfo.tier" :tier-name="levelInfo.tier_name" size="xs" />
           </div>
+          <div v-else class="text-slate-400 text-[9px]">加载中...</div>
         </div>
         <div class="flex justify-between items-center text-[10px]">
-          <span class="text-slate-400 font-bold uppercase tracking-widest flex items-center gap-1"><Zap class="w-2.5 h-2.5 text-yellow-500" /> Points</span>
+          <span class="text-slate-400 font-bold uppercase tracking-widest flex items-center gap-1"><Zap class="w-2.5 h-2.5 text-yellow-500" /> 积分</span>
           <span class="font-black text-slate-900 dark:text-white uppercase font-mono">{{ user.points || 0 }}</span>
         </div>
         <div v-if="user.created_at" class="flex justify-between items-center text-[10px]">
-          <span class="text-slate-400 font-bold uppercase tracking-widest flex items-center gap-1"><Calendar class="w-2.5 h-2.5" /> Enrolled</span>
+          <span class="text-slate-400 font-bold uppercase tracking-widest flex items-center gap-1"><Calendar class="w-2.5 h-2.5" /> 注册时间</span>
           <span class="font-mono text-slate-500 dark:text-slate-400">{{ new Date(user.created_at).toLocaleDateString() }}</span>
         </div>
       </div>

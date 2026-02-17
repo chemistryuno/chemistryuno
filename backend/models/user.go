@@ -19,6 +19,9 @@ type User struct {
 	TwoFactorSecret    string                `json:"-" db:"two_factor_secret"`
 	Points             int                   `json:"points" db:"points"`
 	MonthlyPoints      int                   `json:"monthly_points" db:"monthly_points"`
+	Level              int                   `json:"level" db:"level"`
+	XP                 int                   `json:"xp" db:"xp"`
+	TotalXP            int                   `json:"total_xp" db:"total_xp"`
 	NegativePlayCount  int                   `json:"negative_play_count" db:"negative_play_count"`
 	BannedUntil        *time.Time            `json:"banned_until" db:"banned_until"`
 	FrozenUntil        *time.Time            `json:"frozen_until" db:"frozen_until"`
@@ -158,4 +161,15 @@ type ChangeEmailRequest struct {
 	OldCode  string `json:"old_code" binding:"required"`
 	NewEmail string `json:"new_email" binding:"required,email"`
 	NewCode  string `json:"new_code" binding:"required"`
+}
+
+// LevelInfo 等级信息
+type LevelInfo struct {
+	Level           int    `json:"level"`
+	XP              int    `json:"xp"`
+	TotalXP         int    `json:"total_xp"`
+	Tier            string `json:"tier"`
+	TierName        string `json:"tier_name"`
+	NextLevelXP     int    `json:"next_level_xp"`
+	ProgressPercent int    `json:"progress_percent"`
 }

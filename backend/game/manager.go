@@ -272,11 +272,11 @@ func getGlobalDeckConfigFromDB() (map[string]int, string, int) {
 
 // 创建房间
 func CreateRoom(name string, creatorUID int, creatorName string, maxPlayers int, deckID int, isPointsMode bool, isPrivate bool) (*models.Room, error) {
-	return CreateRoomWithKey(name, creatorUID, creatorName, maxPlayers, deckID, isPointsMode, isPrivate, "", false, 0, 0, false, 0)
+	return CreateRoomWithKey(name, creatorUID, creatorName, maxPlayers, deckID, isPointsMode, isPrivate, "", false, 0, 0, false, 0, false, 5)
 }
 
 // 创建房间（支持自定义访问密钥）
-func CreateRoomWithKey(name string, creatorUID int, creatorName string, maxPlayers int, deckID int, isPointsMode bool, isPrivate bool, customKey string, isPvE bool, difficulty int, aiCount int, enableAIBackfill bool, aiBackfillDifficulty int) (*models.Room, error) {
+func CreateRoomWithKey(name string, creatorUID int, creatorName string, maxPlayers int, deckID int, isPointsMode bool, isPrivate bool, customKey string, isPvE bool, difficulty int, aiCount int, enableAIBackfill bool, aiBackfillDifficulty int, isRanked bool, levelRange int) (*models.Room, error) {
 	if isPointsMode && isPrivate && !isPvE {
 		return nil, errors.New("积分模式下不可创建私密房间")
 	}
@@ -369,6 +369,23 @@ func CreateRoomWithKey(name string, creatorUID int, creatorName string, maxPlaye
 		}
 	}
 
+	// 计算等级匹配范围
+	var minLevel, maxLevel int
+	if !isPrivate && (isRanked || levelRange > 0) {
+		// 获取房主等级
+		user, err := repository.UserRepo.FindByUID(uint(creatorUID))
+		if err == nil {
+			minLevel = user.Level - levelRange
+			maxLevel = user.Level + levelRange
+			if minLevel < 1 {
+				minLevel = 1
+			}
+			if maxLevel > 100 {
+				maxLevel = 100
+			}
+		}
+	}
+
 	room := &models.Room{
 		ID:                   roomID,
 		Name:                 name,
@@ -388,6 +405,11 @@ func CreateRoomWithKey(name string, creatorUID int, creatorName string, maxPlaye
 		EnableAIBackfill:     enableAIBackfill,
 		AIBackfillDifficulty: aiBackfillDifficulty,
 		BackfilledAIUIDs:     []int{},
+		IsRanked:             isRanked,
+		LevelRange:           levelRange,
+		MinLevel:             minLevel,
+		MaxLevel:             maxLevel,
+		CreatedByUID:         creatorUID,
 		CreatedAt:            time.Now(),
 	}
 
@@ -587,9 +609,9 @@ func ResetPlayerHosted(roomID string, uid int) {
 func handlePointsCalculation(gr *GameRoom) {
 	finished := gr.GameState.FinishedPlayers
 	count := len(finished)
-	if count < 2 {
-		return
-	}
+
+	// 即使只有1个玩家完成，也要生成 PointsChanges 用于前端显示
+	// 修改：移除 count < 2 的限制
 
 	// 计算积分倍率：每有一个未完成玩家离开，结算减少 1/总人数
 	multiplier := 1.0
@@ -612,6 +634,12 @@ func handlePointsCalculation(gr *GameRoom) {
 	for i, uid := range finished {
 		points := 0
 		rank := i + 1
+
+		// AI 玩家（UID < 0）不获得积分，但需要在 PointsChanges 中记录为 0
+		if uid < 0 {
+			changes[uid] = 0
+			continue
+		}
 
 		// 如果是最后一名且总人数大于1，给予固定参与分
 		if i == count-1 && count > 1 {
@@ -687,6 +715,27 @@ func handlePointsCalculation(gr *GameRoom) {
 		repository.UserRepo.IncrementPoints(uint(winnerUID), totalBountyForWinner)
 		repository.UserRepo.IncrementMonthlyPoints(uint(winnerUID), totalBountyForWinner)
 		changes[winnerUID] += totalBountyForWinner
+	}
+
+	// XP 经验奖励（等级系统）
+	// 初始化 XPChanges map
+	if gr.GameState.XPChanges == nil {
+		gr.GameState.XPChanges = make(map[int]int)
+	}
+
+	// 计算并存储每个玩家的 XP 变化
+	for i, uid := range finished {
+		if uid < 0 {
+			gr.GameState.XPChanges[uid] = 0 // AI 不获得经验，但在结算中显示为 0
+			continue
+		}
+		rank := i + 1
+		xp := CalculateXPReward(gr, uid, rank)
+		gr.GameState.XPChanges[uid] = xp
+
+		if xp > 0 {
+			go AwardXP(uid, xp) // 异步授予经验，避免阻塞
+		}
 	}
 }
 
@@ -1072,6 +1121,19 @@ func JoinRoomWithKey(roomID string, uid int, username string, accessKey string) 
 
 		if !isCreator && !alreadyInRoom && accessKey != gameRoom.Room.AccessKey {
 			return errors.New("访问密钥错误，无法加入私密房间")
+		}
+	}
+
+	// 等级验证（私密房间豁免）
+	if !gameRoom.Room.IsPrivate && (gameRoom.Room.IsRanked || gameRoom.Room.LevelRange > 0) && gameRoom.Room.MinLevel > 0 {
+		user, err := repository.UserRepo.FindByUID(uint(uid))
+		if err != nil {
+			return errors.New("无法获取玩家等级信息")
+		}
+
+		if user.Level < gameRoom.Room.MinLevel || user.Level > gameRoom.Room.MaxLevel {
+			return fmt.Errorf("等级不符合要求（需要等级 %d-%d，当前等级 %d）",
+				gameRoom.Room.MinLevel, gameRoom.Room.MaxLevel, user.Level)
 		}
 	}
 
@@ -2043,6 +2105,12 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 				_ = repository.UserRepo.AddPoints(uint(uid), earnedPoints)
 				log.Printf("[实时结算] 玩家 %d (第 %d 名) 获得积分: %d", uid, rank, earnedPoints)
 
+				// 更新 PointsChanges，确保前端能显示
+				if gameRoom.GameState.PointsChanges == nil {
+					gameRoom.GameState.PointsChanges = make(map[int]int)
+				}
+				gameRoom.GameState.PointsChanges[uid] = earnedPoints
+
 				if websocket.GlobalHub != nil {
 					websocket.GlobalHub.SendToUID(uid, websocket.Message{
 						Type: "action_toast",
@@ -2050,6 +2118,12 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 					})
 				}
 			}
+		} else if uid < 0 {
+			// AI 玩家完成时也要记录到 PointsChanges（积分为0）
+			if gameRoom.GameState.PointsChanges == nil {
+				gameRoom.GameState.PointsChanges = make(map[int]int)
+			}
+			gameRoom.GameState.PointsChanges[uid] = 0
 		}
 	}
 
@@ -2172,7 +2246,8 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 
 			// 最终游戏结束时不再重复计算已实时结算过的玩家，
 			// handlePointsCalculation 函数内部会自动处理或是作为最终兜底
-			if gameRoom.Room.IsPointsMode {
+			// 修改：PvE 模式也需要调用以生成 PointsChanges 用于前端显示
+			if gameRoom.Room.IsPointsMode || gameRoom.Room.IsPvE {
 				handlePointsCalculation(gameRoom)
 			}
 		} else {
@@ -2819,6 +2894,19 @@ func DoublePlay(roomID string, uid int, sub1 string, sub2 string) error {
 	if currentPlayer.CardCount == 0 {
 		gameRoom.GameState.Status = "finished"
 		gameRoom.Room.Status = "finished"
+
+		// 记录完成玩家到排名列表（如果还没记录）
+		alreadyFinished := false
+		for _, fuid := range gameRoom.GameState.FinishedPlayers {
+			if fuid == uid {
+				alreadyFinished = true
+				break
+			}
+		}
+		if !alreadyFinished {
+			gameRoom.GameState.FinishedPlayers = append(gameRoom.GameState.FinishedPlayers, uid)
+		}
+
 		// 记录游戏历史
 		saveGameHistory(roomID, uid, gameRoom.Room.Players, gameRoom.GameState.OriginalPlayerCount, gameRoom.GameState.QuittedCount)
 
@@ -2826,6 +2914,11 @@ func DoublePlay(roomID string, uid int, sub1 string, sub2 string) error {
 		privateChatRepo := repository.NewPrivateChatRepository()
 		if err := privateChatRepo.DeleteGameInvitesByRoom(roomID); err != nil {
 			log.Printf("清理房间 %s 的游戏邀请失败: %v", roomID, err)
+		}
+
+		// 积分结算（包括 PvE 和积分模式）
+		if gameRoom.Room.IsPointsMode || gameRoom.Room.IsPvE {
+			handlePointsCalculation(gameRoom)
 		}
 
 		return nil

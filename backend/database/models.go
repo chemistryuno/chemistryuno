@@ -64,6 +64,9 @@ type User struct {
 	TwoFactorSecret    string         `json:"-"`
 	Points             int            `gorm:"default:1000" json:"points"`
 	MonthlyPoints      int            `gorm:"default:1000" json:"monthly_points"`
+	Level              int            `gorm:"default:1" json:"level"`
+	XP                 int            `gorm:"default:0" json:"xp"`
+	TotalXP            int            `gorm:"default:0" json:"total_xp"`
 	NegativePlayCount  int            `gorm:"default:0" json:"negative_play_count"`
 	BannedUntil        *time.Time     `json:"banned_until"`
 	BanReason          string         `gorm:"size:255" json:"ban_reason"`

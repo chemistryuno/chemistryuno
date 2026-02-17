@@ -223,7 +223,7 @@ const handleReset = async () => {
             @click="$emit('close')"
             class="flex-1 py-3.5 bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 border border-slate-200 dark:border-white/5 rounded-xl font-bold transition-all text-slate-500 dark:text-slate-400 uppercase text-[10px] tracking-widest"
           >
-            中止实验
+            中止
           </button>
 
           <button

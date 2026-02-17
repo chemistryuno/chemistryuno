@@ -71,6 +71,15 @@
     0%, 100% { filter: drop-shadow(0 0 10px rgba(234, 179, 8, 0.3)); transform: scale(1); }
     50% { filter: drop-shadow(0 0 25px rgba(234, 179, 8, 0.8)); transform: scale(1.02); }
   }
+  @keyframes confetti {
+    0% { transform: translateY(-100vh) rotate(0deg); opacity: 1; }
+    100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+  }
+  @keyframes beam {
+    0% { transform: translateY(100%) skewY(-45deg); opacity: 0; }
+    50% { opacity: 0.5; }
+    100% { transform: translateY(-100%) skewY(-45deg); opacity: 0; }
+  }
 
   /* --- Animation Utilities --- */
   --animate-scan: scan 4s linear infinite;
@@ -87,6 +96,8 @@
   --animate-card-draw: card-draw 0.6s ease-in-out;
   --animate-stamp: stamp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
   --animate-win-glow: win-glow 2s ease-in-out infinite;
+  --animate-confetti: confetti 3s linear infinite;
+  --animate-beam: beam 4s linear infinite;
 
   /* Custom Backgrounds */
   --image-mesh: radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.05) 0, transparent 50%), 

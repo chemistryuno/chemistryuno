@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { gameAPI, adminAPI, friendAPI, authAPI, commonAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
 import websocket from '../utils/websocket'
-import { ArrowLeft, Play, RefreshCw, Zap, Activity, FlaskConical, Trophy, ChevronRight, Loader2, Users, Timer, Plus, QrCode, Copy, Sparkles, ShieldAlert, Ban, UserMinus, X, MessageCircle, UserPlus, Flag, Send, Binary } from 'lucide-vue-next'
+import { ArrowLeft, Play, RefreshCw, Zap, Activity, FlaskConical, Trophy, ChevronRight, Loader2, Users, Timer, Plus, QrCode, Copy, Sparkles, ShieldAlert, Ban, UserMinus, X, MessageCircle, UserPlus, Flag, Send, Binary, Star } from 'lucide-vue-next'
 import { cn } from '../utils/cn'
 import ChatBox from '../components/ChatBox.vue'
 import '../styles/mobile-game.css'
@@ -424,7 +424,28 @@ const allowedAny = computed(() => {
   if (!gameState.value) return false
   return typeof gameState.value?.allowed_any_player !== 'undefined' && gameState.value?.allowed_any_player === myIndex.value
 })
-const winner = computed(() => gameState.value?.players?.find((p: any) => p.card_count === 0))
+const winner = computed(() => {
+  if (!gameState.value) return null
+  const finishers = gameState.value.finished_players || []
+  const winnerUid = finishers.length > 0 ? finishers[0] : null
+  if (winnerUid !== null) {
+     return gameState.value.players.find((p: any) => p.uid === winnerUid)
+  }
+  return gameState.value.players?.find((p: any) => p.card_count === 0)
+})
+
+const isManualSettlement = ref(false)
+
+const sortedPointsChanges = computed(() => {
+  if (!gameState.value?.points_changes) return []
+  return Object.entries(gameState.value.points_changes)
+    .map(([uid, points]) => ({
+      uid: Number(uid),
+      points: Number(points),
+      player: gameState.value.players.find((p: any) => String(p.uid) === String(uid))
+    }))
+    .sort((a, b) => b.points - a.points)
+})
 
 
 const ELEMENTS_DATA: Record<string, { name: string, class: string }> = {
@@ -662,6 +683,7 @@ watch(() => isMyTurn.value, (val) => {
 }, { immediate: true })
 
 const handleGameUpdate = (message: any) => {
+  if (isManualSettlement.value) return
   console.log('[GameRoom] handleGameUpdate called, message:', message)
   // 如果收到的是完整的游戏状态对象
   if (message.data && typeof message.data === 'object') {
@@ -1098,6 +1120,75 @@ const handleDrawCard = async () => {
 }
 
 const handleLeaveRoom = async () => {
+  // 人机对战模式下，如果玩家已经完成（进入观战状态），点击退出改为“结算”
+  if (roomInfo.value?.is_pve && isSpectator.value) {
+    // 立即断开房间连接并停止监听（直接“关闭”房间逻辑）
+    websocket.leaveRoom()
+    websocket.off('game_update', handleGameUpdate)
+    websocket.off('player_joined', handlePlayerJoined)
+    websocket.off('player_left', handlePlayerLeft)
+    websocket.off('action_toast', handleActionToast)
+    websocket.off('room_terminated', handleRoomTerminated)
+    websocket.off('player_kicked', handlePlayerKicked)
+    websocket.off('chat', handleChatNotify)
+    websocket.off('private_chat', handleChatNotify)
+
+    if (gameState.value) {
+      isManualSettlement.value = true
+      gameState.value.status = 'finished'
+      // 构造临时积分数据用于展示（如果尚未结算）
+      if (!gameState.value.points_changes) {
+        const changes: Record<string, number> = {}
+        const finishers = gameState.value.finished_players || []
+        
+        // 确保所有玩家都在列表中，即便有些还没打完
+        const allUIDs = gameState.value.players.map((p: any) => p.uid)
+        const remainingUIDs = allUIDs.filter((id: number) => !finishers.includes(id))
+        const fullFinishers = [...finishers, ...remainingUIDs]
+        
+        const quittedCount = gameState.value.quitted_count || 0
+        const originalCount = gameState.value.original_player_count || gameState.value.players.length
+        const multiplier = originalCount > 0 ? (1.0 - (quittedCount / originalCount)) : 1.0
+        const difficulty = roomInfo.value?.pve_difficulty || 100
+
+        fullFinishers.forEach((uid: number, index: number) => {
+          const rank = index + 1
+          let points = 0
+          
+          // 后端结算逻辑：
+          // 如果是最后一名且总人数大于1，给予固定参与分 5
+          if (index === fullFinishers.length - 1 && fullFinishers.length > 1) {
+            points = 5
+          } else {
+            points = Math.floor(100 / rank)
+          }
+
+          // 应用倍率 (受中途退出人数影响)
+          points = Math.floor(points * multiplier)
+
+          // PvE 模式积分修正
+          if (roomInfo.value?.is_pve) {
+            // 难度 < 50，无法获得积分
+            if (difficulty < 50) {
+              points = 0
+            } else {
+              // 积分 = 原始积分 * (难度 / 100)
+              points = Math.floor(points * (difficulty / 100.0))
+            }
+          }
+
+          if (points < 1 && (!roomInfo.value?.is_pve || difficulty >= 50)) {
+            points = 1
+          }
+
+          changes[String(uid)] = points
+        })
+        gameState.value.points_changes = changes
+      }
+    }
+    return
+  }
+
   try {
     let message = '暂时离开实验室？你可以在被踢出前随时返回继续实验'
     let title = '暂离实验'
@@ -1326,9 +1417,11 @@ watch(() => gameState.value?.current_player, () => {
         <div class="flex items-center gap-2 sm:gap-4 shrink-0">
           <button
             @click="handleLeaveRoom"
-            class="btn-touch flex items-center justify-center hover:bg-slate-100 dark:hover:bg-white/10 rounded-xl text-slate-500 hover:text-blue-500 transition-all touch-feedback"
+            class="btn-touch flex items-center gap-1.5 px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-white/10 rounded-xl text-slate-500 hover:text-blue-500 transition-all touch-feedback border border-transparent hover:border-blue-500/20"
           >
-            <ArrowLeft class="icon-touch" />
+            <ArrowLeft v-if="!(roomInfo?.is_pve && isSpectator)" class="icon-touch" />
+            <Trophy v-else class="w-4 h-4 text-amber-500" />
+            <span class="text-[10px] font-black uppercase tracking-widest">{{ (roomInfo?.is_pve && isSpectator) ? '结算实验' : '' }}</span>
           </button>
           <div class="hidden xs:block">
             <h2 class="text-xs-mobile font-black tracking-widest uppercase font-mono text-slate-400">Node: {{ id.substring(0, 6) }}</h2>
@@ -1905,90 +1998,137 @@ watch(() => gameState.value?.current_player, () => {
       </div>
 
       <!-- Experimental Victory / Failure Protocol -->
-      <div v-if="gameState?.status === 'finished'" class="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-hidden bg-slate-900/40 backdrop-blur-2xl">
-        <div class="relative w-full max-w-lg bg-white dark:bg-[#0d0d10] border border-slate-200 dark:border-white/10 rounded-[32px] sm:rounded-[40px] shadow-2xl flex flex-col items-center text-center overflow-hidden animate-zoom-in p-6 sm:p-12">
-           <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-yellow-400 to-transparent animate-shimmer"></div>
+      <div v-if="gameState?.status === 'finished'" class="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-hidden bg-slate-900/60 backdrop-blur-2xl">
+        <!-- Cool Background Effects -->
+        <div class="absolute inset-0 pointer-events-none overflow-hidden">
+           <div v-for="i in 12" :key="i" 
+                class="absolute w-px h-[200%] bg-gradient-to-t from-transparent via-blue-500/20 to-transparent animate-beam"
+                :style="{ left: (i * 8) + '%', animationDelay: (i * 0.3) + 's', animationDuration: (3 + Math.random() * 2) + 's' }">
+           </div>
+           <div v-for="i in 20" :key="'c'+i" 
+                class="absolute w-1.5 h-1.5 rounded-full animate-confetti opacity-0 blur-[1px]"
+                :style="{ 
+                  left: Math.random() * 100 + '%', 
+                  backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'][Math.floor(Math.random() * 5)],
+                  animationDelay: Math.random() * 5 + 's',
+                  animationDuration: (3 + Math.random() * 2) + 's'
+                }">
+           </div>
+        </div>
 
-           <div class="relative mb-6 sm:mb-10 transform-gpu">
-              <div class="absolute inset-0 bg-blue-500/30 rounded-full blur-3xl animate-pulse"></div>
-              <div class="w-20 h-20 sm:w-24 h-24 bg-gradient-to-br from-blue-500 to-blue-700 rounded-[24px] sm:rounded-[32px] flex items-center justify-center shadow-lg rotate-12">
-                 <Trophy class="w-10 h-10 sm:w-12 sm:h-12 text-white" />
+        <div class="relative w-full max-w-sm sm:max-w-lg bg-white/95 dark:bg-[#0d0d10]/95 border border-slate-200 dark:border-white/10 rounded-[32px] sm:rounded-[40px] shadow-3xl flex flex-col items-center text-center overflow-hidden animate-zoom-in p-5 sm:p-10 backdrop-blur-md max-h-[90vh]">
+           <div class="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-blue-600 via-purple-600 to-emerald-600 animate-shimmer"></div>
+
+           <div class="relative mb-4 sm:mb-8 group shrink-0">
+              <div class="absolute -inset-10 bg-blue-500/20 rounded-full blur-[50px] animate-pulse"></div>
+              <div class="absolute -inset-4 bg-gradient-to-br from-blue-500/40 to-emerald-500/40 rounded-[28px] sm:rounded-[32px] blur-xl animate-win-glow"></div>
+              
+              <div class="relative w-20 h-20 sm:w-28 h-28 bg-gradient-to-br from-slate-800 to-black dark:from-blue-600 dark:to-blue-900 rounded-[28px] sm:rounded-[40px] flex items-center justify-center shadow-2xl border border-white/20 transform rotate-6 group-hover:rotate-0 transition-transform duration-700">
+                 <Trophy class="w-10 h-10 sm:w-14 h-14 text-yellow-400 drop-shadow-[0_0_15px_rgba(250,204,21,0.6)]" />
               </div>
-              <div class="absolute -bottom-2 -right-2 w-8 h-8 bg-white rounded-lg flex items-center justify-center shadow-lg animate-bounce">
-                 <Zap class="w-4 h-4 text-blue-600 fill-current" />
+
+              <!-- Floating Particles around trophy -->
+              <div class="absolute -top-1 -right-1 w-8 h-8 sm:w-10 sm:h-10 bg-white dark:bg-slate-800 rounded-xl sm:rounded-2xl flex items-center justify-center shadow-xl border border-blue-500/30 animate-float">
+                 <Zap class="w-4 h-4 sm:w-5 h-5 text-blue-500 fill-current" />
               </div>
            </div>
 
-           <div class="space-y-2 sm:space-y-3 mb-8 sm:mb-12 px-2">
-              <div class="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-500/10 border border-blue-500/20 rounded-full">
-                 <span class="w-1.5 h-1.5 bg-blue-500 rounded-full animate-ping"></span>
-                 <span class="text-[7px] sm:text-[9px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest font-mono">Mission_Success</span>
-              </div>
-              <template v-if="winner?.uid === user.uid">
-                <h2 class="text-3xl sm:text-5xl font-black text-slate-900 dark:text-white tracking-tighter leading-none animate-bounce">
-                  实验成功
-                </h2>
-                <p class="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed max-w-xs mx-auto">
-                  恭喜研究员！你已成功稳定了反应核心。
-                </p>
-              </template>
-              <template v-else>
-                <h2 class="text-3xl sm:text-5xl font-black text-slate-900 dark:text-white tracking-tighter leading-none">
-                  反应终止
-                </h2>
-                <p class="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed max-w-xs mx-auto">
-                  实验由 <span class="text-slate-900 dark:text-white font-black">{{ winner?.nickname || winner?.username }}</span> 成功收官。
-                </p>
-              </template>
+           <div class="flex-1 w-full overflow-y-auto custom-scrollbar px-1 mb-4 sm:mb-0">
+             <div class="space-y-3 sm:space-y-4 mb-4 sm:mb-8 w-full">
+                <div class="inline-flex items-center gap-2 px-3 py-1 bg-blue-500/10 border border-blue-500/20 rounded-full">
+                   <span class="w-1.5 h-1.5 bg-blue-500 rounded-full animate-ping"></span>
+                   <span class="text-[8px] sm:text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-[0.2em] font-mono">Experiment_Finalized</span>
+                </div>
 
-              <div v-if="gameState?.points_changes" class="w-full mt-4 p-4 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-[24px] shadow-inner">
-                 <div class="flex items-center justify-between mb-3 border-b border-slate-200 dark:border-white/5 pb-2">
-                    <span class="text-[9px] font-black uppercase tracking-widest text-slate-500">Rankings & Points</span>
-                    <div class="flex items-center gap-1 px-2 py-0.5 bg-blue-500/10 rounded-full">
-                       <Sparkles class="w-2.5 h-2.5 text-blue-500" />
-                       <span class="text-[8px] font-black uppercase tracking-widest text-blue-500 font-mono">Quantum_Δ</span>
-                    </div>
-                 </div>
-                 <div class="space-y-2.5">
-                    <div 
-                      v-for="(val, uid) in gameState.points_changes" 
-                      :key="uid"
-                      class="flex items-center justify-between group p-2 rounded-xl transition-all hover:bg-white dark:hover:bg-white/5 hover:scale-[1.02] hover:shadow-sm"
-                      :class="Number(uid) === user.uid ? 'bg-blue-500/5 ring-1 ring-blue-500/10' : ''"
-                    >
-                       <div class="flex items-center gap-3">
-                          <div class="w-2 h-2 rounded-full" :class="val >= 0 ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'"></div>
-                          <div class="flex flex-col items-start">
-                            <span class="text-xs font-black text-slate-700 dark:text-slate-200">
-                              {{ gameState.players.find((p: any) => String(p.uid) === String(uid))?.nickname || gameState.players.find((p: any) => String(p.uid) === String(uid))?.username || 'User' }}
-                            </span>
-                            <span v-if="Number(uid) === user.uid" class="text-[7px] font-black uppercase tracking-widest text-blue-400">Your Record</span>
-                          </div>
-                       </div>
-                       <div class="flex items-center gap-1">
-                          <span :class="cn(
-                            'text-sm font-black font-mono',
-                            val >= 0 ? 'text-emerald-500' : 'text-rose-500'
-                          )">
-                            {{ val >= 0 ? '+' : '' }}{{ val }}
-                          </span>
-                          <Trophy v-if="val >= 50" class="w-3 h-3 text-amber-500" />
-                       </div>
-                    </div>
-                 </div>
-              </div>
+                <div class="px-2">
+                  <template v-if="winner?.uid === user.uid">
+                    <h2 class="text-3xl sm:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-b from-slate-900 to-slate-600 dark:from-white dark:to-blue-200 tracking-tighter leading-none mb-2">
+                      实验大成功
+                    </h2>
+                    <p class="text-[10px] sm:text-sm text-slate-500 dark:text-blue-400/60 font-medium tracking-wide">
+                      恭喜首席研究员！你已成功稳定了量子反应核心。
+                    </p>
+                  </template>
+                  <template v-else>
+                    <h2 class="text-3xl sm:text-5xl font-black text-slate-900 dark:text-white tracking-tighter leading-none mb-1 sm:mb-2">
+                      反应已终止
+                    </h2>
+                    <p class="text-[10px] sm:text-sm text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
+                      本次实验由 <span class="text-blue-600 dark:text-blue-400 font-black px-1.5 py-0.5 bg-blue-500/5 rounded-lg ml-1">{{ winner?.nickname || winner?.username }}</span> 成功收官。
+                    </p>
+                  </template>
+                </div>
+
+                <div class="w-full mt-4 sm:mt-6 bg-slate-50/80 dark:bg-white/[0.03] border border-slate-200 dark:border-white/5 rounded-[24px] sm:rounded-[32px] p-3 sm:p-5 shadow-inner relative overflow-hidden group/board">
+                   <div class="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent pointer-events-none"></div>
+                   
+                   <div class="flex items-center justify-between mb-3 sm:mb-4 px-1 sm:px-2 relative z-10">
+                      <div class="flex items-center gap-1.5 sm:gap-2">
+                        <div class="w-1 h-3 sm:w-1.5 sm:h-4 bg-blue-500 rounded-full"></div>
+                        <span class="text-[9px] sm:text-[11px] font-black uppercase tracking-[0.1em] sm:tracking-[0.15em] text-slate-500">积分变动与排名</span>
+                      </div>
+                      <div class="flex items-center gap-1 px-2 py-0.5 sm:py-1 bg-blue-500/10 rounded-lg sm:rounded-xl border border-blue-500/20">
+                         <Sparkles class="w-2.5 h-2.5 sm:w-3 sm:h-3 text-blue-500" />
+                         <span class="text-[7px] sm:text-[9px] font-black text-blue-500 font-mono">DATA_SYNC_OK</span>
+                      </div>
+                   </div>
+
+                   <div class="space-y-1.5 sm:space-y-2 relative z-10">
+                      <div 
+                        v-for="(item, index) in sortedPointsChanges" 
+                        :key="item.uid"
+                        class="flex items-center justify-between group/row p-2 sm:p-3 rounded-xl sm:rounded-2xl transition-all hover:bg-white dark:hover:bg-white/10 hover:shadow-lg animate-slide-in-bottom"
+                        :style="{ animationDelay: (index * 0.1) + 's' }"
+                        :class="item.uid === user.uid ? 'bg-blue-600/10 ring-1 ring-blue-500/20' : ''"
+                      >
+                         <div class="flex items-center gap-3 sm:gap-4">
+                            <div class="relative">
+                              <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl flex items-center justify-center font-black text-[10px] sm:text-sm" :class="[
+                                index === 0 ? 'bg-yellow-400 text-yellow-900 shadow-lg shadow-yellow-500/20 scale-105 sm:scale-110' :
+                                index === 1 ? 'bg-slate-300 text-slate-700 shadow-md' :
+                                index === 2 ? 'bg-orange-400 text-orange-900 shadow-md' :
+                                'bg-slate-100 dark:bg-black/40 text-slate-500'
+                              ]">
+                                {{ index + 1 }}
+                              </div>
+                              <Star v-if="index === 0" class="absolute -top-1.5 -right-1.5 w-3 h-3 sm:w-4 sm:h-4 text-yellow-500 fill-current" />
+                            </div>
+                            
+                            <div class="flex flex-col items-start leading-tight">
+                              <span class="text-xs sm:text-sm font-black text-slate-700 dark:text-slate-100 flex items-center gap-1.5 sm:gap-2">
+                                <span class="truncate max-w-[80px] sm:max-w-[120px]">{{ item.player?.nickname || item.player?.username || '研究员' }}</span>
+                                <span v-if="item.uid === user.uid" class="px-1 py-0.5 bg-blue-500 text-[6px] sm:text-[8px] text-white rounded-md uppercase tracking-widest font-mono shrink-0">YOU</span>
+                              </span>
+                              <span class="text-[7px] sm:text-[9px] font-bold text-slate-400 uppercase tracking-tighter shrink-0">ID: {{ item.uid }}</span>
+                            </div>
+                         </div>
+                         
+                         <div class="flex items-center gap-1.5 sm:gap-2">
+                            <div :class="cn(
+                               'px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl font-black font-mono text-[10px] sm:text-sm shadow-sm transition-all group-hover/row:scale-110',
+                               item.points >= 0 ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-500 border border-rose-500/20'
+                            )">
+                              {{ item.points >= 0 ? '+' : '' }}{{ item.points }}
+                            </div>
+                            <Trophy v-if="index === 0" class="w-3 h-3 sm:w-4 sm:h-4 text-yellow-500 animate-pulse" />
+                         </div>
+                      </div>
+                   </div>
+                </div>
            </div>
 
-           <div class="w-full space-y-4">
+           <div class="w-full shrink-0">
               <button 
                 @click="router.push('/')"
-                class="w-full h-14 sm:h-18 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-[20px] sm:rounded-3xl transition-all shadow-xl hover:scale-105 active:scale-95 flex items-center justify-center gap-2 sm:gap-3 group relative overflow-hidden"
+                class="w-full h-14 sm:h-20 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-2xl sm:rounded-[28px] transition-all shadow-2xl hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2 sm:gap-3 group relative overflow-hidden"
               >
-                 <span class="uppercase tracking-widest sm:tracking-[0.3em] text-[11px] sm:text-sm">返回指挥大厅</span>
-                 <ChevronRight class="w-5 h-5 sm:w-6 sm:h-6 group-hover:translate-x-1 transition-transform" />
+                 <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+                 <span class="uppercase tracking-[0.15em] sm:tracking-[0.25em] text-[10px] sm:text-base">返回指挥大厅</span>
+                 <ChevronRight class="w-4 h-4 sm:w-7 sm:h-7 group-hover:translate-x-1.5 transition-transform" />
               </button>
            </div>
         </div>
+      </div>
       </div>
     </template>
     <!-- Admin Management Modal -->
@@ -2375,78 +2515,6 @@ watch(() => gameState.value?.current_player, () => {
               关闭
             </button>
          </div>
-      </div>
-    </div>
-    <!-- Game Over Modal -->
-    <div v-if="gameState?.status === 'finished'" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      <div class="absolute inset-0 bg-black/80 backdrop-blur-md"></div>
-      <div class="relative w-full max-w-lg bg-white dark:bg-[#121216] border border-slate-200 dark:border-white/10 rounded-[40px] shadow-2xl overflow-hidden animate-in zoom-in duration-500">
-        <div class="relative p-8 text-center overflow-hidden">
-           <!-- Background effects -->
-           <div class="absolute inset-0 bg-gradient-to-b from-blue-500/10 via-transparent to-transparent"></div>
-           <div class="absolute top-0 left-1/2 -translate-x-1/2 w-full h-32 bg-blue-500/20 blur-[60px]"></div>
-
-           <Trophy class="w-16 h-16 text-yellow-500 mx-auto mb-4 relative z-10 drop-shadow-lg animate-bounce" />
-           <h2 class="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tighter relative z-10">
-             实验结束
-           </h2>
-           <p class="text-xs font-bold text-slate-500 uppercase tracking-[0.3em] mt-2 relative z-10">
-             RANKING REPORT
-           </p>
-        </div>
-
-        <div class="p-6 space-y-3 bg-slate-50/50 dark:bg-white/[0.02] border-t border-slate-200 dark:border-white/5 max-h-[60vh] overflow-y-auto custom-scrollbar">
-           <!-- Rankings List -->
-           <div 
-             v-for="(uid, index) in gameState.finished_players" 
-             :key="uid"
-             class="flex items-center gap-4 p-4 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-[24px] shadow-sm relative overflow-hidden group hover:scale-[1.02] transition-transform duration-300"
-           >
-              <!-- Rank Badge -->
-              <div 
-                :class="cn(
-                  'w-10 h-10 rounded-xl flex items-center justify-center text-lg font-black shadow-inner border',
-                  Number(index) === 0 ? 'bg-yellow-400 text-yellow-900 border-yellow-300' :
-                  Number(index) === 1 ? 'bg-slate-300 text-slate-800 border-slate-200' :
-                  Number(index) === 2 ? 'bg-amber-600 text-amber-100 border-amber-500' :
-                  'bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-white/5'
-                )"
-              >
-                 {{ Number(index) + 1 }}
-              </div>
-
-              <!-- Player Info -->
-              <div class="flex-1">
-                 <div class="flex items-center gap-2">
-                    <span class="text-sm font-bold text-slate-900 dark:text-white">
-                      <template v-for="p in allPlayers" :key="p.uid">
-                        <template v-if="p.uid === uid">{{ p.nickname || p.username }}</template>
-                      </template>
-                    </span>
-                    <span v-if="uid === user.uid" class="px-1.5 py-0.5 bg-blue-500/10 text-blue-500 text-[9px] font-black rounded uppercase tracking-wider">YOU</span>
-                 </div>
-                 <!-- Points Gained Animation -->
-                 <div v-if="roomInfo?.is_points_mode && gameState.points_changes?.[uid]" class="text-xs font-mono font-bold text-emerald-500 mt-0.5 flex items-center gap-1">
-                    <Plus class="w-3 h-3" />
-                    <span class="animate-count-up">{{ gameState.points_changes[uid] }}</span> PTS
-                 </div>
-              </div>
-
-              <!-- Medal Icon for Top 3 -->
-              <Trophy v-if="Number(index) < 3" :class="cn('w-6 h-6 opacity-20 group-hover:opacity-40 transition-opacity', 
-                  Number(index) === 0 ? 'text-yellow-500' :
-                  Number(index) === 1 ? 'text-slate-400' :
-                  'text-amber-600'
-              )" />
-           </div>
-        </div>
-
-        <div class="p-6 border-t border-slate-200 dark:border-white/5 bg-white dark:bg-[#121216] flex flex-col gap-3">
-           <button @click="router.push('/')" class="w-full py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-[24px] font-black uppercase tracking-widest hover:scale-[1.02] active:scale-95 transition-all shadow-xl">
-             返回大厅
-           </button>
-
-        </div>
       </div>
     </div>
   </div>

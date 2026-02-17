@@ -123,6 +123,7 @@ type PlayerState struct {
 	DoubleActionAvailable bool   `json:"double_action_available"` // 是否可以使用双联反应（每2次普通行动可用1次）
 	ActionProgress        int    `json:"action_progress"`         // 行动进度（0->1->2(可用)）
 	IsAI                  bool   `json:"is_ai"`                   // 是否为 AI 玩家
+	IsHosted              bool   `json:"is_hosted"`               // 是否处于托管状态（真人玩家超时进入）
 }
 
 // 已出牌

@@ -235,6 +235,7 @@ func PlayCard(c *gin.Context) {
 	}
 
 	broadcastUpdate(roomID)
+	game.ResetPlayerHosted(roomID, uid)
 	c.JSON(http.StatusOK, gin.H{"message": "出牌成功"})
 }
 
@@ -254,6 +255,7 @@ func DrawCard(c *gin.Context) {
 	}
 
 	broadcastUpdate(roomID)
+	game.ResetPlayerHosted(roomID, uid)
 	c.JSON(http.StatusOK, gin.H{"message": "摸牌成功"})
 }
 
@@ -318,6 +320,7 @@ func DoublePlay(c *gin.Context) {
 	}
 
 	broadcastUpdate(roomID)
+	game.ResetPlayerHosted(roomID, uid)
 	c.JSON(http.StatusOK, gin.H{"message": "双联反应发动成功！"})
 }
 

@@ -33,11 +33,15 @@ func (gr *GameRoom) TriggerAITurn() {
 		return
 	}
 	currentPlayer := gameRoom.GameState.Players[gameRoom.GameState.CurrentPlayer]
-	if currentPlayer.UID != targetUID || currentPlayer.UID >= 0 {
+	// 托管逻辑：如果是人类玩家但处于托管状态，或者是 AI 玩家，则继续
+	if currentPlayer.UID != targetUID {
+		return
+	}
+	if !currentPlayer.IsAI && !currentPlayer.IsHosted {
 		return
 	}
 
-	log.Printf("[AI] 🤖 AI %d 立即行动... (难度: %d)", currentPlayer.UID, gameRoom.Room.PvEDifficulty)
+	log.Printf("[AI] 🤖 AI %d 立即行动...", currentPlayer.UID)
 
 	// 0. 特殊情况：如果场上没牌 (开局或金卡)，强制打出最复杂的可能物质
 	// 这不计入难度概率，是硬性指令，确保 AI 开局有气势
@@ -51,11 +55,24 @@ func (gr *GameRoom) TriggerAITurn() {
 
 	// 1. 难度判定：决定是否"尝试"寻找最优解
 	difficulty := gameRoom.Room.PvEDifficulty
+	// 如果不是 PvE 房间而是托管或 AI 补位，尝试获取补位难度
+	if !gameRoom.Room.IsPvE {
+		if gameRoom.Room.EnableAIBackfill {
+			difficulty = gameRoom.Room.AIBackfillDifficulty
+		} else {
+			// 纯人类房间的托管 AI，给一个中等偏上的默认难度 (70)，避免托管时太蠢
+			difficulty = 70
+		}
+	}
+
 	if gameRoom.Room.IsPointsMode {
 		difficulty += 10 // 积分模式更加激进
 	}
 	if difficulty > 100 {
 		difficulty = 100
+	}
+	if difficulty < 20 {
+		difficulty = 20 // 确保最低智力
 	}
 
 	shouldTryBest := rand.Intn(100) < difficulty

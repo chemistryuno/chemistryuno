@@ -555,6 +555,34 @@ func GetRoomStatus(roomID string) (exists bool, status string) {
 	return true, gr.Room.Status
 }
 
+// ResetPlayerHosted 解除玩家的托管状态
+func ResetPlayerHosted(roomID string, uid int) {
+	roomMutex.RLock()
+	gameRoom, exists := rooms[roomID]
+	roomMutex.RUnlock()
+
+	if !exists {
+		return
+	}
+
+	gameRoom.mutex.Lock()
+	defer gameRoom.mutex.Unlock()
+
+	if gameRoom.GameState == nil {
+		return
+	}
+
+	for i := range gameRoom.GameState.Players {
+		if gameRoom.GameState.Players[i].UID == uid {
+			if gameRoom.GameState.Players[i].IsHosted {
+				gameRoom.GameState.Players[i].IsHosted = false
+				log.Printf("[Game] 🔓 玩家 %s (%d) 主动操作，解除托管", gameRoom.GameState.Players[i].Nickname, uid)
+			}
+			break
+		}
+	}
+}
+
 // 积分结算逻辑
 func handlePointsCalculation(gr *GameRoom) {
 	finished := gr.GameState.FinishedPlayers
@@ -812,11 +840,11 @@ func (gr *GameRoom) CheckNextTurnAI() {
 	}
 
 	currentPlayer := gr.GameState.Players[currentPlayerIdx]
-	isAI := currentPlayer.UID < 0
+	shouldTrigger := currentPlayer.UID < 0 || currentPlayer.IsHosted
 	gr.mutex.RUnlock()
 
-	// 如果是 AI，触发思考逻辑
-	if isAI {
+	// 如果是 AI 或托管，触发思考逻辑
+	if shouldTrigger {
 		gr.TriggerAITurn()
 	}
 }
@@ -1221,6 +1249,8 @@ func LeaveRoom(roomID string, uid int) error {
 		roomMutex.Unlock()
 		log.Printf("房间 %s 已空，已自动关闭并清理资源", roomID)
 	} else {
+		// 检查下一位是否是 AI (或者托管玩家)
+		go gameRoom.CheckNextTurnAI()
 		// 广播更新
 		gameRoom.broadcastRoomUpdate()
 	}
@@ -1815,7 +1845,7 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 	// +2/4/Au/换向牌可随意打出，无需反应条件
 	nobleGases := map[string]bool{"He": true, "Ne": true, "Ar": true, "Kr": true, "Xe": true, "Rn": true}
 	specialTypes := map[string]bool{"+2": true, "+4": true, "Au": true, "reverse": true, "skip": true}
-	isSpecial := specialTypes[card.Type] || specialTypes[card.Effect] || nobleGases[card.Type]
+	isSpecial := specialTypes[card.Type] || specialTypes[card.Effect] || nobleGases[card.Type] || nobleGases[substance] || specialTypes[substance]
 
 	// 无论是否为特殊牌，所有出牌物质均需经过 substances 表校验（纯功能牌在 IsValidSubstance 中有白名单放行）
 	if !IsValidSubstance(substance) {
@@ -1914,6 +1944,11 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 	}
 	if card.Effect != "" {
 		activeEffect = card.Effect
+	}
+
+	// 补回：如果 AI 使用 AI_BEST_CHOICE_CARD 出功能牌，则从 substance 中提取效果
+	if activeEffect == "" && specialTypes[substance] {
+		activeEffect = substance
 	}
 
 	// 稀有气体具有稳定性，能够逆转实验方向
@@ -2832,7 +2867,13 @@ func processRoomTimeout(roomID string) {
 
 	now := time.Now().UnixNano() / int64(time.Millisecond)
 	if gameRoom.GameState.TurnEndTime > 0 && now > gameRoom.GameState.TurnEndTime {
-		// 超时处理：强制摸牌并跳过
+		// 超时处理：强制摸牌并跳过，同时将真人玩家设为托管状态
+		currentPlayer := gameRoom.GameState.Players[gameRoom.GameState.CurrentPlayer]
+		if !currentPlayer.IsAI {
+			currentPlayer.IsHosted = true
+			log.Printf("[Game] ⚡ 玩家 %s (%d) 超时，进入自动托管模式", currentPlayer.Nickname, currentPlayer.UID)
+		}
+
 		drawCount := 2
 		penaltyResolved := false
 		if gameRoom.GameState.PendingDrawCount > 0 {
@@ -2854,12 +2895,11 @@ func processRoomTimeout(roomID string) {
 			gameRoom.GameState.AllowedAnyPlayer = -1
 		}
 
+		// 检查下一位是否是 AI (或者托管玩家)
+		go gameRoom.CheckNextTurnAI()
+
 		// 广播更新
-		go func(id string) {
-			websocket.GlobalHub.BroadcastToRoom(id, websocket.Message{
-				Type: "game_update",
-			})
-		}(roomID)
+		gameRoom.broadcastRoomUpdate()
 	}
 }
 

@@ -554,7 +554,7 @@ const copyToClipboard = (text: string) => {
                     class="px-5 py-3 bg-red-500 text-white rounded-xl text-[11px] font-black uppercase tracking-widest border border-red-500/20 transition-all hover:scale-105 active:scale-95 flex items-center gap-2"
                   >
                     <X class="w-4 h-4" />
-                    中止实验
+                    结束
                   </button>
                   <button 
                     @click="router.push(`/room/${activeRoom.id}`)"

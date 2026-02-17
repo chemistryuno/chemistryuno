@@ -37,6 +37,7 @@ const tierConfig = computed(() => {
 
 // 根据等级获取段位
 function getTierFromLevel(level: number): string {
+  if (level === undefined || level === null || isNaN(level)) return 'bronze'
   if (level <= 10) return 'bronze'
   if (level <= 25) return 'silver'
   if (level <= 45) return 'gold'

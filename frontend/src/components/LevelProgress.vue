@@ -99,7 +99,7 @@ defineExpose({
         <div class="h-3 bg-slate-100 dark:bg-white/5 rounded-full overflow-hidden shadow-inner">
           <div
             class="h-full bg-gradient-to-r from-blue-500 to-cyan-400 rounded-full transition-all duration-1000 ease-out relative overflow-hidden"
-            :style="{ width: levelInfo.progress_percent + '%' }"
+            :style="{ width: (levelInfo.progress_percent || 0) + '%' }"
           >
             <!-- 动画光效 -->
             <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
@@ -108,9 +108,9 @@ defineExpose({
         <!-- 百分比标签 -->
         <div
           class="absolute -top-6 px-2 py-0.5 bg-blue-500 text-white text-[10px] font-black rounded-md shadow-lg transition-all duration-1000"
-          :style="{ left: Math.max(0, Math.min(levelInfo.progress_percent - 5, 95)) + '%' }"
+          :style="{ left: Math.max(0, Math.min((levelInfo.progress_percent || 0) - 5, 95)) + '%' }"
         >
-          {{ levelInfo.progress_percent }}%
+          {{ levelInfo.progress_percent || 0 }}%
         </div>
       </div>
 

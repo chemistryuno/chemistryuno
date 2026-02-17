@@ -88,9 +88,9 @@ onMounted(() => {
           <span class="text-slate-400 font-bold uppercase tracking-widest flex items-center gap-1"><Award class="w-2.5 h-2.5" /> 研究员等级</span>
           <div v-if="levelInfo" class="flex items-center gap-2">
             <div class="flex-1 h-1 bg-slate-200 dark:bg-white/5 rounded-full overflow-hidden min-w-[64px]">
-              <div class="h-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all duration-500" :style="{ width: levelInfo.progress_percent + '%' }" />
+              <div class="h-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all duration-500" :style="{ width: (levelInfo.progress_percent || 0) + '%' }" />
             </div>
-            <LevelBadge :level="levelInfo.level" :tier="levelInfo.tier" :tier-name="levelInfo.tier_name" size="xs" />
+            <LevelBadge :level="levelInfo.level || 1" :tier="levelInfo.tier" :tier-name="levelInfo.tier_name" size="xs" />
           </div>
           <div v-else class="text-slate-400 text-[9px]">加载中...</div>
         </div>

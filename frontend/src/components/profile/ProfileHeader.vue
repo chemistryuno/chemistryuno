@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { Shield, Fingerprint, Calendar, Award, User as UserIcon, RefreshCw, Zap, Edit2 } from 'lucide-vue-next'
 import LevelBadge from '../LevelBadge.vue'
-import { api } from '@/utils/api'
+import api from '../../utils/api'
 
 defineProps<{
   user: any

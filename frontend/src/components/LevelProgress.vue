@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
-import { api } from '@/utils/api'
+import api from '../utils/api'
 import LevelBadge from './LevelBadge.vue'
 
 interface LevelInfo {

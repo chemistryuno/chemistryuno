@@ -211,17 +211,28 @@ func GetLevelInfo(uid uint) (*models.LevelInfo, error) {
 		return nil, err
 	}
 
+	// 确保等级至少为1
+	currentLevel := user.Level
+	if currentLevel < 1 {
+		currentLevel = 1
+	}
+
 	// 查询当前等级配置
 	var currentConfig database.LevelConfig
-	if err := database.DB.Where("level = ?", user.Level).First(&currentConfig).Error; err != nil {
-		return nil, err
+	if err := database.DB.Where("level = ?", currentLevel).First(&currentConfig).Error; err != nil {
+		// 如果找不到配置，返回默认值而不是报错
+		currentConfig = database.LevelConfig{
+			Level:    1,
+			Tier:     "bronze",
+			TierName: "青铜",
+		}
 	}
 
 	// 查询下一等级配置
 	var nextConfig database.LevelConfig
 	nextLevelExists := true
-	if user.Level < 100 {
-		if err := database.DB.Where("level = ?", user.Level+1).First(&nextConfig).Error; err != nil {
+	if currentLevel < 100 {
+		if err := database.DB.Where("level = ?", currentLevel+1).First(&nextConfig).Error; err != nil {
 			nextLevelExists = false
 		}
 	} else {
@@ -229,18 +240,23 @@ func GetLevelInfo(uid uint) (*models.LevelInfo, error) {
 	}
 
 	info := &models.LevelInfo{
-		Level:          user.Level,
-		XP:             user.XP,
-		TotalXP:        user.TotalXP,
-		Tier:           currentConfig.Tier,
-		TierName:       currentConfig.TierName,
-		NextLevelXP:    0,
+		Level:           currentLevel,
+		XP:              user.XP,
+		TotalXP:         user.TotalXP,
+		Tier:            currentConfig.Tier,
+		TierName:        currentConfig.TierName,
+		NextLevelXP:     0,
 		ProgressPercent: 100,
 	}
 
 	if nextLevelExists {
 		info.NextLevelXP = nextConfig.RequiredXP
-		info.ProgressPercent = int(float64(user.XP) / float64(nextConfig.RequiredXP) * 100)
+		// 防止除以零
+		if nextConfig.RequiredXP > 0 {
+			info.ProgressPercent = int(float64(user.XP) / float64(nextConfig.RequiredXP) * 100)
+		} else {
+			info.ProgressPercent = 0
+		}
 	}
 
 	return info, nil

@@ -51,6 +51,12 @@ func MigrateLevelSystem(db *gorm.DB) error {
 		return err
 	}
 
+	// 5. 修复历史数据：确保所有用户等级至少为1
+	if err := db.Exec("UPDATE users SET level = 1 WHERE level < 1 OR level IS NULL").Error; err != nil {
+		log.Printf("修复用户等级数据失败: %v", err)
+		// 不返回错误，因为这可能是非致命的
+	}
+
 	log.Println("等级系统迁移完成")
 	return nil
 }

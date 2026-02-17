@@ -1,4 +1,4 @@
-﻿package handlers
+package handlers
 
 import (
 	"chemistryuno/backend/database"
@@ -102,6 +102,7 @@ func Register(c *gin.Context) {
 		Role:          "user",
 		Points:        1000,
 		MonthlyPoints: 1000,
+		Level:         1, // 默认等级为 1
 	}
 
 	// 如果没有设置 username (邮箱模式)，可以将 email 的 prefix 作为其内部 username 或保持为空

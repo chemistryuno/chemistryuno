@@ -11,15 +11,43 @@ import (
 func MigrateLevelSystem(db *gorm.DB) error {
 	log.Println("开始迁移等级系统...")
 
-	// 1. 添加用户等级相关字段
-	if err := db.Exec(`
-		ALTER TABLE users
-		ADD COLUMN IF NOT EXISTS level INTEGER DEFAULT 1,
-		ADD COLUMN IF NOT EXISTS xp INTEGER DEFAULT 0,
-		ADD COLUMN IF NOT EXISTS total_xp INTEGER DEFAULT 0
-	`).Error; err != nil {
-		log.Printf("添加用户等级字段失败: %v", err)
-		return err
+	// 1. 添加用户等级相关字段（使用 GORM 的 Migrator 来安全地添加列）
+	migrator := db.Migrator()
+
+	// 检查并添加 level 字段
+	if !migrator.HasColumn(&User{}, "level") {
+		if err := migrator.AddColumn(&User{}, "level"); err != nil {
+			log.Printf("添加 level 字段失败: %v", err)
+			return err
+		}
+		// 设置默认值
+		if err := db.Exec("UPDATE users SET level = 1 WHERE level IS NULL OR level = 0").Error; err != nil {
+			log.Printf("设置 level 默认值失败: %v", err)
+		}
+	}
+
+	// 检查并添加 xp 字段
+	if !migrator.HasColumn(&User{}, "xp") {
+		if err := migrator.AddColumn(&User{}, "xp"); err != nil {
+			log.Printf("添加 xp 字段失败: %v", err)
+			return err
+		}
+		// 设置默认值
+		if err := db.Exec("UPDATE users SET xp = 0 WHERE xp IS NULL").Error; err != nil {
+			log.Printf("设置 xp 默认值失败: %v", err)
+		}
+	}
+
+	// 检查并添加 total_xp 字段
+	if !migrator.HasColumn(&User{}, "total_xp") {
+		if err := migrator.AddColumn(&User{}, "total_xp"); err != nil {
+			log.Printf("添加 total_xp 字段失败: %v", err)
+			return err
+		}
+		// 设置默认值
+		if err := db.Exec("UPDATE users SET total_xp = 0 WHERE total_xp IS NULL").Error; err != nil {
+			log.Printf("设置 total_xp 默认值失败: %v", err)
+		}
 	}
 
 	// 2. 创建等级配置表
@@ -36,13 +64,12 @@ func MigrateLevelSystem(db *gorm.DB) error {
 		return err
 	}
 
-	// 3. 添加游戏历史经验字段
-	if err := db.Exec(`
-		ALTER TABLE game_history
-		ADD COLUMN IF NOT EXISTS xp_rewards JSON
-	`).Error; err != nil {
-		log.Printf("添加游戏历史经验字段失败: %v", err)
-		return err
+	// 3. 添加游戏历史经验字段（使用 GORM 的 Migrator）
+	if !migrator.HasColumn(&GameHistory{}, "xp_rewards") {
+		if err := migrator.AddColumn(&GameHistory{}, "xp_rewards"); err != nil {
+			log.Printf("添加 xp_rewards 字段失败: %v", err)
+			// 不返回错误，因为这可能是非致命的
+		}
 	}
 
 	// 4. 初始化等级配置数据（1-100级）

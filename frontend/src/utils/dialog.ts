@@ -1,4 +1,4 @@
-import { reactive } from 'vue'
+import { reactive, type Ref } from 'vue'
 
 interface DialogState {
   show: boolean
@@ -25,6 +25,13 @@ const state = reactive<DialogState>({
   closeDelay: 0,
   resolve: null
 })
+
+// Toast 组件引用（需要在组件中设置）
+let toastRef: Ref<any> | null = null
+
+export const setToastRef = (ref: Ref<any>) => {
+  toastRef = ref
+}
 
 export const useDialog = () => {
   const showAlert = (message: string, title = '提示', confirmText = '确定', closeDelay = 0) => {
@@ -89,11 +96,26 @@ export const useDialog = () => {
     }
   }
 
+  const showToast = (
+    message: string,
+    title?: string,
+    type: 'info' | 'success' | 'warning' | 'error' = 'info',
+    duration: number = 4000
+  ) => {
+    if (toastRef?.value) {
+      toastRef.value.showToast(message, title, type, duration)
+    } else {
+      console.warn('Toast component not initialized. Falling back to alert.')
+      showAlert(message, title || '提示')
+    }
+  }
+
   return {
     state,
     showAlert,
     showConfirm,
     showPrompt,
+    showToast,
     handleConfirm,
     handleCancel,
     closeDialog

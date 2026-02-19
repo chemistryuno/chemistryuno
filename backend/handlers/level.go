@@ -19,9 +19,23 @@ func GetLevelInfo(c *gin.Context) {
 		return
 	}
 
-	levelInfo, err := game.GetLevelInfo(uid.(uint))
+	// 修复类型转换：uid 可能是 int 或 uint
+	var uidUint uint
+	switch v := uid.(type) {
+	case int:
+		uidUint = uint(v)
+	case uint:
+		uidUint = v
+	default:
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "无效的用户ID类型"})
+		return
+	}
+
+	levelInfo, err := game.GetLevelInfo(uidUint)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取等级信息失败"})
+		// 记录详细错误信息以便调试
+		c.Error(err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取等级信息失败", "detail": err.Error()})
 		return
 	}
 

@@ -739,6 +739,31 @@ func handlePointsCalculation(gr *GameRoom) {
 	}
 }
 
+// handleXPCalculation 处理经验值计算（用于非积分模式）
+func handleXPCalculation(gr *GameRoom) {
+	finished := gr.GameState.FinishedPlayers
+
+	// 初始化 XPChanges map
+	if gr.GameState.XPChanges == nil {
+		gr.GameState.XPChanges = make(map[int]int)
+	}
+
+	// 计算并存储每个玩家的 XP 变化
+	for i, uid := range finished {
+		if uid < 0 {
+			gr.GameState.XPChanges[uid] = 0 // AI 不获得经验，但在结算中显示为 0
+			continue
+		}
+		rank := i + 1
+		xp := CalculateXPReward(gr, uid, rank)
+		gr.GameState.XPChanges[uid] = xp
+
+		if xp > 0 {
+			go AwardXP(uid, xp) // 异步授予经验，避免阻塞
+		}
+	}
+}
+
 // StartRoomMonitor 启动房间监控协程
 func StartRoomMonitor() {
 	go func() {
@@ -1484,6 +1509,7 @@ func StartGame(roomID string, uid int) error {
 			DoubleActionAvailable: false,
 			ActionProgress:        0,
 			IsAI:                  pid < 0,
+			IsHosted:              false, // 初始状态：非托管
 		}
 
 		// 从洗好的牌堆顶部抽取初始手牌（按配置的比例随机分配）
@@ -1892,16 +1918,16 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 		return errors.New("还没轮到你")
 	}
 
-	// 若未指定substance，自动用单质（如H->H2、O->O2等，或直接元素符号）
+	// 如果玩家主动出牌，解除托管状态（重要：防止AI接管人类玩家）
+	if currentPlayer.IsHosted && uid >= 0 {
+		currentPlayer.IsHosted = false
+		log.Printf("[Game] 🔓 玩家 %s (%d) 主动出牌，解除托管状态", currentPlayer.Nickname, uid)
+	}
+
+	// 若未指定substance，说明玩家单击了元素手牌
+	// 直接使用元素符号，不进行单质转换
 	if substance == "" {
-		substance = card.Type
-		// 自动转换常见双原子分子
-		diatomic := map[string]string{
-			"H": "H2", "O": "O2", "N": "N2", "Cl": "Cl2", "F": "F2", "Br": "Br2", "I": "I2",
-		}
-		if mapped, ok := diatomic[substance]; ok {
-			substance = mapped
-		}
+		substance = card.Type // 直接使用元素符号（如 H）
 	}
 
 	// +2/4/Au/换向牌可随意打出，无需反应条件
@@ -2059,7 +2085,7 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 
 	playedCard := models.PlayedCard{
 		Card:      displayCard,
-		Substance: substance,
+		Substance: substance, // 使用元素符号保存
 		PlayerUID: uid,
 	}
 	// 1. 更新场面状态
@@ -2224,8 +2250,11 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 			}
 		}
 
-		// 当仅剩1名玩家或更少时，游戏结束
-		if activeCount <= 1 {
+		// 判断游戏是否结束
+		// PvE 模式和其他模式：统计所有玩家，当剩余 ≤1 个玩家时结束
+		shouldEndGame := activeCount <= 1
+
+		if shouldEndGame {
 			// 将最后一名玩家也加入完成列表（作为最后一名）
 			if activeCount == 1 {
 				gameRoom.GameState.FinishedPlayers = append(gameRoom.GameState.FinishedPlayers, lastPlayerUID)
@@ -2247,8 +2276,12 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 			// 最终游戏结束时不再重复计算已实时结算过的玩家，
 			// handlePointsCalculation 函数内部会自动处理或是作为最终兜底
 			// 修改：PvE 模式也需要调用以生成 PointsChanges 用于前端显示
+			// 注意：handlePointsCalculation 内部已包含 XP 经验奖励计算
 			if gameRoom.Room.IsPointsMode || gameRoom.Room.IsPvE {
 				handlePointsCalculation(gameRoom)
+			} else {
+				// 非积分模式也需要计算 XP 经验奖励
+				handleXPCalculation(gameRoom)
 			}
 		} else {
 			// 游戏继续，广播更新包含 finished_players
@@ -2372,6 +2405,12 @@ func DrawCard(roomID string, uid int, count int) error {
 	currentPlayer := gameRoom.GameState.Players[gameRoom.GameState.CurrentPlayer]
 	if currentPlayer.UID != uid {
 		return errors.New("还没轮到你")
+	}
+
+	// 如果玩家主动摸牌，解除托管状态（重要：防止AI接管人类玩家）
+	if currentPlayer.IsHosted && uid >= 0 {
+		currentPlayer.IsHosted = false
+		log.Printf("[Game] 🔓 玩家 %s (%d) 主动摸牌，解除托管状态", currentPlayer.Nickname, uid)
 	}
 
 	actualCount := count
@@ -2722,6 +2761,12 @@ func DoublePlay(roomID string, uid int, sub1 string, sub2 string) error {
 	if isAllowedAnyPlayer {
 		curIdx = gameRoom.GameState.AllowedAnyPlayer
 		currentPlayer = gameRoom.GameState.Players[curIdx]
+	}
+
+	// 如果玩家主动发动双联反应，解除托管状态（重要：防止AI接管人类玩家）
+	if currentPlayer.IsHosted && uid >= 0 {
+		currentPlayer.IsHosted = false
+		log.Printf("[Game] 🔓 玩家 %s (%d) 主动发动双联反应，解除托管状态", currentPlayer.Nickname, uid)
 	}
 
 	// 检查冷却

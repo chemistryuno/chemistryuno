@@ -26,18 +26,20 @@ func (gr *GameRoom) TriggerAITurn() {
 	time.Sleep(1 * time.Second)
 
 	gameRoom.mutex.Lock()
-	defer gameRoom.mutex.Unlock()
 
 	// 再次检查是否仍是该同一个 AI 的回合（由于 Sleep 期间可能已经发生了变化）
 	if gameRoom.GameState.Status != "playing" {
+		gameRoom.mutex.Unlock()
 		return
 	}
 	currentPlayer := gameRoom.GameState.Players[gameRoom.GameState.CurrentPlayer]
 	// 托管逻辑：如果是人类玩家但处于托管状态，或者是 AI 玩家，则继续
 	if currentPlayer.UID != targetUID {
+		gameRoom.mutex.Unlock()
 		return
 	}
 	if !currentPlayer.IsAI && !currentPlayer.IsHosted {
+		gameRoom.mutex.Unlock()
 		return
 	}
 
@@ -49,6 +51,7 @@ func (gr *GameRoom) TriggerAITurn() {
 	if gr.GameState.LastCard == nil || isAllowedAny {
 		log.Printf("[AI] 🏗️ 场面为空或拥有特权，AI %d 执行开局最优策略", currentPlayer.UID)
 		if played := gr.aiTryPlayCard(currentPlayer); played {
+			// aiTryPlayCard 已经释放锁
 			return
 		}
 	}
@@ -81,18 +84,21 @@ func (gr *GameRoom) TriggerAITurn() {
 		// 如果是积分模式且双联反应就绪，优先尝试双联
 		if currentPlayer.DoubleActionAvailable {
 			if played := gr.aiTryDoublePlay(currentPlayer); played {
+				// aiTryDoublePlay 已经释放锁
 				return
 			}
 		}
 
 		// 尝试寻找出牌
 		if played := gr.aiTryPlayCard(currentPlayer); played {
+			// aiTryPlayCard 已经释放锁
 			return
 		}
 	} else {
 		log.Printf("[AI] 🎲 AI %d 判定为非最优决策，尝试随机出牌", currentPlayer.UID)
 		// 非最优决策时：随机打出一张可出的牌，不考虑反应链条最长或攻击性
 		if played := gr.aiTryPlayRandom(currentPlayer); played {
+			// aiTryPlayRandom 已经释放锁
 			return
 		}
 	}
@@ -100,6 +106,7 @@ func (gr *GameRoom) TriggerAITurn() {
 	// 摸牌逻辑 (摸2张并过牌)
 	log.Printf("[AI] 🛑 AI %s (%d) 摸牌", currentPlayer.Nickname, currentPlayer.UID)
 	gr.aiDrawCard(currentPlayer.UID)
+	// aiDrawCard 已经释放锁
 }
 
 // aiTryPlayRandom 随机尝试出牌（低难度逻辑）
@@ -155,7 +162,7 @@ func (gr *GameRoom) canAIPlaySubstance(substance string) bool {
 }
 
 // aiDrawCard AI 摸牌/过牌
-// 注意：此函数假设调用者持有 gr.mutex 锁，函数内部会释放锁但不会重新获取
+// 注意：此函数假设调用者持有 gr.mutex 锁，函数内部会释放锁
 func (gr *GameRoom) aiDrawCard(uid int) {
 	// 获取 AI 昵称（在释放锁前获取，因为需要访问GameState）
 	displayName := fmt.Sprintf("AI 研究员 %d", -uid)
@@ -167,10 +174,8 @@ func (gr *GameRoom) aiDrawCard(uid int) {
 	}
 
 	// 释放锁，调用 DrawCard (它会重新加锁)
-	// 注意：执行完后重新获取锁，保持与调用者的锁状态一致
 	gr.mutex.Unlock()
 	err := DrawCard(gr.Room.ID, uid, 2) // AI 不出牌时立即摸 2 张并自动过牌
-	gr.mutex.Lock()
 
 	if err != nil {
 		log.Printf("[AI] ❌ AI %s 摸牌失败: %v", displayName, err)
@@ -242,7 +247,6 @@ func (gr *GameRoom) aiTryDoublePlay(player *models.PlayerState) bool {
 				// 解锁，调用 DoublePlay（DoublePlay 会自己管理锁）
 				gr.mutex.Unlock()
 				err := DoublePlay(gr.Room.ID, player.UID, s1, s2)
-				gr.mutex.Lock() // 重新获取锁，保持与调用者一致
 
 				if err == nil {
 					// 广播消息（不需要锁）
@@ -252,10 +256,12 @@ func (gr *GameRoom) aiTryDoublePlay(player *models.PlayerState) bool {
 							Data: fmt.Sprintf("%s 发动了双联反应: %s + %s！", player.Nickname, s1, s2),
 						})
 					}
-					// 注意：已重新持有锁，让调用者的 defer 处理
+					// 成功执行，已释放锁
 					return true
 				} else {
 					log.Printf("[AI] ⚠️ AI 双联执行失败: %v", err)
+					// 失败时重新获取锁，让调用者继续尝试其他策略
+					gr.mutex.Lock()
 					return false
 				}
 			}
@@ -601,7 +607,7 @@ func (gr *GameRoom) aiTryPlaySpecialOnly(player *models.PlayerState) bool {
 }
 
 // aiExecutePlay 执行出牌 (封装 PlayCard 调用)
-// 注意：此函数假设调用者持有 gr.mutex 锁，函数内部会释放锁但不会重新获取
+// 注意：此函数假设调用者持有 gr.mutex 锁，函数内部会释放锁
 func (gr *GameRoom) aiExecutePlay(uid int, card models.Card, substance string) {
 	cardName := card.Type
 	if card.Effect != "" {
@@ -617,46 +623,16 @@ func (gr *GameRoom) aiExecutePlay(uid int, card models.Card, substance string) {
 	// 解锁，调用 PlayCard（PlayCard 会自己管理锁）
 	gr.mutex.Unlock()
 	err := PlayCard(gr.Room.ID, uid, card, substance)
-	gr.mutex.Lock() // 重新获取锁，保持与调用者一致
 
 	if err != nil {
 		log.Printf("[AI] ⚠️ AI %d 出牌失败 (%s): %v", uid, substance, err)
-		// 失败回退：摸牌
+		// 失败时重新获取锁，然后摸牌
+		gr.mutex.Lock()
 		gr.aiDrawCard(uid)
-		return
-	}
-
-	// 成功出牌后的处理
-	log.Printf("[AI] ✅ AI 成功出牌: %s / %s", card.Type, substance)
-
-	// 广播不需要额外锁（已持有主锁）
-	if websocket.GlobalHub != nil {
-		displayName := fmt.Sprintf("AI 研究员 %d", -uid)
-		for _, p := range gr.GameState.Players {
-			if p.UID == uid {
-				displayName = p.Nickname
-				break
-			}
-		}
-
-		// 只有特殊卡牌（功能牌、金、稀有气体等）才通过弹窗告知
-		// 普通化学反应直接在右侧弃牌堆显示，不再消耗弹窗配额
-		// 注意：Au, reverse, skip 已在 manager.go 中统一处理针对全房间的浮窗，此处 AI 仅处理其他特殊卡（如 +2, +4）
-		isHandledByManager := card.Effect == "Au" || card.Effect == "reverse" || card.Effect == "skip" || isNobleGas(substance) || isNobleGas(card.Type)
-
-		if (isSpecialCard(card) || substance == "Au" || isNobleGas(substance)) && !isHandledByManager {
-			msg := ""
-			if substance != "" {
-				msg = fmt.Sprintf("%s 打出了 %s", displayName, substance)
-			} else {
-				msg = fmt.Sprintf("%s 打出了特殊牌 %s", displayName, cardName)
-			}
-
-			websocket.GlobalHub.BroadcastToRoom(gr.Room.ID, websocket.Message{
-				Type: "action_toast",
-				Data: msg,
-			})
-		}
+		// aiDrawCard 会释放锁
+	} else {
+		log.Printf("[AI] ✅ AI %d 成功出牌: %s (物质: %s)", uid, cardName, substance)
+		// PlayCard 内部已经调用了 CheckNextTurnAI，不需要重新获取锁
 	}
 }
 

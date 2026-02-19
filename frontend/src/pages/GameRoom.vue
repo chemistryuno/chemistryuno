@@ -2,18 +2,20 @@
 import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { gameAPI, adminAPI, friendAPI, authAPI, commonAPI } from '../utils/api'
-import { useDialog } from '../utils/dialog'
+import { useDialog, setToastRef } from '../utils/dialog'
 import websocket from '../utils/websocket'
 import { ArrowLeft, Play, RefreshCw, Zap, Activity, FlaskConical, Trophy, ChevronRight, Loader2, Users, Timer, Plus, QrCode, Copy, Sparkles, ShieldAlert, Ban, UserMinus, X, MessageCircle, UserPlus, Flag, Send, Binary, Star } from 'lucide-vue-next'
 import { cn } from '../utils/cn'
 import ChatBox from '../components/ChatBox.vue'
 import LevelBadge from '../components/LevelBadge.vue'
 import LevelUpAnimation from '../components/LevelUpAnimation.vue'
+import GameToast from '../components/GameToast.vue'
 import '../styles/mobile-game.css'
 
 const route = useRoute()
 const router = useRouter()
-const { showAlert, showConfirm, showPrompt } = useDialog()
+const { showAlert, showConfirm, showPrompt, showToast } = useDialog()
+const gameToastRef = ref()
 const id = route.params.id as string
 
 const user = ref<any>({})
@@ -136,9 +138,9 @@ const handleToggleReady = async () => {
   if (!roomInfo.value || !user.value.uid) {
     console.error('Cannot toggle ready - missing roomInfo or user.uid')
     if (!roomInfo.value) {
-      showAlert('房间信息未加载，请刷新页面', '错误')
+      showToast('房间信息未加载，请刷新页面', '错误', 'error')
     } else if (!user.value.uid) {
-      showAlert('用户信息异常，请重新登录', '错误')
+      showToast('用户信息异常，请重新登录', '错误', 'error')
     }
     return
   }
@@ -174,7 +176,7 @@ const handleToggleReady = async () => {
     } else {
       roomInfo.value.ready_uids = roomInfo.value.ready_uids.filter((id: number) => id !== uidNum)
     }
-    showAlert(error.response?.data?.error || '操作失败', '错误')
+    showToast(error.response?.data?.error || '操作失败', '错误', 'error')
   }
 }
 
@@ -186,9 +188,9 @@ const handleAddFriend = async (player: any) => {
   try {
     const displayName = player.nickname || player.username
     await friendAPI.sendRequest(player.uid)
-    showAlert(`已向研究员 ${displayName} 发送同步请求，等待量子握手。`, '请求已发送')
+  showToast(`已向研究员 ${displayName} 发送同步请求，等待量子握手。`, '请求已发送', 'success')
   } catch (error: any) {
-    showAlert(error.response?.data?.error || '请求发送失败', '链路故障')
+    showToast(error.response?.data?.error || '请求发送失败', '链路故障', 'error')
   }
 }
 
@@ -256,7 +258,7 @@ const sendGameInvite = async (friend: any) => {
     is_game_invite: true
   })
 
-  showAlert(`游戏邀请已发送给 ${friend.username}`, '邀请已发送')
+  showToast(`游戏邀请已发送给 ${friend.username}`, '邀请已发送', 'success')
   showInviteFriendsModal.value = false
 }
 
@@ -349,9 +351,9 @@ const handleReportPlayer = async (player: any) => {
   
   try {
     await authAPI.submitFeedback(`举报用户: ${player.username} (UID: ${player.uid})\n原因: ${reason}`, 'report')
-    showAlert('举报已提交，系统正在量子分析中。', '已收到报告')
+    showToast('举报已提交，系统正在量子分析中。', '已收到报告', 'success')
   } catch (err: any) {
-    showAlert(err.response?.data?.error || '无法建立举报链路', '网络干扰')
+    showToast(err.response?.data?.error || '无法建立举报链路', '网络干扰', 'error')
   }
 }
 
@@ -360,23 +362,23 @@ const handleAdminAction = async () => {
   try {
     if (adminActionType.value === 'kick') {
       await adminAPI.kickPlayer(adminTargetUser.value.uid, banReason.value)
-      showAlert('该玩家已被强制下线并清除登录状态', '成功')
+      showToast('该玩家已被强制下线并清除登录状态', '成功', 'success')
     } else {
       if (!banUntil.value) {
-        showAlert('请选择封禁截止时间', '参数缺失')
+        showToast('请选择封禁截止时间', '参数缺失', 'warning')
         return
       }
       const until = new Date(banUntil.value)
       if (until <= new Date()) {
-        showAlert('封禁截止时间必须晚于当前时间', '时间无效')
+        showToast('封禁截止时间必须晚于当前时间', '时间无效', 'warning')
         return
       }
       await adminAPI.banUser(adminTargetUser.value.uid, until.toISOString(), banReason.value)
-      showAlert('该玩家已被封禁', '成功')
+      showToast('该玩家已被封禁', '成功', 'success')
     }
     showAdminModal.value = false
   } catch (e: any) {
-    showAlert(e.response?.data?.error || '操作失败', '错误')
+    showToast(e.response?.data?.error || '操作失败', '错误', 'error')
   }
 }
 
@@ -619,7 +621,7 @@ const checkAchievements = (substance: string) => {
   if (!substance) return
   if (substance.includes('Au') && !achievements.value.includes('炼金术士')) {
     achievements.value.push('炼金术士')
-    showAlert('获得成就：炼金术士 (合成单质金)', '成就达成！')
+    showToast('获得成就：炼金术士 (合成单质金)', '成就达成！', 'success')
   }
   localStorage.setItem('chem_achievements', JSON.stringify(achievements.value))
 }
@@ -722,7 +724,7 @@ const handleActionToast = (msg: any) => {
     if (roomInfo.value?.is_pve) {
       addPvEToast(content)
     } else {
-      showAlert(content, '实验动态')
+      showToast(content, '实验动态', 'info')
     }
   }
 }
@@ -786,7 +788,7 @@ const loadGameState = async (silent = false) => {
         console.error('[GameRoom] Failed to join room:', joinError)
         const errorMsg = joinError.response?.data?.error || '无法加入该房间'
         loadError.value = errorMsg
-        showAlert(errorMsg, '加入失败')
+        showToast(errorMsg, '加入失败', 'error')
         loading.value = false
         router.push('/')
         return
@@ -842,17 +844,17 @@ const loadGameState = async (silent = false) => {
     if (error.response?.status === 404) {
       loadError.value = '房间不存在或已被关闭'
       isRedirecting.value = true
-      showAlert('房间不存在或已被关闭', '未知实验室')
+      showToast('房间不存在或已被关闭', '未知实验室', 'error')
       router.push('/')
     } else if (error.response?.status === 401) {
       loadError.value = '身份验证失败，请重新登录'
       isRedirecting.value = true
-      showAlert('身份验证失败，请重新登录', '准入失败')
+      showToast('身份验证失败，请重新登录', '准入失败', 'error')
       router.push('/login')
     } else if (error.response?.status === 403) {
       loadError.value = '您不在该房间中'
       isRedirecting.value = true
-      showAlert('您不在该房间中', '准入失败')
+      showToast('您不在该房间中', '准入失败', 'error')
       router.push('/')
     } else {
       loadError.value = '实验环境加载异常，请重试'
@@ -866,6 +868,9 @@ const loadGameState = async (silent = false) => {
 }
 
 onMounted(() => {
+  // 设置浮窗提示组件引用
+  setToastRef(gameToastRef)
+
   // 重置状态，防止之前的错误状态影响
   isRedirecting.value = false
 
@@ -875,7 +880,7 @@ onMounted(() => {
       console.error('Loading timeout - forcing reset')
       loading.value = false
       loadError.value = '实验室初始化超时，请检查网络连接后重试'
-      showAlert('实验室初始化超时，请检查网络连接后重试', '连接超时')
+      showToast('实验室初始化超时，请检查网络连接后重试', '连接超时', 'error')
       router.push('/')
     }
   }, 15000)
@@ -941,10 +946,9 @@ onUnmounted(() => {
 const handleCardClick = async (card: any) => {
   if (!isMyTurn.value) return
 
-  // 功能牌直接打出，元素牌需检查能否反应
+  // 功能牌直接打出
   const specialTypes = ['+2', '+4', 'Au', 'He', 'Ne', 'Ar', 'Kr']
   if (specialTypes.includes(card.type) || card.effect) {
-    // 功能牌直接打出
     try {
       await gameAPI.playCard(id, card, card.type)
       selectedCard.value = null
@@ -952,70 +956,30 @@ const handleCardClick = async (card: any) => {
       availableSubstances.value = []
       return
     } catch (error: any) {
-      showAlert(error.response?.data?.error || '出牌失败', '反应中断')
+      showToast(error.response?.data?.error || '出牌失败', '反应中断', 'error')
       return
     }
   }
 
-  // 元素牌，先查可用substance
+  // 元素牌：直接出牌该元素符号（单质）
+  // 例如：点击 H 手牌 → 出牌物质为 H（不管单质是 H 还是 H₂）
+  // 后端会进行物质合法性检测（substances表）和反应检查（reactions表）
   try {
-    const response = await gameAPI.getAvailableSubstances(id)
-    const subs = response.data || []
-    
-    // 找出包含该元素的可用物质
-    const matchingSubs = subs.filter((s: string) => {
-      // 匹配物质中的元素
-      const regex = /[A-Z][a-z]?/g
-      const elementsInSub = (s.match(regex) || []) as string[]
-      return elementsInSub.includes(card.type)
-    })
-
-    if (matchingSubs.length === 0) {
-      showAlert('该元素当前无法参与任何反应', '反应受阻')
-      return
-    }
-
-    // 优先寻找由该元素单个原子组成的单质（即物质名等于元素符号）
-    const defaultSubstance = card.type
-    if (matchingSubs.includes(defaultSubstance)) {
-      await gameAPI.playCard(id, card, defaultSubstance)
-      selectedCard.value = null
-      selectedSubstance.value = null
-      availableSubstances.value = []
-      // 增加经验值
-      addExp(10)
-      checkAchievements(defaultSubstance)
-      return
-    }
-
-    if (matchingSubs.length === 1) {
-      // 只有一种可能，直接出
-      await gameAPI.playCard(id, card, matchingSubs[0])
-      selectedCard.value = null
-      selectedSubstance.value = null
-      availableSubstances.value = []
-      // 增加经验值
-      addExp(10)
-      checkAchievements(matchingSubs[0])
-    } else {
-      // 多种可能（且不含默认单质），直接取第一个反应产物
-      const targetSub = matchingSubs[0]
-      await gameAPI.playCard(id, card, targetSub)
-      selectedCard.value = null
-      selectedSubstance.value = null
-      availableSubstances.value = []
-      // 增加经验值
-      addExp(10)
-      checkAchievements(targetSub)
-    }
+    await gameAPI.playCard(id, card, card.type)
+    selectedCard.value = null
+    selectedSubstance.value = null
+    availableSubstances.value = []
+    // 增加经验值
+    addExp(10)
+    checkAchievements(card.type)
   } catch (error: any) {
-    showAlert(error.response?.data?.error || '出牌失败', '反应中断')
+    showToast(error.response?.data?.error || '出牌失败', '反应中断', 'error')
   }
 }
 
 const handlePlayCard = async () => {
   if (!selectedSubstance.value) {
-    showAlert('请选择要合成或放置的化学物质', '未选择目标')
+    showToast('请选择要合成或放置的化学物质', '未选择目标', 'warning')
     return
   }
 
@@ -1044,13 +1008,13 @@ const handlePlayCard = async () => {
     selectedSubstance.value = null
     availableSubstances.value = []
   } catch (error: any) {
-    showAlert(error.response?.data?.error || '出牌失败', '反应中断')
+    showToast(error.response?.data?.error || '出牌失败', '反应中断', 'error')
   }
 }
 
 const handleDoublePlay = async () => {
   if (!firstDoubleSubstance.value || !secondDoubleSubstance.value) {
-    showAlert('请选择参与双联反应的两种物质', '未就绪')
+    showToast('请选择参与双联反应的两种物质', '未就绪', 'warning')
     return
   }
 
@@ -1069,13 +1033,13 @@ const handleDoublePlay = async () => {
     selectedSubstance.value = null
     availableSubstances.value = []
   } catch (error: any) {
-    showAlert(error.response?.data?.error || '双联行动失败', '反应中断')
+    showToast(error.response?.data?.error || '双联行动失败', '反应中断', 'error')
   }
 }
 
 const toggleDoubleMode = () => {
   if (!myData.value?.double_action_available) {
-    showAlert('双联反应尚未就绪，请先进行普通实验（行动）', '无法发动')
+    showToast('双联反应尚未就绪，请先进行普通实验（行动）', '无法发动', 'warning')
     return
   }
   doubleMode.value = !doubleMode.value
@@ -1120,7 +1084,7 @@ const handleInputPlay = async () => {
     selectedSubstance.value = null
     availableSubstances.value = []
   } catch (error: any) {
-    showAlert(error.response?.data?.error || '出牌失败', '反应中断')
+    showToast(error.response?.data?.error || '出牌失败', '反应中断', 'error')
   }
 }
 
@@ -1128,7 +1092,7 @@ const handleDrawCard = async () => {
   try {
     await gameAPI.drawCard(id)
   } catch (error: any) {
-    showAlert(error.response?.data?.error || '摸牌失败', '系统异常')
+    showToast(error.response?.data?.error || '摸牌失败', '系统异常', 'error')
   }
 }
 
@@ -1242,12 +1206,12 @@ const handleCopyLink = async () => {
   try {
     await navigator.clipboard.writeText(shareLink.value)
     if (roomInfo.value?.is_private) {
-      showAlert('私密房间邀请链接已复制（含访问密钥），快发送给你的科研伙伴吧！', '任务下达')
+      showToast('私密房间邀请链接已复制（含访问密钥），快发送给你的科研伙伴吧！', '任务下达', 'success')
     } else {
-      showAlert('实验邀请链接已复制到剪贴板，快发送给你的科研伙伴吧！', '任务下达')
+      showToast('实验邀请链接已复制到剪贴板，快发送给你的科研伙伴吧！', '任务下达', 'success')
     }
   } catch (err) {
-    showAlert('链接复制失败，请手动复制浏览器地址栏', '设备故障')
+    showToast('链接复制失败，请手动复制浏览器地址栏', '设备故障', 'error')
   }
 }
 
@@ -1505,11 +1469,6 @@ watch(() => gameState.value?.current_player, () => {
 
         <!-- Global Status -->
         <div class="flex items-center gap-2 sm:gap-1.5 pl-3 border-l border-slate-200 dark:border-white/10 shrink-0">
-          <div v-if="gameState?.status === 'playing'" class="flex items-center gap-1.5 px-2.5 sm:px-2 py-1 bg-blue-500/10 border border-blue-500/20 rounded-lg">
-             <Activity class="w-3.5 h-3.5 sm:w-3 sm:h-3 text-blue-500" :class="timeRemaining <= 10 && 'animate-pulse'" />
-             <span class="font-mono font-black text-xs-mobile text-blue-500">{{ timeRemaining }}S</span>
-          </div>
-
           <button @click="showPlayers = !showPlayers" class="btn-touch relative flex items-center justify-center gap-1 bg-slate-100 dark:bg-white/5 rounded-lg border border-slate-200 dark:border-white/10 text-slate-500 hover:text-blue-500 touch-feedback">
              <Users class="icon-touch" :class="showPlayers && 'fill-current text-blue-500'" />
              <span class="text-[10px] sm:text-xs-mobile font-black text-slate-400">{{ allPlayers.length }}</span>
@@ -2540,6 +2499,9 @@ watch(() => gameState.value?.current_player, () => {
 
   <!-- Level Up Animation -->
   <LevelUpAnimation ref="levelUpAnimationRef" />
+
+  <!-- Game Toast -->
+  <GameToast ref="gameToastRef" />
 </template>
 
 <style scoped>

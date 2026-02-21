@@ -79,8 +79,10 @@ export const authAPI = {
     api.post(`/user/webauthn/change-password/finish?newPassword=${newPassword}`, credential),
   updateAvatar: (avatar: string) =>
     api.put('/user/avatar', { avatar }),
-  updateNickname: (nickname: string) =>
-    api.put('/user/nickname', { nickname }),
+  updateProfile: (data: { nickname: string, bio?: string, wechat?: string, qq?: string, show_email?: boolean, custom_contact?: string }) =>
+    api.put('/user/profile', data),
+  getUserPublicProfile: (uid: number) =>
+    api.get(`/user/profile/${uid}`),
   changeEmail: (data: { old_code: string, new_email: string, new_code: string }) =>
     api.post('/user/change-email', data),
   deleteAccount: (code: string) =>
@@ -126,17 +128,17 @@ export const gameAPI = {
   getRooms: () =>
     api.get('/rooms'),
   createRoom: (name: string, maxPlayers: number, deckID: number, isPointsMode: boolean = false, isPrivate: boolean = false, accessKey?: string, isPvE: boolean = false, pveDifficulty: number = 0, aiCount: number = 0, enableAIBackfill: boolean = false, aiBackfillDifficulty: number = 50, isRanked: boolean = false, levelRange: number = 5) =>
-    api.post('/rooms', { 
-      name, 
-      max_players: maxPlayers, 
-      deck_id: deckID, 
-      is_points_mode: isPointsMode, 
-      is_private: isPrivate, 
-      access_key: accessKey, 
-      is_pve: isPvE, 
-      pve_difficulty: pveDifficulty, 
-      ai_count: aiCount, 
-      enable_ai_backfill: enableAIBackfill, 
+    api.post('/rooms', {
+      name,
+      max_players: maxPlayers,
+      deck_id: deckID,
+      is_points_mode: isPointsMode,
+      is_private: isPrivate,
+      access_key: accessKey,
+      is_pve: isPvE,
+      pve_difficulty: pveDifficulty,
+      ai_count: aiCount,
+      enable_ai_backfill: enableAIBackfill,
       ai_backfill_difficulty: aiBackfillDifficulty,
       is_ranked: isRanked,
       level_range: levelRange

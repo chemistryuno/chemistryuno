@@ -17,6 +17,7 @@ import StatsGrid from '../components/profile/StatsGrid.vue'
 import SecurityPanel from '../components/profile/SecurityPanel.vue'
 import SettingsPanel from '../components/profile/SettingsPanel.vue'
 import CustomDecks from '../components/profile/CustomDecks.vue'
+import PersonalSpacePanel from '../components/profile/PersonalSpacePanel.vue'
 import MatchHistory from '../components/profile/MatchHistory.vue'
 import ChangeAvatarModal from '../components/profile/ChangeAvatarModal.vue'
 import ChangePasswordModal from '../components/profile/ChangePasswordModal.vue'
@@ -25,7 +26,7 @@ import HardwareKeyModal from '../components/profile/HardwareKeyModal.vue'
 import DeviceManagementModal from '../components/profile/DeviceManagementModal.vue'
 import ChangeEmailModal from '../components/profile/ChangeEmailModal.vue'
 import LevelProgress from '../components/LevelProgress.vue'
-import { LayoutDashboard, ShieldCheck, FlaskConical, History, Sliders, Menu, X as CloseIcon, LogOut } from 'lucide-vue-next'
+import { LayoutDashboard, ShieldCheck, FlaskConical, History, Sliders, Menu, X as CloseIcon, LogOut, User as UserIcon } from 'lucide-vue-next'
 
 const router = useRouter()
 const { showAlert, showConfirm, showPrompt } = useDialog()
@@ -46,11 +47,12 @@ const currentCategory = ref('overview')
 const isSidebarOpen = ref(false)
 
 const categories = [
-  { id: 'overview', name: '个人主页', icon: LayoutDashboard, eng: 'Dashboard' },
+  { id: 'overview', name: '数据概览', icon: LayoutDashboard, eng: 'Dashboard' },
+  { id: 'space', name: '个人空间', icon: UserIcon, eng: 'Space' },
   { id: 'security', name: '安全中心', icon: ShieldCheck, eng: 'Security' },
   { id: 'research', name: '实验资产', icon: FlaskConical, eng: 'Research' },
   { id: 'history', name: '反应记录', icon: History, eng: 'Records' },
-  { id: 'settings', name: '参数偏好', icon: Sliders, eng: 'Preferences' }
+  { id: 'settings', name: '外观偏好', icon: Sliders, eng: 'Preferences' }
 ]
 
 const userStats = computed(() => {
@@ -93,24 +95,12 @@ onMounted(async () => {
   }
 })
 
-const handleUpdateAvatar = async (avatar: string) => {
-  try {
-    await authAPI.updateAvatar(avatar)
-    user.value.avatar = avatar
-    localStorage.setItem('user', JSON.stringify(user.value))
-    showChangeAvatar.value = false
-    showAlert('研究员标识已更新。', '变更成功')
-  } catch (error: any) {
-    showAlert(error.response?.data?.error || '更新标识失败', '错误')
-  }
-}
-
 const handleUpdateNickname = async () => {
   const newNickname = await showPrompt('请输入新的研究员昵称:', user.value.nickname, '修改昵称')
   if (newNickname === null || newNickname === user.value.nickname) return
 
   try {
-    await authAPI.updateNickname(newNickname)
+    await authAPI.updateProfile({ nickname: newNickname })
     user.value.nickname = newNickname
     localStorage.setItem('user', JSON.stringify(user.value))
     showAlert('研究员昵称已成功同步。', '变更成功')
@@ -390,6 +380,10 @@ const handleOAuthUnbind = async (provider: 'github' | 'ms' | 'google' | 'apple')
                 <p class="text-slate-400 font-medium italic text-xs uppercase tracking-widest">No_Archive_Found</p>
               </div>
             </div>
+          </div>
+
+          <div v-if="currentCategory === 'space'" class="space-y-6">
+            <PersonalSpacePanel :user="user" @update="fetchLatestUserInfo" />
           </div>
 
           <div v-if="currentCategory === 'security'" class="space-y-6">

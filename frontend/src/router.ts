@@ -11,6 +11,7 @@ import Ranking from './pages/Ranking.vue'
 import DataConfig from './pages/DataConfig.vue'
 import Substances from './pages/Substances.vue'
 import Chat from './pages/Chat.vue'
+import UserSpace from './pages/UserSpace.vue'
 
 const routes = [
   {
@@ -87,6 +88,12 @@ const routes = [
     path: '/ranking',
     name: 'Ranking',
     component: Ranking,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/user/:uid',
+    name: 'UserSpace',
+    component: UserSpace,
     meta: { requiresAuth: true }
   }
 ]

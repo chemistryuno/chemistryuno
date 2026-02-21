@@ -156,7 +156,10 @@
                   </td>
                   <td class="px-5 py-3">
                     <div class="flex items-center gap-3">
-                       <div class="relative w-8 h-8 rounded-lg bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-center justify-center text-sm overflow-hidden shrink-0">
+                       <div 
+                         @click="showResearcherProfile(player.uid)"
+                         class="relative w-8 h-8 rounded-lg bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-center justify-center text-sm overflow-hidden shrink-0 cursor-pointer hover:ring-2 hover:ring-blue-500/50 transition-all"
+                       >
                           <template v-if="player.avatar && player.avatar.startsWith('data:')">
                             <img :src="player.avatar" class="w-full h-full object-cover" />
                           </template>
@@ -166,7 +169,10 @@
                           <div v-if="player.is_online" class="absolute bottom-0 right-0 w-2 h-2 bg-emerald-500 border-2 border-white dark:border-[#121216] rounded-full"></div>
                        </div>
                        <div class="flex flex-col">
-                          <span class="text-xs font-black text-slate-900 dark:text-white group-hover:text-blue-500 transition-colors flex items-center gap-1.5 flex-wrap">
+                          <span 
+                            @click="showResearcherProfile(player.uid)"
+                            class="text-xs font-black text-slate-900 dark:text-white group-hover:text-blue-500 transition-colors flex items-center gap-1.5 flex-wrap cursor-pointer"
+                          >
                             {{ player.nickname || player.username }}
                             <span v-if="Number(player.uid) === Number(user.uid)" class="text-[7px] bg-blue-600 px-1 py-0.5 rounded uppercase font-black tracking-widest text-white">You</span>
                             <span v-if="player.is_banned" class="text-[7px] bg-red-600 px-1 py-0.5 rounded uppercase font-black tracking-widest text-white animate-pulse">CHEATER</span>
@@ -405,6 +411,13 @@
     >
       <ChatBox title="全球通信频率" maxHeight="500px" />
     </div>
+
+    <!-- User Profile Modal -->
+    <UserSpaceModal 
+      :show="showProfileModal" 
+      :uid="selectedProfileUID" 
+      @close="showProfileModal = false" 
+    />
   </div>
 </template>
 
@@ -413,11 +426,12 @@ import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { pointsAPI, gameAPI, friendAPI, authAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
-import { Trophy, ArrowLeft, Loader2, Target, RefreshCw, ShieldCheck, Crosshair, Flame, X, Swords, MessageCircle, MessageSquare, UserPlus, Search } from 'lucide-vue-next'
+import { Trophy, ArrowLeft, Loader2, Target, RefreshCw, ShieldCheck, Crosshair, Flame, X, Swords, MessageCircle, UserPlus, Search } from 'lucide-vue-next'
 import { cn } from '../utils/cn'
 import ChatBox from '../components/ChatBox.vue'
 import LevelBadge from '../components/LevelBadge.vue'
 import websocket from '../utils/websocket'
+import UserSpaceModal from '../components/UserSpaceModal.vue'
 
 const router = useRouter()
 const { showAlert, showPrompt } = useDialog()
@@ -454,6 +468,15 @@ const rankingMode = ref<'total' | 'monthly'>('total')
 const searchTerm = ref('')
 const searchResults = ref<any[]>([])
 const isSearching = ref(false)
+
+// 个人空间弹窗相关
+const showProfileModal = ref(false)
+const selectedProfileUID = ref<number | null>(null)
+
+const showResearcherProfile = (uid: number) => {
+  selectedProfileUID.value = uid
+  showProfileModal.value = true
+}
 
 // 监听搜索词
 let searchTimeout: any = null
@@ -574,7 +597,7 @@ const handleCreateBounty = async () => {
 
 const handleDuel = async (player: any) => {
   try {
-    const res = await gameAPI.initiateDuel(player.uid)
+    await gameAPI.initiateDuel(player.uid)
     // 后端会通过 WebSocket 广播 duel_start，这里只需提示
     const displayName = player.nickname || player.username
     showAlert(`已向 ${displayName} 发起单挑协议，正在建立量子隧道...`, '协议启动')

@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -883,6 +884,47 @@ func GetUserInfo(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, user)
+}
+
+// GetUserProfile 获取公开个人空间资料
+func GetUserProfile(c *gin.Context) {
+	uidStr := c.Param("uid")
+	uid, err := strconv.ParseUint(uidStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的用户ID"})
+		return
+	}
+
+	userRepo := repository.NewUserRepository()
+	user, err := userRepo.FindByUID(uint(uid))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
+		return
+	}
+
+	// 屏蔽敏感信息，仅返回公开字段
+	email := ""
+	if user.ShowEmail {
+		email = user.Email
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"uid":            user.UID,
+		"nickname":       user.Nickname,
+		"avatar":         user.Avatar,
+		"role":           user.Role,
+		"bio":            user.Bio,
+		"wechat":         user.Wechat,
+		"qq":             user.QQ,
+		"email":          email,
+		"show_email":     user.ShowEmail,
+		"custom_contact": user.CustomContact,
+		"points":         user.Points,
+		"level":          user.Level,
+		"win_count":      user.WinCount,
+		"total_games":    user.TotalGames,
+		"created_at":     user.CreatedAt,
+	})
 }
 
 // SearchUsers 搜索用户

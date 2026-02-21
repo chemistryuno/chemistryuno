@@ -258,6 +258,7 @@ func main() {
 			auth.PUT("/user/password", handlers.ChangePassword)
 			auth.PUT("/user/avatar", handlers.UpdateAvatar)
 			auth.PUT("/user/profile", handlers.UpdateProfile)
+			auth.GET("/user/profile/:uid", handlers.GetUserProfile)
 			auth.DELETE("/user/account", handlers.DeleteAccount)
 			auth.GET("/users/search", handlers.SearchUsers)
 

@@ -244,7 +244,7 @@ const selectChat = async (friend: any) => {
 
       return {
         uid: m.sender_uid,
-        username: m.sender?.username || '研究员',
+        username: m.sender?.nickname || m.sender?.username || '研究员',
         text: isGameInvite ? '' : m.message,
         time: new Date(m.created_at),
         type: isGameInvite ? 'game_invite' : 'normal',
@@ -300,7 +300,7 @@ const onPrivateMessage = async (msg: any) => {
 
   messages.value[otherUID].push({
     uid: msg.uid,
-    username: msg.data?.username || '研究员',
+    username: msg.data?.nickname || msg.data?.username || '研究员',
     text: isGameInvite ? '' : msg.message,
     time: new Date(),
     type: isGameInvite ? 'game_invite' : 'normal',

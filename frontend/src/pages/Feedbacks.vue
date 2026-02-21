@@ -120,7 +120,18 @@ const urge = async (id: number, idx: number) => {
             <Megaphone class="w-8 h-8 text-blue-500" />
           </div>
           反馈与消息 / Feedbacks
+          <span v-if="feedbacks.length > 0" class="text-sm font-black bg-blue-500/10 text-blue-500 px-3 py-1 rounded-full border border-blue-500/20 tabular-nums">
+            {{ feedbacks.length }}
+          </span>
         </h2>
+        
+        <button 
+          @click="feedbackButtonRef?.prefill('', 'general')"
+          class="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-black uppercase tracking-widest text-xs transition-all shadow-lg shadow-blue-500/20"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-message-circle"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg>
+          撰写反馈 / New
+        </button>
       </div>
 
       <div v-if="loading" class="flex flex-col items-center justify-center py-20">
@@ -135,82 +146,115 @@ const urge = async (id: number, idx: number) => {
           <p class="text-slate-500 mt-2">您的反馈对我们非常重要，请在游戏过程中随时提出建议。</p>
         </div>
 
-        <div class="grid gap-6">
-          <div v-for="(f, idx) in feedbacks" :key="f.id" 
-            class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 rounded-[2rem] p-8 shadow-sm transition-all hover:shadow-xl hover:scale-[1.01] group"
-          >
-            <div class="flex flex-col md:flex-row justify-between gap-6">
-              <div class="flex-1">
-                <div class="flex items-center gap-3 mb-4">
-                  <span class="px-3 py-1 bg-slate-100 dark:bg-white/5 rounded-full text-xs font-bold uppercase tracking-wider text-slate-500">
-                    {{ f.type }}
-                  </span>
-                  <span class="flex items-center gap-1.5 text-xs text-slate-400">
-                    <Clock class="w-3.5 h-3.5" />
-                    {{ new Date(f.created_at).toLocaleString() }}
-                  </span>
-                </div>
-                
-                <p class="text-lg font-medium leading-relaxed text-slate-700 dark:text-slate-200">
-                  {{ f.content }}
-                </p>
+        <div v-else class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 rounded-[2rem] overflow-hidden shadow-sm">
+          <div class="overflow-x-auto custom-scrollbar">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="text-slate-400 dark:text-slate-500 text-[10px] font-black uppercase tracking-[0.2em] border-b border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.02]">
+                  <th class="px-6 py-5">类型 / TYPE</th>
+                  <th class="px-6 py-5 w-1/3">内容 / CONTENT</th>
+                  <th class="px-6 py-5">状态 / STATUS</th>
+                  <th class="px-6 py-5">通讯时间 / TIME</th>
+                  <th class="px-6 py-5 text-right">协同操作 / ACTIONS</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100 dark:divide-white/5 font-sans">
+                <template v-for="(f, idx) in feedbacks" :key="f.id">
+                  <tr class="hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors group">
+                    <!-- Type -->
+                    <td class="px-6 py-4">
+                      <span class="px-2.5 py-1 bg-slate-100 dark:bg-white/5 rounded-lg text-[10px] font-black uppercase tracking-wider text-slate-500 border border-slate-200 dark:border-white/10">
+                        {{ f.type }}
+                      </span>
+                    </td>
+                    
+                    <!-- Content -->
+                    <td class="px-6 py-4">
+                      <p class="text-sm font-bold text-slate-700 dark:text-slate-200 line-clamp-2 leading-relaxed">
+                        {{ f.content }}
+                      </p>
+                    </td>
 
-                <div v-if="f.resolution_note" class="mt-6 p-5 bg-blue-500/5 dark:bg-blue-500/[0.03] border border-blue-500/10 rounded-2xl relative">
-                  <div class="absolute -top-3 left-4 px-2 bg-slate-50 dark:bg-[#0a0a0c] text-[10px] font-black uppercase tracking-tighter text-blue-500">
-                    处理回复 / Resolution Note
-                  </div>
-                  <p class="text-sm text-slate-600 dark:text-blue-200/80 leading-loose italic">
-                    "{{ f.resolution_note }}"
-                  </p>
-                </div>
-              </div>
+                    <!-- Status -->
+                    <td class="px-6 py-4">
+                      <div class="flex items-center gap-2">
+                        <div class="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest uppercase border"
+                          :class="{
+                            'bg-amber-100 text-amber-600 border-amber-200 dark:bg-amber-500/10 dark:text-amber-500 dark:border-amber-500/20': f.status === 'pending',
+                            'bg-green-100 text-green-600 border-green-200 dark:bg-green-500/10 dark:text-green-500 dark:border-green-500/20': f.status === 'accepted',
+                            'bg-slate-100 text-slate-600 border-slate-200 dark:bg-white/10 dark:text-slate-400 dark:border-white/10': f.status === 'dismissed'
+                          }"
+                        >
+                          <component :is="f.status === 'accepted' ? CheckCircle2 : (f.status === 'pending' ? Clock : AlertCircle)" class="w-3 h-3" />
+                          {{ f.status === 'accepted' ? '已接受' : (f.status === 'dismissed' ? '不予受理' : '待处理') }}
+                        </div>
+                      </div>
+                    </td>
 
-              <div class="md:w-64 flex flex-col justify-between items-end gap-6 border-l border-slate-100 dark:border-white/5 md:pl-8">
-                <div class="text-right flex flex-col items-end gap-2">
-                  <div class="flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-bold tracking-tight"
-                    :class="{
-                      'bg-amber-100 text-amber-600 dark:bg-amber-500/10 dark:text-amber-500': f.status === 'pending',
-                      'bg-green-100 text-green-600 dark:bg-green-500/10 dark:text-green-500': f.status === 'accepted',
-                      'bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-400': f.status === 'dismissed'
-                    }"
-                  >
-                    <component :is="f.status === 'accepted' ? CheckCircle2 : (f.status === 'pending' ? Clock : AlertCircle)" class="w-4 h-4" />
-                    {{ f.status === 'accepted' ? '已接受' : (f.status === 'dismissed' ? '不予受理' : '待处理') }}
-                  </div>
-                  
-                  <div v-if="f.processed_at" class="flex items-center gap-1.5 text-xs text-slate-400 mt-1">
-                    <User class="w-3.5 h-3.5" />
-                    管理员已检阅
-                  </div>
-                </div>
+                    <!-- Time -->
+                    <td class="px-6 py-4">
+                      <span class="text-[10px] font-bold text-slate-400 font-mono uppercase tracking-tighter">
+                        {{ new Date(f.created_at).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) }}
+                      </span>
+                    </td>
 
-                <div class="w-full">
-                  <button
-                    class="w-full flex items-center justify-center gap-2 py-3 px-6 rounded-xl font-bold transition-all disabled:opacity-30 disabled:cursor-not-allowed group/btn"
-                    :class="canUrge(f) 
-                      ? 'bg-blue-500 text-white shadow-[0_4px_20px_rgba(59,130,246,0.3)] hover:shadow-[0_8px_30px_rgba(59,130,246,0.4)] hover:-translate-y-0.5 active:translate-y-0' 
-                      : 'bg-slate-200 dark:bg-white/5 text-slate-400'"
-                    :disabled="!canUrge(f)"
-                    @click="urge(f.id, idx)"
-                  >
-                    <BellRing class="w-4 h-4 transition-transform group-hover/btn:rotate-12" />
-                    {{ canUrge(f) ? '催促管理员' : '已发送催促' }}
-                  </button>
-                  <p v-if="f.urge_count > 0" class="text-[10px] text-center mt-2 text-slate-400 font-bold uppercase tracking-widest">
-                    已催促 {{ f.urge_count }} 次
-                  </p>
-                  
-                  <button
-                    v-if="f.status === 'pending'"
-                    @click="handleWithdraw(f.id)"
-                    class="w-full mt-4 flex items-center justify-center gap-2 py-2 px-6 rounded-xl font-bold transition-all text-red-500 hover:bg-red-500/10 text-xs uppercase tracking-widest"
-                  >
-                    <Trash2 class="w-3.5 h-3.5" />
-                    撤回反馈
-                  </button>
-                </div>
-              </div>
-            </div>
+                    <!-- Actions -->
+                    <td class="px-6 py-4 text-right">
+                      <div class="flex items-center justify-end gap-2">
+                        <!-- Urge Button -->
+                        <button
+                          v-if="f.status === 'pending'"
+                          @click="urge(f.id, idx)"
+                          :disabled="!canUrge(f)"
+                          class="p-2 rounded-xl transition-all disabled:opacity-30 flex items-center gap-2"
+                          :class="canUrge(f) 
+                            ? 'bg-blue-500/10 text-blue-500 hover:bg-blue-500 hover:text-white border border-blue-500/20' 
+                            : 'bg-slate-100 dark:bg-white/5 text-slate-400 border border-transparent'"
+                        >
+                          <BellRing class="w-3.5 h-3.5" />
+                          <span v-if="f.urge_count > 0" class="text-[8px] font-black">{{ f.urge_count }}</span>
+                        </button>
+
+                        <!-- Withdraw Button -->
+                        <button
+                          v-if="f.status === 'pending'"
+                          @click="handleWithdraw(f.id)"
+                          class="p-2 bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white rounded-xl transition-all border border-rose-500/20"
+                          title="撤回反馈"
+                        >
+                          <Trash2 class="w-3.5 h-3.5" />
+                        </button>
+
+                        <div v-else class="text-[10px] text-slate-400 font-bold uppercase tracking-widest italic pr-2">
+                           <User v-if="f.processed_at" class="w-3 h-3 inline mr-1" />
+                           Archived
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+
+                  <!-- Resolution Note Row (Conditional) -->
+                  <tr v-if="f.resolution_note" class="bg-blue-500/[0.02] dark:bg-blue-500/[0.01]">
+                    <td colspan="5" class="px-6 py-3 border-t border-blue-500/5">
+                      <div class="flex items-start gap-4">
+                        <div class="shrink-0 pt-1">
+                          <div class="w-1.5 h-1.5 rounded-full bg-blue-500/40 shadow-[0_0_8px_rgba(59,130,246,0.5)]"></div>
+                        </div>
+                        <div class="flex-1 space-y-1">
+                          <div class="text-[9px] font-black text-blue-500/60 uppercase tracking-[0.2em] italic">管理回复 / COMMAND_CENTRAL_UPLINK</div>
+                          <p class="text-xs text-slate-600 dark:text-blue-300/80 leading-relaxed italic">
+                            "{{ f.resolution_note }}"
+                          </p>
+                        </div>
+                        <div class="text-[8px] text-slate-400 font-mono self-end pb-1 pr-2 uppercase">
+                           PROCESSED_AT: {{ f.processed_at ? new Date(f.processed_at).toLocaleString() : 'PENDING' }}
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>

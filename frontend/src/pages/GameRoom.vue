@@ -258,7 +258,7 @@ const sendGameInvite = async (friend: any) => {
     is_game_invite: true
   })
 
-  showToast(`游戏邀请已发送给 ${friend.username}`, '邀请已发送', 'success')
+  showToast(`游戏邀请已发送给 ${friend.nickname || friend.username}`, '邀请已发送', 'success')
   showInviteFriendsModal.value = false
 }
 
@@ -346,11 +346,12 @@ const openAdminAction = (player: any) => {
 }
 
 const handleReportPlayer = async (player: any) => {
-  const reason = await showPrompt(`举报研究员 ${player.username} (UID: ${player.uid})`, '请输入举报原因', '违规行为举报')
+  const displayName = player.nickname || player.username
+  const reason = await showPrompt(`举报研究员 ${displayName} (UID: ${player.uid})`, '请输入举报原因', '违规行为举报')
   if (!reason) return
   
   try {
-    await authAPI.submitFeedback(`举报用户: ${player.username} (UID: ${player.uid})\n原因: ${reason}`, 'report')
+    await authAPI.submitFeedback(`举报用户: ${displayName} (UID: ${player.uid})\n原因: ${reason}`, 'report')
     showToast('举报已提交，系统正在量子分析中。', '已收到报告', 'success')
   } catch (err: any) {
     showToast(err.response?.data?.error || '无法建立举报链路', '网络干扰', 'error')

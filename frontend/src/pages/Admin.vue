@@ -235,7 +235,7 @@ const setBanDuration = (hours: number) => {
 }
 
 const handleKickPlayer = async (user: any) => {
-  const displayName = user.nickname
+  const displayName = user.nickname || user.username
   const reason = await showPrompt(`踢出研究员 ${displayName} (UID: ${user.uid})\n请输入踢出原因:`, '违规行为...', '踢出玩家')
   if (reason === null) return
 
@@ -1318,7 +1318,7 @@ const filteredHistory = computed(() => {
             </template>
           </div>
           <div>
-            <p class="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight">{{ banTarget.nickname }}</p>
+            <p class="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight">{{ banTarget.nickname || banTarget.username }}</p>
             <p class="text-[9px] text-slate-400 font-mono">UID: {{ banTarget.uid }}</p>
           </div>
         </div>

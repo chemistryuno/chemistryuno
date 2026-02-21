@@ -133,10 +133,14 @@ func (c *Client) handleMessage(msg *Message) {
 	case "join_room":
 		log.Printf("[WebSocket] User %d joining room %s", c.uid, msg.RoomID)
 		c.hub.JoinRoom(c, msg.RoomID)
+		displayName := c.nickname
+		if displayName == "" {
+			displayName = c.username
+		}
 		c.hub.BroadcastToRoom(msg.RoomID, Message{
 			Type:    "player_joined",
 			UID:     c.uid,
-			Message: c.username + " 加入了房间",
+			Message: displayName + " 加入了房间",
 		})
 		log.Printf("[WebSocket] Broadcasted player_joined for user %d to room %s", c.uid, msg.RoomID)
 
@@ -144,10 +148,14 @@ func (c *Client) handleMessage(msg *Message) {
 		log.Printf("[WebSocket] User %d leaving room %s", c.uid, c.roomID)
 		roomID := c.roomID
 		c.hub.LeaveRoom(c)
+		displayName := c.nickname
+		if displayName == "" {
+			displayName = c.username
+		}
 		c.hub.BroadcastToRoom(roomID, Message{
 			Type:    "player_left",
 			UID:     c.uid,
-			Message: c.username + " 离开了房间",
+			Message: displayName + " 离开了房间",
 		})
 		log.Printf("[WebSocket] Broadcasted player_left for user %d from room %s", c.uid, roomID)
 

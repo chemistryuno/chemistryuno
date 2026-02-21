@@ -191,16 +191,17 @@ func (Friendship) TableName() string {
 
 // Reaction GORM模型 - 化学反应表
 type Reaction struct {
-	ID           uint       `gorm:"primaryKey;autoIncrement" json:"id"`
-	R1           string     `gorm:"size:255;index:idx_r1r2_status,priority:1" json:"r1"`
-	R2           string     `gorm:"size:255;index:idx_r1r2_status,priority:2;index:idx_r2r1_status,priority:1" json:"r2"`
-	Display      string     `gorm:"size:1000" json:"display"`
-	CreatedByUID uint       `gorm:"not null" json:"created_by_uid"`
-	Status       string     `gorm:"default:pending;size:20;index:idx_r1r2_status,priority:3;index:idx_r2r1_status,priority:3;index" json:"status"`
-	GroupID      *uint      `gorm:"index" json:"group_id"`
-	SubmittedAt  time.Time  `gorm:"autoCreateTime" json:"submitted_at"`
-	ApprovedAt   *time.Time `json:"approved_at"`
-	CreatedAt    time.Time  `gorm:"autoCreateTime" json:"created_at"`
+	ID                 uint       `gorm:"primaryKey;autoIncrement" json:"id"`
+	R1                 string     `gorm:"size:255;index:idx_r1r2_status,priority:1" json:"r1"`
+	R2                 string     `gorm:"size:255;index:idx_r1r2_status,priority:2;index:idx_r2r1_status,priority:1" json:"r2"`
+	Display            string     `gorm:"size:1000" json:"display"`
+	HasInvalidElements bool       `gorm:"default:false" json:"has_invalid_elements"`
+	CreatedByUID       uint       `gorm:"not null" json:"created_by_uid"`
+	Status             string     `gorm:"default:pending;size:20;index:idx_r1r2_status,priority:3;index:idx_r2r1_status,priority:3;index" json:"status"`
+	GroupID            *uint      `gorm:"index" json:"group_id"`
+	SubmittedAt        time.Time  `gorm:"autoCreateTime" json:"submitted_at"`
+	ApprovedAt         *time.Time `json:"approved_at"`
+	CreatedAt          time.Time  `gorm:"autoCreateTime" json:"created_at"`
 }
 
 func (Reaction) TableName() string {

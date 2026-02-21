@@ -210,7 +210,7 @@ func (r *SubstanceRepository) FindAllGroupedWithCreator() ([]SubstanceWithCreato
 
 	subQuery := r.db.Table("substances").Select("MAX(id)").Group("COALESCE(group_id, id)")
 	err := r.db.Table("substances").
-		Select("substances.id, substances.formula, substances.name, substances.elements, substances.status, substances.group_id, substances.needs_improvement, substances.has_invalid_elements, substances.created_by_uid, users.username as creator_name, substances.created_at").
+		Select("substances.id, substances.formula, substances.name, substances.elements, substances.status, substances.group_id, substances.needs_improvement, substances.has_invalid_elements, substances.created_by_uid, COALESCE(NULLIF(users.nickname, ''), users.username) as creator_name, substances.created_at").
 		Joins("LEFT JOIN users ON substances.created_by_uid = users.uid").
 		Where("substances.id IN (?)", subQuery).
 		Order("substances.needs_improvement DESC, substances.created_at DESC").
@@ -228,7 +228,7 @@ func (r *SubstanceRepository) FindApprovedGrouped() ([]SubstanceWithCreatorExten
 		Where("status = ?", "approved").
 		Group("COALESCE(group_id, id)")
 	err := r.db.Table("substances").
-		Select("substances.id, substances.formula, substances.name, substances.elements, substances.status, substances.group_id, substances.needs_improvement, substances.has_invalid_elements, substances.created_by_uid, users.username as creator_name, substances.created_at").
+		Select("substances.id, substances.formula, substances.name, substances.elements, substances.status, substances.group_id, substances.needs_improvement, substances.has_invalid_elements, substances.created_by_uid, COALESCE(NULLIF(users.nickname, ''), users.username) as creator_name, substances.created_at").
 		Joins("LEFT JOIN users ON substances.created_by_uid = users.uid").
 		Where("substances.status = ? AND substances.id IN (?)", "approved", subQuery).
 		Order("substances.needs_improvement DESC, substances.created_at DESC").
@@ -246,7 +246,7 @@ func (r *SubstanceRepository) FindMySubstances(uid uint) ([]SubstanceWithCreator
 		Where("created_by_uid = ?", uid).
 		Group("COALESCE(group_id, id)")
 	err := r.db.Table("substances").
-		Select("substances.id, substances.formula, substances.name, substances.elements, substances.status, substances.group_id, substances.needs_improvement, substances.has_invalid_elements, substances.created_by_uid, users.username as creator_name, substances.created_at").
+		Select("substances.id, substances.formula, substances.name, substances.elements, substances.status, substances.group_id, substances.needs_improvement, substances.has_invalid_elements, substances.created_by_uid, COALESCE(NULLIF(users.nickname, ''), users.username) as creator_name, substances.created_at").
 		Joins("LEFT JOIN users ON substances.created_by_uid = users.uid").
 		Where("substances.created_by_uid = ? AND substances.id IN (?)", uid, subQuery).
 		Order("substances.created_at DESC").

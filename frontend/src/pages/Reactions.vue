@@ -197,7 +197,12 @@
                             <button @click="saveEdit(reaction.id)" class="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-bold rounded-lg shadow-lg">保存修改</button>
                           </div>
                         </div>
-                        <span v-else class="text-slate-900 dark:text-white text-xs tracking-tight leading-relaxed">{{ reaction.display }}</span>
+                        <div v-else class="flex items-center gap-2">
+                          <span class="text-slate-900 dark:text-white text-xs tracking-tight leading-relaxed">{{ reaction.display }}</span>
+                          <span v-if="reaction.has_invalid_elements" class="flex items-center gap-1 text-[8px] font-black text-red-500 uppercase tracking-widest bg-red-500/10 px-1.5 py-0.5 rounded border border-red-500/20 whitespace-nowrap">
+                            <AlertCircle class="w-2.5 h-2.5" /> INVALID ELEMENTS
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </td>
@@ -307,12 +312,12 @@ import {
   Search as SearchIcon,
   CheckCircle,
   Clock,
-  FlaskConical,
   Upload,
   MessageSquare,
   Edit,
   Trophy,
-  Download
+  Download,
+  AlertCircle
 } from 'lucide-vue-next'
 
 const router = useRouter()

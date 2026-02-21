@@ -80,7 +80,7 @@ func InitDB(dbPath string) error {
 		// busy_timeout：数据库锁定时等待时间（毫秒）
 		// journal_mode=WAL：启用Write-Ahead Logging
 		// synchronous=NORMAL：在WAL模式下保证安全性的同时提升性能
-		sqlitePath = sqlitePath + "?_busy_timeout=5000&_journal_mode=WAL&_synchronous=NORMAL"
+		sqlitePath = sqlitePath + "?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)"
 
 		// 指定使用 modernc.org/sqlite 纯Go驱动（SQLite3 默认使用 UTF-8）
 		dialector = sqlite.Dialector{

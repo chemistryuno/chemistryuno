@@ -25,7 +25,7 @@ const scrollContainer = ref<HTMLElement | null>(null)
 
 // 聊天模式切换
 const chatMode = ref<'normal' | 'private'>('normal')
-const privateTarget = ref<{uid: number, username: string} | null>(null)
+const privateTarget = ref<{uid: number, username: string, nickname?: string} | null>(null)
 
 // 房间状态缓存
 const roomStatusCache = ref<Record<string, { status: string, checkedAt: number }>>({})
@@ -64,7 +64,7 @@ const loadHistory = async () => {
     const chatRes = await authAPI.getGlobalChatHistory(50)
     const chatMessages = (chatRes.data || []).map((m: any) => ({
       uid: m.user_uid,
-      username: m.username,
+      username: m.nickname || m.username,
       avatar: m.avatar,
       text: m.message,
       time: new Date(m.created_at),
@@ -144,7 +144,7 @@ onMounted(() => {
   websocket.on('private_chat', handlePrivateMessage)
 
   const handleStartPrivateChat = (e: CustomEvent) => {
-    privateTarget.value = (e as any).detail
+    privateTarget.value = e.detail as { uid: number, username: string, nickname?: string }
     chatMode.value = 'private'
   }
 

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { MessageCircle, Send, X, ChevronDown } from 'lucide-vue-next'
+import { Send, X, ChevronDown } from 'lucide-vue-next'
 import { authAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
 import EquationEditor from './EquationEditor.vue'
@@ -55,22 +55,17 @@ const submitFeedback = async () => {
 </script>
 
 <template>
-  <div class="fixed bottom-6 right-6 z-[999]">
-    <!-- Floating Button -->
-    <button 
-      @click="isOpen = !isOpen"
-      class="w-14 h-14 bg-blue-600 hover:bg-blue-500 text-white rounded-full shadow-2xl shadow-blue-500/40 flex items-center justify-center transition-all active:scale-90 hover:rotate-12"
-    >
-      <MessageCircle v-if="!isOpen" class="w-6 h-6" />
-      <X v-else class="w-6 h-6" />
-    </button>
-
+  <div v-if="isOpen" class="fixed inset-0 z-[999] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" @click.self="isOpen = false">
     <!-- Feedback Panel -->
     <div 
-      v-if="isOpen"
-      class="absolute bottom-20 right-0 w-80 max-h-[80vh] overflow-y-auto custom-scrollbar bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-3xl shadow-2xl p-6 animate-in slide-in-from-bottom-10 fade-in duration-300"
+      class="relative w-full max-w-sm max-h-[90vh] overflow-y-auto custom-scrollbar bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-3xl shadow-2xl p-6 animate-in zoom-in-95 fade-in duration-200"
     >
-      <h3 class="text-lg font-black italic tracking-tighter mb-4 uppercase">Send Feedback</h3>
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-black italic tracking-tighter uppercase">Send Feedback</h3>
+        <button @click="isOpen = false" class="p-1.5 hover:bg-slate-100 dark:hover:bg-white/10 rounded-full transition-colors text-slate-400 hover:text-slate-600 dark:hover:text-white">
+          <X class="w-4 h-4" />
+        </button>
+      </div>
       
       <div class="space-y-4">
         <div>

@@ -488,8 +488,9 @@ const handleAddFriend = async (player: any) => {
   if (message === null) return
 
   try {
+    const displayName = player.nickname || player.username
     await friendAPI.sendRequest(player.uid, message)
-    showAlert(`已向研究员 ${player.username} 发送同步请求，等待量子握手。`, '请求已发送')
+    showAlert(`已向研究员 ${displayName} 发送同步请求，等待量子握手。`, '请求已发送')
   } catch (error: any) {
     showAlert(error.response?.data?.error || '请求发送失败', '链路故障')
   }
@@ -505,8 +506,9 @@ const startPrivateChat = (player: any) => {
   }
   showChat.value = true
   hasNewMessage.value = false
+  const displayName = player.nickname || player.username
   window.dispatchEvent(new CustomEvent('start-private-chat', {
-    detail: { uid: player.uid, username: player.username }
+    detail: { uid: player.uid, username: displayName }
   }))
 }
 
@@ -557,7 +559,8 @@ const handleCreateBounty = async () => {
   try {
     submitting.value = true
     await pointsAPI.createBounty(selectedTarget.value.uid, bountyAmount.value)
-    showAlert(`已成功对研究员 ${selectedTarget.value.username} 发布悬赏。`, '目标已锁定')
+    const displayName = selectedTarget.value.nickname || selectedTarget.value.username
+    showAlert(`已成功对研究员 ${displayName} 发布悬赏。`, '目标已锁定')
     showBountyModal.value = false
     loadLeaderboard() // 刷新列表
   } catch (error: any) {
@@ -571,7 +574,8 @@ const handleDuel = async (player: any) => {
   try {
     const res = await gameAPI.initiateDuel(player.uid)
     // 后端会通过 WebSocket 广播 duel_start，这里只需提示
-    showAlert(`已向 ${player.username} 发起单挑协议，正在建立量子隧道...`, '协议启动')
+    const displayName = player.nickname || player.username
+    showAlert(`已向 ${displayName} 发起单挑协议，正在建立量子隧道...`, '协议启动')
   } catch (error: any) {
     showAlert(error.response?.data?.error || '发起单挑失败', '系统通讯故障')
   }

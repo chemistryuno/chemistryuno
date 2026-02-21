@@ -210,17 +210,18 @@ func (Reaction) TableName() string {
 
 // Substance GORM模型 - 化学物质表
 type Substance struct {
-	ID               uint       `gorm:"primaryKey;autoIncrement" json:"id"`
-	Name             string     `gorm:"not null;size:255;index:idx_name_formula" json:"name"`
-	Formula          string     `gorm:"size:255;index:idx_name_formula" json:"formula"`
-	Elements         string     `gorm:"size:500" json:"elements"`
-	CreatedByUID     uint       `gorm:"not null" json:"created_by_uid"`
-	Status           string     `gorm:"default:pending;size:20;index" json:"status"`
-	GroupID          *uint      `gorm:"index" json:"group_id"`
-	NeedsImprovement bool       `gorm:"default:false;index" json:"needs_improvement"`
-	SubmittedAt      time.Time  `gorm:"autoCreateTime" json:"submitted_at"`
-	ApprovedAt       *time.Time `json:"approved_at"`
-	CreatedAt        time.Time  `gorm:"autoCreateTime" json:"created_at"`
+	ID                 uint       `gorm:"primaryKey;autoIncrement" json:"id"`
+	Name               string     `gorm:"not null;size:255;index:idx_name_formula" json:"name"`
+	Formula            string     `gorm:"size:255;index:idx_name_formula" json:"formula"`
+	Elements           string     `gorm:"size:500" json:"elements"`
+	HasInvalidElements bool       `gorm:"default:false;index" json:"has_invalid_elements"`
+	CreatedByUID       uint       `gorm:"not null" json:"created_by_uid"`
+	Status             string     `gorm:"default:pending;size:20;index" json:"status"`
+	GroupID            *uint      `gorm:"index" json:"group_id"`
+	NeedsImprovement   bool       `gorm:"default:false;index" json:"needs_improvement"`
+	SubmittedAt        time.Time  `gorm:"autoCreateTime" json:"submitted_at"`
+	ApprovedAt         *time.Time `json:"approved_at"`
+	CreatedAt          time.Time  `gorm:"autoCreateTime" json:"created_at"`
 }
 
 func (Substance) TableName() string {

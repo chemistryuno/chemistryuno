@@ -400,7 +400,7 @@
 
     <!-- Chat Sidebar/Modal -->
     <div 
-      v-if="showChat"
+      v-show="showChat"
       class="fixed bottom-24 right-6 z-50 w-[calc(100vw-3rem)] sm:w-[400px] shadow-2xl animate-in slide-in-from-bottom-10 duration-300 pointer-events-auto"
     >
       <ChatBox title="全球通信频率" maxHeight="500px" />
@@ -409,7 +409,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { pointsAPI, gameAPI, friendAPI, authAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
@@ -507,9 +507,11 @@ const startPrivateChat = (player: any) => {
   showChat.value = true
   hasNewMessage.value = false
   const displayName = player.nickname || player.username
-  window.dispatchEvent(new CustomEvent('start-private-chat', {
-    detail: { uid: player.uid, username: displayName }
-  }))
+  nextTick(() => {
+    window.dispatchEvent(new CustomEvent('start-private-chat', {
+      detail: { uid: player.uid, username: displayName, nickname: player.nickname }
+    }))
+  })
 }
 
 const loadLeaderboard = async () => {

@@ -1,8 +1,10 @@
 ﻿package database
 
 import (
+	"encoding/json"
 	"log"
 	"os"
+	"regexp"
 	"strings"
 )
 
@@ -157,8 +159,93 @@ func initDefaultData() error {
 	// 	log.Printf("⚠️  初始化默认提示数据失败: %v", err)
 	// }
 
+	// 检查无效元素
+	if err := CheckInvalidElements(); err != nil {
+		log.Printf("⚠️  检查无效元素失败: %v", err)
+	}
+
 	log.Println("✅ 默认数据初始化完成")
 
+	return nil
+}
+
+// CheckInvalidElements 检查 substances 和 reactions 表中的无效元素
+func CheckInvalidElements() error {
+	log.Println("🔍 正在检查物质和反应中的无效元素...")
+
+	// 1. 获取默认全局牌组中的有效元素
+	var deckConfig DeckConfig
+	if err := DB.Where("is_global = ?", true).First(&deckConfig).Error; err != nil {
+		return err
+	}
+
+	var cards map[string]int
+	if err := json.Unmarshal(deckConfig.Cards, &cards); err != nil {
+		return err
+	}
+
+	validElements := make(map[string]bool)
+	for k := range cards {
+		// 忽略功能牌和非元素类型
+		if !strings.HasPrefix(k, "+") && k != "reverse" && k != "skip" {
+			validElements[k] = true
+		}
+	}
+
+	// 2. 检查 Substance 表
+	var substances []Substance
+	if err := DB.Find(&substances).Error; err != nil {
+		return err
+	}
+
+	for _, sub := range substances {
+		isInvalid := false
+		if sub.Elements != "" {
+			elements := strings.Split(sub.Elements, ",")
+			for _, e := range elements {
+				e = strings.TrimSpace(e)
+				if e != "" && !validElements[e] {
+					isInvalid = true
+					break
+				}
+			}
+		}
+
+		if sub.HasInvalidElements != isInvalid {
+			DB.Model(&sub).Update("has_invalid_elements", isInvalid)
+		}
+	}
+
+	// 3. 检查 Reaction 表
+	var reactions []Reaction
+	if err := DB.Find(&reactions).Error; err != nil {
+		return err
+	}
+
+	re := regexp.MustCompile(`[A-Z][a-z]*`)
+	for _, react := range reactions {
+		isInvalid := false
+
+		// 检查 R1 和 R2 中的元素
+		for _, formula := range []string{react.R1, react.R2} {
+			matches := re.FindAllString(formula, -1)
+			for _, e := range matches {
+				if !validElements[e] {
+					isInvalid = true
+					break
+				}
+			}
+			if isInvalid {
+				break
+			}
+		}
+
+		if react.HasInvalidElements != isInvalid {
+			DB.Model(&react).Update("has_invalid_elements", isInvalid)
+		}
+	}
+
+	log.Println("✅ 无效元素检查完成")
 	return nil
 }
 

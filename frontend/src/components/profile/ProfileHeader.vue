@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { Shield, Fingerprint, Calendar, Award, User as UserIcon, RefreshCw, Zap, Edit2 } from 'lucide-vue-next'
 import LevelBadge from '../LevelBadge.vue'
-import api from '../../utils/api'
+import { levelAPI } from '../../utils/api'
 
 defineProps<{
   user: any
@@ -18,7 +18,7 @@ const levelInfo = ref<any>(null)
 // 获取等级信息
 async function fetchLevelInfo() {
   try {
-    const response = await api.get('/level/info')
+    const response = await levelAPI.getLevelInfo()
     levelInfo.value = response.data
   } catch (error) {
     console.error('获取等级信息失败:', error)
@@ -96,7 +96,7 @@ onMounted(() => {
         </div>
         <div class="flex justify-between items-center text-[10px]">
           <span class="text-slate-400 font-bold uppercase tracking-widest flex items-center gap-1"><Zap class="w-2.5 h-2.5 text-yellow-500" /> 积分</span>
-          <span class="font-black text-slate-900 dark:text-white uppercase font-mono">{{ user.points || 0 }}</span>
+          <span class="font-black text-slate-900 dark:text-white uppercase font-mono">{{ Math.floor(user.points || 0) }}</span>
         </div>
         <div v-if="user.created_at" class="flex justify-between items-center text-[10px]">
           <span class="text-slate-400 font-bold uppercase tracking-widest flex items-center gap-1"><Calendar class="w-2.5 h-2.5" /> 注册时间</span>

@@ -60,7 +60,7 @@ const handleSendCode = async () => {
 // Check if user has hardware keys
 const checkKeys = async () => {
   try {
-    const res = await api.get('/user/webauthn/credentials')
+    const res = await authAPI.getWebAuthnCredentials()
     hasWebauthnKeys.value = res.data && res.data.length > 0
   } catch(e) {}
 }

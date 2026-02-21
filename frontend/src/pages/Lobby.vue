@@ -53,6 +53,10 @@ const deckID = ref(0)
 const isPointsMode = ref(false)
 const isPrivate = ref(false)
 
+// 等级匹配与排位
+const isRanked = ref(false)
+const levelRange = ref(5)
+
 const pveDifficulty = ref(50)
 const aiCount = ref(1)
 const customAccessKey = ref('') // 自定义访问密钥
@@ -203,7 +207,9 @@ const handleCreateRoom = async () => {
       0, // pveDifficulty
       0, // aiCount
       enableAIBackfill.value, // 启用AI补位
-      aiBackfillDifficulty.value // AI补位难度
+      aiBackfillDifficulty.value, // AI补位难度
+      isRanked.value,
+      levelRange.value
     )
     const room = response.data
     // 重置状态
@@ -212,6 +218,8 @@ const handleCreateRoom = async () => {
     customAccessKey.value = ''
     enableAIBackfill.value = false
     aiBackfillDifficulty.value = 50
+    isRanked.value = false
+    levelRange.value = 5
 
     // 如果是私密房间且有访问密钥，显示密钥模态框
     if (isPrivate.value && room.access_key) {
@@ -247,7 +255,9 @@ const handleCreateAIRoom = async () => {
       pveDifficulty.value,
       aiCount.value,
       false, // PvE模式不需要补位
-      0 // AI补位难度（PvE模式忽略）
+      0, // AI补位难度（PvE模式忽略）
+      false, // PvE 不设排位
+      0
     )
     const room = response.data
     showAIArenaModal.value = false
@@ -807,6 +817,49 @@ const copyToClipboard = (text: string) => {
                 <span class="text-caption-mobile text-slate-400 dark:text-slate-500 mt-0.5 leading-tight">
                   开始游戏时自动用AI填补空缺位置
                 </span>
+              </div>
+            </div>
+
+            <!-- 等级匹配模式 -->
+            <div class="flex items-center gap-3 p-3.5 sm:p-3 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-xl group/toggle cursor-pointer transition-all hover:bg-slate-100 dark:hover:bg-white/10 touch-feedback" @click="isRanked = !isRanked">
+              <div :class="cn(
+                'w-10 h-5 sm:w-8 sm:h-4.5 rounded-full relative transition-colors duration-300',
+                isRanked ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-700'
+              )">
+                <div :class="cn(
+                  'absolute top-1 left-1 sm:top-0.75 sm:left-0.75 w-3 h-3 bg-white rounded-full transition-transform duration-300',
+                  isRanked ? 'translate-x-5 sm:translate-x-3.5' : 'translate-x-0'
+                )"></div>
+              </div>
+              <div class="flex flex-col">
+                <span :class="cn('text-xs sm:text-[9px] font-black uppercase tracking-wider', isRanked ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 dark:text-slate-400')">
+                  等级均衡匹配
+                </span>
+                <span class="text-caption-mobile text-slate-400 dark:text-slate-500 mt-0.5 leading-tight">
+                  自动过滤等级差距过大的研究员
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 等级范围设置 -->
+          <div v-if="isRanked" class="space-y-2 animate-in slide-in-from-top-2 fade-in duration-300">
+            <div class="flex justify-between items-center px-1">
+               <label class="text-label-mobile font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">匹配跨度（等级差距）</label>
+               <span class="text-caption-mobile text-indigo-500/40 font-mono">RANGE: ±{{ levelRange }}</span>
+            </div>
+            <div class="p-4 bg-indigo-50 dark:bg-indigo-500/5 border border-indigo-200 dark:border-indigo-500/20 rounded-xl">
+              <input
+                v-model.number="levelRange"
+                type="range"
+                min="3"
+                max="10"
+                class="w-full h-2 bg-indigo-200 dark:bg-indigo-500/20 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+              />
+              <div class="flex justify-between mt-2.5 sm:mt-2">
+                <span class="text-caption-mobile text-indigo-600 dark:text-indigo-400 font-mono">严苛(3)</span>
+                <span class="text-caption-mobile text-indigo-600 dark:text-indigo-400 font-mono">标准(5)</span>
+                <span class="text-caption-mobile text-indigo-600 dark:text-indigo-400 font-mono">宽松(10)</span>
               </div>
             </div>
           </div>

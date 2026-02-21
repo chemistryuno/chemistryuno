@@ -138,15 +138,16 @@ func (r *ReactionRepository) GetGroupIDAndCreatorByID(id uint) (*uint, uint, err
 
 // ReactionWithCreator 带创建者信息的反应
 type ReactionWithCreator struct {
-	ID           uint      `json:"id"`
-	Display      string    `json:"display"`
-	R1           string    `json:"r1"` // 反应物1
-	R2           string    `json:"r2"` // 反应物2
-	Status       string    `json:"status"`
-	GroupID      *uint     `json:"group_id"`
-	CreatedByUID uint      `json:"created_by_uid"`
-	CreatorName  string    `json:"creator_name"`
-	CreatedAt    time.Time `json:"created_at"`
+	ID                 uint      `json:"id"`
+	Display            string    `json:"display"`
+	R1                 string    `json:"r1"` // 反应物1
+	R2                 string    `json:"r2"` // 反应物2
+	Status             string    `json:"status"`
+	GroupID            *uint     `json:"group_id"`
+	HasInvalidElements bool      `json:"has_invalid_elements"`
+	CreatedByUID       uint      `json:"created_by_uid"`
+	CreatorName        string    `json:"creator_name"`
+	CreatedAt          time.Time `json:"created_at"`
 }
 
 // FindAllGroupedWithCreator 获取所有反应（按组分组，带创建者信息）
@@ -157,7 +158,7 @@ func (r *ReactionRepository) FindAllGroupedWithCreator() ([]ReactionWithCreator,
 	subQuery := r.db.Table("reactions").Select("MIN(id)").Group("COALESCE(group_id, id)")
 
 	err := r.db.Table("reactions").
-		Select("reactions.id, reactions.display, reactions.r1, reactions.r2, reactions.status, reactions.group_id, reactions.created_by_uid, users.username as creator_name, reactions.created_at").
+		Select("reactions.id, reactions.display, reactions.r1, reactions.r2, reactions.status, reactions.group_id, reactions.has_invalid_elements, reactions.created_by_uid, users.username as creator_name, reactions.created_at").
 		Joins("LEFT JOIN users ON reactions.created_by_uid = users.uid").
 		Where("reactions.id IN (?)", subQuery).
 		Order("reactions.created_at DESC").
@@ -177,7 +178,7 @@ func (r *ReactionRepository) FindApprovedGrouped() ([]ReactionWithCreator, error
 		Group("COALESCE(group_id, id)")
 
 	err := r.db.Table("reactions").
-		Select("reactions.id, reactions.display, reactions.r1, reactions.r2, reactions.status, reactions.group_id, reactions.created_by_uid, users.username as creator_name, reactions.created_at").
+		Select("reactions.id, reactions.display, reactions.r1, reactions.r2, reactions.status, reactions.group_id, reactions.has_invalid_elements, reactions.created_by_uid, users.username as creator_name, reactions.created_at").
 		Joins("LEFT JOIN users ON reactions.created_by_uid = users.uid").
 		Where("reactions.status = ? AND reactions.id IN (?)", "approved", subQuery).
 		Order("reactions.created_at DESC").
@@ -197,7 +198,7 @@ func (r *ReactionRepository) FindMyReactions(uid uint) ([]ReactionWithCreator, e
 		Group("COALESCE(group_id, id)")
 
 	err := r.db.Table("reactions").
-		Select("reactions.id, reactions.display, reactions.r1, reactions.r2, reactions.status, reactions.group_id, reactions.created_by_uid, users.username as creator_name, reactions.created_at").
+		Select("reactions.id, reactions.display, reactions.r1, reactions.r2, reactions.status, reactions.group_id, reactions.has_invalid_elements, reactions.created_by_uid, users.username as creator_name, reactions.created_at").
 		Joins("LEFT JOIN users ON reactions.created_by_uid = users.uid").
 		Where("reactions.created_by_uid = ? AND reactions.id IN (?)", uid, subQuery).
 		Order("reactions.created_at DESC").

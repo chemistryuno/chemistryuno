@@ -23,6 +23,15 @@ func GetLevelInfo(c *gin.Context) {
 	var uidUint uint
 	switch v := uid.(type) {
 	case int:
+		if v < 0 {
+			// AI 账号不计等级，返回虚拟数据或禁止访问
+			c.JSON(http.StatusOK, gin.H{
+				"level": 1, "xp": 0, "total_xp": 0,
+				"tier": "ai", "tier_name": "AI研究员",
+				"next_level_xp": 0, "progress_percent": 0,
+			})
+			return
+		}
 		uidUint = uint(v)
 	case uint:
 		uidUint = v
@@ -33,6 +42,11 @@ func GetLevelInfo(c *gin.Context) {
 
 	levelInfo, err := game.GetLevelInfo(uidUint)
 	if err != nil {
+		// 如果用户不存在，返回 401 触发前端登出
+		if err.Error() == "用户不存在" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "会话已失效"})
+			return
+		}
 		// 记录详细错误信息以便调试
 		c.Error(err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取等级信息失败", "detail": err.Error()})
@@ -77,13 +91,13 @@ func GetLevelLeaderboard(c *gin.Context) {
 
 	// 转换为包含等级信息的格式
 	type LeaderboardEntry struct {
-		UID       uint   `json:"uid"`
-		Nickname  string `json:"nickname"`
-		Avatar    string `json:"avatar"`
-		Level     int    `json:"level"`
-		TotalXP   int    `json:"total_xp"`
-		Tier      string `json:"tier"`
-		TierName  string `json:"tier_name"`
+		UID      uint   `json:"uid"`
+		Nickname string `json:"nickname"`
+		Avatar   string `json:"avatar"`
+		Level    int    `json:"level"`
+		TotalXP  int    `json:"total_xp"`
+		Tier     string `json:"tier"`
+		TierName string `json:"tier_name"`
 	}
 
 	result := make([]LeaderboardEntry, 0, len(users))

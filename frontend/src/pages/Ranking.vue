@@ -166,19 +166,28 @@
                           <div v-if="player.is_online" class="absolute bottom-0 right-0 w-2 h-2 bg-emerald-500 border-2 border-white dark:border-[#121216] rounded-full"></div>
                        </div>
                        <div class="flex flex-col">
-                          <span class="text-xs font-black text-slate-900 dark:text-white group-hover:text-blue-500 transition-colors flex items-center gap-1.5">
+                          <span class="text-xs font-black text-slate-900 dark:text-white group-hover:text-blue-500 transition-colors flex items-center gap-1.5 flex-wrap">
                             {{ player.nickname || player.username }}
                             <span v-if="Number(player.uid) === Number(user.uid)" class="text-[7px] bg-blue-600 px-1 py-0.5 rounded uppercase font-black tracking-widest text-white">You</span>
                             <span v-if="player.is_banned" class="text-[7px] bg-red-600 px-1 py-0.5 rounded uppercase font-black tracking-widest text-white animate-pulse">CHEATER</span>
                           </span>
-                          <span class="text-[7px] font-mono text-slate-400 dark:text-slate-500 uppercase tracking-tighter mt-0.5">UID: {{ player.uid }}</span>
+                          <div class="flex items-center gap-2 mt-0.5">
+                            <span class="text-[7px] font-mono text-slate-400 dark:text-slate-500 uppercase tracking-tighter">UID: {{ player.uid }}</span>
+                            <div class="flex items-center gap-1 bg-slate-100 dark:bg-white/5 px-1.5 py-0.5 rounded border border-slate-200 dark:border-white/5">
+                              <LevelBadge :level="player.level || 1" :tier="player.tier" :tier-name="player.tier_name" size="xs" :show-level="false" />
+                              <span class="text-[7px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Lv.{{ player.level || 1 }} {{ player.tier_name || '实习研究员' }}</span>
+                            </div>
+                            <span v-if="player.total_games > 0" class="text-[6px] font-bold text-slate-400/80 uppercase tracking-widest hidden sm:inline-block">
+                              Win Rate: {{ Math.round((player.win_count / player.total_games) * 100) }}% ({{ player.total_games }} Sessions)
+                            </span>
+                          </div>
                        </div>
                     </div>
                   </td>
                   <td class="px-5 py-3">
                     <div class="flex flex-col">
                        <span class="text-sm font-black text-slate-900 dark:text-white font-mono tracking-tighter">
-                         {{ rankingMode === 'monthly' ? player.monthly_points : player.points }}
+                         {{ Math.floor(rankingMode === 'monthly' ? player.monthly_points : player.points) }}
                        </span>
                     </div>
                   </td>
@@ -257,18 +266,28 @@
                           <div v-if="myRankInfo.is_online" class="absolute bottom-0 right-0 w-2 h-2 bg-emerald-500 border-2 border-white dark:border-[#121216] rounded-full"></div>
                        </div>
                        <div class="flex flex-col">
-                          <span class="text-xs font-black text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
+                          <span class="text-xs font-black text-blue-600 dark:text-blue-400 flex items-center gap-1.5 flex-wrap">
                             {{ myRankInfo.nickname || myRankInfo.username }}
                             <span class="text-[7px] bg-blue-600 px-1 py-0.5 rounded uppercase font-black tracking-widest text-white">You</span>
                           </span>
-                          <span class="text-[7px] font-mono text-blue-400/60 uppercase tracking-tighter mt-0.5">UID: {{ myRankInfo.uid }} (Outside Top 100)</span>
+                          <div class="flex items-center gap-2 mt-0.5">
+                            <span class="text-[7px] font-mono text-blue-400/60 uppercase tracking-tighter">UID: {{ myRankInfo.uid }}</span>
+                            <div class="flex items-center gap-1 bg-blue-500/10 dark:bg-blue-500/5 px-1.5 py-0.5 rounded border border-blue-500/20">
+                              <LevelBadge :level="myRankInfo.level || 1" :tier="myRankInfo.tier" :tier-name="myRankInfo.tier_name" size="xs" :show-level="false" />
+                              <span class="text-[7px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest">Lv.{{ myRankInfo.level || 1 }} {{ myRankInfo.tier_name || '实习研究员' }}</span>
+                            </div>
+                            <span v-if="myRankInfo.total_games > 0" class="text-[6px] font-bold text-blue-400/60 uppercase tracking-widest hidden sm:inline-block">
+                              Win Rate: {{ Math.round((myRankInfo.win_count / myRankInfo.total_games) * 100) }}% ({{ myRankInfo.total_games }} Sessions)
+                            </span>
+                          </div>
+                          <span class="text-[6px] font-bold text-blue-400/40 uppercase tracking-widest mt-0.5 ml-0.5">(Outside Top 100)</span>
                        </div>
                     </div>
                   </td>
                   <td class="px-5 py-4">
                     <div class="flex flex-col">
                        <span class="text-sm font-black text-blue-600 dark:text-blue-400 font-mono tracking-tighter">
-                         {{ rankingMode === 'monthly' ? myRankInfo.monthly_points : myRankInfo.points }}
+                         {{ Math.floor(rankingMode === 'monthly' ? myRankInfo.monthly_points : myRankInfo.points) }}
                        </span>
                     </div>
                   </td>
@@ -397,6 +416,7 @@ import { useDialog } from '../utils/dialog'
 import { Trophy, ArrowLeft, Loader2, Target, RefreshCw, ShieldCheck, Crosshair, Flame, X, Swords, MessageCircle, MessageSquare, UserPlus, Search } from 'lucide-vue-next'
 import { cn } from '../utils/cn'
 import ChatBox from '../components/ChatBox.vue'
+import LevelBadge from '../components/LevelBadge.vue'
 import websocket from '../utils/websocket'
 
 const router = useRouter()

@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { X, Cpu, Plus, Trash2, Calendar, HardDrive, Loader2, Key } from 'lucide-vue-next'
 import { create } from '@github/webauthn-json'
-import api from '../../utils/api'
+import { authAPI } from '../../utils/api'
 import { useDialog } from '../../utils/dialog'
 
 const props = defineProps<{
@@ -22,7 +22,7 @@ const appVersion = ref('V1.2.1') // 默认值
 const fetchKeys = async () => {
   loading.value = true
   try {
-    const res = await api.get('/user/webauthn/credentials')
+    const res = await authAPI.getWebAuthnCredentials()
     keys.value = res.data
   } catch (error) {
     console.error('获取密钥列表失败', error)
@@ -33,7 +33,7 @@ const fetchKeys = async () => {
 
 const loadVersion = async () => {
   try {
-    const res = await api.get('/version')
+    const res = await authAPI.getVersion()
     if (res.data && res.data.version) {
       appVersion.value = 'V' + res.data.version
     }
@@ -46,13 +46,13 @@ const addKey = async () => {
   registering.value = true
   try {
     // 1. 获取注册选项
-    const res = await api.get('/user/webauthn/register/begin')
+    const res = await authAPI.beginWebAuthnRegistration()
     
     // 2. 调用浏览器 API
     const credential = await create(res.data)
     
     // 3. 发送结果到服务器
-    await api.post('/user/webauthn/register/finish', credential)
+    await authAPI.finishWebAuthnRegistration(credential)
     
     // 4. 刷新列表
     await fetchKeys()
@@ -76,7 +76,7 @@ const removeKey = async (id: string) => {
   if (!confirmed) return
   
   try {
-    await api.delete(`/user/webauthn/credentials/${id}`)
+    await authAPI.removeWebAuthnCredential(id)
     await fetchKeys()
     showAlert('该物理设备的授权已被永久撤回。', '协议同步成功')
   } catch (error: any) {

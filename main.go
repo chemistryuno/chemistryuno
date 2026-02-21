@@ -221,6 +221,10 @@ func main() {
 			authGroup.GET("/webauthn/login/begin", handlers.BeginLogin)
 			authGroup.POST("/webauthn/login/finish", handlers.FinishLogin)
 
+			// WebAuthn 密码重置 (公开)
+			authGroup.POST("/webauthn/reset-password/begin", handlers.BeginResetPasswordWebAuthn)
+			authGroup.POST("/webauthn/reset-password/finish", handlers.FinishResetPasswordWebAuthn)
+
 			// OAuth 登录
 			authGroup.GET("/github/login", handlers.GitHubLogin)
 			authGroup.GET("/github/callback", handlers.GitHubCallback)
@@ -292,6 +296,10 @@ func main() {
 			auth.POST("/user/webauthn/register/finish", handlers.FinishRegistration)
 			auth.GET("/user/webauthn/credentials", handlers.ListCredentials)
 			auth.DELETE("/user/webauthn/credentials/:id", handlers.RemoveCredential)
+
+			// WebAuthn 密码修改
+			auth.POST("/user/webauthn/change-password/begin", handlers.BeginChangePasswordWebAuthn)
+			auth.POST("/user/webauthn/change-password/finish", handlers.FinishChangePasswordWebAuthn)
 
 			// 好友系统
 			auth.POST("/friends/request", handlers.SendFriendRequest)

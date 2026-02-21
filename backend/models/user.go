@@ -17,8 +17,8 @@ type User struct {
 	Role               string                `json:"role" db:"role"` // admin, co-worker, user
 	TwoFactorEnabled   bool                  `json:"two_factor_enabled" db:"two_factor_enabled"`
 	TwoFactorSecret    string                `json:"-" db:"two_factor_secret"`
-	Points             int                   `json:"points" db:"points"`
-	MonthlyPoints      int                   `json:"monthly_points" db:"monthly_points"`
+	Points             float64               `json:"points" db:"points"`
+	MonthlyPoints      float64               `json:"monthly_points" db:"monthly_points"`
 	Level              int                   `json:"level" db:"level"`
 	XP                 int                   `json:"xp" db:"xp"`
 	TotalXP            int                   `json:"total_xp" db:"total_xp"`

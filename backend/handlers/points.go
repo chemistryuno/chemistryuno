@@ -21,6 +21,14 @@ func GetLeaderboard(c *gin.Context) {
 	// 包含所有用户（封禁用户会标记 CHEATER 标签）
 	db := database.DB
 
+	// 预先获取等级配置以避免循环查询
+	var levelConfigs []database.LevelConfig
+	db.Find(&levelConfigs)
+	configMap := make(map[int]database.LevelConfig)
+	for _, conf := range levelConfigs {
+		configMap[conf.Level] = conf
+	}
+
 	var users []database.User
 	err := db.Order(orderBy + " DESC, uid ASC").Limit(100).Find(&users).Error
 	if err != nil {
@@ -35,6 +43,7 @@ func GetLeaderboard(c *gin.Context) {
 			foundSelf = true
 		}
 
+		conf := configMap[user.Level]
 		totalBounty, _ := repository.BountyRepo.GetTotalBounty(user.UID)
 		isOnline := false
 		if websocket.GlobalHub != nil {
@@ -50,6 +59,11 @@ func GetLeaderboard(c *gin.Context) {
 			"avatar":         user.Avatar,
 			"points":         user.Points,
 			"monthly_points": user.MonthlyPoints,
+			"level":          user.Level,
+			"tier":           conf.Tier,
+			"tier_name":      conf.TierName,
+			"win_count":      user.WinCount,
+			"total_games":    user.TotalGames,
 			"bounty":         totalBounty,
 			"is_online":      isOnline,
 			"is_banned":      isBanned,
@@ -69,6 +83,7 @@ func GetLeaderboard(c *gin.Context) {
 			}
 			database.DB.Model(&database.User{}).Where(orderBy+" > ?", score).Count(&rank)
 
+			conf := configMap[user.Level]
 			totalBounty, _ := repository.BountyRepo.GetTotalBounty(user.UID)
 			isOnline := false
 			if websocket.GlobalHub != nil {
@@ -83,6 +98,11 @@ func GetLeaderboard(c *gin.Context) {
 				"avatar":         user.Avatar,
 				"points":         user.Points,
 				"monthly_points": user.MonthlyPoints,
+				"level":          user.Level,
+				"tier":           conf.Tier,
+				"tier_name":      conf.TierName,
+				"win_count":      user.WinCount,
+				"total_games":    user.TotalGames,
 				"bounty":         totalBounty,
 				"is_online":      isOnline,
 				"is_banned":      isBanned,
@@ -120,7 +140,7 @@ func CreateBounty(c *gin.Context) {
 		return
 	}
 
-	if user.Points < req.Amount {
+	if user.Points < float64(req.Amount) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "积分不足"})
 		return
 	}

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
-import api from '../utils/api'
+import { levelAPI } from '../utils/api'
 import LevelBadge from './LevelBadge.vue'
 
 interface LevelInfo {
@@ -21,7 +21,7 @@ const error = ref<string | null>(null)
 async function fetchLevelInfo() {
   try {
     loading.value = true
-    const response = await api.get('/level/info')
+    const response = await levelAPI.getLevelInfo()
     levelInfo.value = response.data
     error.value = null
   } catch (err: any) {

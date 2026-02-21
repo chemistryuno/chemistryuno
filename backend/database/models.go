@@ -62,8 +62,8 @@ type User struct {
 	Role               string         `gorm:"default:user;size:20" json:"role"`
 	TwoFactorEnabled   bool           `gorm:"default:false" json:"two_factor_enabled"`
 	TwoFactorSecret    string         `json:"-"`
-	Points             int            `gorm:"default:1000" json:"points"`
-	MonthlyPoints      int            `gorm:"default:1000" json:"monthly_points"`
+	Points             float64        `gorm:"default:1000" json:"points"`
+	MonthlyPoints      float64        `gorm:"default:1000" json:"monthly_points"`
 	Level              int            `gorm:"default:1" json:"level"`
 	XP                 int            `gorm:"default:0" json:"xp"`
 	TotalXP            int            `gorm:"default:0" json:"total_xp"`

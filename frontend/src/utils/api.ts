@@ -113,14 +113,34 @@ export const authAPI = {
   getSessions: () => api.get('/user/sessions'),
   logoutSession: (id: string) => api.post('/user/sessions/logout', { id }),
   freezeAccount: (hours: number) => api.post('/user/account/freeze', { hours }),
+
+  // WebAuthn 凭证管理 (由 HardwareKeyModal.vue 使用)
+  getWebAuthnCredentials: () => api.get('/user/webauthn/credentials'),
+  beginWebAuthnRegistration: () => api.get('/user/webauthn/register/begin'),
+  finishWebAuthnRegistration: (credential: any) => api.post('/user/webauthn/register/finish', credential),
+  removeWebAuthnCredential: (id: string) => api.delete(`/user/webauthn/credentials/${id}`),
 }
 
 // 游戏API
 export const gameAPI = {
   getRooms: () =>
     api.get('/rooms'),
-  createRoom: (name: string, maxPlayers: number, deckID: number, isPointsMode: boolean = false, isPrivate: boolean = false, accessKey?: string, isPvE: boolean = false, pveDifficulty: number = 0, aiCount: number = 0, enableAIBackfill: boolean = false, aiBackfillDifficulty: number = 50) =>
-    api.post('/rooms', { name, max_players: maxPlayers, deck_id: deckID, is_points_mode: isPointsMode, is_private: isPrivate, access_key: accessKey, is_pve: isPvE, pve_difficulty: pveDifficulty, ai_count: aiCount, enable_ai_backfill: enableAIBackfill, ai_backfill_difficulty: aiBackfillDifficulty }),
+  createRoom: (name: string, maxPlayers: number, deckID: number, isPointsMode: boolean = false, isPrivate: boolean = false, accessKey?: string, isPvE: boolean = false, pveDifficulty: number = 0, aiCount: number = 0, enableAIBackfill: boolean = false, aiBackfillDifficulty: number = 50, isRanked: boolean = false, levelRange: number = 5) =>
+    api.post('/rooms', { 
+      name, 
+      max_players: maxPlayers, 
+      deck_id: deckID, 
+      is_points_mode: isPointsMode, 
+      is_private: isPrivate, 
+      access_key: accessKey, 
+      is_pve: isPvE, 
+      pve_difficulty: pveDifficulty, 
+      ai_count: aiCount, 
+      enable_ai_backfill: enableAIBackfill, 
+      ai_backfill_difficulty: aiBackfillDifficulty,
+      is_ranked: isRanked,
+      level_range: levelRange
+    }),
   getRoomState: (roomId: string) =>
     api.get(`/rooms/${roomId}`),
   checkRoomStatus: (roomId: string) =>
@@ -242,6 +262,18 @@ export const commonAPI = {
     api.get('/hints'),
 }
 
+// 等级系统API
+export const levelAPI = {
+  getLevelInfo: () =>
+    api.get('/level/info'),
+  getUserLevelInfo: (uid: number) =>
+    api.get(`/level/user/${uid}`),
+  getLevelLeaderboard: (limit: number = 100) =>
+    api.get(`/level/leaderboard?limit=${limit}`),
+  getLevelConfigs: () =>
+    api.get('/level/configs'),
+}
+
 // 反应管理API
 export const reactionAPI = {
   getReactions: () =>
@@ -264,6 +296,9 @@ export const reactionAPI = {
 
 // 物质管理API
 export const substanceAPI = {
+  // 获取全量物质名称映射（不带版本，用于自动推导）
+  getSubstanceNames: () =>
+    api.get('/substances/names'),
   // 获取所有物质（分组）
   getSubstances: () =>
     api.get('/data/substances'),

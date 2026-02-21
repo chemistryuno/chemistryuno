@@ -856,10 +856,21 @@ func FreezeAccount(c *gin.Context) {
 func GetUserInfo(c *gin.Context) {
 	uid := c.GetInt("uid")
 
+	if uid < 0 {
+		c.JSON(http.StatusOK, gin.H{
+			"uid":      uid,
+			"username": c.GetString("username"),
+			"nickname": "AI研究员",
+			"role":     "ai",
+			"points":   1000,
+		})
+		return
+	}
+
 	userRepo := repository.NewUserRepository()
 	user, err := userRepo.FindByUID(uint(uid))
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "用户不存在，请重新登录"})
 		return
 	}
 
@@ -876,6 +887,14 @@ func SearchUsers(c *gin.Context) {
 	if query == "" {
 		c.JSON(http.StatusOK, []interface{}{})
 		return
+	}
+
+	// 预先获取等级配置以避免循环查询
+	var levelConfigs []database.LevelConfig
+	database.DB.Find(&levelConfigs)
+	configMap := make(map[int]database.LevelConfig)
+	for _, conf := range levelConfigs {
+		configMap[conf.Level] = conf
 	}
 
 	userRepo := repository.NewUserRepository()
@@ -899,6 +918,7 @@ func SearchUsers(c *gin.Context) {
 		var monthlyRank int64
 		database.DB.Model(&database.User{}).Where("monthly_points > ?", user.MonthlyPoints).Count(&monthlyRank)
 
+		conf := configMap[user.Level]
 		result = append(result, map[string]interface{}{
 			"uid":            user.UID,
 			"username":       user.Username,
@@ -908,6 +928,9 @@ func SearchUsers(c *gin.Context) {
 			"monthly_points": user.MonthlyPoints,
 			"win_count":      user.WinCount,
 			"total_games":    user.TotalGames,
+			"level":          user.Level,
+			"tier":           conf.Tier,
+			"tier_name":      conf.TierName,
 			"bounty":         totalBounty,
 			"is_online":      isOnline,
 			"rank":           rank + 1,

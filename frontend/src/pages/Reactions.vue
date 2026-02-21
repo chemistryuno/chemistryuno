@@ -629,7 +629,7 @@ const handleDeleteReaction = async (id: number) => {
   }
   
   try {
-    await reactionAPI.deleteReaction(id.toString())
+    await reactionAPI.deleteReaction(id)
     await loadReactions()
     await showAlert('反应删除成功！', '成功')
   } catch (error: any) {

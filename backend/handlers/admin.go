@@ -380,13 +380,14 @@ func GetReactions(c *gin.Context) {
 	var reactions []map[string]interface{}
 	for _, r := range reactionList {
 		reactions = append(reactions, map[string]interface{}{
-			"id":           r.ID,
-			"display":      r.Display,
-			"status":       r.Status,
-			"group_id":     r.GroupID,
-			"created_by":   r.CreatedByUID,
-			"creator_name": r.CreatorName,
-			"created_at":   r.CreatedAt,
+			"id":                   r.ID,
+			"display":              r.Display,
+			"status":               r.Status,
+			"group_id":             r.GroupID,
+			"has_invalid_elements": r.HasInvalidElements,
+			"created_by":           r.CreatedByUID,
+			"creator_name":         r.CreatorName,
+			"created_at":           r.CreatedAt,
 		})
 	}
 
@@ -416,10 +417,11 @@ func GetMyReactions(c *gin.Context) {
 	var reactions []map[string]interface{}
 	for _, r := range reactionList {
 		reactions = append(reactions, map[string]interface{}{
-			"id":         r.ID,
-			"display":    r.Display,
-			"status":     r.Status,
-			"created_at": r.CreatedAt,
+			"id":                   r.ID,
+			"display":              r.Display,
+			"status":               r.Status,
+			"has_invalid_elements": r.HasInvalidElements,
+			"created_at":           r.CreatedAt,
 		})
 	}
 	c.JSON(http.StatusOK, reactions)

@@ -403,6 +403,204 @@ func RemoveCredential(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "凭证已移除"})
 }
 
+// BeginResetPasswordWebAuthn 开始通过 WebAuthn 重置密码 (公开接口)
+func BeginResetPasswordWebAuthn(c *gin.Context) {
+	if webAuthn == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "WebAuthn 服务未初始化"})
+		return
+	}
+
+	var req struct {
+		Username string `json:"username" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "用户名不能为空"})
+		return
+	}
+
+	user, err := repository.UserRepo.FindByUsername(req.Username)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
+		return
+	}
+
+	credentials, _ := repository.WebAuthnRepo.FindByUserUID(uint(user.UID))
+	if len(credentials) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "该用户未绑定硬件密钥"})
+		return
+	}
+
+	waUser := &WebAuthnUser{User: user, Credentials: credentials}
+	options, sessionData, err := webAuthn.BeginLogin(waUser)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	sessionID := uuid.New().String()
+	sessionMutex.Lock()
+	sessionStore[sessionID] = sessionData
+	sessionMutex.Unlock()
+
+	c.SetCookie("webauthn_session", sessionID, 300, "/", "", false, true)
+	c.JSON(http.StatusOK, options)
+}
+
+// FinishResetPasswordWebAuthn 完成通过 WebAuthn 重置密码 (公开接口)
+func FinishResetPasswordWebAuthn(c *gin.Context) {
+	username := c.Query("username")
+	newPassword := c.Query("new_password")
+	if username == "" || newPassword == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "缺少必要参数"})
+		return
+	}
+
+	if len(newPassword) < 6 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "新密码长度至少为 6 位"})
+		return
+	}
+
+	sessionID, err := c.Cookie("webauthn_session")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "会话已过期"})
+		return
+	}
+
+	sessionMutex.Lock()
+	sessionData, ok := sessionStore[sessionID]
+	if ok {
+		delete(sessionStore, sessionID)
+	}
+	sessionMutex.Unlock()
+
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "会话数据不存在"})
+		return
+	}
+
+	user, err := repository.UserRepo.FindByUsername(username)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
+		return
+	}
+
+	credentials, _ := repository.WebAuthnRepo.FindByUserUID(uint(user.UID))
+	waUser := &WebAuthnUser{User: user, Credentials: credentials}
+
+	_, err = webAuthn.FinishLogin(waUser, *sessionData, c.Request)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "验签失败: " + err.Error()})
+		return
+	}
+
+	// 验签成功，更新密码
+	hashedPassword, err := utils.HashPassword(newPassword)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "密码加密失败"})
+		return
+	}
+
+	if err := repository.UserRepo.UpdatePassword(uint(user.UID), hashedPassword); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新密码失败"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "密码重置成功"})
+}
+
+// BeginChangePasswordWebAuthn 开始通过 WebAuthn 修改密码 (需要认证)
+func BeginChangePasswordWebAuthn(c *gin.Context) {
+	uid := c.GetInt("uid")
+	user, err := repository.UserRepo.FindByUID(uint(uid))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
+		return
+	}
+
+	credentials, _ := repository.WebAuthnRepo.FindByUserUID(uint(uid))
+	if len(credentials) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "您尚未绑定硬件密钥"})
+		return
+	}
+
+	waUser := &WebAuthnUser{User: user, Credentials: credentials}
+	options, sessionData, err := webAuthn.BeginLogin(waUser)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	sessionID := uuid.New().String()
+	sessionMutex.Lock()
+	sessionStore[sessionID] = sessionData
+	sessionMutex.Unlock()
+
+	c.SetCookie("webauthn_session", sessionID, 300, "/", "", false, true)
+	c.JSON(http.StatusOK, options)
+}
+
+// FinishChangePasswordWebAuthn 完成通过 WebAuthn 修改密码 (需要认证)
+func FinishChangePasswordWebAuthn(c *gin.Context) {
+	uid := c.GetInt("uid")
+	newPassword := c.Query("newPassword")
+	if newPassword == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "新密码不能为空"})
+		return
+	}
+
+	if len(newPassword) < 6 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "新密码长度至少为 6 位"})
+		return
+	}
+
+	sessionID, err := c.Cookie("webauthn_session")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "会话已过期"})
+		return
+	}
+
+	sessionMutex.Lock()
+	sessionData, ok := sessionStore[sessionID]
+	if ok {
+		delete(sessionStore, sessionID)
+	}
+	sessionMutex.Unlock()
+
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "会话数据不存在"})
+		return
+	}
+
+	user, err := repository.UserRepo.FindByUID(uint(uid))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
+		return
+	}
+
+	credentials, _ := repository.WebAuthnRepo.FindByUserUID(uint(uid))
+	waUser := &WebAuthnUser{User: user, Credentials: credentials}
+
+	_, err = webAuthn.FinishLogin(waUser, *sessionData, c.Request)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "验签失败: " + err.Error()})
+		return
+	}
+
+	// 验签成功，更新密码
+	hashedPassword, err := utils.HashPassword(newPassword)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "密码加密失败"})
+		return
+	}
+
+	if err := repository.UserRepo.UpdatePassword(uint(uid), hashedPassword); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新密码失败"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "密码修改成功"})
+}
+
 // WebAuthnUser 实现 webauthn.User 接口
 type WebAuthnUser struct {
 	User        *database.User

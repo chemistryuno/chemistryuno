@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { gameAPI, adminAPI, friendAPI, authAPI, commonAPI } from '../utils/api'
+import { gameAPI, adminAPI, friendAPI, authAPI, commonAPI, substanceAPI } from '../utils/api'
 import { useDialog, setToastRef } from '../utils/dialog'
 import websocket from '../utils/websocket'
 import { ArrowLeft, Play, RefreshCw, Zap, Activity, FlaskConical, Trophy, ChevronRight, Loader2, Users, Timer, Plus, QrCode, Copy, Sparkles, ShieldAlert, Ban, UserMinus, X, MessageCircle, UserPlus, Flag, Send, Binary, Star } from 'lucide-vue-next'
@@ -484,9 +484,8 @@ const substanceNames = ref<Record<string, string>>({})
 // 加载物质名称映射
 const loadSubstanceNames = async () => {
   try {
-    const response = await fetch('/api/substances/names')
-    const data = await response.json()
-    substanceNames.value = data || {}
+    const response = await substanceAPI.getSubstanceNames()
+    substanceNames.value = response.data || {}
     console.log('[GameRoom] Loaded substance names:', Object.keys(substanceNames.value).length)
   } catch (error) {
     console.error('[GameRoom] Failed to load substance names:', error)

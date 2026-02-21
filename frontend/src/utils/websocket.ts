@@ -10,41 +10,21 @@ class WebSocketService {
   private readonly maxReconnectAttempts: number = 5
   private pendingMessages: WebSocketMessage[] = []
   private isConnecting: boolean = false
-  private offlineRefreshTimer: number | null = null
 
   constructor() {
     // 监听浏览器离线事件
     window.addEventListener('offline', () => {
-      console.log('网络已离线，将在3秒后刷新页面...')
-      this.scheduleRefresh()
+      console.log('网络已离线，WebSocket 将自动重连')
     })
 
     // 监听浏览器在线事件
     window.addEventListener('online', () => {
       console.log('网络已恢复')
-      this.cancelRefresh()
       // 网络恢复后立即尝试重连
       if (!this.isConnected() && this.reconnectAttempts < this.maxReconnectAttempts) {
         this.connect()
       }
     })
-  }
-
-  private scheduleRefresh(): void {
-    // 取消之前的刷新计时器
-    this.cancelRefresh()
-    // 3秒后刷新页面
-    this.offlineRefreshTimer = window.setTimeout(() => {
-      console.log('网络离线，正在刷新页面...')
-      window.location.reload()
-    }, 3000)
-  }
-
-  private cancelRefresh(): void {
-    if (this.offlineRefreshTimer !== null) {
-      clearTimeout(this.offlineRefreshTimer)
-      this.offlineRefreshTimer = null
-    }
   }
 
   connect(): void {

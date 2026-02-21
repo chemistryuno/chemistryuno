@@ -87,9 +87,15 @@ const showToast = (
   }, 4000)
 }
 
+// 清除所有 toast
+const clearAllToasts = () => {
+  toasts.value = []
+}
+
 // 暴露方法供父组件调用
 defineExpose({
-  showToast
+  showToast,
+  clearAllToasts
 })
 </script>
 

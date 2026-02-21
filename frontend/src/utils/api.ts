@@ -1,4 +1,5 @@
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosResponse } from 'axios'
+import router from '../router'
 
 const api: AxiosInstance = axios.create({
   baseURL: '/api',
@@ -32,7 +33,12 @@ api.interceptors.response.use(
       const isAuthRequest = error.config.url.includes('/auth/login') || error.config.url.includes('/auth/webauthn/login')
 
       if (!isLoginPage && !isAuthRequest) {
-        window.location.href = '/login'
+        // 使用路由跳转而非页面刷新
+        const currentPath = window.location.pathname + window.location.search
+        router.push({
+          path: '/login',
+          query: { redirect: currentPath }
+        })
       }
     }
     return Promise.reject(error)

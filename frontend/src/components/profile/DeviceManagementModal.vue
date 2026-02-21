@@ -1,14 +1,15 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { authAPI } from '../../utils/api'
 import { useDialog } from '../../utils/dialog'
-import { 
-  X, 
-  Monitor, 
-  Smartphone, 
-  Globe, 
-  LogOut, 
-  Clock, 
+import {
+  X,
+  Monitor,
+  Smartphone,
+  Globe,
+  LogOut,
+  Clock,
   ShieldAlert,
   Snowflake,
   AlertTriangle,
@@ -23,6 +24,7 @@ const emit = defineEmits<{
   (e: 'close'): void
 }>()
 
+const router = useRouter()
 const { showAlert, showConfirm, showPrompt } = useDialog()
 const sessions = ref<any[]>([])
 const loading = ref(false)
@@ -62,7 +64,7 @@ const handleLogoutSession = async (session: any) => {
     if (session.is_current) {
       localStorage.removeItem('token')
       localStorage.removeItem('user')
-      window.location.href = '/login'
+      router.push('/login')
     } else {
       await fetchSessions()
       showAlert('已成功撤销该设备的访问权限', '操作完成')
@@ -97,7 +99,7 @@ const handleFreezeAccount = async () => {
     await authAPI.freezeAccount(hours)
     localStorage.removeItem('token')
     localStorage.removeItem('user')
-    window.location.href = '/login'
+    router.push('/login')
   } catch (err: any) {
     showAlert(err.response?.data?.error || '冻结失败', '错误')
   } finally {

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import websocket from './utils/websocket'
 import { gameAPI } from './utils/api'
 import CustomDialog from './components/CustomDialog.vue'
@@ -11,6 +11,7 @@ import { useDialog } from './utils/dialog'
 const loading = ref(true)
 const { showAlert, showConfirm, closeDialog } = useDialog()
 const route = useRoute()
+const router = useRouter()
 
 const activeDuelInvite = ref<any>(null)
 
@@ -24,7 +25,7 @@ const handleFeedbackUpdate = (msg: any) => {
 const handleDuelStart = (msg: any) => {
   if (msg.room_id) {
     showAlert('量子隧道已建立，正在进入单挑战场...', '单挑协议启动')
-    window.location.href = `/room/${msg.room_id}`
+    router.push(`/room/${msg.room_id}`)
   }
 }
 
@@ -46,7 +47,7 @@ const handleForceLogout = async (msg: any) => {
   websocket.disconnect()
   const reason = msg?.message || msg?.data || '您已被管理员强制下线'
   await showAlert(reason, '账号操作通知')
-  window.location.href = '/login'
+  router.push('/login')
 }
 
 const handleSystemAnnouncement = (msg: any) => {

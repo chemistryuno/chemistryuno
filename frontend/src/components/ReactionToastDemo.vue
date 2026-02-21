@@ -236,9 +236,9 @@ const showBurst = () => {
   }
 }
 
-// 清除所有（刷新页面实现）
+// 清除所有（不刷新页面）
 const clearAll = () => {
-  window.location.reload()
+  toastRef.value?.clearAllToasts()
 }
 </script>
 

@@ -148,6 +148,61 @@
               </button>
             </div>
           </div>
+
+          <!-- 过滤器标签 -->
+          <div class="flex flex-wrap items-center gap-3 mb-6 pb-6 border-b border-slate-100 dark:border-white/5">
+            <span class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mr-2">Quick Filters:</span>
+            
+            <!-- 状态过滤器 -->
+            <div class="flex items-center bg-slate-50 dark:bg-white/5 p-1 rounded-xl border border-slate-200 dark:border-white/10 overflow-x-auto no-scrollbar">
+              <button 
+                v-for="status in ['all', 'pending_coworker', 'pending_admin', 'approved', 'rejected']" 
+                :key="status"
+                @click="filterStatus = status"
+                :class="[
+                  'px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-tight transition-all whitespace-nowrap',
+                  filterStatus === status 
+                    ? 'bg-white dark:bg-emerald-500 text-emerald-600 dark:text-white shadow-sm' 
+                    : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                ]"
+              >
+                {{ status === 'all' ? 'All' : status.replace('pending_', 'P_').toUpperCase() }}
+              </button>
+            </div>
+
+            <!-- 特殊状态过滤器 -->
+            <button 
+              @click="filterNeedsImprovement = filterNeedsImprovement === true ? null : true"
+              :class="[
+                'px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-tight transition-all border',
+                filterNeedsImprovement === true
+                  ? 'bg-amber-500/10 border-amber-500/50 text-amber-600 dark:text-amber-400' 
+                  : 'bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+              ]"
+            >
+              需完善
+            </button>
+
+            <button 
+              @click="filterInvalidElements = filterInvalidElements === true ? null : true"
+              :class="[
+                'px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-tight transition-all border',
+                filterInvalidElements === true
+                  ? 'bg-red-500/10 border-red-500/50 text-red-600 dark:text-red-400' 
+                  : 'bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+              ]"
+            >
+              无效元素
+            </button>
+
+            <button 
+              v-if="filterStatus !== 'all' || filterNeedsImprovement !== null || filterInvalidElements !== null"
+              @click="() => { filterStatus = 'all'; filterNeedsImprovement = null; filterInvalidElements = null; searchTerm = '' }"
+              class="text-[10px] font-black text-slate-400 hover:text-red-500 transition-colors uppercase ml-2 flex items-center gap-1"
+            >
+              <Plus class="w-3 h-3 rotate-45" /> Clear All
+            </button>
+          </div>
           
           <div class="overflow-x-auto custom-scrollbar">
             <table class="w-full text-left">
@@ -190,7 +245,7 @@
                     <span :class="[
                       'px-1.5 py-0.5 rounded text-[8px] font-black uppercase letter-spacing-widest border',
                       sub.status === 'approved' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
-                      sub.status === 'pending' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
+                      sub.status.startsWith('pending') ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
                       'bg-red-500/10 text-red-400 border-red-500/20'
                     ]">
                       {{ sub.status }}
@@ -198,6 +253,10 @@
                     <span v-if="sub.needs_improvement" class="px-1.5 py-0.5 rounded text-[8px] font-black uppercase letter-spacing-widest bg-amber-500/10 text-amber-500 border border-amber-500/20 flex items-center gap-1">
                       <AlertTriangle class="w-2.5 h-2.5" />
                       需完善
+                    </span>
+                    <span v-if="sub.has_invalid_elements" class="px-1.5 py-0.5 rounded text-[8px] font-black uppercase letter-spacing-widest bg-red-500/10 text-red-500 border border-red-500/20 flex items-center gap-1">
+                      <AlertTriangle class="w-2.5 h-2.5" />
+                      无效元素
                     </span>
                   </td>
                   <td class="px-4 py-3">
@@ -272,7 +331,9 @@ interface Substance {
   name: string
   elements: string
   status: string
+  group_id: number | null
   needs_improvement: boolean
+  has_invalid_elements: boolean
   creator_name: string
   created_at: string
 }
@@ -295,6 +356,11 @@ const loading = ref(false)
 const searchTerm = ref('')
 const editingId = ref<number | null>(null)
 const form = ref({ formula: '', name: '' })
+
+// 过滤状态
+const filterStatus = ref<string>('all')
+const filterNeedsImprovement = ref<boolean | null>(null)
+const filterInvalidElements = ref<boolean | null>(null)
 
 // 批量选择状态
 const selectedSubstances = ref<Set<number>>(new Set())
@@ -441,7 +507,10 @@ const handleBatchApprove = async () => {
   if (!confirmed) return
 
   try {
-    const groupIDs = Array.from(selectedSubstances.value)
+    const groupIDs = Array.from(selectedSubstances.value).map(id => {
+      const sub = substances.value.find(s => s.id === id)
+      return sub?.group_id || id
+    })
     const response = await adminAPI.batchApproveSubstances(groupIDs)
     showAlert(response.data.message || '批量批准成功', '完成')
     selectedSubstances.value.clear()
@@ -464,7 +533,10 @@ const handleBatchReject = async () => {
   if (!confirmed) return
 
   try {
-    const groupIDs = Array.from(selectedSubstances.value)
+    const groupIDs = Array.from(selectedSubstances.value).map(id => {
+      const sub = substances.value.find(s => s.id === id)
+      return sub?.group_id || id
+    })
     const response = await adminAPI.batchRejectSubstances(groupIDs)
     showAlert(response.data.message || '批量拒绝成功', '完成')
     selectedSubstances.value.clear()
@@ -476,12 +548,33 @@ const handleBatchReject = async () => {
 }
 
 const filteredSubstances = computed(() => {
-  if (!searchTerm.value) return substances.value
-  const term = searchTerm.value
-  return substances.value.filter(s => 
-    s.formula.includes(term) || 
-    s.name.toLowerCase().includes(term.toLowerCase())
-  )
+  let filtered = substances.value
+
+  // 1. 搜索词筛选
+  if (searchTerm.value) {
+    const term = searchTerm.value.toLowerCase()
+    filtered = filtered.filter(s => 
+      s.formula.toLowerCase().includes(term) || 
+      s.name.toLowerCase().includes(term)
+    )
+  }
+
+  // 2. 状态筛选
+  if (filterStatus.value !== 'all') {
+    filtered = filtered.filter(s => s.status === filterStatus.value)
+  }
+
+  // 3. 需完善筛选
+  if (filterNeedsImprovement.value !== null) {
+    filtered = filtered.filter(s => s.needs_improvement === filterNeedsImprovement.value)
+  }
+
+  // 4. 无效元素筛选
+  if (filterInvalidElements.value !== null) {
+    filtered = filtered.filter(s => s.has_invalid_elements === filterInvalidElements.value)
+  }
+
+  return filtered
 })
 
 onMounted(fetchSubstances)

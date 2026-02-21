@@ -167,6 +167,18 @@ func (r *UserRepository) UpdateNickname(uid uint, nickname string) error {
 	return r.db.Model(&database.User{}).Where("uid = ?", uid).Update("nickname", nickname).Error
 }
 
+// UpdateProfile 更新个人资料
+func (r *UserRepository) UpdateProfile(uid uint, nickname, bio, wechat, qq, customContact string, showEmail bool) error {
+	return r.db.Model(&database.User{}).Where("uid = ?", uid).Updates(map[string]interface{}{
+		"nickname":       nickname,
+		"bio":            bio,
+		"wechat":         wechat,
+		"qq":             qq,
+		"show_email":     showEmail,
+		"custom_contact": customContact,
+	}).Error
+}
+
 // Delete 删除用户（软删除）
 func (r *UserRepository) Delete(uid uint) error {
 	return r.db.Delete(&database.User{}, uid).Error

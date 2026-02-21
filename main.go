@@ -257,7 +257,7 @@ func main() {
 			auth.GET("/user/game-history", handlers.GetMyGameHistory)
 			auth.PUT("/user/password", handlers.ChangePassword)
 			auth.PUT("/user/avatar", handlers.UpdateAvatar)
-			auth.PUT("/user/nickname", handlers.UpdateNickname)
+			auth.PUT("/user/profile", handlers.UpdateProfile)
 			auth.DELETE("/user/account", handlers.DeleteAccount)
 			auth.GET("/users/search", handlers.SearchUsers)
 

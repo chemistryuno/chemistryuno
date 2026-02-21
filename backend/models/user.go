@@ -33,6 +33,11 @@ type User struct {
 	LastMonthlyResetAt time.Time             `json:"last_monthly_reset_at" db:"last_monthly_reset_at"`
 	WebAuthnIDRaw      string                `json:"-" db:"webauthn_id"`
 	CreatedAt          time.Time             `json:"created_at" db:"created_at"`
+	Bio                string                `json:"bio" db:"bio"`
+	Wechat             string                `json:"wechat" db:"wechat"`
+	QQ                 string                `json:"qq" db:"qq"`
+	ShowEmail          bool                  `json:"show_email" db:"show_email"`
+	CustomContact      string                `json:"custom_contact" db:"custom_contact"`
 	Credentials        []webauthn.Credential `json:"-" db:"-"`
 }
 
@@ -154,7 +159,12 @@ type UpdateAvatarRequest struct {
 }
 
 type UpdateProfileRequest struct {
-	Nickname string `json:"nickname" binding:"required,min=1,max=20"`
+	Nickname      string `json:"nickname" binding:"required,min=1,max=20"`
+	Bio           string `json:"bio"`
+	Wechat        string `json:"wechat"`
+	QQ            string `json:"qq"`
+	ShowEmail     bool   `json:"show_email"`
+	CustomContact string `json:"custom_contact"`
 }
 
 type ChangeEmailRequest struct {

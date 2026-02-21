@@ -84,6 +84,11 @@ type User struct {
 	GoogleID           string         `gorm:"size:100;index" json:"google_id,omitempty"`
 	AppleID            string         `gorm:"size:100;index" json:"apple_id,omitempty"`
 	OAuthProvider      string         `gorm:"size:20" json:"oauth_provider,omitempty"`
+	Bio                string         `gorm:"size:500;default:''" json:"bio"`
+	Wechat             string         `gorm:"size:100;default:''" json:"wechat"`
+	QQ                 string         `gorm:"size:100;default:''" json:"qq"`
+	ShowEmail          bool           `gorm:"default:false" json:"show_email"`
+	CustomContact      string         `gorm:"size:255;default:''" json:"custom_contact"`
 	CreatedAt          time.Time      `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt          time.Time      `gorm:"autoUpdateTime" json:"updated_at"`
 	DeletedAt          gorm.DeletedAt `gorm:"index" json:"-"`

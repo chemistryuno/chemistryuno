@@ -414,8 +414,8 @@ func UpdateAvatar(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "头像更新成功", "avatar": req.Avatar})
 }
 
-// 更新昵称
-func UpdateNickname(c *gin.Context) {
+// UpdateProfile 更新个人资料
+func UpdateProfile(c *gin.Context) {
 	uid := c.GetInt("uid")
 
 	var req models.UpdateProfileRequest
@@ -425,13 +425,21 @@ func UpdateNickname(c *gin.Context) {
 	}
 
 	userRepo := repository.NewUserRepository()
-	err := userRepo.UpdateNickname(uint(uid), req.Nickname)
+	err := userRepo.UpdateProfile(uint(uid), req.Nickname, req.Bio, req.Wechat, req.QQ, req.CustomContact, req.ShowEmail)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新昵称失败"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新资料失败"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "昵称更新成功", "nickname": req.Nickname})
+	c.JSON(http.StatusOK, gin.H{
+		"message":        "资料更新成功",
+		"nickname":       req.Nickname,
+		"bio":            req.Bio,
+		"wechat":         req.Wechat,
+		"qq":             req.QQ,
+		"show_email":     req.ShowEmail,
+		"custom_contact": req.CustomContact,
+	})
 }
 
 // GetAuthConfig 获取鉴权配置模式

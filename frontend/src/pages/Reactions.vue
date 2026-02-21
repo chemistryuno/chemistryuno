@@ -149,6 +149,49 @@
               </button>
             </div>
           </div>
+
+          <!-- 过滤器标签 -->
+          <div class="flex flex-wrap items-center gap-3 mb-6 pb-6 border-b border-slate-100 dark:border-white/5">
+            <span class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mr-2">Quick Filters:</span>
+            
+            <!-- 状态过滤器 -->
+            <div class="flex items-center bg-slate-50 dark:bg-white/5 p-1 rounded-xl border border-slate-200 dark:border-white/10 overflow-x-auto custom-scrollbar no-scrollbar">
+              <button 
+                v-for="status in ['all', 'pending_coworker', 'pending_admin', 'approved', 'rejected']" 
+                :key="status"
+                @click="filterStatus = status"
+                :class="[
+                  'px-3 py-1.5 rounded-lg text-[8px] sm:text-[10px] font-black uppercase tracking-tight transition-all whitespace-nowrap',
+                  filterStatus === status 
+                    ? 'bg-white dark:bg-blue-500 text-blue-600 dark:text-white shadow-sm' 
+                    : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                ]"
+              >
+                {{ status === 'all' ? 'All' : status.replace('pending_', 'P_').toUpperCase() }}
+              </button>
+            </div>
+
+            <!-- 特殊状态过滤器 -->
+            <button 
+              @click="filterInvalidElements = filterInvalidElements === true ? null : true"
+              :class="[
+                'px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-tight transition-all border',
+                filterInvalidElements === true
+                  ? 'bg-red-500/10 border-red-500/50 text-red-600 dark:text-red-400' 
+                  : 'bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+              ]"
+            >
+              无效元素
+            </button>
+
+            <button 
+              v-if="filterStatus !== 'all' || filterInvalidElements !== null"
+              @click="() => { filterStatus = 'all'; filterInvalidElements = null; searchTerm = '' }"
+              class="text-[10px] font-black text-slate-400 hover:text-red-500 transition-colors uppercase ml-2 flex items-center gap-1"
+            >
+              <Plus class="w-3 h-3 rotate-45" /> Clear All
+            </button>
+          </div>
           
           <div class="overflow-x-auto custom-scrollbar">
             <table class="w-full text-left">
@@ -349,6 +392,10 @@ const editForm = ref({ display: '' })
 const selectedReactions = ref<Set<number>>(new Set())
 const selectAllReactions = ref(false)
 
+// 过滤状态
+const filterStatus = ref<string>('all')
+const filterInvalidElements = ref<boolean | null>(null)
+
 const handleEdit = (reaction: any) => {
   editingReactionId.value = reaction.id
   editForm.value.display = reaction.display
@@ -456,9 +503,27 @@ const handleFileUpload = async (event: Event) => {
 }
 
 const filteredReactions = computed(() => {
-  return reactions.value.filter(r =>
-    r.display.toLowerCase().includes(searchTerm.value.toLowerCase())
-  )
+  let filtered = reactions.value
+
+  // 1. 搜索词筛选
+  if (searchTerm.value) {
+    const term = searchTerm.value.toLowerCase()
+    filtered = filtered.filter(r => 
+      r.display.toLowerCase().includes(term)
+    )
+  }
+
+  // 2. 状态筛选
+  if (filterStatus.value !== 'all') {
+    filtered = filtered.filter(r => r.status === filterStatus.value)
+  }
+
+  // 3. 无效元素筛选
+  if (filterInvalidElements.value !== null) {
+    filtered = filtered.filter(r => (r.has_invalid_elements || false) === filterInvalidElements.value)
+  }
+
+  return filtered
 })
 
 // 批量操作相关
@@ -511,7 +576,10 @@ const handleBatchApproveReactions = async () => {
   if (!confirmed) return
 
   try {
-    const groupIDs = Array.from(selectedReactions.value)
+    const groupIDs = Array.from(selectedReactions.value).map(id => {
+      const rxn = reactions.value.find(r => r.id === id)
+      return rxn?.group_id || id
+    })
     const response = await adminAPI.batchApproveReactions(groupIDs)
     showAlert(response.data.message || '批量批准成功', '完成')
     selectedReactions.value.clear()
@@ -534,7 +602,10 @@ const handleBatchRejectReactions = async () => {
   if (!confirmed) return
 
   try {
-    const groupIDs = Array.from(selectedReactions.value)
+    const groupIDs = Array.from(selectedReactions.value).map(id => {
+      const rxn = reactions.value.find(r => r.id === id)
+      return rxn?.group_id || id
+    })
     const response = await adminAPI.batchRejectReactions(groupIDs)
     showAlert(response.data.message || '批量拒绝成功', '完成')
     selectedReactions.value.clear()

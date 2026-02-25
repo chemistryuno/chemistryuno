@@ -84,8 +84,8 @@ const handleSubmit = async () => {
       return
     }
 
-    const { token, user, announcements } = response.data
-    handleLoginSuccess(token, user, announcements)
+    const { token, user, announcements, is_returning_player, days_since_last_login } = response.data
+    handleLoginSuccess(token, user, announcements, is_returning_player, days_since_last_login)
   } catch (err: any) {
     const data = err.response?.data
     if (data?.banned_until) {
@@ -109,8 +109,8 @@ const handle2FAVerify = async () => {
 
   try {
     const response = await authAPI.verify2FALogin(tempUID.value, twoFactorCode.value)
-    const { token, user, announcements } = response.data
-    handleLoginSuccess(token, user, announcements)
+    const { token, user, announcements, is_returning_player, days_since_last_login } = response.data
+    handleLoginSuccess(token, user, announcements, is_returning_player, days_since_last_login)
   } catch (err: any) {
     error.value = err.response?.data?.error || '2FA验证失败'
   } finally {
@@ -118,10 +118,24 @@ const handle2FAVerify = async () => {
   }
 }
 
-const handleLoginSuccess = (token: string, user: any, announcements: any[] = []) => {
+const handleLoginSuccess = (token: string, user: any, announcements: any[] = [], isReturningPlayer: boolean = false, daysSinceLastLogin: number = 0) => {
   localStorage.setItem('token', token)
   localStorage.setItem('user', JSON.stringify(user))
   websocket.connect()
+
+  // 处理回归玩家
+  if (isReturningPlayer) {
+    // 清除已完成的大厅教程标记，重新触发新手指引
+    localStorage.removeItem('chemistry-uno-lobby-tutorial-completed')
+    console.log(`[老玩家回归] 用户 ${user.nickname} 距离上次登录 ${daysSinceLastLogin} 天，自动触发新手指引`)
+
+    // 显示欢迎回归消息
+    dialog.showAlert(
+      `欢迎老玩家${user.nickname}回归！您已经 ${daysSinceLastLogin} 天没有登录了，让我们重新熟悉一下游戏界面吧！`,
+      '🎉 欢迎回归',
+      '开始指引'
+    )
+  }
 
   //处理登录时的公告
   if (announcements && announcements.length > 0) {

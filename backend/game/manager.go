@@ -272,11 +272,11 @@ func getGlobalDeckConfigFromDB() (map[string]int, string, int) {
 
 // 创建房间
 func CreateRoom(name string, creatorUID int, creatorName string, maxPlayers int, deckID int, isPointsMode bool, isPrivate bool) (*models.Room, error) {
-	return CreateRoomWithKey(name, creatorUID, creatorName, maxPlayers, deckID, isPointsMode, isPrivate, "", false, 0, 0, false, 0, false, 5)
+	return CreateRoomWithKey(name, creatorUID, creatorName, maxPlayers, deckID, isPointsMode, isPrivate, "", false, 0, 0, false, 0, false, 5, false)
 }
 
 // 创建房间（支持自定义访问密钥）
-func CreateRoomWithKey(name string, creatorUID int, creatorName string, maxPlayers int, deckID int, isPointsMode bool, isPrivate bool, customKey string, isPvE bool, difficulty int, aiCount int, enableAIBackfill bool, aiBackfillDifficulty int, isRanked bool, levelRange int) (*models.Room, error) {
+func CreateRoomWithKey(name string, creatorUID int, creatorName string, maxPlayers int, deckID int, isPointsMode bool, isPrivate bool, customKey string, isPvE bool, difficulty int, aiCount int, enableAIBackfill bool, aiBackfillDifficulty int, isRanked bool, levelRange int, tutorialScript bool) (*models.Room, error) {
 	if isPointsMode && isPrivate && !isPvE {
 		return nil, errors.New("积分模式下不可创建私密房间")
 	}
@@ -411,6 +411,7 @@ func CreateRoomWithKey(name string, creatorUID int, creatorName string, maxPlaye
 		MaxLevel:             maxLevel,
 		CreatedByUID:         creatorUID,
 		CreatedAt:            time.Now(),
+		TutorialScript:       tutorialScript,
 	}
 
 	gameRoom := &GameRoom{
@@ -426,6 +427,8 @@ func CreateRoomWithKey(name string, creatorUID int, creatorName string, maxPlaye
 			room.Players = append(room.Players, aiUID)
 			room.ReadyUIDs = append(room.ReadyUIDs, aiUID) // AI 默认已准备
 		}
+		// PvE 模式下，人类玩家也自动准备（无需等待）
+		room.ReadyUIDs = append(room.ReadyUIDs, creatorUID)
 	}
 
 	roomMutex.Lock()
@@ -1403,6 +1406,14 @@ func StartGame(roomID string, uid int) error {
 		PendingDrawCount:    0,
 		PendingDrawTypes:    nil,
 		AllowedAnyPlayer:    -1,
+		TutorialScriptMode:  gameRoom.Room.TutorialScript,
+		TutorialCurrentStep: 1, // 从第一步开始
+	}
+
+	// 脚本化教学模式：使用固定配置
+	if gameRoom.Room.TutorialScript {
+		log.Printf("[教学脚本] 启用脚本化教学模式，使用固定手牌和初始配置")
+		return initTutorialGame(gameRoom, roomID)
 	}
 
 	// 创建牌堆
@@ -1678,6 +1689,150 @@ func StartGame(roomID string, uid int) error {
 	return nil
 }
 
+// initTutorialGame 初始化教学脚本游戏
+func initTutorialGame(gameRoom *GameRoom, roomID string) error {
+	log.Printf("[教学脚本] 开始初始化教学关卡...")
+
+	// 固定手牌配置
+	humanHand := []string{"Na", "Mg", "O", "H", "Au", "Ar", "+2"}
+	aiHand := []string{"H", "Cl", "Br", "Al", "Fe", "Zn", "K"}
+	initialDiscard := "Cl2"
+
+	// 确定玩家顺序（人类玩家先手）
+	var humanUID, aiUID int
+	for _, pid := range gameRoom.Room.Players {
+		if pid >= 0 {
+			humanUID = pid
+		} else {
+			aiUID = pid
+		}
+	}
+
+	// 准备AI昵称
+	aiNames := []string{"门捷列夫", "拉瓦锡", "居里夫人", "道尔顿"}
+	aiName := aiNames[rand.Intn(len(aiNames))]
+
+	// 创建人类玩家状态
+	humanUser, err := repository.UserRepo.FindByUID(uint(humanUID))
+	humanUsername := fmt.Sprintf("Player_%d", humanUID)
+	humanNickname := humanUsername
+	humanAvatar := "🧪"
+	if err == nil {
+		humanUsername = humanUser.Username
+		humanNickname = humanUser.Nickname
+		if humanNickname == "" {
+			humanNickname = humanUsername
+		}
+		humanAvatar = humanUser.Avatar
+	}
+
+	humanPlayer := &models.PlayerState{
+		UID:                   humanUID,
+		Username:              humanUsername,
+		Nickname:              humanNickname,
+		Avatar:                humanAvatar,
+		HandCards:             []models.Card{},
+		CardCount:             len(humanHand),
+		IsReady:               true,
+		DoubleActionAvailable: false,
+		ActionProgress:        0,
+		IsAI:                  false,
+		IsHosted:              false,
+	}
+
+	// 添加人类玩家手牌
+	for _, cardType := range humanHand {
+		effect := getCardEffect(cardType)
+		humanPlayer.HandCards = append(humanPlayer.HandCards, models.Card{
+			Type:   cardType,
+			Count:  1,
+			Effect: effect,
+		})
+	}
+
+	// 创建AI玩家状态
+	aiPlayer := &models.PlayerState{
+		UID:                   aiUID,
+		Username:              fmt.Sprintf("AI_%d", -aiUID),
+		Nickname:              aiName,
+		Avatar:                "🤖",
+		HandCards:             []models.Card{},
+		CardCount:             len(aiHand),
+		IsReady:               true,
+		DoubleActionAvailable: false,
+		ActionProgress:        0,
+		IsAI:                  true,
+		IsHosted:              false,
+	}
+
+	// 添加AI手牌
+	for _, cardType := range aiHand {
+		effect := getCardEffect(cardType)
+		aiPlayer.HandCards = append(aiPlayer.HandCards, models.Card{
+			Type:   cardType,
+			Count:  1,
+			Effect: effect,
+		})
+	}
+
+	// 设置玩家顺序（人类先手）
+	gameRoom.GameState.Players = []*models.PlayerState{humanPlayer, aiPlayer}
+
+	// 设置初始场上牌
+	initialCard := models.Card{
+		Type:   initialDiscard,
+		Count:  1,
+		Effect: "",
+	}
+	playedCard := models.PlayedCard{
+		Card:      initialCard,
+		Substance: initialDiscard,
+		PlayerUID: 0, // 系统出牌
+	}
+	gameRoom.GameState.DiscardPile = append(gameRoom.GameState.DiscardPile, playedCard)
+	gameRoom.GameState.LastCard = &gameRoom.GameState.DiscardPile[0]
+
+	// 创建基础牌堆（用于摸牌，包含常见物质）
+	basicDeck := []string{
+		"H2O", "CO2", "NaCl", "H2SO4", "HNO3", "NH3", "CH4",
+		"O2", "N2", "H2", "Cl2", "Br2", "I2",
+		"Na", "K", "Ca", "Mg", "Al", "Fe", "Cu", "Zn", "Ag", "Au",
+		"NaOH", "KOH", "Ca(OH)2", "HCl", "HBr", "HI",
+		"+2", "+2", "reverse",
+	}
+	for _, cardType := range basicDeck {
+		effect := getCardEffect(cardType)
+		gameRoom.GameState.DrawPile = append(gameRoom.GameState.DrawPile, models.Card{
+			Type:   cardType,
+			Count:  1,
+			Effect: effect,
+		})
+	}
+
+	// 洗牌
+	rand.Shuffle(len(gameRoom.GameState.DrawPile), func(i, j int) {
+		gameRoom.GameState.DrawPile[i], gameRoom.GameState.DrawPile[j] =
+			gameRoom.GameState.DrawPile[j], gameRoom.GameState.DrawPile[i]
+	})
+
+	// 设置房间状态为进行中
+	gameRoom.Room.Status = "playing"
+
+	// 记录人类玩家的回合开始时间
+	repository.UserRepo.UpdateTurnStartedAt(uint(humanUID), time.Now())
+
+	log.Printf("[教学脚本] ✅ 教学关卡初始化完成")
+	log.Printf("[教学脚本] 👤 人类玩家: %s (UID:%d), 手牌: %v", humanUsername, humanUID, humanHand)
+	log.Printf("[教学脚本] 🤖 AI玩家: %s (UID:%d), 手牌: %v", aiName, aiUID, aiHand)
+	log.Printf("[教学脚本] 🎴 初始场上牌: %s", initialDiscard)
+	log.Printf("[教学脚本] 📊 牌堆剩余: %d张", len(gameRoom.GameState.DrawPile))
+
+	// 检查第一位玩家（应该是人类）
+	go gameRoom.CheckNextTurnAI()
+
+	return nil
+}
+
 // 获取房间状态（为当前玩家过滤信息）
 func GetRoomState(roomID string, uid int) (map[string]interface{}, error) {
 	roomMutex.RLock()
@@ -1928,6 +2083,48 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 	// 直接使用元素符号，不进行单质转换
 	if substance == "" {
 		substance = card.Type // 直接使用元素符号（如 H）
+	}
+
+	// 🎓 教学脚本模式：严格验证出牌是否符合当前步骤
+	if gameRoom.GameState.TutorialScriptMode {
+		currentStep := gameRoom.GameState.TutorialCurrentStep
+
+		// 教学脚本定义（与AI脚本保持一致）
+		type TutorialStep struct {
+			StepNumber int
+			Player     string
+			Action     string
+			Substance  string
+		}
+
+		tutorialSteps := []TutorialStep{
+			{1, "human", "play", "Mg"},
+			{2, "ai", "play", "HCl"},
+			{3, "human", "play", "NaOH"},
+			{4, "ai", "play", "Br2"},
+			{5, "human", "play", "Ar"},
+			{6, "ai", "draw", ""},
+			{7, "human", "play", "Au"},
+			{8, "human", "play", "+2"},
+		}
+
+		// 查找当前步骤
+		var currentScriptStep *TutorialStep
+		for i := range tutorialSteps {
+			if tutorialSteps[i].StepNumber == currentStep {
+				currentScriptStep = &tutorialSteps[i]
+				break
+			}
+		}
+
+		if currentScriptStep != nil && currentScriptStep.Player == "human" {
+			if substance != currentScriptStep.Substance {
+				log.Printf("[教学脚本] ❌ 玩家尝试打出 %s，但当前步骤 %d 要求打出 %s",
+					substance, currentStep, currentScriptStep.Substance)
+				return errors.New(fmt.Sprintf("请按照教程出牌，当前步骤应打出 %s", currentScriptStep.Substance))
+			}
+			log.Printf("[教学脚本] ✅ 玩家正确打出 %s (步骤 %d)", substance, currentStep)
+		}
 	}
 
 	// +2/4/Au/换向牌可随意打出，无需反应条件
@@ -2288,6 +2485,12 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 			// 前端需要根据 finished_players 列表展示"已完成"状态
 			log.Printf("玩家 %d 完成游戏，剩余活跃玩家: %d", uid, activeCount)
 		}
+	}
+
+	// 🎓 教学脚本模式：递增步骤
+	if gameRoom.GameState.TutorialScriptMode {
+		gameRoom.GameState.TutorialCurrentStep++
+		log.Printf("[教学脚本] 📈 步骤递增至 %d", gameRoom.GameState.TutorialCurrentStep)
 	}
 
 	// 检查下一位是否是 AI

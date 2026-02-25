@@ -1,0 +1,224 @@
+/**
+ * CSS 变量和主题
+ * 统一管理颜色、尺寸等设计令牌
+ */
+
+:root {
+  /* ==================== 颜色系统 ==================== */
+
+  /* 主色调 */
+  --color-primary: #3b82f6;
+  --color-primary-light: #60a5fa;
+  --color-primary-dark: #2563eb;
+
+  /* 辅助色 */
+  --color-secondary: #8b5cf6;
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-danger: #ef4444;
+  --color-info: #06b6d4;
+
+  /* 中性色 */
+  --color-slate-50: #f8fafc;
+  --color-slate-100: #f1f5f9;
+  --color-slate-200: #e2e8f0;
+  --color-slate-300: #cbd5e1;
+  --color-slate-400: #94a3b8;
+  --color-slate-500: #64748b;
+  --color-slate-600: #475569;
+  --color-slate-700: #334155;
+  --color-slate-800: #1e293b;
+  --color-slate-900: #0f172a;
+
+  /* ==================== 间距系统 ==================== */
+
+  --spacing-xs: 0.25rem;   /* 4px */
+  --spacing-sm: 0.5rem;    /* 8px */
+  --spacing-md: 1rem;      /* 16px */
+  --spacing-lg: 1.5rem;    /* 24px */
+  --spacing-xl: 2rem;      /* 32px */
+  --spacing-2xl: 3rem;     /* 48px */
+  --spacing-3xl: 4rem;     /* 64px */
+
+  /* ==================== 字体系统 ==================== */
+
+  /* 字体大小 */
+  --text-xs: 0.75rem;      /* 12px */
+  --text-sm: 0.875rem;     /* 14px */
+  --text-base: 1rem;       /* 16px */
+  --text-lg: 1.125rem;     /* 18px */
+  --text-xl: 1.25rem;      /* 20px */
+  --text-2xl: 1.5rem;      /* 24px */
+  --text-3xl: 1.875rem;    /* 30px */
+  --text-4xl: 2.25rem;     /* 36px */
+
+  /* 字体粗细 */
+  --font-normal: 400;
+  --font-medium: 500;
+  --font-semibold: 600;
+  --font-bold: 700;
+  --font-black: 900;
+
+  /* 行高 */
+  --leading-tight: 1.25;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.75;
+
+  /* ==================== 圆角系统 ==================== */
+
+  --radius-sm: 0.25rem;    /* 4px */
+  --radius-md: 0.5rem;     /* 8px */
+  --radius-lg: 0.75rem;    /* 12px */
+  --radius-xl: 1rem;       /* 16px */
+  --radius-2xl: 1.5rem;    /* 24px */
+  --radius-full: 9999px;
+
+  /* ==================== 阴影系统 ==================== */
+
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+  --shadow-2xl: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+
+  /* ==================== Z-Index 系统 ==================== */
+
+  --z-base: 1;
+  --z-dropdown: 50;
+  --z-sticky: 100;
+  --z-fixed: 200;
+  --z-modal-backdrop: 1000;
+  --z-modal: 1010;
+  --z-popover: 1020;
+  --z-toast: 1030;
+  --z-tooltip: 1040;
+  --z-tutorial: 9999;
+
+  /* ==================== 过渡时长 ==================== */
+
+  --duration-fast: 150ms;
+  --duration-base: 300ms;
+  --duration-slow: 500ms;
+
+  /* ==================== 缓动函数 ==================== */
+
+  --ease-linear: linear;
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-elastic: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+
+  /* ==================== 游戏专用颜色 ==================== */
+
+  /* 反应类型配色 */
+  --color-synthesis: #06b6d4;
+  --color-decomposition: #f97316;
+  --color-displacement: #a855f7;
+  --color-combustion: #fb923c;
+  --color-neutralization: #10b981;
+
+  /* 等级配色 */
+  --color-level-bronze: #cd7f32;
+  --color-level-silver: #c0c0c0;
+  --color-level-gold: #ffd700;
+  --color-level-platinum: #e5e4e2;
+  --color-level-diamond: #b9f2ff;
+
+  /* ==================== 背景渐变 ==================== */
+
+  --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --gradient-blue: linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%);
+  --gradient-purple: linear-gradient(135deg, #a855f7 0%, #7e22ce 100%);
+  --gradient-orange: linear-gradient(135deg, #fb923c 0%, #f59e0b 100%);
+  --gradient-green: linear-gradient(135deg, #10b981 0%, #047857 100%);
+}
+
+/* ==================== 暗色主题 ==================== */
+
+.dark {
+  /* 覆盖暗色模式下的颜色变量 */
+  --color-bg-primary: #0f172a;
+  --color-bg-secondary: #1e293b;
+  --color-bg-tertiary: #334155;
+
+  --color-text-primary: #f8fafc;
+  --color-text-secondary: #cbd5e1;
+  --color-text-tertiary: #94a3b8;
+
+  --color-border: rgba(255, 255, 255, 0.1);
+}
+
+/* ==================== 亮色主题 ==================== */
+
+.light {
+  --color-bg-primary: #ffffff;
+  --color-bg-secondary: #f8fafc;
+  --color-bg-tertiary: #f1f5f9;
+
+  --color-text-primary: #0f172a;
+  --color-text-secondary: #475569;
+  --color-text-tertiary: #64748b;
+
+  --color-border: rgba(0, 0, 0, 0.1);
+}
+
+/* ==================== 工具类 ==================== */
+
+.color-primary {
+  color: var(--color-primary);
+}
+
+.color-success {
+  color: var(--color-success);
+}
+
+.color-warning {
+  color: var(--color-warning);
+}
+
+.color-danger {
+  color: var(--color-danger);
+}
+
+.bg-primary {
+  background-color: var(--color-primary);
+}
+
+.bg-glass {
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(10px);
+}
+
+.dark .bg-glass {
+  background: rgba(15, 23, 42, 0.9);
+}
+
+/* ==================== 响应式断点 ==================== */
+
+/* 移动端最小尺寸 */
+@media (min-width: 375px) {
+  :root {
+    --container-padding: 1rem;
+  }
+}
+
+/* 平板 */
+@media (min-width: 768px) {
+  :root {
+    --container-padding: 1.5rem;
+  }
+}
+
+/* 桌面 */
+@media (min-width: 1024px) {
+  :root {
+    --container-padding: 2rem;
+  }
+}
+
+/* 大屏 */
+@media (min-width: 1280px) {
+  :root {
+    --container-padding: 3rem;
+  }
+}

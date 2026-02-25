@@ -60,6 +60,9 @@ func CreateRoom(c *gin.Context) {
 		// 等级匹配系统
 		IsRanked   bool `json:"is_ranked"`    // 是否为排位模式
 		LevelRange int  `json:"level_range"`  // 允许的等级范围（默认5）
+
+		// 教学脚本系统
+		TutorialScript bool `json:"tutorial_script"` // 是否启用脚本化教学
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -103,7 +106,7 @@ func CreateRoom(c *gin.Context) {
 	uid := c.GetInt("uid")
 	username := c.GetString("username")
 
-	room, err := game.CreateRoomWithKey(req.Name, uid, username, req.MaxPlayers, req.DeckID, req.IsPointsMode, req.IsPrivate, req.AccessKey, req.IsPvE, req.PvEDifficulty, req.AICount, req.EnableAIBackfill, req.AIBackfillDifficulty, req.IsRanked, req.LevelRange)
+	room, err := game.CreateRoomWithKey(req.Name, uid, username, req.MaxPlayers, req.DeckID, req.IsPointsMode, req.IsPrivate, req.AccessKey, req.IsPvE, req.PvEDifficulty, req.AICount, req.EnableAIBackfill, req.AIBackfillDifficulty, req.IsRanked, req.LevelRange, req.TutorialScript)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

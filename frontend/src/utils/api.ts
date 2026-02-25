@@ -127,7 +127,7 @@ export const authAPI = {
 export const gameAPI = {
   getRooms: () =>
     api.get('/rooms'),
-  createRoom: (name: string, maxPlayers: number, deckID: number, isPointsMode: boolean = false, isPrivate: boolean = false, accessKey?: string, isPvE: boolean = false, pveDifficulty: number = 0, aiCount: number = 0, enableAIBackfill: boolean = false, aiBackfillDifficulty: number = 50, isRanked: boolean = false, levelRange: number = 5) =>
+  createRoom: (name: string, maxPlayers: number, deckID: number, isPointsMode: boolean = false, isPrivate: boolean = false, accessKey?: string, isPvE: boolean = false, pveDifficulty: number = 0, aiCount: number = 0, enableAIBackfill: boolean = false, aiBackfillDifficulty: number = 50, isRanked: boolean = false, levelRange: number = 5, tutorialScript: boolean = false) =>
     api.post('/rooms', {
       name,
       max_players: maxPlayers,
@@ -141,7 +141,8 @@ export const gameAPI = {
       enable_ai_backfill: enableAIBackfill,
       ai_backfill_difficulty: aiBackfillDifficulty,
       is_ranked: isRanked,
-      level_range: levelRange
+      level_range: levelRange,
+      tutorial_script: tutorialScript
     }),
   getRoomState: (roomId: string) =>
     api.get(`/rooms/${roomId}`),

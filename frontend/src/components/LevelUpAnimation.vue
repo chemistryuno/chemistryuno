@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import feedback from '../utils/feedback'
 import { Zap, TrendingUp, Award } from 'lucide-vue-next'
 
 interface LevelUpData {
@@ -57,16 +58,7 @@ function hide() {
 
 // 播放升级音效
 function playLevelUpSound() {
-  // 可以在这里添加音效播放逻辑
-  try {
-    const audio = new Audio('/sounds/levelup.mp3')
-    audio.volume = 0.5
-    audio.play().catch(() => {
-      // 忽略音频播放错误
-    })
-  } catch (error) {
-    // 忽略错误
-  }
+  feedback.levelUp()
 }
 
 // 暴露方法

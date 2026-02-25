@@ -45,6 +45,13 @@ func (gr *GameRoom) TriggerAITurn() {
 
 	log.Printf("[AI] 🤖 AI %d 立即行动...", currentPlayer.UID)
 
+	// 教学脚本模式：按照脚本执行固定操作
+	if gr.GameState.TutorialScriptMode {
+		gr.executeTutorialScript()
+		gameRoom.mutex.Unlock()
+		return
+	}
+
 	// 0. 特殊情况：如果场上没牌 (开局或金卡)，强制打出最复杂的可能物质
 	// 这不计入难度概率，是硬性指令，确保 AI 开局有气势
 	isAllowedAny := gr.GameState.AllowedAnyPlayer == gr.GameState.CurrentPlayer
@@ -676,4 +683,163 @@ func hasCards(hand []models.Card, needed map[string]int) bool {
 		}
 	}
 	return true
+}
+
+// executeTutorialScript 执行教学脚本中的AI行动
+func (gr *GameRoom) executeTutorialScript() {
+	log.Printf("[教学脚本] 🎯 AI触发教学脚本执行")
+
+	currentStep := gr.GameState.TutorialCurrentStep
+	log.Printf("[教学脚本] 📊 当前步骤: %d", currentStep)
+
+	// 教学脚本定义
+	type TutorialStep struct {
+		StepNumber int
+		Player     string // "human" or "ai"
+		Action     string // "play" or "draw"
+		Substance  string
+	}
+
+	tutorialSteps := []TutorialStep{
+		{1, "human", "play", "Mg"},
+		{2, "ai", "play", "HCl"},
+		{3, "human", "play", "NaOH"},
+		{4, "ai", "play", "Br2"},
+		{5, "human", "play", "Ar"},
+		{6, "ai", "draw", ""},
+		{7, "human", "play", "Au"},
+		{8, "human", "play", "+2"},
+	}
+
+	// 查找当前步骤
+	var currentScriptStep *TutorialStep
+	for i := range tutorialSteps {
+		if tutorialSteps[i].StepNumber == currentStep {
+			currentScriptStep = &tutorialSteps[i]
+			break
+		}
+	}
+
+	if currentScriptStep == nil {
+		log.Printf("[教学脚本] ⚠️  步骤 %d 不存在，跳过AI行动", currentStep)
+		return
+	}
+
+	if currentScriptStep.Player != "ai" {
+		log.Printf("[教学脚本] 步骤 %d 不是AI回合，跳过", currentStep)
+		return
+	}
+
+	log.Printf("[教学脚本] 🤖 执行步骤 %d: AI %s %s",
+		currentStep, currentScriptStep.Action, currentScriptStep.Substance)
+
+	currentPlayer := gr.GameState.Players[gr.GameState.CurrentPlayer]
+	log.Printf("[教学脚本] 当前AI玩家: %s (UID:%d), 手牌数: %d",
+		currentPlayer.Nickname, currentPlayer.UID, currentPlayer.CardCount)
+
+	if currentScriptStep.Action == "draw" {
+		// AI摸牌
+		if len(gr.GameState.DrawPile) > 0 {
+			card := gr.GameState.DrawPile[0]
+			gr.GameState.DrawPile = gr.GameState.DrawPile[1:]
+			currentPlayer.HandCards = append(currentPlayer.HandCards, card)
+			currentPlayer.CardCount++
+
+			log.Printf("[教学脚本] AI摸到了 %s", card.Type)
+
+			// 广播摸牌消息
+			if websocket.GlobalHub != nil {
+				websocket.GlobalHub.BroadcastToRoom(gr.Room.ID, websocket.Message{
+					Type: "action_toast",
+					Data: map[string]interface{}{
+						"message": fmt.Sprintf("%s 摸了一张牌", currentPlayer.Nickname),
+					},
+				})
+			}
+		}
+
+		// 进入下一步
+		gr.GameState.TutorialCurrentStep++
+
+		// 切换到下一位玩家
+		gr.GameState.CurrentPlayer = getNextPlayer(gr.GameState)
+		gr.GameState.TurnEndTime = time.Now().Add(getPlayerActionTimeout()).UnixNano() / int64(time.Millisecond)
+		gr.broadcastRoomUpdate()
+		go gr.CheckNextTurnAI()
+		return
+	}
+
+	if currentScriptStep.Action == "play" {
+		substance := currentScriptStep.Substance
+
+		// 查找手牌中是否有这张牌
+		cardIndex := -1
+		for i, card := range currentPlayer.HandCards {
+			if card.Type == substance {
+				cardIndex = i
+				break
+			}
+		}
+
+		if cardIndex == -1 {
+			log.Printf("[教学脚本] ⚠️  AI手牌中没有 %s，无法执行脚本", substance)
+			// 尝试摸牌
+			if len(gr.GameState.DrawPile) > 0 {
+				card := gr.GameState.DrawPile[0]
+				gr.GameState.DrawPile = gr.GameState.DrawPile[1:]
+				currentPlayer.HandCards = append(currentPlayer.HandCards, card)
+				currentPlayer.CardCount++
+			}
+			gr.GameState.TutorialCurrentStep++
+			gr.GameState.CurrentPlayer = getNextPlayer(gr.GameState)
+			gr.GameState.TurnEndTime = time.Now().Add(getPlayerActionTimeout()).UnixNano() / int64(time.Millisecond)
+			gr.broadcastRoomUpdate()
+			go gr.CheckNextTurnAI()
+			return
+		}
+
+		// 打出卡牌
+		playedCard := currentPlayer.HandCards[cardIndex]
+		currentPlayer.HandCards = append(currentPlayer.HandCards[:cardIndex], currentPlayer.HandCards[cardIndex+1:]...)
+		currentPlayer.CardCount--
+
+		// 添加到弃牌堆
+		gr.GameState.DiscardPile = append(gr.GameState.DiscardPile, models.PlayedCard{
+			Card:      playedCard,
+			Substance: substance,
+			PlayerUID: currentPlayer.UID,
+		})
+		gr.GameState.LastCard = &gr.GameState.DiscardPile[len(gr.GameState.DiscardPile)-1]
+
+		log.Printf("[教学脚本] ✅ AI打出了 %s", substance)
+
+		// 广播打牌消息
+		if websocket.GlobalHub != nil {
+			websocket.GlobalHub.BroadcastToRoom(gr.Room.ID, websocket.Message{
+				Type: "action_toast",
+				Data: map[string]interface{}{
+					"message": fmt.Sprintf("%s 打出了 %s", currentPlayer.Nickname, substance),
+				},
+			})
+		}
+
+		// 检查是否打完手牌（赢了）
+		if currentPlayer.CardCount == 0 {
+			log.Printf("[教学脚本] 🎉 AI赢得了游戏")
+			gr.GameState.Status = "finished"
+			gr.GameState.FinishedPlayers = append(gr.GameState.FinishedPlayers, currentPlayer.UID)
+			gr.Room.Status = "finished"
+			gr.broadcastRoomUpdate()
+			return
+		}
+
+		// 进入下一步
+		gr.GameState.TutorialCurrentStep++
+
+		// 切换到下一位玩家
+		gr.GameState.CurrentPlayer = getNextPlayer(gr.GameState)
+		gr.GameState.TurnEndTime = time.Now().Add(getPlayerActionTimeout()).UnixNano() / int64(time.Millisecond)
+		gr.broadcastRoomUpdate()
+		go gr.CheckNextTurnAI()
+	}
 }

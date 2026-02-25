@@ -1,0 +1,249 @@
+/**
+ * 主样式文件
+ * 导入所有CSS模块
+ */
+
+/* 基础样式 */
+@import './variables.css';
+@import './animations.css';
+@import './components.css';
+
+/* Tailwind基础层 */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ==================== 全局重置 ==================== */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  @apply font-sans;
+  @apply text-slate-900 dark:text-slate-100;
+  @apply bg-white dark:bg-slate-900;
+  min-height: 100vh;
+}
+
+/* ==================== 滚动行为 ==================== */
+
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+/* ==================== 选中文本样式 ==================== */
+
+::selection {
+  @apply bg-blue-500 text-white;
+}
+
+/* ==================== Focus 样式 ==================== */
+
+:focus-visible {
+  @apply outline-2 outline-offset-2 outline-blue-500;
+}
+
+/* ==================== 图片优化 ==================== */
+
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* ==================== 按钮重置 ==================== */
+
+button {
+  font-family: inherit;
+  font-size: 100%;
+  line-height: inherit;
+  color: inherit;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+/* ==================== 输入框重置 ==================== */
+
+input,
+textarea,
+select {
+  font-family: inherit;
+  font-size: 100%;
+  line-height: inherit;
+  color: inherit;
+}
+
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+/* ==================== 链接样式 ==================== */
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+/* ==================== 列表重置 ==================== */
+
+ul,
+ol {
+  list-style: none;
+}
+
+/* ==================== 表格重置 ==================== */
+
+table {
+  border-collapse: collapse;
+  border-spacing: 0;
+}
+
+/* ==================== 响应式图片 ==================== */
+
+picture {
+  display: block;
+}
+
+svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+/* ==================== 辅助功能 ==================== */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* ==================== 打印样式 ==================== */
+
+@media print {
+  *,
+  *::before,
+  *::after {
+    background: transparent !important;
+    color: #000 !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  a,
+  a:visited {
+    text-decoration: underline;
+  }
+
+  img {
+    page-break-inside: avoid;
+  }
+
+  p,
+  h2,
+  h3 {
+    orphans: 3;
+    widows: 3;
+  }
+
+  h2,
+  h3 {
+    page-break-after: avoid;
+  }
+}
+
+/* ==================== 安全区域适配 ==================== */
+
+@supports (padding: max(0px)) {
+  body {
+    padding-left: max(0px, env(safe-area-inset-left));
+    padding-right: max(0px, env(safe-area-inset-right));
+  }
+}
+
+/* ==================== 深色模式过渡 ==================== */
+
+body {
+  transition: background-color var(--duration-base) var(--ease-out),
+              color var(--duration-base) var(--ease-out);
+}
+
+/* ==================== 自定义工具类 ==================== */
+
+.container-custom {
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding-left: var(--container-padding);
+  padding-right: var(--container-padding);
+}
+
+.text-balance {
+  text-wrap: balance;
+}
+
+.text-pretty {
+  text-wrap: pretty;
+}
+
+/* ==================== 加载状态 ==================== */
+
+.loading {
+  pointer-events: none;
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ==================== 禁用状态 ==================== */
+
+.disabled,
+:disabled {
+  pointer-events: none;
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ==================== 隐藏滚动条（保留功能） ==================== */
+
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}

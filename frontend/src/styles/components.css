@@ -1,0 +1,298 @@
+/**
+ * 组件样式库
+ * 可复用的组件样式类
+ */
+
+/* ==================== 按钮组件 ==================== */
+
+.btn-base {
+  @apply px-4 py-2 rounded-lg font-bold transition-all;
+  @apply focus:outline-none focus:ring-2 focus:ring-offset-2;
+}
+
+.btn-primary {
+  @apply btn-base bg-blue-600 hover:bg-blue-500 text-white;
+  @apply focus:ring-blue-500;
+}
+
+.btn-secondary {
+  @apply btn-base bg-slate-200 dark:bg-white/10 hover:bg-slate-300 dark:hover:bg-white/20;
+  @apply text-slate-700 dark:text-white;
+}
+
+.btn-danger {
+  @apply btn-base bg-red-600 hover:bg-red-500 text-white;
+  @apply focus:ring-red-500;
+}
+
+.btn-success {
+  @apply btn-base bg-green-600 hover:bg-green-500 text-white;
+  @apply focus:ring-green-500;
+}
+
+.btn-ghost {
+  @apply btn-base bg-transparent hover:bg-white/10;
+  @apply text-slate-600 dark:text-slate-300;
+}
+
+.btn-icon {
+  @apply p-2 rounded-lg transition-colors;
+  @apply hover:bg-slate-100 dark:hover:bg-white/10;
+}
+
+.btn-touch {
+  @apply active:scale-95 transition-transform;
+  min-width: 44px;
+  min-height: 44px;
+}
+
+@media (max-width: 768px) {
+  .btn-touch {
+    min-width: 48px;
+    min-height: 48px;
+  }
+}
+
+/* ==================== 卡片组件 ==================== */
+
+.card-base {
+  @apply bg-white dark:bg-slate-900 rounded-2xl shadow-lg;
+  @apply border border-slate-200 dark:border-white/10;
+}
+
+.card-glass {
+  @apply backdrop-blur-xl bg-white/90 dark:bg-slate-900/90;
+  @apply border border-slate-200/50 dark:border-white/10;
+}
+
+.card-hover {
+  @apply transition-all duration-300;
+  @apply hover:shadow-xl hover:scale-[1.02];
+}
+
+/* ==================== 输入框组件 ==================== */
+
+.input-base {
+  @apply px-3 py-2 rounded-lg border;
+  @apply bg-white dark:bg-slate-800;
+  @apply border-slate-300 dark:border-white/10;
+  @apply focus:outline-none focus:ring-2 focus:ring-blue-500;
+  @apply transition-all;
+}
+
+.input-mobile {
+  @apply text-base; /* 防止iOS缩放 */
+}
+
+.input-error {
+  @apply border-red-500 focus:ring-red-500;
+}
+
+/* ==================== 模态框组件 ==================== */
+
+.modal-overlay {
+  @apply fixed inset-0 z-[100];
+  @apply bg-black/60 backdrop-blur-sm;
+  @apply flex items-center justify-center p-4;
+}
+
+.modal-content {
+  @apply relative w-full max-w-lg;
+  @apply bg-white dark:bg-slate-900;
+  @apply rounded-2xl shadow-2xl;
+  @apply border border-slate-200 dark:border-white/10;
+}
+
+.modal-mobile {
+  @apply max-w-full;
+  @apply rounded-b-none;
+  @apply fixed inset-x-0 bottom-0;
+}
+
+/* ==================== 徽章组件 ==================== */
+
+.badge-base {
+  @apply inline-flex items-center gap-1;
+  @apply px-2 py-1 rounded-full;
+  @apply text-xs font-bold;
+}
+
+.badge-primary {
+  @apply badge-base bg-blue-100 dark:bg-blue-900/30;
+  @apply text-blue-700 dark:text-blue-300;
+}
+
+.badge-success {
+  @apply badge-base bg-green-100 dark:bg-green-900/30;
+  @apply text-green-700 dark:text-green-300;
+}
+
+.badge-warning {
+  @apply badge-base bg-yellow-100 dark:bg-yellow-900/30;
+  @apply text-yellow-700 dark:text-yellow-300;
+}
+
+.badge-danger {
+  @apply badge-base bg-red-100 dark:bg-red-900/30;
+  @apply text-red-700 dark:text-red-300;
+}
+
+/* ==================== 提示框组件 ==================== */
+
+.tooltip {
+  @apply absolute z-50;
+  @apply px-2 py-1 rounded-lg;
+  @apply bg-slate-900 dark:bg-slate-700;
+  @apply text-white text-xs;
+  @apply shadow-lg;
+  @apply pointer-events-none;
+}
+
+/* ==================== 加载器组件 ==================== */
+
+.spinner {
+  @apply inline-block w-6 h-6;
+  @apply border-2 border-slate-300;
+  @apply border-t-blue-600;
+  @apply rounded-full;
+  @apply animate-spin;
+}
+
+.skeleton {
+  @apply bg-slate-200 dark:bg-slate-700;
+  @apply animate-pulse rounded;
+}
+
+/* ==================== 分隔线组件 ==================== */
+
+.divider {
+  @apply h-px bg-slate-200 dark:bg-white/10;
+}
+
+.divider-vertical {
+  @apply w-px bg-slate-200 dark:bg-white/10;
+}
+
+/* ==================== 进度条组件 ==================== */
+
+.progress-bar {
+  @apply w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden;
+}
+
+.progress-fill {
+  @apply h-full bg-blue-600 rounded-full transition-all duration-300;
+}
+
+/* ==================== 滚动条样式 ==================== */
+
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.3) transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5);
+}
+
+.custom-scrollbar-hidden {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.custom-scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+}
+
+/* ==================== 渐变背景 ==================== */
+
+.gradient-primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.gradient-blue {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.gradient-cyan {
+  background: linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%);
+}
+
+.gradient-purple {
+  background: linear-gradient(135deg, #a855f7 0%, #7e22ce 100%);
+}
+
+.gradient-orange {
+  background: linear-gradient(135deg, #fb923c 0%, #f59e0b 100%);
+}
+
+/* ==================== 阴影效果 ==================== */
+
+.shadow-glow-blue {
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.5);
+}
+
+.shadow-glow-green {
+  box-shadow: 0 0 20px rgba(34, 197, 94, 0.5);
+}
+
+.shadow-glow-red {
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.5);
+}
+
+/* ==================== 玻璃态效果 ==================== */
+
+.glass {
+  @apply backdrop-blur-xl bg-white/90 dark:bg-slate-900/90;
+  @apply border border-white/20;
+}
+
+.glass-strong {
+  @apply backdrop-blur-2xl bg-white/95 dark:bg-slate-900/95;
+  @apply border border-white/30;
+}
+
+/* ==================== 触摸反馈 ==================== */
+
+.touch-feedback {
+  transition: transform 0.1s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.touch-feedback:active {
+  transform: scale(0.95);
+}
+
+/* ==================== 响应式工具 ==================== */
+
+@media (max-width: 768px) {
+  .mobile-stack {
+    @apply flex-col;
+  }
+
+  .mobile-full {
+    @apply w-full;
+  }
+
+  .mobile-hidden {
+    @apply hidden;
+  }
+}
+
+@media (min-width: 769px) {
+  .desktop-hidden {
+    @apply hidden;
+  }
+}

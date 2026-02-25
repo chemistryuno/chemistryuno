@@ -389,6 +389,7 @@ func (r *UserRepository) UpdateTurnStartedAt(uid uint, t time.Time) error {
 	return r.db.Model(&database.User{}).Where("uid = ?", uid).Update("turn_started_at", t).Error
 }
 
+
 // GetUserReconnectionData 获取用于重连检查的数据
 func (r *UserRepository) GetUserReconnectionData(uid uint) (*time.Time, *time.Time, error) {
 	var user database.User

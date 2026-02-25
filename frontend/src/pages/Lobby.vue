@@ -7,6 +7,8 @@ import websocket from '../utils/websocket'
 import { Beaker, Plus, Shield, LogOut, Settings, Play, X, Loader2, Database, MessageCircle, Trophy, Megaphone, Menu } from 'lucide-vue-next'
 import { cn } from '../utils/cn'
 import ChatBox from '../components/ChatBox.vue'
+import TutorialGuide from '../components/TutorialGuide.vue'
+import PingDisplay from '../components/PingDisplay.vue'
 
 const props = defineProps<{
   // user props can be added if we pass from App.vue
@@ -69,7 +71,73 @@ const loading = ref(false)
 const currentTime = ref(new Date())
 const onlineCount = ref(0)
 const isMobileMenuOpen = ref(false)
-const appVersion = ref('V1.2.1 Mendeleef') // 默认值
+const appVersion = ref('V1.2.1 Mendeleef')
+
+// 大厅新手指引
+const showTutorial = ref(false)
+
+// 根据屏幕尺寸动态选择导航目标
+const getNavigationSelector = () => {
+  return window.innerWidth < 1024 ? '[data-tutorial="mobile-menu"]' : '[data-tutorial="desktop-nav"]'
+}
+
+const lobbyTutorialSteps = computed(() => [
+  { id: 'welcome-lobby', titlePlaceholder: 'LOBBY_WELCOME_TITLE', contentPlaceholder: 'LOBBY_WELCOME_CONTENT', position: 'center' as const },
+  { id: 'create-room', titlePlaceholder: 'LOBBY_CREATE_ROOM_TITLE', contentPlaceholder: 'LOBBY_CREATE_ROOM_CONTENT', targetSelector: '[data-tutorial="create-room"]', position: 'bottom' as const },
+  { id: 'room-list', titlePlaceholder: 'LOBBY_ROOM_LIST_TITLE', contentPlaceholder: 'LOBBY_ROOM_LIST_CONTENT', targetSelector: '[data-tutorial="room-list"]', position: 'top' as const },
+  { id: 'navigation', titlePlaceholder: 'LOBBY_NAVIGATION_TITLE', contentPlaceholder: 'LOBBY_NAVIGATION_CONTENT', targetSelector: getNavigationSelector(), position: 'bottom' as const },
+  { id: 'user-profile', titlePlaceholder: 'LOBBY_PROFILE_TITLE', contentPlaceholder: 'LOBBY_PROFILE_CONTENT', targetSelector: '[data-tutorial="user-chip"]', position: 'bottom' as const },
+  { id: 'ai-arena', titlePlaceholder: 'LOBBY_AI_ARENA_TITLE', contentPlaceholder: 'LOBBY_AI_ARENA_CONTENT', targetSelector: '[data-tutorial="ai-arena"]', position: 'bottom' as const },
+  { id: 'complete-lobby', titlePlaceholder: 'LOBBY_COMPLETE_TITLE', contentPlaceholder: 'LOBBY_COMPLETE_CONTENT', position: 'center' as const }
+])
+
+const checkFirstTimeLobby = () => {
+  const hasSeenLobbyTutorial = localStorage.getItem('chemistry-uno-lobby-tutorial-completed')
+  if (!hasSeenLobbyTutorial) setTimeout(() => showTutorial.value = true, 1500)
+}
+
+const handleTutorialComplete = async () => {
+  localStorage.setItem('chemistry-uno-lobby-tutorial-completed', 'true')
+  showTutorial.value = false
+
+  // 自动创建教学关卡
+  await createTutorialMatch()
+}
+
+const handleTutorialClose = () => showTutorial.value = false
+
+// 创建教学关卡
+const createTutorialMatch = async () => {
+  loading.value = true
+  try {
+    const response = await gameAPI.createRoom(
+      'Tutorial: First AI Battle',
+      2, // 1 (Human) + 1 (AI)
+      deckID.value,
+      false, // 非积分模式
+      true, // 私密房间
+      undefined,
+      true, // PvE模式
+      20, // 低难度AI (20/100)
+      1, // 1个AI
+      false, // 不启用AI补位
+      0,
+      false, // 非排位模式
+      0,
+      true // ⭐ 启用脚本化教学
+    )
+    const room = response.data
+
+    // 标记为教学模式
+    localStorage.setItem('chemistry-uno-tutorial-mode', 'true')
+
+    router.push(`/room/${room.id}`)
+  } catch (error: any) {
+    showAlert(error.response?.data?.error || '创建教学关卡失败', '系统异常')
+  } finally {
+    loading.value = false
+  }
+}
 
 // 获取当前域名用于生成分享链接
 const currentOrigin = window.location.origin
@@ -138,6 +206,19 @@ onMounted(() => {
   timeInterval = setInterval(() => {
     currentTime.value = new Date()
   }, 1000)
+
+  // 检查大厅新手指引
+  checkFirstTimeLobby()
+
+  // 大厅控制台指令
+  if (typeof window !== 'undefined') {
+    const win = window as any
+    win.showLobbyTutorial = () => { showTutorial.value = true; console.log('✨ 大厅新手指引已启动') }
+    win.resetLobbyTutorial = () => { localStorage.removeItem('chemistry-uno-lobby-tutorial-completed'); console.log('🔄 大厅教程已重置') }
+    win.checkLobbyTutorial = () => { const c = !!localStorage.getItem('chemistry-uno-lobby-tutorial-completed'); console.log('📊 大厅教程:', c ? '已完成' : '未完成', '| 显示:', showTutorial.value); return {completed: c, showing: showTutorial.value} }
+    console.log('%c🏠 Lobby Console Commands', 'color: #06b6d4; font-weight: bold')
+    console.log('  showLobbyTutorial() | resetLobbyTutorial() | checkLobbyTutorial()')
+  }
 })
 
 onUnmounted(() => {
@@ -334,6 +415,9 @@ const copyToClipboard = (text: string) => {
               </div>
             </div>
 
+            <!-- Ping显示（移动端） -->
+            <PingDisplay class="lg:hidden" />
+
             <!-- Status Indicators (Desktop) -->
             <div class="hidden lg:flex items-center gap-4 text-xs-mobile font-mono tracking-widest text-slate-500 border-l border-slate-200 dark:border-white/10 pl-6 uppercase">
               <div class="flex items-center gap-2">
@@ -343,12 +427,14 @@ const copyToClipboard = (text: string) => {
               <div class="flex items-center gap-2">
                  UP_TIME: {{ currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}
               </div>
+              <!-- Ping显示 -->
+              <PingDisplay />
             </div>
           </div>
 
           <div class="flex items-center gap-2 sm:gap-3">
             <!-- User Identity Chip -->
-            <div @click="router.push('/profile')" class="flex items-center gap-2 sm:gap-2.5 pl-1.5 pr-2 sm:pr-3 py-1 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl hover:bg-slate-200 dark:hover:bg-white/10 transition-all cursor-pointer group touch-feedback">
+            <div data-tutorial="user-chip" @click="router.push('/profile')" class="flex items-center gap-2 sm:gap-2.5 pl-1.5 pr-2 sm:pr-3 py-1 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl hover:bg-slate-200 dark:hover:bg-white/10 transition-all cursor-pointer group touch-feedback">
                <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-800 flex items-center justify-center text-base shadow-inner group-hover:scale-105 transition-transform overflow-hidden">
                  <template v-if="user.avatar && user.avatar.startsWith('data:')">
                     <img :src="user.avatar" class="w-full h-full object-cover" />
@@ -366,7 +452,7 @@ const copyToClipboard = (text: string) => {
             </div>
 
             <!-- Desktop Navigation -->
-            <div class="hidden lg:flex items-center gap-0.5">
+            <div data-tutorial="desktop-nav" class="hidden lg:flex items-center gap-0.5">
               <router-link
                 to="/ranking"
                 class="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 hover:bg-amber-500/10 rounded-xl transition-all text-amber-500/70 hover:text-amber-400 group touch-feedback"
@@ -399,6 +485,7 @@ const copyToClipboard = (text: string) => {
             <!-- Mobile Menu Toggle -->
             <button
               @click="isMobileMenuOpen = !isMobileMenuOpen"
+              data-tutorial="mobile-menu"
               class="lg:hidden p-2.5 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-slate-500 touch-feedback transition-all"
             >
               <Menu v-if="!isMobileMenuOpen" class="w-5 h-5" />
@@ -484,16 +571,18 @@ const copyToClipboard = (text: string) => {
                </div>
              </div>
 
-            <button 
-              @click="showCreateModal = true" 
+            <button
+              @click="showCreateModal = true"
+              data-tutorial="create-room"
               class="group relative flex items-center gap-2 bg-blue-600 hover:bg-blue-500 px-4 py-2.5 rounded-xl font-black text-white shadow-lg shadow-blue-500/10 transition-all active:scale-95 overflow-hidden"
             >
               <Plus class="w-3.5 h-3.5 group-hover:rotate-90 transition-transform duration-500" />
               <span class="uppercase tracking-widest text-[9px]">开启实验</span>
             </button>
 
-            <button 
-              @click="showAIArenaModal = true; isPointsMode = true; isPrivate = true" 
+            <button
+              @click="showAIArenaModal = true; isPointsMode = true; isPrivate = true"
+              data-tutorial="ai-arena"
               class="group relative flex items-center gap-2 bg-purple-600 hover:bg-purple-500 px-4 py-2.5 rounded-xl font-black text-white shadow-lg shadow-purple-500/10 transition-all active:scale-95 overflow-hidden ml-2"
             >
               <div class="relative">
@@ -577,7 +666,7 @@ const copyToClipboard = (text: string) => {
             </div>
 
             <!-- Experimental Nodes (Room List Table) -->
-            <div class="bg-white/80 dark:bg-[#121216]/60 backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-2xl overflow-hidden">
+            <div data-tutorial="room-list" class="bg-white/80 dark:bg-[#121216]/60 backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-2xl overflow-hidden">
           <div class="overflow-x-auto">
             <table class="w-full text-left border-collapse">
               <thead>
@@ -1271,4 +1360,7 @@ const copyToClipboard = (text: string) => {
          </div>
       </div>
     </div>
+
+    <!-- Tutorial Guide for Lobby -->
+    <TutorialGuide :show="showTutorial" :steps="lobbyTutorialSteps" @close="handleTutorialClose" @complete="handleTutorialComplete" />
 </template>

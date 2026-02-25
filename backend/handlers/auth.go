@@ -227,6 +227,18 @@ func Login(c *gin.Context) {
 		return
 	}
 
+	// 检查上次离线时间，判断是否是回归玩家（超过30天未活跃）
+	isReturningPlayer := false
+	daysSinceLastLogin := 0
+	if dbUser.LastOfflineAt != nil {
+		daysSince := time.Since(*dbUser.LastOfflineAt).Hours() / 24
+		daysSinceLastLogin = int(daysSince)
+		if daysSince >= 30 {
+			isReturningPlayer = true
+			log.Printf("[老玩家回归] 用户 %s (UID=%d) 距离上次活跃 %d 天", user.Nickname, user.UID, daysSinceLastLogin)
+		}
+	}
+
 	// 4. 获取当前可用公告 (登陆触发器)
 	announcementRepo := repository.NewAnnouncementRepository()
 	dbAnnouncements, _ := announcementRepo.FindActive()
@@ -255,7 +267,9 @@ func Login(c *gin.Context) {
 			"role":               user.Role,
 			"two_factor_enabled": user.TwoFactorEnabled,
 		},
-		"announcements": announcements,
+		"announcements":         announcements,
+		"is_returning_player":   isReturningPlayer,
+		"days_since_last_login": daysSinceLastLogin,
 	})
 }
 

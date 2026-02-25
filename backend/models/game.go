@@ -56,6 +56,9 @@ type Room struct {
 	MinLevel   int  `json:"min_level"`    // 允许的最低等级
 	MaxLevel   int  `json:"max_level"`    // 允许的最高等级
 	CreatedByUID int `json:"created_by_uid"` // 房主UID（用于计算等级范围）
+
+	// 教学脚本系统
+	TutorialScript bool `json:"tutorial_script"` // 是否启用脚本化教学
 }
 
 // MarshalJSON 自定义 JSON 序列化，确保 ready_uids 和其他切片字段永远不为 null
@@ -117,6 +120,10 @@ type GameState struct {
 	PointsChanges       map[int]int    `json:"points_changes"`        // 回合结束时的积分变动 (UID -> points)
 	XPChanges           map[int]int    `json:"xp_changes"`            // 回合结束时的经验变动 (UID -> xp)
 	CurrentReaction     string         `json:"current_reaction"`      // 当前/最近发生的反应方程式
+
+	// 教学脚本系统
+	TutorialScriptMode  bool `json:"tutorial_script_mode"`  // 是否为脚本化教学模式
+	TutorialCurrentStep int  `json:"tutorial_current_step"` // 当前教学脚本步骤（1-8）
 }
 
 // 玩家状态

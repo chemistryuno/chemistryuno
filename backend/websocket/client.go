@@ -34,6 +34,7 @@ type Message struct {
 	UID       int         `json:"uid,omitempty"`
 	TargetUID int         `json:"target_uid,omitempty"`
 	Message   string      `json:"message,omitempty"`
+	Timestamp int64       `json:"timestamp,omitempty"` // 用于ping/pong时间戳
 }
 
 func NewClient(hub *Hub, conn *websocket.Conn, uid int, username string, nickname string, avatar string) *Client {
@@ -130,6 +131,14 @@ func (c *Client) handleMessage(msg *Message) {
 	log.Printf("[WebSocket] User %d handling message type: %s", c.uid, msg.Type)
 
 	switch msg.Type {
+	case "ping":
+		// 处理ping请求，立即返回pong响应
+		c.Send(Message{
+			Type:      "pong",
+			Timestamp: msg.Timestamp, // 将客户端发送的时间戳原样返回
+		})
+		return
+
 	case "join_room":
 		log.Printf("[WebSocket] User %d joining room %s", c.uid, msg.RoomID)
 		c.hub.JoinRoom(c, msg.RoomID)

@@ -440,20 +440,24 @@ func UpdateProfile(c *gin.Context) {
 	}
 
 	userRepo := repository.NewUserRepository()
-	err := userRepo.UpdateProfile(uint(uid), req.Nickname, req.Bio, req.Wechat, req.QQ, req.CustomContact, req.ShowEmail)
+	err := userRepo.UpdateProfile(uint(uid), &req)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新资料失败"})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message":        "资料更新成功",
-		"nickname":       req.Nickname,
-		"bio":            req.Bio,
-		"wechat":         req.Wechat,
-		"qq":             req.QQ,
-		"show_email":     req.ShowEmail,
-		"custom_contact": req.CustomContact,
+		"message":              "资料更新成功",
+		"nickname":             req.Nickname,
+		"bio":                  req.Bio,
+		"wechat":               req.Wechat,
+		"qq":                   req.QQ,
+		"show_email":           req.ShowEmail,
+		"birthday":             req.Birthday,
+		"sound_volume":         req.SoundVolume,
+		"vibration_enabled":    req.VibrationEnabled,
+		"enable_element_input": req.EnableElementInput,
+		"custom_contact":       req.CustomContact,
 	})
 }
 
@@ -932,6 +936,7 @@ func GetUserProfile(c *gin.Context) {
 		"qq":             user.QQ,
 		"email":          email,
 		"show_email":     user.ShowEmail,
+		"birthday":       user.Birthday,
 		"custom_contact": user.CustomContact,
 		"points":         user.Points,
 		"level":          user.Level,

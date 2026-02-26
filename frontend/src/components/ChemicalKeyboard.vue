@@ -41,7 +41,7 @@
 
           <!-- 关闭按钮 -->
           <button
-            @click="feedback.click(); $emit('close')"
+            @click="$emit('close')"
             class="w-10 h-10 flex items-center justify-center bg-white/10 hover:bg-white/20 rounded-[14px] border border-white/10 transition-all touch-feedback"
           >
             <X class="w-4 h-4 text-white" />
@@ -194,13 +194,11 @@ const availableElements = computed(() => {
 })
 
 const handleInput = (char: string) => {
-  feedback.click()
   emit('update:modelValue', props.modelValue + char)
 }
 
 const handleBackspace = () => {
   if (props.modelValue.length > 0) {
-    feedback.click()
     const lastTwo = props.modelValue.slice(-2)
     if (lastTwo.length === 2 && lastTwo[0] === lastTwo[0].toUpperCase() && lastTwo[1] === lastTwo[1].toLowerCase()) {
       emit('update:modelValue', props.modelValue.slice(0, -2))
@@ -211,7 +209,6 @@ const handleBackspace = () => {
 }
 
 const handleClear = () => {
-  feedback.click()
   emit('update:modelValue', '')
 }
 

@@ -88,6 +88,10 @@ type User struct {
 	Wechat             string         `gorm:"size:100;default:''" json:"wechat"`
 	QQ                 string         `gorm:"size:100;default:''" json:"qq"`
 	ShowEmail          bool           `gorm:"default:false" json:"show_email"`
+	Birthday           *time.Time     `json:"birthday"`
+	SoundVolume        float64        `gorm:"default:0.3" json:"sound_volume"`
+	VibrationEnabled   bool           `gorm:"default:true" json:"vibration_enabled"`
+	EnableElementInput bool           `gorm:"default:true" json:"enable_element_input"`
 	CustomContact      string         `gorm:"size:255;default:''" json:"custom_contact"`
 	CreatedAt          time.Time      `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt          time.Time      `gorm:"autoUpdateTime" json:"updated_at"`
@@ -183,6 +187,8 @@ type Friendship struct {
 	FriendUID    uint      `gorm:"not null;index:idx_friendship" json:"friend_uid"` // 接收方
 	Status       string    `gorm:"default:pending;size:20" json:"status"`           // pending, accepted, declined
 	HelloMessage string    `gorm:"size:255" json:"hello_message"`                   // 发时附带的消息
+	UserRemark   string    `gorm:"size:100" json:"user_remark"`                     // UserUID 对 FriendUID 的备注
+	FriendRemark string    `gorm:"size:100" json:"friend_remark"`                   // FriendUID 对 UserUID 的备注
 	CreatedAt    time.Time `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt    time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 

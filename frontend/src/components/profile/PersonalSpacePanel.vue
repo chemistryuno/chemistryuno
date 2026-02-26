@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { User, MessageCircle, AtSign, Info, Eye, EyeOff, Hash } from 'lucide-vue-next'
+import { User, MessageCircle, AtSign, Info, Eye, EyeOff, Hash, Calendar } from 'lucide-vue-next'
 import { useDialog } from '../../utils/dialog'
 import { authAPI } from '../../utils/api'
 
@@ -21,7 +21,8 @@ const form = ref({
   wechat: props.user.wechat || '',
   qq: props.user.qq || '',
   show_email: props.user.show_email || false,
-  custom_contact: props.user.custom_contact || ''
+  custom_contact: props.user.custom_contact || '',
+  birthday: props.user.birthday ? new Date(props.user.birthday).toISOString().split('T')[0] : ''
 })
 
 // 监听 props 变化，确保数据同步
@@ -32,9 +33,10 @@ watch(() => props.user, (newUser) => {
     wechat: newUser.wechat || '',
     qq: newUser.qq || '',
     show_email: newUser.show_email || false,
-    custom_contact: newUser.custom_contact || ''
+    custom_contact: newUser.custom_contact || '',
+    birthday: newUser.birthday ? new Date(newUser.birthday).toISOString().split('T')[0] : ''
   }
-}, { deep: true })
+}, { deep: true, immediate: true })
 
 const handleSave = async () => {
   if (!form.value.nickname) {
@@ -44,7 +46,13 @@ const handleSave = async () => {
   
   loading.value = true
   try {
-    await authAPI.updateProfile(form.value)
+    const submitData = { ...form.value }
+    if (submitData.birthday) {
+      submitData.birthday = new Date(submitData.birthday).toISOString()
+    } else {
+      (submitData as any).birthday = null
+    }
+    await authAPI.updateProfile(submitData)
     showAlert('个人空间资料已更新。', '变更成功')
     emit('update')
   } catch (error: any) {
@@ -156,6 +164,21 @@ const handleSave = async () => {
           <span class="text-xs font-mono" :class="form.show_email ? 'text-slate-600 dark:text-slate-300' : 'text-slate-400'">
             {{ form.show_email ? user.email : '••••••••••••••••' }}
           </span>
+        </div>
+      </div>
+      
+      <!-- 生日 -->
+      <div class="space-y-2">
+        <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">生日 / Birthday</label>
+        <div class="relative group">
+          <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+            <Calendar class="h-4 w-4 text-slate-400 group-focus-within:text-pink-500 transition-colors" />
+          </div>
+          <input 
+            v-model="form.birthday"
+            type="date" 
+            class="block w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-white/[0.02] border border-slate-200 dark:border-white/5 rounded-xl text-sm transition-all focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none"
+          />
         </div>
       </div>
 

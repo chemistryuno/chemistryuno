@@ -2,6 +2,7 @@ package repository
 
 import (
 	"chemistryuno/backend/database"
+	"chemistryuno/backend/models"
 	"errors"
 	"fmt"
 	"strconv"
@@ -168,15 +169,28 @@ func (r *UserRepository) UpdateNickname(uid uint, nickname string) error {
 }
 
 // UpdateProfile 更新个人资料
-func (r *UserRepository) UpdateProfile(uid uint, nickname, bio, wechat, qq, customContact string, showEmail bool) error {
-	return r.db.Model(&database.User{}).Where("uid = ?", uid).Updates(map[string]interface{}{
-		"nickname":       nickname,
-		"bio":            bio,
-		"wechat":         wechat,
-		"qq":             qq,
-		"show_email":     showEmail,
-		"custom_contact": customContact,
-	}).Error
+func (r *UserRepository) UpdateProfile(uid uint, req *models.UpdateProfileRequest) error {
+	updates := map[string]interface{}{
+		"nickname":       req.Nickname,
+		"bio":            req.Bio,
+		"wechat":         req.Wechat,
+		"qq":             req.QQ,
+		"show_email":     req.ShowEmail,
+		"custom_contact": req.CustomContact,
+		"birthday":       req.Birthday,
+	}
+
+	if req.SoundVolume != nil {
+		updates["sound_volume"] = *req.SoundVolume
+	}
+	if req.VibrationEnabled != nil {
+		updates["vibration_enabled"] = *req.VibrationEnabled
+	}
+	if req.EnableElementInput != nil {
+		updates["enable_element_input"] = *req.EnableElementInput
+	}
+
+	return r.db.Model(&database.User{}).Where("uid = ?", uid).Updates(updates).Error
 }
 
 // Delete 删除用户（软删除）
@@ -388,7 +402,6 @@ func (r *UserRepository) UpdateLastOfflineAt(uid uint, t time.Time) error {
 func (r *UserRepository) UpdateTurnStartedAt(uid uint, t time.Time) error {
 	return r.db.Model(&database.User{}).Where("uid = ?", uid).Update("turn_started_at", t).Error
 }
-
 
 // GetUserReconnectionData 获取用于重连检查的数据
 func (r *UserRepository) GetUserReconnectionData(uid uint) (*time.Time, *time.Time, error) {

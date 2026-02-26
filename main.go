@@ -306,7 +306,8 @@ func main() {
 			auth.POST("/friends/request", handlers.SendFriendRequest)
 			auth.GET("/friends/pending", handlers.GetPendingRequests)
 			auth.POST("/friends/handle", handlers.HandleFriendRequest)
-			auth.GET("/friends", handlers.GetFriendsList)
+			auth.GET("/friends", handlers.GetFriendsListWithRemarks)
+			auth.POST("/friends/remark", handlers.SetFriendRemark)
 			auth.DELETE("/friends/:uid", handlers.DeleteFriend)
 
 			// 游戏相关

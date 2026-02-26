@@ -1,16 +1,15 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { ref, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import websocket from './utils/websocket'
-import { gameAPI } from './utils/api'
 import CustomDialog from './components/CustomDialog.vue'
 import AnnouncementTicker from './components/AnnouncementTicker.vue'
 import DuelInviteModal from './components/DuelInviteModal.vue'
+import feedback from './utils/feedback'
 import { useDialog } from './utils/dialog'
 
 const loading = ref(true)
-const { showAlert, showConfirm, closeDialog } = useDialog()
-const route = useRoute()
+const { showAlert } = useDialog()
 const router = useRouter()
 
 const activeDuelInvite = ref<any>(null)
@@ -80,6 +79,18 @@ const updateTheme = () => {
 // 立即运行一次以防止 FOUC
 updateTheme()
 
+const handleGlobalClick = (e: MouseEvent) => {
+  const target = e.target as HTMLElement
+  // 检查点击目标或其祖先是否是可点击元素
+  const clickable = target.closest('button, a, [role="button"], input[type="button"], input[type="submit"], select, summary, .clickable, .touch-feedback, .cursor-pointer')
+  if (clickable) {
+    // 只有当没有被明确标记为禁用音效时才播放
+    if (!clickable.hasAttribute('data-no-click-sound')) {
+      feedback.click()
+    }
+  }
+}
+
 onMounted(() => {
   try {
     // 监听主题变化
@@ -103,6 +114,9 @@ onMounted(() => {
     websocket.on('duel_declined', handleDuelDeclined)
     websocket.on('system_announcement', handleSystemAnnouncement)
     websocket.on('force_logout', handleForceLogout)
+
+    // 全局点击音效监听
+    window.addEventListener('click', handleGlobalClick, true)
   } catch (err) {
     console.error('App initialization failed:', err)
   } finally {
@@ -119,6 +133,9 @@ onUnmounted(() => {
   websocket.off('duel_declined', handleDuelDeclined)
   websocket.off('system_announcement', handleSystemAnnouncement)
   websocket.off('force_logout', handleForceLogout)
+
+  // 移除全局监听
+  window.removeEventListener('click', handleGlobalClick, true)
 })
 </script>
 

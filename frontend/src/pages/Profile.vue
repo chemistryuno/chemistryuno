@@ -427,7 +427,7 @@ const handleOAuthUnbind = async (provider: 'github' | 'ms' | 'google' | 'apple')
 
           <div v-if="currentCategory === 'settings'" class="space-y-6">
             <!-- Visual Settings Section -->
-            <SettingsPanel />
+            <SettingsPanel :user="user" @update="fetchLatestUserInfo" />
 
             <!-- Feedback Section -->
             <router-link 

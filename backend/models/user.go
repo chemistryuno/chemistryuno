@@ -37,6 +37,10 @@ type User struct {
 	Wechat             string                `json:"wechat" db:"wechat"`
 	QQ                 string                `json:"qq" db:"qq"`
 	ShowEmail          bool                  `json:"show_email" db:"show_email"`
+	Birthday           *time.Time            `json:"birthday" db:"birthday"`
+	SoundVolume        float64               `json:"sound_volume" db:"sound_volume"`
+	VibrationEnabled   bool                  `json:"vibration_enabled" db:"vibration_enabled"`
+	EnableElementInput bool                  `json:"enable_element_input" db:"enable_element_input"`
 	CustomContact      string                `json:"custom_contact" db:"custom_contact"`
 	Credentials        []webauthn.Credential `json:"-" db:"-"`
 }
@@ -159,12 +163,16 @@ type UpdateAvatarRequest struct {
 }
 
 type UpdateProfileRequest struct {
-	Nickname      string `json:"nickname" binding:"required,min=1,max=20"`
-	Bio           string `json:"bio"`
-	Wechat        string `json:"wechat"`
-	QQ            string `json:"qq"`
-	ShowEmail     bool   `json:"show_email"`
-	CustomContact string `json:"custom_contact"`
+	Nickname           string     `json:"nickname" binding:"required,min=1,max=20"`
+	Bio                string     `json:"bio"`
+	Wechat             string     `json:"wechat"`
+	QQ                 string     `json:"qq"`
+	ShowEmail          bool       `json:"show_email"`
+	Birthday           *time.Time `json:"birthday"`
+	SoundVolume        *float64   `json:"sound_volume"`
+	VibrationEnabled   *bool      `json:"vibration_enabled"`
+	EnableElementInput *bool      `json:"enable_element_input"`
+	CustomContact      string     `json:"custom_contact"`
 }
 
 type ChangeEmailRequest struct {

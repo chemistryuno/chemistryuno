@@ -21,8 +21,6 @@ export function useCardActions(roomId: string, gameState: Ref<any>) {
   const handleCardClick = async (card: any) => {
     const specialTypes = ['+2', '+4', 'Au', 'He', 'Ne', 'Ar', 'Kr']
 
-    feedback.click()
-
     if (specialTypes.includes(card.type) || card.effect) {
       try {
         await gameAPI.playCard(roomId, card, card.type)
@@ -115,7 +113,6 @@ export function useCardActions(roomId: string, gameState: Ref<any>) {
   }
 
   const removeSubstance = (pos: number) => {
-    feedback.click()
     if (pos === 1) {
       firstDoubleSubstance.value = secondDoubleSubstance.value
       secondDoubleSubstance.value = null

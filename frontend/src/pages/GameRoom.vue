@@ -8,12 +8,11 @@ import feedback from '../utils/feedback'
 import { ArrowLeft, Play, RefreshCw, Zap, Activity, FlaskConical, Trophy, ChevronRight, Loader2, Users, Timer, Plus, QrCode, Copy, Sparkles, ShieldAlert, Ban, UserMinus, X, MessageCircle, UserPlus, Flag, Send, Binary, Star } from 'lucide-vue-next'
 import { cn } from '../utils/cn'
 import ChatBox from '../components/ChatBox.vue'
-import LevelBadge from '../components/LevelBadge.vue'
 import LevelUpAnimation from '../components/LevelUpAnimation.vue'
 import GameToast from '../components/GameToast.vue'
 import ChemicalKeyboard from '../components/ChemicalKeyboard.vue'
 import FeedbackSettings from '../components/FeedbackSettings.vue'
-import { TUTORIAL_SCRIPT, getTutorialStep, canPlaySubstance, getTutorialProgress } from '../utils/tutorialScript'
+import { getTutorialStep } from '../utils/tutorialScript'
 import '../styles/mobile-game.css'
 
 const route = useRoute()
@@ -96,10 +95,12 @@ const exitFullscreen = () => {
 
 // 输入框焦点管理：移动端打开化学键盘，桌面端退出全屏
 const handleInputFocus = () => {
-  if (isMobile.value) {
-    // 移动端：打开化学键盘
+  if (isMobile.value || user.value.enable_element_input) {
+    // 移动端或启用了元素输入法：打开化学键盘
     showChemicalKeyboard.value = true
-  } else {
+  }
+  
+  if (!isMobile.value) {
     // 桌面端：退出全屏（除非在教学模式）
     if (!isTutorialMode.value) {
       exitFullscreen()
@@ -148,7 +149,6 @@ const fetchReactionHints = async () => {
 
 const viewCurrentDeckConfig = () => {
   if (roomInfo.value?.deck_config) {
-    feedback.click()
     showDeckDetailModal.value = true
   }
 }
@@ -211,6 +211,27 @@ const handleToggleReady = async () => {
 
 const isFriend = (uid: number) => {
   return friendsList.value?.some(f => Number(f.uid) === Number(uid)) ?? false
+}
+
+// 获取玩家显示名称（优先显示备注）
+const getPlayerDisplayName = (player: any) => {
+  if (!player) return '研究员'
+
+  // 查找好友备注
+  const friend = friendsList.value?.find(f => Number(f.uid) === Number(player.uid))
+  if (friend?.remark) {
+    return friend.remark
+  }
+
+  // 否则返回昵称或用户名
+  return player.nickname || player.username || '研究员'
+}
+
+// 检查是否应该用蓝色显示（有备注的好友）
+const shouldShowInBlue = (player: any) => {
+  if (!player) return false
+  const friend = friendsList.value?.find(f => Number(f.uid) === Number(player.uid))
+  return !!(friend?.remark)
 }
 
 const handleAddFriend = async (player: any) => {
@@ -288,7 +309,7 @@ const sendGameInvite = async (friend: any) => {
   })
 
   feedback.success()
-  showToast(`游戏邀请已发送给 ${friend.nickname || friend.username}`, '邀请已发送', 'success')
+  showToast(`游戏邀请已发送给 ${friend.remark || friend.nickname || friend.username}`, '邀请已发送', 'success')
   showInviteFriendsModal.value = false
 }
 
@@ -507,7 +528,18 @@ const sortedPointsChanges = computed(() => {
       xp: gameState.value.xp_changes?.[uid] || 0,
       player: gameState.value.players.find((p: any) => String(p.uid) === String(uid))
     }))
-    .sort((a, b) => b.points - a.points)
+    .sort((a, b) => {
+      // 优先按照 finished_players 中的顺序（排名）排序
+      const rankA = gameState.value.finished_players?.indexOf(a.uid) ?? 999
+      const rankB = gameState.value.finished_players?.indexOf(b.uid) ?? 999
+      
+      if (rankA !== rankB) {
+        return rankA - rankB
+      }
+      
+      // 如果都没在 finished_players 中（比如中途退出的），按积分降序
+      return b.points - a.points
+    })
 })
 
 
@@ -769,7 +801,9 @@ watch(() => gameState.value?.status, (newStatus) => {
 })
 
 const handleGameUpdate = (message: any) => {
-  if (isManualSettlement.value) return
+  // 只有在手动结算且游戏尚未结束时才跳过更新
+  // 如果游戏已经结束（有points_changes），即使isManualSettlement也要更新以显示排名
+  if (isManualSettlement.value && !message.data?.points_changes) return
   console.log('[GameRoom] handleGameUpdate called, message:', message)
   // 如果收到的是完整的游戏状态对象
   if (message.data && typeof message.data === 'object') {
@@ -793,8 +827,9 @@ const handleGameUpdate = (message: any) => {
 // 处理升级事件
 const handleLevelUp = (data: any) => {
   console.log('[LevelUp] 收到升级通知:', data)
+  const levelData = data.data || data
   if (levelUpAnimationRef.value) {
-    levelUpAnimationRef.value.show(data)
+    levelUpAnimationRef.value.show(levelData)
   }
 }
 
@@ -1091,10 +1126,11 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  // 清除教学模式标记
+  // 清除教学模式标记，并记录已完成
   if (isTutorialMode.value) {
     localStorage.removeItem('chemistry-uno-tutorial-mode')
     localStorage.removeItem('chemistry-uno-tutorial-welcome-shown')
+    localStorage.setItem('chemistry-uno-tutorial-completed', 'true')
     console.log('[GameRoom] Tutorial mode completed and cleared')
   }
 
@@ -1471,30 +1507,42 @@ const setupDraggable = (el: HTMLElement | null) => {
   let startX: number
   let scrollLeft: number
 
-  el.addEventListener('mousedown', (e) => {
+  const onMouseDown = (e: MouseEvent) => {
     isDown = true
     el.style.cursor = 'grabbing'
     startX = e.pageX - el.offsetLeft
     scrollLeft = el.scrollLeft
-  })
+  }
 
-  el.addEventListener('mouseleave', () => {
+  const onMouseLeave = () => {
     isDown = false
     el.style.cursor = 'grab'
-  })
+  }
 
-  el.addEventListener('mouseup', () => {
+  const onMouseUp = () => {
     isDown = false
     el.style.cursor = 'grab'
-  })
+  }
 
-  el.addEventListener('mousemove', (e) => {
+  const onMouseMove = (e: MouseEvent) => {
     if (!isDown) return
     e.preventDefault()
     const x = e.pageX - el.offsetLeft
     const walk = (x - startX) * 2
     el.scrollLeft = scrollLeft - walk
-  })
+  }
+
+  el.addEventListener('mousedown', onMouseDown)
+  el.addEventListener('mouseleave', onMouseLeave)
+  el.addEventListener('mouseup', onMouseUp)
+  el.addEventListener('mousemove', onMouseMove)
+
+  return () => {
+    el.removeEventListener('mousedown', onMouseDown)
+    el.removeEventListener('mouseleave', onMouseLeave)
+    el.removeEventListener('mouseup', onMouseUp)
+    el.removeEventListener('mousemove', onMouseMove)
+  }
 }
 
 onMounted(() => {
@@ -1523,12 +1571,18 @@ onMounted(() => {
   }
 
   // 初始化拖拽滑动
+  let cleanupHand: (() => void) | undefined
+  let cleanupSubstances: (() => void) | undefined
   setTimeout(() => {
-    setupDraggable(handContainer.value)
-    setupDraggable(substancesContainer.value)
+    cleanupHand = setupDraggable(handContainer.value)
+    cleanupSubstances = setupDraggable(substancesContainer.value)
   }, 500)
 
-  onUnmounted(() => window.removeEventListener('resize', handleResize))
+  onUnmounted(() => {
+    window.removeEventListener('resize', handleResize)
+    cleanupHand?.()
+    cleanupSubstances?.()
+  })
 })
 
 // 监听当前玩家变化，自动滚动到行动玩家
@@ -1582,14 +1636,14 @@ watch(() => gameState.value?.current_player, () => {
         </div>
         <div class="flex items-center gap-3 mt-4">
           <button
-            @click="feedback.click(); loadError = null; loading = true; loadGameState()"
+            @click="loadError = null; loading = true; loadGameState()"
             class="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-xl transition-all shadow-lg active:scale-95 uppercase tracking-widest text-xs flex items-center gap-2"
           >
             <RefreshCw class="w-4 h-4" />
             重新连接
           </button>
           <button
-            @click="feedback.click(); router.push('/')"
+            @click="router.push('/')"
             class="px-6 py-3 bg-slate-200 dark:bg-white/10 hover:bg-slate-300 dark:hover:bg-white/20 text-slate-700 dark:text-white font-black rounded-xl transition-all shadow-lg active:scale-95 uppercase tracking-widest text-xs flex items-center gap-2"
           >
             <ArrowLeft class="w-4 h-4" />
@@ -1672,8 +1726,8 @@ watch(() => gameState.value?.current_player, () => {
                 </div>
                 <div class="flex flex-col items-start leading-none gap-0.5 min-w-0">
                   <span class="text-[7px] sm:text-[9px] font-black uppercase tracking-widest opacity-70">{{ isMyTurn ? 'Your Operation' : 'Active' }}</span>
-                  <span class="text-[9px] sm:text-xs font-black uppercase tracking-tight truncate max-w-[80px] sm:max-w-[120px]">
-                    {{ isMyTurn ? '轮到你了' : (currentPlayerObj?.nickname || currentPlayerObj?.username || '研究员') }}
+                  <span class="text-[9px] sm:text-xs font-black uppercase tracking-tight truncate max-w-[80px] sm:max-w-[120px]" :class="!isMyTurn && shouldShowInBlue(currentPlayerObj) ? 'text-blue-600 dark:text-blue-400' : ''">
+                    {{ isMyTurn ? '轮到你了' : getPlayerDisplayName(currentPlayerObj) }}
                   </span>
                 </div>
                 <div v-if="isMyTurn" class="pl-2 border-l border-white/20">
@@ -1727,7 +1781,7 @@ watch(() => gameState.value?.current_player, () => {
               @focus="handleInputFocus"
               @blur="handleInputBlur"
               placeholder="手动注入化学式"
-              inputmode="none"
+              :inputmode="isMobile || user.enable_element_input ? 'none' : 'text'"
               autocomplete="off"
               class="bg-transparent border-none outline-none text-sm sm:text-xs-mobile px-3 sm:px-2 py-1.5 sm:py-0.5 w-32 sm:w-40 font-black tracking-widest placeholder:text-slate-400 text-slate-900 dark:text-white"
             />
@@ -2021,8 +2075,8 @@ watch(() => gameState.value?.current_player, () => {
                 </div>
              </div>
              <div class="text-center relative z-10">
-                <h3 class="text-lg sm:text-xl font-black text-slate-800 dark:text-white uppercase tracking-[0.2em]">
-                   等待 {{ allPlayers[gameState?.current_player]?.nickname || allPlayers[gameState?.current_player]?.username || '研究员' }} 出牌
+                <h3 class="text-lg sm:text-xl font-black uppercase tracking-[0.2em]" :class="shouldShowInBlue(allPlayers[gameState?.current_player]) ? 'text-blue-600 dark:text-blue-400' : 'text-slate-800 dark:text-white'">
+                   等待 <span>{{ getPlayerDisplayName(allPlayers[gameState?.current_player]) }}</span> 出牌
                 </h3>
                 <p class="text-[8px] font-bold text-slate-500 mt-1 uppercase italic tracking-tighter">
                    Reaction Reactor Reseted _ New Deployment Window Open
@@ -2292,7 +2346,7 @@ watch(() => gameState.value?.current_player, () => {
                       反应已终止
                     </h2>
                     <p class="text-[10px] sm:text-sm text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
-                      本次实验由 <span class="text-blue-600 dark:text-blue-400 font-black px-1.5 py-0.5 bg-blue-500/5 rounded-lg ml-1">{{ winner?.nickname || winner?.username }}</span> 成功收官。
+                      本次实验由 <span class="font-black px-1.5 py-0.5 rounded-lg ml-1" :class="shouldShowInBlue(winner) ? 'text-blue-600 dark:text-blue-400 bg-blue-500/5' : 'text-blue-600 dark:text-blue-400 bg-blue-500/5'">{{ getPlayerDisplayName(winner) }}</span> 成功收官。
                     </p>
                   </template>
                 </div>
@@ -2333,8 +2387,8 @@ watch(() => gameState.value?.current_player, () => {
                             </div>
                             
                             <div class="flex flex-col items-start leading-tight">
-                              <span class="text-xs sm:text-sm font-black text-slate-700 dark:text-slate-100 flex items-center gap-1.5 sm:gap-2">
-                                <span class="truncate max-w-[80px] sm:max-w-[120px]">{{ item.player?.nickname || item.player?.username || '研究员' }}</span>
+                              <span class="text-xs sm:text-sm font-black flex items-center gap-1.5 sm:gap-2" :class="shouldShowInBlue(item.player) ? 'text-blue-600 dark:text-blue-400' : 'text-slate-700 dark:text-slate-100'">
+                                <span class="truncate max-w-[80px] sm:max-w-[120px]">{{ getPlayerDisplayName(item.player) }}</span>
                                 <span v-if="item.uid === user.uid" class="px-1 py-0.5 bg-blue-500 text-[6px] sm:text-[8px] text-white rounded-md uppercase tracking-widest font-mono shrink-0">YOU</span>
                               </span>
                               <span class="text-[7px] sm:text-[9px] font-bold text-slate-400 uppercase tracking-tighter shrink-0">ID: {{ item.uid }}</span>
@@ -2491,7 +2545,7 @@ watch(() => gameState.value?.current_player, () => {
 
     <!-- Invite Friends Modal -->
     <div v-if="showInviteFriendsModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      <div class="absolute inset-0 bg-black/80 backdrop-blur-md" @click="feedback.click(); showInviteFriendsModal = false"></div>
+      <div class="absolute inset-0 bg-black/80 backdrop-blur-md clickable" @click="showInviteFriendsModal = false"></div>
       <div class="relative w-full max-w-lg bg-white dark:bg-[#121216] border border-slate-200 dark:border-white/10 rounded-[40px] shadow-2xl overflow-hidden animate-in zoom-in duration-300">
         <div class="p-8 border-b border-slate-200 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.02]">
           <div class="flex items-center justify-between">
@@ -2502,7 +2556,7 @@ watch(() => gameState.value?.current_player, () => {
               </h3>
               <p class="text-[10px] text-slate-500 font-mono uppercase tracking-[0.2em] mt-2">选择一位好友发送游戏邀请</p>
             </div>
-            <button @click="feedback.click(); showInviteFriendsModal = false" class="p-2 hover:bg-slate-200 dark:hover:bg-white/5 rounded-full transition-colors">
+            <button @click="showInviteFriendsModal = false" class="p-2 hover:bg-slate-200 dark:hover:bg-white/5 rounded-full transition-colors">
               <X class="w-6 h-6 text-slate-400" />
             </button>
           </div>
@@ -2529,8 +2583,8 @@ watch(() => gameState.value?.current_player, () => {
                   <div v-if="friend.is_online" class="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-emerald-500 border-3 border-white dark:border-[#121216] rounded-full shadow-lg shadow-emerald-500/20"></div>
                 </div>
                 <div class="text-left">
-                  <div class="text-base font-bold text-slate-700 dark:text-white flex items-center gap-2">
-                    {{ friend.nickname || friend.username }}
+                  <div class="text-base font-bold flex items-center gap-2" :class="friend.remark ? 'text-blue-600 dark:text-blue-400' : 'text-slate-700 dark:text-white'">
+                    {{ friend.remark || friend.nickname || friend.username }}
                     <span v-if="friend.is_online" class="px-2 py-0.5 bg-emerald-500/10 text-emerald-500 text-[8px] font-black rounded uppercase tracking-widest">Online</span>
                   </div>
                   <div class="text-[9px] text-slate-400 font-mono mt-1">UID: {{ friend.uid }}</div>
@@ -2562,7 +2616,7 @@ watch(() => gameState.value?.current_player, () => {
             <p class="text-[8px] font-mono text-slate-400 uppercase tracking-tighter">Players_{{ allPlayers.length }}/{{ roomInfo?.max_players }}</p>
           </div>
         </div>
-        <button @click="feedback.click(); showPlayers = false" class="p-1 hover:bg-slate-200 dark:hover:bg-white/10 rounded-lg transition-colors text-slate-400 hover:text-slate-600 dark:hover:text-white">
+        <button @click="showPlayers = false" class="p-1 hover:bg-slate-200 dark:hover:bg-white/10 rounded-lg transition-colors text-slate-400 hover:text-slate-600 dark:hover:text-white">
           <X class="w-4 h-4" />
         </button>
       </div>
@@ -2601,7 +2655,9 @@ watch(() => gameState.value?.current_player, () => {
             </div>
             <div class="flex flex-col min-w-0 flex-1">
               <div class="flex items-center gap-1 leading-none">
-                <span class="text-[11px] font-black truncate max-w-[80px] tracking-tight" :class="gameState?.current_player === index ? 'text-white' : 'text-slate-700 dark:text-slate-300'">{{ player.nickname || player.username }}</span>
+                <span class="text-[11px] font-black truncate max-w-[80px] tracking-tight" :class="[
+                  gameState?.current_player === index ? 'text-white' : (shouldShowInBlue(player) ? 'text-blue-600 dark:text-blue-400' : 'text-slate-700 dark:text-slate-300')
+                ]">{{ getPlayerDisplayName(player) }}</span>
                 <span v-if="gameState?.current_player === index" class="text-[9px] font-mono font-black px-1 rounded" :class="isMyTurn ? 'bg-white/20 text-white' : 'bg-blue-500/10 text-blue-500'">{{ timeRemaining }}s</span>
                 <span class="text-[8px] font-mono opacity-40 shrink-0" :class="gameState?.current_player === index ? 'text-white' : 'text-slate-500'">#{{ player.uid }}</span>
                 <Zap v-if="player.double_action_available" :class="cn('w-2.5 h-2.5 fill-current', gameState?.current_player === index ? 'text-amber-300' : 'text-amber-500')" />
@@ -2669,8 +2725,8 @@ watch(() => gameState.value?.current_player, () => {
     <!-- Mobile Overlay for Players Panel -->
     <div
       v-if="showPlayers"
-      class="fixed inset-0 bg-white/10 dark:bg-black/20 backdrop-blur-[2px] z-[95] lg:hidden"
-      @click="feedback.click(); showPlayers = false"
+      class="fixed inset-0 bg-white/10 dark:bg-black/20 backdrop-blur-[2px] z-[95] lg:hidden clickable"
+      @click="showPlayers = false"
     ></div>
 
     <!-- Chat Floating Sidebar -->
@@ -2694,8 +2750,8 @@ watch(() => gameState.value?.current_player, () => {
     <!-- Mobile Overlay for Chat -->
     <div
       v-if="showChat"
-      class="fixed inset-0 bg-white/10 dark:bg-black/20 backdrop-blur-[2px] z-[95] lg:hidden"
-      @click="feedback.click(); showChat = false"
+      class="fixed inset-0 bg-white/10 dark:bg-black/20 backdrop-blur-[2px] z-[95] lg:hidden clickable"
+      @click="showChat = false"
     ></div>
 
     <!-- 化学键盘 -->
@@ -2709,7 +2765,7 @@ watch(() => gameState.value?.current_player, () => {
 
     <!-- 牌组详情查看模态框 -->
     <div v-if="showDeckDetailModal && roomInfo?.deck_config" class="fixed inset-0 z-[200] flex items-center justify-center p-4">
-      <div class="absolute inset-0 bg-slate-900/40 dark:bg-black/80 backdrop-blur-md" @click="feedback.click(); showDeckDetailModal = false" />
+      <div class="absolute inset-0 bg-slate-900/40 dark:bg-black/80 backdrop-blur-md clickable" @click="showDeckDetailModal = false" />
       <div class="relative w-full max-w-2xl bg-white dark:bg-[#121216] border border-slate-200 dark:border-white/10 rounded-[32px] shadow-2xl overflow-hidden">
          <div class="px-5 py-4 border-b border-slate-100 dark:border-white/5 flex items-center justify-between">
             <div class="flex items-center gap-3">
@@ -2721,7 +2777,7 @@ watch(() => gameState.value?.current_player, () => {
                 <p class="text-[8px] text-slate-400 dark:text-slate-500 font-mono uppercase tracking-widest mt-1">Deck_Configuration</p>
               </div>
             </div>
-            <button @click="feedback.click(); showDeckDetailModal = false" class="p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl transition-colors text-slate-400 hover:text-slate-900 dark:hover:text-white">
+            <button @click="showDeckDetailModal = false" class="p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl transition-colors text-slate-400 hover:text-slate-900 dark:hover:text-white">
               <X class="w-4 h-4" />
             </button>
          </div>
@@ -2764,7 +2820,7 @@ watch(() => gameState.value?.current_player, () => {
             </div>
          </div>
          <div class="px-5 py-3 border-t border-slate-100 dark:border-white/5 flex justify-end">
-            <button @click="feedback.click(); showDeckDetailModal = false" class="px-4 py-2 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 font-bold rounded-xl transition-all uppercase tracking-widest text-[10px] border border-slate-200 dark:border-white/5">
+            <button @click="showDeckDetailModal = false" class="px-4 py-2 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 font-bold rounded-xl transition-all uppercase tracking-widest text-[10px] border border-slate-200 dark:border-white/5">
               关闭
             </button>
          </div>

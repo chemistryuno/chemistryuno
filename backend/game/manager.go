@@ -611,10 +611,26 @@ func ResetPlayerHosted(roomID string, uid int) {
 // 积分结算逻辑
 func handlePointsCalculation(gr *GameRoom) {
 	finished := gr.GameState.FinishedPlayers
-	count := len(finished)
 
-	// 即使只有1个玩家完成，也要生成 PointsChanges 用于前端显示
-	// 修改：移除 count < 2 的限制
+	// 确保所有玩家都在排名列表中（即使没打完）
+	allUIDs := []int{}
+	for _, p := range gr.GameState.Players {
+		allUIDs = append(allUIDs, p.UID)
+	}
+
+	fullRanking := append([]int{}, finished...)
+	for _, uid := range allUIDs {
+		exists := false
+		for _, fuid := range finished {
+			if fuid == uid {
+				exists = true
+				break
+			}
+		}
+		if !exists {
+			fullRanking = append(fullRanking, uid)
+		}
+	}
 
 	// 计算积分倍率：每有一个未完成玩家离开，结算减少 1/总人数
 	multiplier := 1.0
@@ -625,119 +641,111 @@ func handlePointsCalculation(gr *GameRoom) {
 		}
 	}
 
-	changes := make(map[int]int)
-
-	// 基础分 100，名次越靠前分越高
-	// 第1名: 100
-	// 第2名: 50
-	// 第3名: 33
-	// ...
-	// 最后一名: 5 (参与奖)
-
-	for i, uid := range finished {
-		points := 0
-		rank := i + 1
-
-		// AI 玩家（UID < 0）不获得积分，但需要在 PointsChanges 中记录为 0
-		if uid < 0 {
-			changes[uid] = 0
-			continue
-		}
-
-		// 如果是最后一名且总人数大于1，给予固定参与分
-		if i == count-1 && count > 1 {
-			points = 5
-		} else {
-			points = 100 / rank
-		}
-
-		// 应用倍率 (如果有中途退出的人，倍率会降低)
-		// 但对于已完成比赛的前几名，通常应该获得全额奖励，
-		// 这里暂且保留原逻辑：倍率影响所有人
-		points = int(float64(points) * multiplier)
-
-		// PvE 模式积分修正
-		if gr.Room.IsPvE {
-			// 难度 < 50，无法获得积分
-			if gr.Room.PvEDifficulty < 50 {
-				points = 0
-			} else {
-				// 积分 = 原始积分 * (难度 / 100)
-				points = int(float64(points) * float64(gr.Room.PvEDifficulty) / 100.0)
-			}
-		}
-
-		if points < 1 && (!gr.Room.IsPvE || gr.Room.PvEDifficulty >= 50) {
-			points = 1
-		}
-
-		changes[uid] = points
-		repository.UserRepo.IncrementPoints(uint(uid), points)
-		repository.UserRepo.IncrementMonthlyPoints(uint(uid), points)
+	// 如果 PointsChanges 还没初始化，初始化它
+	if gr.GameState.PointsChanges == nil {
+		gr.GameState.PointsChanges = make(map[int]int)
 	}
-	gr.GameState.PointsChanges = changes
-
-	// 悬赏逻辑处理
-	winnerUID := finished[0]
-	playerUIDs := []int{}
-	for _, p := range gr.GameState.Players {
-		playerUIDs = append(playerUIDs, p.UID)
-	}
-
-	// 查找针对这些玩家的悬赏
-	totalBountyForWinner := 0
-	for _, targetUID := range playerUIDs {
-		bounties, err := repository.BountyRepo.FindActiveByTarget(uint(targetUID))
-		if err != nil {
-			continue
-		}
-		for _, bounty := range bounties {
-			if gr.Room.IsDuel && targetUID == gr.Room.TargetUID {
-				// 单挑模式特别处理
-				if winnerUID == gr.Room.ChallengerUID {
-					// 发起者赢：获得全部悬赏
-					totalBountyForWinner += bounty.Amount
-					repository.BountyRepo.UpdateStatus(bounty.ID, "claimed")
-				} else if winnerUID == gr.Room.TargetUID {
-					// 被挑战者赢：获得一半悬赏
-					reward := bounty.Amount / 2
-					totalBountyForWinner += reward
-					repository.BountyRepo.UpdateStatus(bounty.ID, "claimed")
-				}
-			} else {
-				// 普通模式：只要被悬赏者输了（不是第一名），胜者就能获得该悬赏
-				if targetUID != winnerUID {
-					totalBountyForWinner += bounty.Amount
-					repository.BountyRepo.UpdateStatus(bounty.ID, "claimed")
-				}
-			}
-		}
-	}
-
-	if totalBountyForWinner > 0 {
-		repository.UserRepo.IncrementPoints(uint(winnerUID), totalBountyForWinner)
-		repository.UserRepo.IncrementMonthlyPoints(uint(winnerUID), totalBountyForWinner)
-		changes[winnerUID] += totalBountyForWinner
-	}
-
-	// XP 经验奖励（等级系统）
-	// 初始化 XPChanges map
 	if gr.GameState.XPChanges == nil {
 		gr.GameState.XPChanges = make(map[int]int)
 	}
 
-	// 计算并存储每个玩家的 XP 变化
-	for i, uid := range finished {
-		if uid < 0 {
-			gr.GameState.XPChanges[uid] = 0 // AI 不获得经验，但在结算中显示为 0
-			continue
-		}
+	for i, uid := range fullRanking {
 		rank := i + 1
-		xp := CalculateXPReward(gr, uid, rank)
-		gr.GameState.XPChanges[uid] = xp
 
-		if xp > 0 {
-			go AwardXP(uid, xp) // 异步授予经验，避免阻塞
+		// 1. 处理积分
+		points := 0
+
+		// AI 玩家（UID < 0）和已退出玩家不获得额外积分（但可能在中间结算时已获得 0）
+		if uid > 0 {
+			// 如果已经在中间实时结算过了，不再重复增加数据库积分，仅确保 PointsChanges 中有值
+			if prevPoints, ok := gr.GameState.PointsChanges[uid]; ok && prevPoints > 0 {
+				points = prevPoints
+			} else {
+				// 计算应得积分
+				if rank == 1 {
+					points = 100
+				} else if rank == 2 {
+					points = 50
+				} else if rank == 3 {
+					points = 33
+				} else if rank == len(fullRanking) && len(fullRanking) > 1 {
+					points = 5 // 参与奖
+				} else {
+					points = 100 / rank
+				}
+
+				points = int(float64(points) * multiplier)
+
+				// PvE 模式积分修正
+				if gr.Room.IsPvE {
+					if gr.Room.PvEDifficulty < 50 {
+						points = 0
+					} else {
+						points = int(float64(points) * float64(gr.Room.PvEDifficulty) / 100.0)
+					}
+				}
+
+				if points < 1 && (!gr.Room.IsPvE || gr.Room.PvEDifficulty >= 50) {
+					points = 1
+				}
+
+				// 仅对尚未结算过的玩家执行数据库增加
+				if points > 0 {
+					repository.UserRepo.IncrementPoints(uint(uid), points)
+					repository.UserRepo.IncrementMonthlyPoints(uint(uid), points)
+				}
+			}
+		}
+
+		gr.GameState.PointsChanges[uid] = points
+
+		// 2. 处理 XP
+		if uid > 0 {
+			// 如果 XPChanges 还没算过（通常最后结算时大家都没算过）
+			if _, ok := gr.GameState.XPChanges[uid]; !ok {
+				xp := CalculateXPReward(gr, uid, rank)
+				gr.GameState.XPChanges[uid] = xp
+				if xp > 0 {
+					go AwardXP(uid, xp)
+				}
+			}
+		} else {
+			gr.GameState.XPChanges[uid] = 0
+		}
+	}
+
+	// 悬赏逻辑处理（仅奖励第一名）
+	if len(finished) > 0 {
+		winnerUID := finished[0]
+		totalBountyForWinner := 0
+		for _, targetUID := range allUIDs {
+			bounties, err := repository.BountyRepo.FindActiveByTarget(uint(targetUID))
+			if err != nil {
+				continue
+			}
+			for _, bounty := range bounties {
+				if gr.Room.IsDuel && targetUID == gr.Room.TargetUID {
+					if winnerUID == gr.Room.ChallengerUID {
+						totalBountyForWinner += bounty.Amount
+						repository.BountyRepo.UpdateStatus(bounty.ID, "claimed")
+					} else if winnerUID == gr.Room.TargetUID {
+						reward := bounty.Amount / 2
+						totalBountyForWinner += reward
+						repository.BountyRepo.UpdateStatus(bounty.ID, "claimed")
+					}
+				} else {
+					if targetUID != winnerUID {
+						totalBountyForWinner += bounty.Amount
+						repository.BountyRepo.UpdateStatus(bounty.ID, "claimed")
+					}
+				}
+			}
+		}
+
+		if totalBountyForWinner > 0 {
+			repository.UserRepo.IncrementPoints(uint(winnerUID), totalBountyForWinner)
+			repository.UserRepo.IncrementMonthlyPoints(uint(winnerUID), totalBountyForWinner)
+			gr.GameState.PointsChanges[winnerUID] += totalBountyForWinner
 		}
 	}
 }
@@ -746,15 +754,39 @@ func handlePointsCalculation(gr *GameRoom) {
 func handleXPCalculation(gr *GameRoom) {
 	finished := gr.GameState.FinishedPlayers
 
-	// 初始化 XPChanges map
+	// 确保所有玩家都在排名列表中（即使没打完）
+	allUIDs := []int{}
+	for _, p := range gr.GameState.Players {
+		allUIDs = append(allUIDs, p.UID)
+	}
+
+	fullRanking := append([]int{}, finished...)
+	for _, uid := range allUIDs {
+		exists := false
+		for _, fuid := range finished {
+			if fuid == uid {
+				exists = true
+				break
+			}
+		}
+		if !exists {
+			fullRanking = append(fullRanking, uid)
+		}
+	}
+
+	// 初始化 XPChanges 和 PointsChanges map
 	if gr.GameState.XPChanges == nil {
 		gr.GameState.XPChanges = make(map[int]int)
 	}
+	if gr.GameState.PointsChanges == nil {
+		gr.GameState.PointsChanges = make(map[int]int)
+	}
 
-	// 计算并存储每个玩家的 XP 变化
-	for i, uid := range finished {
+	// 计算并存储每个玩家的 XP 变化（非积分模式积分为0，仅用于前端显示排名）
+	for i, uid := range fullRanking {
+		gr.GameState.PointsChanges[uid] = 0 // 非积分模式不发放积分
 		if uid < 0 {
-			gr.GameState.XPChanges[uid] = 0 // AI 不获得经验，但在结算中显示为 0
+			gr.GameState.XPChanges[uid] = 0
 			continue
 		}
 		rank := i + 1
@@ -1988,18 +2020,22 @@ func GetRoomState(roomID string, uid int) (map[string]interface{}, error) {
 		}
 
 		result["game_state"] = map[string]interface{}{
-			"players":            filteredPlayers,
-			"spectators":         gameRoom.Room.Spectators,
-			"finished_players":   gameRoom.GameState.FinishedPlayers,
-			"current_player":     gameRoom.GameState.CurrentPlayer,
-			"direction":          gameRoom.GameState.Direction,
-			"last_card":          gameRoom.GameState.LastCard,
-			"deck_count":         len(gameRoom.GameState.DrawPile),
-			"status":             gameRoom.GameState.Status,
-			"turn_end_time":      gameRoom.GameState.TurnEndTime,
-			"allowed_any_player": gameRoom.GameState.AllowedAnyPlayer,
-			"pending_draw_count": gameRoom.GameState.PendingDrawCount,
-			"is_spectator":       isSpectator,
+			"players":               filteredPlayers,
+			"spectators":            gameRoom.Room.Spectators,
+			"finished_players":      gameRoom.GameState.FinishedPlayers,
+			"current_player":        gameRoom.GameState.CurrentPlayer,
+			"direction":             gameRoom.GameState.Direction,
+			"last_card":             gameRoom.GameState.LastCard,
+			"deck_count":            len(gameRoom.GameState.DrawPile),
+			"status":                gameRoom.GameState.Status,
+			"turn_end_time":         gameRoom.GameState.TurnEndTime,
+			"allowed_any_player":    gameRoom.GameState.AllowedAnyPlayer,
+			"pending_draw_count":    gameRoom.GameState.PendingDrawCount,
+			"is_spectator":          isSpectator,
+			"points_changes":        gameRoom.GameState.PointsChanges,
+			"xp_changes":            gameRoom.GameState.XPChanges,
+			"original_player_count": gameRoom.GameState.OriginalPlayerCount,
+			"quitted_count":         gameRoom.GameState.QuittedCount,
 		}
 	}
 
@@ -2452,35 +2488,12 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 		shouldEndGame := activeCount <= 1
 
 		if shouldEndGame {
-			// 将最后一名玩家也加入完成列表（作为最后一名）
 			if activeCount == 1 {
 				gameRoom.GameState.FinishedPlayers = append(gameRoom.GameState.FinishedPlayers, lastPlayerUID)
 			}
-
-			gameRoom.GameState.Status = "finished"
-			gameRoom.Room.Status = "finished"
-
-			// 此时 FinishedPlayers 包含了所有玩家的排名顺序
-			// 第一名是 winnerUID
-			winnerUID := gameRoom.GameState.FinishedPlayers[0]
-			saveGameHistory(roomID, winnerUID, gameRoom.Room.Players, gameRoom.GameState.OriginalPlayerCount, gameRoom.GameState.QuittedCount)
-
-			privateChatRepo := repository.NewPrivateChatRepository()
-			if err := privateChatRepo.DeleteGameInvitesByRoom(roomID); err != nil {
-				log.Printf("清理房间 %s 的游戏邀请失败: %v", roomID, err)
-			}
-
-			// 最终游戏结束时不再重复计算已实时结算过的玩家，
-			// handlePointsCalculation 函数内部会自动处理或是作为最终兜底
-			// 修改：PvE 模式也需要调用以生成 PointsChanges 用于前端显示
-			// 注意：handlePointsCalculation 内部已包含 XP 经验奖励计算
-			if gameRoom.Room.IsPointsMode || gameRoom.Room.IsPvE {
-				handlePointsCalculation(gameRoom)
-			} else {
-				// 非积分模式也需要计算 XP 经验奖励
-				handleXPCalculation(gameRoom)
-			}
+			finalizeGame(gameRoom)
 		} else {
+
 			// 游戏继续，广播更新包含 finished_players
 			// 前端需要根据 finished_players 列表展示"已完成"状态
 			log.Printf("玩家 %d 完成游戏，剩余活跃玩家: %d", uid, activeCount)
@@ -2810,7 +2823,7 @@ func GetReactionHints(roomID string, uid int) ([]map[string]string, error) {
 	return hints, nil
 }
 
-func saveGameHistory(roomID string, winnerUID int, players []int, originalPlayerCount int, quittedCount int) {
+func saveGameHistory(roomID string, winnerUID int, players []int, originalPlayerCount int, quittedCount int, finishedPlayers []int) {
 	// 创建游戏历史记录
 	playersJSON, _ := json.Marshal(players)
 	history := &database.GameHistory{
@@ -2833,12 +2846,26 @@ func saveGameHistory(roomID string, winnerUID int, players []int, originalPlayer
 
 	// 更新玩家的总场次
 	for _, uid := range players {
-		repository.UserRepo.IncrementTotalGames(uint(uid))
+		if uid > 0 {
+			repository.UserRepo.IncrementTotalGames(uint(uid))
+		}
 	}
 
 	// 更新胜利者的胜利场数
 	if winnerUID > 0 {
 		repository.UserRepo.IncrementWinCount(uint(winnerUID))
+	}
+
+	// 排名后50%的真实玩家记为 loser（递增 negative_play_count）
+	total := len(finishedPlayers)
+	if total >= 2 {
+		loserStart := (total + 1) / 2 // 后50%起始索引（向上取整）
+		for i := loserStart; i < total; i++ {
+			uid := finishedPlayers[i]
+			if uid > 0 {
+				repository.UserRepo.IncrementNegativePlayCount(uint(uid))
+			}
+		}
 	}
 
 	fmt.Println("游戏历史已保存，玩家统计已更新")
@@ -3138,12 +3165,9 @@ func DoublePlay(roomID string, uid int, sub1 string, sub2 string) error {
 		}
 	}
 
-	// 检查是否获胜
+	// 检查获胜
 	if currentPlayer.CardCount == 0 {
-		gameRoom.GameState.Status = "finished"
-		gameRoom.Room.Status = "finished"
-
-		// 记录完成玩家到排名列表（如果还没记录）
+		// 注册获胜玩家
 		alreadyFinished := false
 		for _, fuid := range gameRoom.GameState.FinishedPlayers {
 			if fuid == uid {
@@ -3155,21 +3179,32 @@ func DoublePlay(roomID string, uid int, sub1 string, sub2 string) error {
 			gameRoom.GameState.FinishedPlayers = append(gameRoom.GameState.FinishedPlayers, uid)
 		}
 
-		// 记录游戏历史
-		saveGameHistory(roomID, uid, gameRoom.Room.Players, gameRoom.GameState.OriginalPlayerCount, gameRoom.GameState.QuittedCount)
-
-		// 清理该房间的游戏邀请消息
-		privateChatRepo := repository.NewPrivateChatRepository()
-		if err := privateChatRepo.DeleteGameInvitesByRoom(roomID); err != nil {
-			log.Printf("清理房间 %s 的游戏邀请失败: %v", roomID, err)
+		// 计算活跃玩家
+		activeCount := 0
+		var lastPlayerUID int
+		for _, p := range gameRoom.GameState.Players {
+			isF := false
+			for _, fuid := range gameRoom.GameState.FinishedPlayers {
+				if p.UID == fuid {
+					isF = true
+					break
+				}
+			}
+			if !isF {
+				activeCount++
+				lastPlayerUID = p.UID
+			}
 		}
 
-		// 积分结算（包括 PvE 和积分模式）
-		if gameRoom.Room.IsPointsMode || gameRoom.Room.IsPvE {
-			handlePointsCalculation(gameRoom)
+		if activeCount <= 1 {
+			if activeCount == 1 {
+				gameRoom.GameState.FinishedPlayers = append(gameRoom.GameState.FinishedPlayers, lastPlayerUID)
+			}
+			finalizeGame(gameRoom)
+			return nil
 		}
 
-		return nil
+		log.Printf("[双联反应] 玩家 %d 完成游戏，剩余活跃玩家: %d", uid, activeCount)
 	}
 
 	// 重置冷却
@@ -3192,6 +3227,28 @@ func DoublePlay(roomID string, uid int, sub1 string, sub2 string) error {
 	gameRoom.broadcastRoomUpdate()
 
 	return nil
+}
+
+// finalizeGame 统一处理游戏结束逻辑
+func finalizeGame(gr *GameRoom) {
+	gr.GameState.Status = "finished"
+	gr.Room.Status = "finished"
+
+	winnerUID := gr.GameState.FinishedPlayers[0]
+	saveGameHistory(gr.Room.ID, winnerUID, gr.Room.Players, gr.GameState.OriginalPlayerCount, gr.GameState.QuittedCount, gr.GameState.FinishedPlayers)
+
+	privateChatRepo := repository.NewPrivateChatRepository()
+	if err := privateChatRepo.DeleteGameInvitesByRoom(gr.Room.ID); err != nil {
+		log.Printf("清理房间 %s 的游戏邀请失败: %v", gr.Room.ID, err)
+	}
+
+	if gr.Room.IsPointsMode || gr.Room.IsPvE {
+		handlePointsCalculation(gr)
+	} else {
+		handleXPCalculation(gr)
+	}
+
+	log.Printf("[游戏结束] 房间 %s 已正式结算，冠军 UID: %d", gr.Room.ID, winnerUID)
 }
 
 func processRoomTimeout(roomID string) {

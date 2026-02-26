@@ -1,5 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { 
+  Award, 
+  FlaskConical, 
+  Star, 
+  Atom, 
+  Trophy, 
+  Crown 
+} from 'lucide-vue-next'
 
 interface Props {
   level: number
@@ -14,24 +22,48 @@ const props = withDefaults(defineProps<Props>(), {
   showLevel: true
 })
 
-// 段位图标映射
-const tierIcons: Record<string, string> = {
-  bronze: '🥉',
-  silver: '🥈',
-  gold: '🥇',
-  platinum: '💎',
-  diamond: '💠',
-  master: '⭐'
+// 段位配置映射
+const tierMap: Record<string, { icon: any, gradient: string, color: string }> = {
+  bronze: { 
+    icon: Award, 
+    gradient: 'from-orange-400 to-orange-700',
+    color: 'text-orange-100'
+  },
+  silver: { 
+    icon: FlaskConical, 
+    gradient: 'from-slate-300 to-slate-500',
+    color: 'text-slate-100'
+  },
+  gold: { 
+    icon: Star, 
+    gradient: 'from-yellow-300 to-amber-600',
+    color: 'text-yellow-50'
+  },
+  platinum: { 
+    icon: Atom, 
+    gradient: 'from-cyan-300 to-blue-600',
+    color: 'text-cyan-50'
+  },
+  diamond: { 
+    icon: Trophy, 
+    gradient: 'from-blue-400 to-indigo-700',
+    color: 'text-blue-50'
+  },
+  master: { 
+    icon: Crown, 
+    gradient: 'from-purple-500 to-pink-700',
+    color: 'text-purple-50'
+  }
 }
 
 // 段位配置
 const tierConfig = computed(() => {
   const tier = props.tier || getTierFromLevel(props.level)
+  const config = tierMap[tier] || tierMap.bronze
   return {
-    icon: tierIcons[tier] || '🎮',
+    ...config,
     name: props.tierName || getTierName(tier),
-    tier: tier,
-    gradient: getTierGradient(tier)
+    tier: tier
   }
 })
 
@@ -59,40 +91,27 @@ function getTierName(tier: string): string {
   return names[tier] || '未知'
 }
 
-// 段位渐变色
-function getTierGradient(tier: string): string {
-  const gradients: Record<string, string> = {
-    bronze: 'from-orange-400 to-amber-600',
-    silver: 'from-slate-300 to-slate-500',
-    gold: 'from-yellow-300 to-yellow-500',
-    platinum: 'from-cyan-200 to-blue-400',
-    diamond: 'from-blue-300 to-indigo-500',
-    master: 'from-purple-400 to-pink-500'
-  }
-  return gradients[tier] || 'from-gray-300 to-gray-500'
-}
-
 // 尺寸配置
 const sizeClasses = computed(() => {
   const sizes = {
     xs: {
       badge: 'px-1.5 py-0.5 gap-1 rounded-md text-[9px]',
-      icon: 'text-[10px]',
+      icon: 'w-2.5 h-2.5',
       level: 'text-[9px]'
     },
     sm: {
-      badge: 'px-2 py-1 gap-1.5 rounded-lg text-[10px]',
-      icon: 'text-xs',
+      badge: 'px-2 py-0.5 gap-1.5 rounded-lg text-[10px]',
+      icon: 'w-3 h-3',
       level: 'text-[10px]'
     },
     md: {
       badge: 'px-2.5 py-1 gap-1.5 rounded-xl text-xs',
-      icon: 'text-sm',
+      icon: 'w-3.5 h-3.5',
       level: 'text-xs'
     },
     lg: {
       badge: 'px-3 py-1.5 gap-2 rounded-xl text-sm',
-      icon: 'text-base',
+      icon: 'w-4 h-4',
       level: 'text-sm'
     }
   }
@@ -104,23 +123,25 @@ const sizeClasses = computed(() => {
   <div
     :class="[
       'inline-flex items-center font-black',
-      'bg-gradient-to-r shadow-sm',
+      'bg-gradient-to-br shadow-lg border border-white/20',
       tierConfig.gradient,
+      tierConfig.color,
       sizeClasses.badge,
-      'transition-all hover:scale-105 cursor-default'
+      'transition-all hover:scale-105 active:scale-95 cursor-default group'
     ]"
     :title="`${tierConfig.name} ${level} 级`"
   >
-    <span :class="['leading-none', sizeClasses.icon]">{{ tierConfig.icon }}</span>
-    <span v-if="showLevel" :class="['font-mono leading-none text-white drop-shadow-sm', sizeClasses.level]">
-      Lv.{{ level }}
+    <component :is="tierConfig.icon" :class="[sizeClasses.icon, 'filter drop-shadow-sm group-hover:rotate-12 transition-transform']" />
+    <span v-if="showLevel" :class="['font-mono leading-none drop-shadow-md', sizeClasses.level]">
+      LV.{{ level }}
     </span>
   </div>
 </template>
 
 <style scoped>
-/* 添加文字阴影以提高可读性 */
+/* 增强立体感 */
 div {
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.2), inset 0 1px 1px rgba(255, 255, 255, 0.3);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 </style>

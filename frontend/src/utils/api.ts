@@ -79,7 +79,18 @@ export const authAPI = {
     api.post(`/user/webauthn/change-password/finish?newPassword=${newPassword}`, credential),
   updateAvatar: (avatar: string) =>
     api.put('/user/avatar', { avatar }),
-  updateProfile: (data: { nickname: string, bio?: string, wechat?: string, qq?: string, show_email?: boolean, custom_contact?: string }) =>
+  updateProfile: (data: {
+    nickname: string,
+    bio?: string,
+    wechat?: string,
+    qq?: string,
+    show_email?: boolean,
+    birthday?: string | null,
+    sound_volume?: number,
+    vibration_enabled?: boolean,
+    enable_element_input?: boolean,
+    custom_contact?: string
+  }) =>
     api.put('/user/profile', data),
   getUserPublicProfile: (uid: number) =>
     api.get(`/user/profile/${uid}`),
@@ -340,6 +351,8 @@ export const friendAPI = {
     api.get('/friends'),
   deleteFriend: (friendUID: number) =>
     api.delete(`/friends/${friendUID}`),
+  setRemark: (friendUID: number, remark: string) =>
+    api.post('/friends/remark', { friend_uid: friendUID, remark }),
 }
 
 export default api

@@ -99,3 +99,60 @@ func (r *FriendshipRepository) CleanupExpiredRequests() error {
 	// 删除状态为 pending 且创建时间超过 7 天的请求
 	return r.db.Where("status = ? AND created_at < ?", "pending", sevenDaysAgo).Delete(&database.Friendship{}).Error
 }
+
+// SetRemark 设置好友备注
+func (r *FriendshipRepository) SetRemark(userUID, friendUID uint, remark string) error {
+	// 查找双向关系
+	var friendship database.Friendship
+	err := r.db.Where("status = ? AND ((user_uid = ? AND friend_uid = ?) OR (user_uid = ? AND friend_uid = ?))",
+		"accepted", userUID, friendUID, friendUID, userUID).First(&friendship).Error
+	if err != nil {
+		return err
+	}
+
+	// 根据关系的方向更新对应的备注字段
+	if friendship.UserUID == userUID {
+		// userUID 是发起方，更新 UserRemark
+		return r.db.Model(&database.Friendship{}).Where("id = ?", friendship.ID).Update("user_remark", remark).Error
+	} else {
+		// userUID 是接收方，更新 FriendRemark
+		return r.db.Model(&database.Friendship{}).Where("id = ?", friendship.ID).Update("friend_remark", remark).Error
+	}
+}
+
+// GetFriendsWithRemarks 获取好友列表（包含备注）
+func (r *FriendshipRepository) GetFriendsWithRemarks(uid uint) ([]map[string]interface{}, error) {
+	var friendships []database.Friendship
+	err := r.db.Preload("User").Preload("Friend").
+		Where("status = ? AND (user_uid = ? OR friend_uid = ?)", "accepted", uid, uid).Find(&friendships).Error
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]map[string]interface{}, 0)
+	for _, f := range friendships {
+		var friendUser database.User
+		var remark string
+
+		if f.UserUID == uid {
+			// 当前用户是发起方，好友是 Friend
+			friendUser = f.Friend
+			remark = f.UserRemark
+		} else {
+			// 当前用户是接收方，好友是 User
+			friendUser = f.User
+			remark = f.FriendRemark
+		}
+
+		result = append(result, map[string]interface{}{
+			"uid":      friendUser.UID,
+			"username": friendUser.Username,
+			"nickname": friendUser.Nickname,
+			"avatar":   friendUser.Avatar,
+			"remark":   remark,
+		})
+	}
+
+	return result, nil
+}
+

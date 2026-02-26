@@ -178,3 +178,53 @@ func DeleteFriend(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "好友已删除"})
 }
+
+// SetFriendRemark 设置好友备注
+func SetFriendRemark(c *gin.Context) {
+	uid := c.GetInt("uid")
+	var req struct {
+		FriendUID uint   `json:"friend_uid" binding:"required"`
+		Remark    string `json:"remark"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+
+	// 限制备注长度
+	if len([]rune(req.Remark)) > 50 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "备注不能超过50个字符"})
+		return
+	}
+
+	err := repository.FriendshipRepo.SetRemark(uint(uid), req.FriendUID, req.Remark)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "设置备注失败"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "备注已设置"})
+}
+
+// GetFriendsListWithRemarks 获取好友列表（包含备注）
+func GetFriendsListWithRemarks(c *gin.Context) {
+	uid := c.GetInt("uid")
+	friends, err := repository.FriendshipRepo.GetFriendsWithRemarks(uint(uid))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取好友列表失败"})
+		return
+	}
+
+	// 添加在线状态
+	for i := range friends {
+		isOnline := false
+		if websocket.GlobalHub != nil {
+			isOnline = websocket.GlobalHub.IsUIDOnline(int(friends[i]["uid"].(uint)))
+		}
+		friends[i]["is_online"] = isOnline
+	}
+
+	c.JSON(http.StatusOK, friends)
+}
+

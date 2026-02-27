@@ -21,42 +21,42 @@ const emit = defineEmits<{
   complete: []
 }>()
 
-// 默认步骤（使用占位符）
+// 默认步骤
 const defaultSteps: TutorialStep[] = [
   {
     id: 'welcome',
-    titlePlaceholder: 'TUTORIAL_WELCOME_TITLE',
-    contentPlaceholder: 'TUTORIAL_WELCOME_CONTENT',
+    titlePlaceholder: '欢迎来到实验室！',
+    contentPlaceholder: '欢迎来到化学UNO！这是一场融合化学知识与策略的卡牌对决。接下来将带你快速了解游戏的基本操作，准备好了吗？',
     position: 'center'
   },
   {
     id: 'hand-cards',
-    titlePlaceholder: 'TUTORIAL_HAND_CARDS_TITLE',
-    contentPlaceholder: 'TUTORIAL_HAND_CARDS_CONTENT',
+    titlePlaceholder: '你的元素库',
+    contentPlaceholder: '这里是你的手牌区，存放着你持有的所有化学元素与化合物卡牌。点击卡牌可以选中并出牌，合理搭配元素，触发更强的化学反应！',
     targetSelector: '.hand-container-mobile',
     position: 'top',
     spotlightRadius: 180
   },
   {
     id: 'operation-area',
-    titlePlaceholder: 'TUTORIAL_OPERATION_AREA_TITLE',
-    contentPlaceholder: 'TUTORIAL_OPERATION_AREA_CONTENT',
+    titlePlaceholder: '实验操作台',
+    contentPlaceholder: '这是你的操作中心。在输入框手动注入化学式精准出牌，或点击「摸牌」按钮补充手牌。若遇到「摸牌惩罚」，按钮会显示需要摸取的张数，务必承担！',
     targetSelector: '.operation-area',
     position: 'bottom',
     spotlightRadius: 200
   },
   {
     id: 'center-play',
-    titlePlaceholder: 'TUTORIAL_CENTER_PLAY_TITLE',
-    contentPlaceholder: 'TUTORIAL_CENTER_PLAY_CONTENT',
+    titlePlaceholder: '反应堆——出牌区',
+    contentPlaceholder: '这里显示场上的当前牌，也是化学反应的发生地。你需要打出与当前牌匹配的物质，或触发特定化学反应改变局势。最先打完手牌的玩家获胜！',
     targetSelector: '.center-play-area',
     position: 'bottom',
     spotlightRadius: 220
   },
   {
     id: 'complete',
-    titlePlaceholder: 'TUTORIAL_COMPLETE_TITLE',
-    contentPlaceholder: 'TUTORIAL_COMPLETE_CONTENT',
+    titlePlaceholder: '准备好了吗，化学家？',
+    contentPlaceholder: '太棒了！你已掌握基本操作。记住：善用化学反应是制胜关键。进入教学关卡，跟随系统指引完成第一局对战，祝实验顺利！',
     position: 'center'
   }
 ]

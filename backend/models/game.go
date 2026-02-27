@@ -124,6 +124,9 @@ type GameState struct {
 	// 教学脚本系统
 	TutorialScriptMode  bool `json:"tutorial_script_mode"`  // 是否为脚本化教学模式
 	TutorialCurrentStep int  `json:"tutorial_current_step"` // 当前教学脚本步骤（1-8）
+
+	// 插件系统
+	PendingForcedPlays int `json:"pending_forced_plays"` // 当前玩家仍需强制打出的牌数（force_play 效果）
 }
 
 // 玩家状态

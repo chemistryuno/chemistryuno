@@ -1,20 +1,20 @@
 /**
- * 游戏状态管理 Composable
+ * 游戏状态管�?Composable
  * 负责管理游戏状态、房间信息和玩家数据
  */
 
-import { ref, computed, type Ref } from 'vue'
+import { ref, computed } from 'vue'
 import { gameAPI } from '../utils/api'
 
 export function useGameState(roomId: string) {
-  // 状态
+  // 状�?
   const gameState = ref<any>(null)
   const roomInfo = ref<any>(null)
   const playersInfo = ref<any[]>([])
   const loading = ref(true)
   const loadError = ref<string | null>(null)
 
-  // 计算属性
+  // 计算属�?
   const allPlayers = computed(() => {
     if (gameState.value?.players) {
       return gameState.value.players.map((p: any) => {
@@ -49,21 +49,16 @@ export function useGameState(roomId: string) {
     }
 
     try {
-      const response = await gameAPI.getGameState(roomId)
-      gameState.value = response.data.game_state
-      roomInfo.value = response.data.room_info
-
-      // 获取玩家基础信息
-      if (gameState.value?.players) {
-        const uids = gameState.value.players.map((p: any) => p.uid)
-        const playersResponse = await gameAPI.getPlayersInfo(uids)
-        playersInfo.value = playersResponse.data.players || []
-      }
+      const response = await gameAPI.getRoomState(roomId)
+      const data = response.data
+      gameState.value = data.game_state
+      roomInfo.value = data
+      playersInfo.value = data.players_info || []
 
       loading.value = false
       return true
     } catch (error: any) {
-      console.error('加载游戏状态失败:', error)
+      console.error('加载游戏状态失�?', error)
       loadError.value = error.response?.data?.error || '加载失败'
       loading.value = false
       return false
@@ -79,14 +74,14 @@ export function useGameState(roomId: string) {
   }
 
   return {
-    // 状态
+    // 状�?
     gameState,
     roomInfo,
     playersInfo,
     loading,
     loadError,
 
-    // 计算属性
+    // 计算属�?
     allPlayers,
     isMyTurn,
     currentPlayerObj,
@@ -97,3 +92,5 @@ export function useGameState(roomId: string) {
     updateRoomInfo,
   }
 }
+
+

@@ -23,8 +23,9 @@ const themes = [
 ]
 
 const currentTheme = ref(localStorage.getItem('theme') || 'system')
-const soundVolume = ref(props.user.sound_volume ?? 0.3)
-const vibrationEnabled = ref(props.user.vibration_enabled ?? true)
+const localFeedbackSettings = feedback.getSettings()
+const soundVolume = ref(localFeedbackSettings.volume ?? 0.3)
+const vibrationEnabled = ref(localFeedbackSettings.vibrationEnabled ?? true)
 const enableElementInput = ref(props.user.enable_element_input ?? true)
 
 const applyTheme = (theme: string) => {
@@ -41,15 +42,9 @@ const handleSaveSettings = async () => {
   try {
     await authAPI.updateProfile({
       nickname: props.user.nickname,
-      sound_volume: soundVolume.value,
-      vibration_enabled: vibrationEnabled.value,
       enable_element_input: enableElementInput.value
     })
-    
-    // 同步到本地反馈管理器
-    feedback.setVolume(soundVolume.value)
-    feedback.setVibrationEnabled(vibrationEnabled.value)
-    
+
     showAlert('系统设置已云端同步。', '变更成功')
     emit('update')
   } catch (error: any) {
@@ -67,10 +62,16 @@ watch(currentTheme, (newTheme) => {
   applyTheme(newTheme)
 })
 
+watch(soundVolume, (newVolume) => {
+  feedback.setVolume(newVolume)
+})
+
+watch(vibrationEnabled, (newValue) => {
+  feedback.setVibrationEnabled(newValue)
+})
+
 watch(() => props.user, (newUser) => {
   if (newUser) {
-    soundVolume.value = newUser.sound_volume ?? 0.3
-    vibrationEnabled.value = newUser.vibration_enabled ?? true
     enableElementInput.value = newUser.enable_element_input ?? true
   }
 }, { deep: true })

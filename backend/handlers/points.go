@@ -67,6 +67,7 @@ func GetLeaderboard(c *gin.Context) {
 			"bounty":         totalBounty,
 			"is_online":      isOnline,
 			"is_banned":      isBanned,
+			"last_offline_at": user.LastOfflineAt,
 		})
 	}
 
@@ -107,6 +108,7 @@ func GetLeaderboard(c *gin.Context) {
 				"is_online":      isOnline,
 				"is_banned":      isBanned,
 				"rank":           rank + 1,
+				"last_offline_at": user.LastOfflineAt,
 			}
 		}
 	}

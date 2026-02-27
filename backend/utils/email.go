@@ -1,9 +1,10 @@
 package utils
 
 import (
+	"crypto/rand"
 	"crypto/tls"
 	"fmt"
-	"math/rand"
+	"math/big"
 	"net/smtp"
 	"os"
 	"strings"
@@ -91,6 +92,10 @@ func SendEmail(to, subject, body string) error {
 }
 
 // GenerateVerificationCode 生成6位数字验证码
-func GenerateVerificationCode() string {
-	return fmt.Sprintf("%06d", rand.Intn(1000000))
+func GenerateVerificationCode() (string, error) {
+	n, err := rand.Int(rand.Reader, big.NewInt(1000000))
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%06d", n.Int64()), nil
 }

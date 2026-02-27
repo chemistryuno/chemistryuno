@@ -4,7 +4,7 @@
  */
 
 import { ref, computed, watch, type Ref } from 'vue'
-import { TUTORIAL_SCRIPT, getTutorialStep, canPlaySubstance, getTutorialProgress } from '../utils/tutorialScript'
+import { getTutorialStep, canPlaySubstance, getTutorialProgress } from '../utils/tutorialScript'
 
 export function useTutorial(
   roomInfo: Ref<any>,

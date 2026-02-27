@@ -39,8 +39,16 @@ func (r *GameRepository) FindByUserUID(uid uint) ([]database.GameHistory, error)
 	if r.db.Dialector.Name() == "mysql" {
 		query = query.Where("JSON_CONTAINS(players, ?)", uid)
 	} else {
-		// SQLite 兼容性处理
-		query = query.Where("players LIKE ?", fmt.Sprintf("%%%d%%", uid))
+		// SQLite：精确边界匹配，避免 UID=12 误命中 UID=123
+		// players 存储格式为 JSON 数组，如 [1,2,12,123]
+		id := fmt.Sprintf("%d", uid)
+		query = query.Where(
+			"players = ? OR players LIKE ? OR players LIKE ? OR players LIKE ?",
+			"["+id+"]",          // 唯一元素 [12]
+			"["+id+",%",         // 首元素   [12,...
+			"%,"+id+"]",         // 末元素   ...,12]
+			"%,"+id+",%",        // 中间元素  ...,12,...
+		)
 	}
 
 	err := query.Find(&histories).Error
@@ -70,8 +78,15 @@ func (r *GameRepository) FindRecentByUserUID(uid uint, limit int) ([]database.Ga
 	if r.db.Dialector.Name() == "mysql" {
 		query = query.Where("JSON_CONTAINS(players, ?)", uid)
 	} else {
-		// SQLite 兼容性处理
-		query = query.Where("players LIKE ?", fmt.Sprintf("%%%d%%", uid))
+		// SQLite：精确边界匹配，避免 UID=12 误命中 UID=123
+		id := fmt.Sprintf("%d", uid)
+		query = query.Where(
+			"players = ? OR players LIKE ? OR players LIKE ? OR players LIKE ?",
+			"["+id+"]",
+			"["+id+",%",
+			"%,"+id+"]",
+			"%,"+id+",%",
+		)
 	}
 
 	err := query.Find(&histories).Error

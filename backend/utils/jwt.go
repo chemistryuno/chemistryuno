@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -18,10 +19,15 @@ var (
 // initJWTSecret 初始化JWT密钥（延迟初始化，确保.env已加载）
 func initJWTSecret() {
 	jwtSecretOnce.Do(func() {
-		secretKey := os.Getenv("JWT_SECRET")
+		secretKey := strings.TrimSpace(os.Getenv("JWT_SECRET"))
 		if secretKey == "" {
-			log.Println("警告: JWT_SECRET 环境变量未设置，使用默认密钥（不安全，仅用于开发环境）")
-			secretKey = "your-secret-key-change-this-in-production"
+			if err := EnsureJWTSecret(); err != nil {
+				log.Fatalf("JWT_SECRET 未配置且自动生成失败: %v", err)
+			}
+			secretKey = strings.TrimSpace(os.Getenv("JWT_SECRET"))
+		}
+		if secretKey == "" {
+			log.Fatal("JWT_SECRET 未配置，拒绝启动")
 		} else if len(secretKey) < 32 {
 			log.Println("警告: JWT_SECRET 长度过短，建议至少32个字符")
 		}

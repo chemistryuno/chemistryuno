@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 import { gameAPI, authAPI, commonAPI, friendAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
 import websocket from '../utils/websocket'
-import { Beaker, Plus, Shield, LogOut, Settings, Play, X, Loader2, Database, MessageCircle, Trophy, Megaphone, Menu } from 'lucide-vue-next'
+import { Beaker, Plus, Shield, LogOut, Settings, Play, X, Loader2, Database, MessageCircle, Trophy, Megaphone, Menu, Puzzle } from 'lucide-vue-next'
 import { cn } from '../utils/cn'
 import ChatBox from '../components/ChatBox.vue'
 import TutorialGuide from '../components/TutorialGuide.vue'
@@ -82,13 +82,13 @@ const getNavigationSelector = () => {
 }
 
 const lobbyTutorialSteps = computed(() => [
-  { id: 'welcome-lobby', titlePlaceholder: 'LOBBY_WELCOME_TITLE', contentPlaceholder: 'LOBBY_WELCOME_CONTENT', position: 'center' as const },
-  { id: 'create-room', titlePlaceholder: 'LOBBY_CREATE_ROOM_TITLE', contentPlaceholder: 'LOBBY_CREATE_ROOM_CONTENT', targetSelector: '[data-tutorial="create-room"]', position: 'bottom' as const },
-  { id: 'room-list', titlePlaceholder: 'LOBBY_ROOM_LIST_TITLE', contentPlaceholder: 'LOBBY_ROOM_LIST_CONTENT', targetSelector: '[data-tutorial="room-list"]', position: 'top' as const },
-  { id: 'navigation', titlePlaceholder: 'LOBBY_NAVIGATION_TITLE', contentPlaceholder: 'LOBBY_NAVIGATION_CONTENT', targetSelector: getNavigationSelector(), position: 'bottom' as const },
-  { id: 'user-profile', titlePlaceholder: 'LOBBY_PROFILE_TITLE', contentPlaceholder: 'LOBBY_PROFILE_CONTENT', targetSelector: '[data-tutorial="user-chip"]', position: 'bottom' as const },
-  { id: 'ai-arena', titlePlaceholder: 'LOBBY_AI_ARENA_TITLE', contentPlaceholder: 'LOBBY_AI_ARENA_CONTENT', targetSelector: '[data-tutorial="ai-arena"]', position: 'bottom' as const },
-  { id: 'complete-lobby', titlePlaceholder: 'LOBBY_COMPLETE_TITLE', contentPlaceholder: 'LOBBY_COMPLETE_CONTENT', position: 'center' as const }
+  { id: 'welcome-lobby', titlePlaceholder: '欢迎来到化学UNO大厅', contentPlaceholder: '这里是所有玩家的集结地！你可以创建房间邀请朋友，或加入其他玩家的对局，开启一场融合化学知识与策略的卡牌对决。', position: 'center' as const },
+  { id: 'create-room', titlePlaceholder: '创建你的实验室', contentPlaceholder: '点击这里可以新建游戏房间，设置房间名称、对战人数和游戏模式。还可以开启「AI补位」，让AI填满空位，随时开始对战，不用等人！', targetSelector: '[data-tutorial="create-room"]', position: 'bottom' as const },
+  { id: 'room-list', titlePlaceholder: '寻找对战房间', contentPlaceholder: '这里列出了当前所有开放的游戏房间。找到感兴趣的房间直接点击加入，与来自各地的化学玩家展开激烈对决！', targetSelector: '[data-tutorial="room-list"]', position: 'top' as const },
+  { id: 'navigation', titlePlaceholder: '快捷导航', contentPlaceholder: '通过导航栏可以快速切换到排行榜、好友列表等页面。随时掌握自己的全球排名，查看对战战绩，探索更多功能！', targetSelector: getNavigationSelector(), position: 'bottom' as const },
+  { id: 'user-profile', titlePlaceholder: '你的化学家档案', contentPlaceholder: '点击这里进入个人主页，查看你的等级、积分、历史战绩和成就勋章。努力提升实力，向化学大师的称号冲击！', targetSelector: '[data-tutorial="user-chip"]', position: 'bottom' as const },
+  { id: 'ai-arena', titlePlaceholder: 'AI竞技场', contentPlaceholder: '想练习牌技或享受单人挑战？在AI竞技场中与不同难度的AI对战，从初级到专家逐步进阶，随时磨练你的化学牌技！', targetSelector: '[data-tutorial="ai-arena"]', position: 'bottom' as const },
+  { id: 'complete-lobby', titlePlaceholder: '开始你的化学之旅！', contentPlaceholder: '你已经了解了大厅的全部功能！现在就创建或加入一个房间，与其他玩家一较高下吧。愿化学元素的力量与你同在，旗开得胜！', position: 'center' as const }
 ])
 
 const checkFirstTimeLobby = () => {
@@ -473,6 +473,9 @@ const copyToClipboard = (text: string) => {
               <router-link to="/chat" class="p-2 hover:bg-indigo-500/10 rounded-xl transition-all text-indigo-500/70 hover:text-indigo-400 touch-feedback" title="公共频道">
                 <MessageCircle class="w-4 h-4" />
               </router-link>
+              <router-link to="/plugins" class="p-2 hover:bg-purple-500/10 rounded-xl transition-all text-purple-500/70 hover:text-purple-400 touch-feedback" title="插件市场">
+                <Puzzle class="w-4 h-4" />
+              </router-link>
               <router-link v-if="user.is_admin" to="/admin" class="p-2 hover:bg-yellow-500/10 rounded-xl transition-all text-yellow-500/70 hover:text-yellow-400 touch-feedback" title="管理面板">
                 <Shield class="w-4 h-4" />
               </router-link>
@@ -526,6 +529,10 @@ const copyToClipboard = (text: string) => {
               <router-link @click="isMobileMenuOpen = false" to="/feedbacks" class="flex flex-col items-center justify-center p-4 bg-slate-100 dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/10">
                 <Megaphone class="w-6 h-6 text-emerald-500 mb-2" />
                 <span class="text-xs font-black uppercase tracking-widest">反馈中心</span>
+              </router-link>
+              <router-link @click="isMobileMenuOpen = false" to="/plugins" class="flex flex-col items-center justify-center p-4 bg-slate-100 dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/10">
+                <Puzzle class="w-6 h-6 text-purple-500 mb-2" />
+                <span class="text-xs font-black uppercase tracking-widest">插件市场</span>
               </router-link>
               <router-link v-if="user.is_admin" @click="isMobileMenuOpen = false" to="/admin" class="flex flex-col items-center justify-center p-4 bg-slate-100 dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/10">
                 <Shield class="w-6 h-6 text-yellow-500 mb-2" />

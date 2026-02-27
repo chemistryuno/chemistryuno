@@ -5,6 +5,8 @@ import Lobby from './pages/Lobby.vue'
 import GameRoom from './pages/GameRoom.vue'
 import Profile from './pages/Profile.vue'
 import Admin from './pages/Admin.vue'
+import AdminPlugins from './pages/AdminPlugins.vue'
+import Plugins from './pages/Plugins.vue'
 import Reactions from './pages/Reactions.vue'
 import Feedbacks from './pages/Feedbacks.vue'
 import Ranking from './pages/Ranking.vue'
@@ -67,6 +69,18 @@ const routes = [
     meta: { requiresAuth: true, adminOnly: true }
   },
   {
+    path: '/admin/plugins',
+    name: 'AdminPlugins',
+    component: AdminPlugins,
+    meta: { requiresAuth: true, adminOnly: true }
+  },
+  {
+    path: '/plugins',
+    name: 'Plugins',
+    component: Plugins,
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/data',
     name: 'DataConfig',
     component: DataConfig,
@@ -122,8 +136,9 @@ router.beforeEach((to: RouteLocationNormalized, _from: RouteLocationNormalized, 
     })
   } else if (to.meta.guestOnly && token) {
     // 如果已登录用户访问登录页，检查是否有redirect参数
+    // 只允许同源路径（必须以 / 开头），防止开放重定向攻击
     const redirect = to.query.redirect as string
-    if (redirect) {
+    if (redirect && redirect.startsWith('/') && !redirect.startsWith('//')) {
       next(redirect)
     } else {
       next('/')

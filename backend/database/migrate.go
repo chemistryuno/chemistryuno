@@ -39,6 +39,8 @@ func autoMigrate() error {
 		&SystemConfig{},
 		&VerificationCode{},
 		&LevelConfig{},
+		&Plugin{},
+		&PluginCard{},
 	)
 
 	if err != nil {

@@ -23,12 +23,12 @@ import {
   Star,
   MessageSquare,
   Trophy,
-  Bell,
   Megaphone,
   Clock,
   Ban,
   UserMinus,
-  X
+  X,
+  Puzzle
 } from 'lucide-vue-next'
 import { cn } from '../utils/cn'
 
@@ -38,6 +38,7 @@ const users = ref<any[]>([])
 const gameHistory = ref<any[]>([])
 const feedbacks = ref<any[]>([])
 const announcements = ref<any[]>([])
+
 const gameTimeConfigs = ref<any>({
   player_kick_timeout: '30',
   player_action_timeout: '30',
@@ -57,7 +58,7 @@ const tabs = [
   { id: 'users', label: '研究员', icon: Users },
   { id: 'deck', label: '核心库存', icon: Layers },
   { id: 'special', label: '稀有元素', icon: Star },
-  { id: 'announcements', label: '播音指挥', icon: Bell },
+  { id: 'announcements', label: '广播推送', icon: Megaphone },
   { id: 'feedbacks', label: '通讯报告', icon: MessageSquare },
   { id: 'game-time', label: '时间配置', icon: Clock },
   { id: 'history', label: '实验日志', icon: History }
@@ -487,7 +488,7 @@ const filteredHistory = computed(() => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-slate-50 dark:bg-[#070708] text-slate-900 dark:text-slate-200 p-4 lg:p-10 font-sans selection:bg-cyan-500/30">
+  <div class="min-h-screen bg-slate-50 dark:bg-[#070708] text-slate-900 dark:text-slate-200 p-3 lg:p-4 font-sans selection:bg-cyan-500/30">
     <div class="fixed inset-0 overflow-hidden pointer-events-none">
       <div class="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-cyan-500/5 rounded-full blur-[120px] animate-pulse" />
       <div class="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-orange-500/5 rounded-full blur-[120px]" />
@@ -495,16 +496,16 @@ const filteredHistory = computed(() => {
     </div>
 
     <div class="max-w-7xl mx-auto relative z-10">
-      <header class="flex flex-col lg:flex-row items-center justify-between gap-8 mb-12">
-        <div class="flex items-center gap-6">
+      <header class="flex flex-col lg:flex-row items-center justify-between gap-4 mb-6">
+        <div class="flex items-center gap-4">
           <div class="relative group">
             <div class="absolute inset-x-0 inset-y-0 bg-cyan-500 blur-2xl opacity-20 group-hover:opacity-40 transition-opacity" />
-            <div class="w-16 h-16 rounded-2xl bg-white dark:bg-[#111114] border border-cyan-500/40 flex items-center justify-center relative z-10 shadow-[0_0_30px_rgba(6,182,212,0.15)] group-hover:shadow-[0_0_40px_rgba(6,182,212,0.25)] transition-all">
+            <div class="w-16 h-16 rounded-xl bg-white dark:bg-[#111114] border border-cyan-500/40 flex items-center justify-center relative z-10 shadow-[0_0_30px_rgba(6,182,212,0.15)] group-hover:shadow-[0_0_40px_rgba(6,182,212,0.25)] transition-all">
               <Shield class="w-8 h-8 text-cyan-600 dark:text-cyan-400 group-hover:scale-110 transition-transform" />
             </div>
           </div>
           <div>
-            <h1 class="text-3xl font-black text-slate-900 dark:text-white italic tracking-tighter uppercase flex items-center gap-3">
+            <h1 class="text-xl font-black text-slate-900 dark:text-white italic tracking-tighter uppercase flex items-center gap-3">
               Core Protocol <span class="text-[10px] font-mono bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 px-2 py-1 rounded-sm border border-cyan-500/20 not-italic tracking-normal">LEVEL 4 SECURED</span>
             </h1>
             <p class="text-slate-400 dark:text-slate-500 text-[10px] font-black tracking-[0.2em] uppercase mt-1">实验室中枢神经系统 / Central Neural Console</p>
@@ -512,7 +513,7 @@ const filteredHistory = computed(() => {
         </div>
 
         <div class="flex items-center gap-4">
-          <div class="px-6 py-3 bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/5 rounded-2xl flex items-center gap-4 shadow-xl backdrop-blur-md">
+          <div class="px-4 py-2.5 bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/5 rounded-xl flex items-center gap-4 shadow-xl backdrop-blur-md">
             <div class="flex flex-col items-end">
               <span class="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Interface Status</span>
               <span class="text-xs font-bold text-cyan-600 dark:text-cyan-400 flex items-center gap-1.5">
@@ -540,53 +541,53 @@ const filteredHistory = computed(() => {
         </div>
       </header>
 
-      <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-        <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 p-6 rounded-[2.5rem] hover:border-cyan-500/40 transition-all shadow-lg dark:shadow-xl group">
-          <div class="flex items-center justify-between mb-4">
-            <div class="p-3 rounded-2xl bg-cyan-500/10 text-cyan-600 dark:text-cyan-400">
-              <Users class="w-6 h-6" />
+      <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 p-3 rounded-xl hover:border-cyan-500/40 transition-all shadow-lg dark:shadow-xl group">
+          <div class="flex items-center justify-between mb-3">
+            <div class="p-2 rounded-lg bg-cyan-500/10 text-cyan-600 dark:text-cyan-400">
+              <Users class="w-5 h-5" />
             </div>
             <div class="text-[9px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-[0.2em] group-hover:text-cyan-600 transition-colors">STAFF_INDEX</div>
           </div>
-          <div class="text-4xl font-black text-slate-900 dark:text-white italic tracking-tighter">{{ users.length }}</div>
+          <div class="text-xl font-black text-slate-900 dark:text-white italic tracking-tighter">{{ users.length }}</div>
           <div class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mt-1 tracking-wider">在册研究员总数</div>
         </div>
 
-        <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 p-6 rounded-[2.5rem] hover:border-violet-500/40 transition-all shadow-lg dark:shadow-xl group">
-          <div class="flex items-center justify-between mb-4">
-            <div class="p-3 rounded-2xl bg-violet-500/10 text-violet-600 dark:text-violet-400">
-              <Cpu class="w-6 h-6" />
+        <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 p-3 rounded-xl hover:border-violet-500/40 transition-all shadow-lg dark:shadow-xl group">
+          <div class="flex items-center justify-between mb-3">
+            <div class="p-2 rounded-lg bg-violet-500/10 text-violet-600 dark:text-violet-400">
+              <Cpu class="w-5 h-5" />
             </div>
             <div class="text-[9px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-[0.2em] group-hover:text-violet-600 transition-colors">CORE_DRIVE</div>
           </div>
-          <div class="text-4xl font-black text-slate-900 dark:text-white italic tracking-tighter">{{ deckConfig ? Object.keys(deckConfig.cards).length : 0 }}</div>
+          <div class="text-xl font-black text-slate-900 dark:text-white italic tracking-tighter">{{ deckConfig ? Object.keys(deckConfig.cards).length : 0 }}</div>
           <div class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mt-1 tracking-wider">核定反应元基数</div>
         </div>
 
-        <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 p-6 rounded-[2.5rem] hover:border-orange-500/40 transition-all shadow-lg dark:shadow-xl group">
-          <div class="flex items-center justify-between mb-4">
-            <div class="p-3 rounded-2xl bg-orange-500/10 text-orange-600 dark:text-orange-400">
-              <History class="w-6 h-6" />
+        <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 p-3 rounded-xl hover:border-orange-500/40 transition-all shadow-lg dark:shadow-xl group">
+          <div class="flex items-center justify-between mb-3">
+            <div class="p-2 rounded-lg bg-orange-500/10 text-orange-600 dark:text-orange-400">
+              <History class="w-5 h-5" />
             </div>
             <div class="text-[9px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-[0.2em] group-hover:text-orange-600 transition-colors">LOG_BUFFER</div>
           </div>
-          <div class="text-4xl font-black text-slate-900 dark:text-white italic tracking-tighter">{{ gameHistory.length }}</div>
+          <div class="text-xl font-black text-slate-900 dark:text-white italic tracking-tighter">{{ gameHistory.length }}</div>
           <div class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mt-1 tracking-wider">全域实验活动记录</div>
         </div>
 
-        <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 p-6 rounded-[2.5rem] hover:border-emerald-500/40 transition-all shadow-lg dark:shadow-xl group">
-          <div class="flex items-center justify-between mb-4">
-            <div class="p-3 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-              <Database class="w-6 h-6" />
+        <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 p-3 rounded-xl hover:border-emerald-500/40 transition-all shadow-lg dark:shadow-xl group">
+          <div class="flex items-center justify-between mb-3">
+            <div class="p-2 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+              <Database class="w-5 h-5" />
             </div>
             <div class="text-[9px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-[0.2em] group-hover:text-emerald-600 transition-colors">SYSCAL_LOAD</div>
           </div>
-          <div class="text-4xl font-black text-slate-900 dark:text-white italic tracking-tighter">0.02%</div>
+          <div class="text-xl font-black text-slate-900 dark:text-white italic tracking-tighter">0.02%</div>
           <div class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mt-1 tracking-wider">服务器负载指数</div>
         </div>
       </section>
 
-      <main class="bg-white dark:bg-[#0c0c0e] border border-slate-200 dark:border-white/5 rounded-[3rem] shadow-[0_40px_100px_-20px_rgba(0,0,0,0.3)] overflow-hidden min-h-[600px] flex flex-col relative">
+      <main class="bg-white dark:bg-[#0c0c0e] border border-slate-200 dark:border-white/5 rounded-[1.25rem] shadow-[0_40px_100px_-20px_rgba(0,0,0,0.3)] overflow-hidden min-h-[600px] flex flex-col relative">
         <div class="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-500/50 to-transparent" />
         
         <nav class="flex border-b border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-black/40 p-3 overflow-x-auto custom-scrollbar relative">
@@ -594,7 +595,7 @@ const filteredHistory = computed(() => {
             v-for="tab in tabs"
             :key="tab.id"
             @click="activeTab = tab.id"
-            class="flex items-center gap-3 px-8 py-4 rounded-2xl transition-all shrink-0 group relative"
+            class="flex items-center gap-3 px-5 py-2.5 rounded-xl transition-all shrink-0 group relative"
             :class="[
               activeTab === tab.id 
                 ? 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400' 
@@ -603,14 +604,24 @@ const filteredHistory = computed(() => {
           >
             <component :is="tab.icon" :class="cn('w-4 h-4 transition-transform group-hover:scale-110', activeTab === tab.id ? 'text-cyan-500 animate-pulse' : '')" />
             <span class="font-black uppercase tracking-widest text-[10px]">{{ tab.label }}</span>
-            <div v-if="activeTab === tab.id" class="absolute inset-x-0 bottom-1 px-8 z-10">
+            <div v-if="activeTab === tab.id" class="absolute inset-x-0 bottom-1 px-5 z-10">
               <div class="h-0.5 bg-cyan-500 shadow-[0_0_15px_rgba(6,182,212,0.8)] rounded-full" />
             </div>
           </button>
+
+          <div class="ml-auto flex items-center gap-2 pr-2">
+            <router-link
+              to="/admin/plugins"
+              class="flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all shrink-0 group border border-purple-500/20 bg-purple-500/10 text-purple-600 dark:text-purple-400 hover:bg-purple-500/20"
+            >
+              <Puzzle class="w-4 h-4 transition-transform group-hover:scale-110" />
+              <span class="font-black uppercase tracking-widest text-[10px]">安装插件</span>
+            </router-link>
+          </div>
         </nav>
 
-        <div class="p-10 flex-1">
-          <div v-if="loading" class="h-full flex flex-col items-center justify-center text-slate-500 gap-6 py-20 relative overflow-hidden">
+        <div class="p-4 flex-1">
+          <div v-if="loading" class="h-full flex flex-col items-center justify-center text-slate-500 gap-4 py-20 relative overflow-hidden">
             <div class="absolute inset-0 bg-cyan-500/5 blur-[100px] opacity-20 animate-pulse" />
             <div class="relative">
               <div class="w-24 h-24 border-2 border-cyan-500/10 border-t-cyan-500 rounded-full animate-spin shadow-[0_0_20px_rgba(6,182,212,0.1)]" />
@@ -625,8 +636,8 @@ const filteredHistory = computed(() => {
           <div v-else class="animate-in fade-in slide-in-from-bottom-4 duration-500">
             <!-- Users Tab -->
             <div v-if="activeTab === 'users'" class="space-y-8">
-              <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-                <h3 class="text-xl font-black italic uppercase text-slate-900 dark:text-white flex items-center gap-4">
+              <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <h3 class="text-lg font-black italic uppercase text-slate-900 dark:text-white flex items-center gap-4">
                   <Terminal class="w-5 h-5 text-cyan-500 shrink-0" />
                   研究员全局索引录 <span class="text-slate-400 dark:text-slate-600 font-mono not-italic text-[10px] tracking-normal">/ STAFF@CORE --DIRECTORY</span>
                 </h3>
@@ -637,7 +648,7 @@ const filteredHistory = computed(() => {
                       v-model="searchTerm"
                       type="text" 
                       placeholder="SEARCH UID / USERNAME..."
-                      class="bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/5 rounded-2xl pl-12 pr-6 py-3 text-[10px] font-black tracking-widest focus:outline-none focus:border-cyan-500/30 w-full md:w-64 transition-all placeholder:text-slate-400 dark:placeholder:text-slate-700 text-slate-900 dark:text-white"
+                      class="bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/5 rounded-xl pl-12 pr-6 py-2.5 text-[10px] font-black tracking-widest focus:outline-none focus:border-cyan-500/30 w-full md:w-64 transition-all placeholder:text-slate-400 dark:placeholder:text-slate-700 text-slate-900 dark:text-white"
                     />
                   </div>
                 </div>
@@ -647,17 +658,17 @@ const filteredHistory = computed(() => {
                 <table class="w-full text-left">
                   <thead>
                     <tr class="text-slate-400 dark:text-slate-600 text-[9px] font-black uppercase tracking-[0.3em] border-b border-slate-100 dark:border-white/5">
-                      <th class="px-6 py-4">Researcher Profile</th>
-                      <th class="px-6 py-4">Recognition UID</th>
-                      <th class="px-6 py-4">Auth Level</th>
-                      <th class="px-6 py-4">Join Date</th>
-                      <th class="px-6 py-4 text-right">Overrides</th>
+                      <th class="px-4 py-2.5">Researcher Profile</th>
+                      <th class="px-4 py-2.5">Recognition UID</th>
+                      <th class="px-4 py-2.5">Auth Level</th>
+                      <th class="px-4 py-2.5">Join Date</th>
+                      <th class="px-4 py-2.5 text-right">Overrides</th>
                     </tr>
                   </thead>
                   <tbody class="divide-y divide-slate-100 dark:divide-white/5 font-mono">
                     <tr v-for="u in filteredUsers" :key="u.uid" class="hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors group">
-                      <td class="px-6 py-4 text-xs font-bold text-slate-900 dark:text-white flex items-center gap-4">
-                        <div class="w-10 h-10 bg-white dark:bg-black/40 rounded-xl flex items-center justify-center text-xl group-hover:scale-105 transition-transform overflow-hidden border border-slate-200 dark:border-white/10 shadow-sm">
+                      <td class="px-4 py-2.5 text-xs font-bold text-slate-900 dark:text-white flex items-center gap-4">
+                        <div class="w-10 h-10 bg-white dark:bg-black/40 rounded-xl flex items-center justify-center text-lg group-hover:scale-105 transition-transform overflow-hidden border border-slate-200 dark:border-white/10 shadow-sm">
                           <template v-if="u.avatar && u.avatar.startsWith('data:')">
                             <img :src="u.avatar" class="w-full h-full object-cover" />
                           </template>
@@ -673,14 +684,14 @@ const filteredHistory = computed(() => {
                           <span class="text-[8px] text-slate-400 font-mono tracking-tighter">ONLINE@OP-NODE</span>
                         </div>
                       </td>
-                      <td class="px-6 py-4 text-[10px] text-slate-500 tracking-widest">{{ u.uid }}</td>
-                      <td class="px-6 py-4">
+                      <td class="px-4 py-2.5 text-[10px] text-slate-500 tracking-widest">{{ u.uid }}</td>
+                      <td class="px-4 py-2.5">
                         <span v-if="u.role === 'admin'" class="text-[8px] px-2 py-0.5 bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 rounded-md border border-cyan-500/20 font-black tracking-widest uppercase shadow-[0_0_10px_rgba(6,182,212,0.1)] transition-all">LV.99 CORE</span>
                         <span v-else-if="u.role === 'co-worker'" class="text-[8px] px-2 py-0.5 bg-violet-500/10 text-violet-600 dark:text-violet-400 rounded-md border border-violet-500/20 font-black tracking-widest uppercase">LV.50 ASSIST</span>
                         <span v-else class="text-[8px] px-2 py-0.5 bg-slate-100 dark:bg-white/5 text-slate-400 dark:text-slate-500 rounded-md border border-slate-200 dark:border-white/10 font-black tracking-widest uppercase">LV.01 STAFF</span>
                       </td>
-                      <td class="px-6 py-4 text-[9px] text-slate-500 uppercase font-bold">{{ new Date(u.created_at).toLocaleDateString() }}</td>
-                      <td class="px-6 py-4 text-right">
+                      <td class="px-4 py-2.5 text-[9px] text-slate-500 uppercase font-bold">{{ new Date(u.created_at).toLocaleDateString() }}</td>
+                      <td class="px-4 py-2.5 text-right">
                         <div v-if="!u.is_admin" class="flex items-center gap-2 justify-end transition-all">
                           <button
                             @click="handlePromoteUser(u.uid, u.role)"
@@ -714,7 +725,7 @@ const filteredHistory = computed(() => {
             <!-- Deck Tab -->
             <div v-if="activeTab === 'deck' && deckConfig" class="space-y-6">
               <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                <h3 class="text-xl font-black italic uppercase text-slate-900 dark:text-white flex items-center gap-4">
+                <h3 class="text-lg font-black italic uppercase text-slate-900 dark:text-white flex items-center gap-4">
                   <Layers class="w-5 h-5 text-cyan-500" />
                   全局卡组配置 <span class="text-slate-400 dark:text-slate-600 font-mono not-italic text-[10px] tracking-normal">/ DECK@GLOBAL</span>
                 </h3>
@@ -762,8 +773,8 @@ const filteredHistory = computed(() => {
                 </div>
               </div>
 
-              <div class="overflow-x-auto custom-scrollbar border border-slate-200 dark:border-white/10 rounded-[2.5rem] bg-slate-50 dark:bg-black/20">
-                <div v-if="editingDeck" class="p-6 border-b border-slate-200 dark:border-white/10 bg-white/50 dark:bg-white/[0.02] backdrop-blur-md flex flex-wrap items-center gap-6">
+              <div class="overflow-x-auto custom-scrollbar border border-slate-200 dark:border-white/10 rounded-[1.5rem] bg-slate-50 dark:bg-black/20">
+                <div v-if="editingDeck" class="p-4 border-b border-slate-200 dark:border-white/10 bg-white/50 dark:bg-white/[0.02] backdrop-blur-md flex flex-wrap items-center gap-4">
                   <div class="flex items-center gap-3">
                     <span class="text-[10px] font-black uppercase text-slate-500 tracking-widest flex items-center gap-2">
                        <Settings2 class="w-3 h-3" />
@@ -787,15 +798,15 @@ const filteredHistory = computed(() => {
                 <table class="w-full text-left table-fixed">
                   <thead>
                     <tr class="text-slate-400 dark:text-slate-600 text-[9px] font-black uppercase tracking-[0.3em] border-b border-slate-200 dark:border-white/10">
-                      <th class="px-8 py-5 w-[45%]">Element / Key</th>
-                      <th class="px-8 py-5 w-[30%]">Quantity</th>
-                      <th v-if="editingDeck" class="px-8 py-5 text-right w-[25%]">Ops</th>
+                      <th class="px-5 py-2.5 w-[45%]">Element / Key</th>
+                      <th class="px-5 py-2.5 w-[30%]">Quantity</th>
+                      <th v-if="editingDeck" class="px-5 py-2.5 text-right w-[25%]">Ops</th>
                     </tr>
                   </thead>
                   <tbody class="divide-y divide-slate-100 dark:divide-white/5 font-mono">
                     <template v-if="editingDeck">
                       <tr v-for="item in deckCardsEdit.filter(i => i.key === '' || !specialElements.includes(i.key))" :key="item.id" class="hover:bg-white/40 dark:hover:bg-cyan-500/[0.02] transition-all">
-                        <td class="px-8 py-4">
+                        <td class="px-5 py-2.5">
                           <input 
                             v-model="item.key"
                             type="text"
@@ -803,7 +814,7 @@ const filteredHistory = computed(() => {
                             class="w-full bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2 focus:outline-none focus:border-cyan-500/50 text-slate-900 dark:text-white text-xs font-black tracking-tight"
                           />
                         </td>
-                        <td class="px-8 py-4">
+                        <td class="px-5 py-2.5">
                           <input 
                             v-model.number="item.value"
                             type="number"
@@ -811,7 +822,7 @@ const filteredHistory = computed(() => {
                             class="w-full bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2 focus:outline-none focus:border-cyan-500/50 text-cyan-600 dark:text-cyan-400 text-xs font-black"
                           />
                         </td>
-                        <td class="px-8 py-4 text-right">
+                        <td class="px-5 py-2.5 text-right">
                           <button @click="handleRemoveDeckItem(item.id)" class="p-2.5 bg-slate-100 dark:bg-white/5 hover:bg-red-500/10 text-slate-400 hover:text-red-500 rounded-xl transition-all border border-transparent hover:border-red-500/20">
                             <Trash2 class="w-4 h-4" />
                           </button>
@@ -820,11 +831,11 @@ const filteredHistory = computed(() => {
                     </template>
                     <template v-else>
                       <tr v-for="[type, count] in filteredDeck" :key="type" class="hover:bg-white/40 dark:hover:bg-cyan-500/[0.02] transition-all group">
-                        <td class="px-8 py-5 text-[11px] font-black text-slate-900 dark:text-white flex items-center gap-3">
+                        <td class="px-5 py-2.5 text-[11px] font-black text-slate-900 dark:text-white flex items-center gap-3">
                            <div class="w-1.5 h-1.5 rounded-full bg-cyan-500/40 group-hover:bg-cyan-500 transition-colors" />
                            {{ type }}
                         </td>
-                        <td class="px-8 py-5 font-black text-sm italic text-cyan-600 dark:text-cyan-400">{{ count }}</td>
+                        <td class="px-5 py-2.5 font-black text-sm italic text-cyan-600 dark:text-cyan-400">{{ count }}</td>
                       </tr>
                     </template>
                     <tr v-if="(!editingDeck && filteredDeck.length === 0) || (editingDeck && deckCardsEdit.filter(i => !specialElements.includes(i.key)).length === 0)">
@@ -840,7 +851,7 @@ const filteredHistory = computed(() => {
             <!-- Special Deck Tab -->
             <div v-if="activeTab === 'special' && deckConfig" class="space-y-6">
               <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                <h3 class="text-xl font-black italic uppercase text-slate-900 dark:text-white flex items-center gap-4">
+                <h3 class="text-lg font-black italic uppercase text-slate-900 dark:text-white flex items-center gap-4">
                   <Star class="w-5 h-5 text-violet-500" />
                   稀有元素配置 <span class="text-slate-400 dark:text-slate-600 font-mono not-italic text-[10px] tracking-normal">/ DECK@SPECIALS</span>
                 </h3>
@@ -884,19 +895,19 @@ const filteredHistory = computed(() => {
                 </div>
               </div>
 
-              <div class="overflow-x-auto custom-scrollbar border border-slate-200 dark:border-white/10 rounded-[2.5rem] bg-slate-50 dark:bg-black/20">
+              <div class="overflow-x-auto custom-scrollbar border border-slate-200 dark:border-white/10 rounded-[1.5rem] bg-slate-50 dark:bg-black/20">
                 <table class="w-full text-left table-fixed">
                   <thead>
                     <tr class="text-slate-400 dark:text-slate-600 text-[9px] font-black uppercase tracking-[0.3em] border-b border-slate-200 dark:border-white/10">
-                      <th class="px-8 py-5 w-[45%]">Special Element</th>
-                      <th class="px-8 py-5 w-[30%]">Quantity</th>
-                      <th v-if="editingDeck" class="px-8 py-5 text-right w-[25%]">Ops</th>
+                      <th class="px-5 py-2.5 w-[45%]">Special Element</th>
+                      <th class="px-5 py-2.5 w-[30%]">Quantity</th>
+                      <th v-if="editingDeck" class="px-5 py-2.5 text-right w-[25%]">Ops</th>
                     </tr>
                   </thead>
                   <tbody class="divide-y divide-slate-100 dark:divide-white/5 font-mono">
                     <template v-if="editingDeck">
                       <tr v-for="item in deckCardsEdit.filter(i => i.key === '' || specialElements.includes(i.key))" :key="item.id" class="hover:bg-white/40 dark:hover:bg-violet-500/[0.02] transition-all">
-                        <td class="px-8 py-4">
+                        <td class="px-5 py-2.5">
                           <input 
                             v-model="item.key"
                             type="text"
@@ -904,7 +915,7 @@ const filteredHistory = computed(() => {
                             class="w-full bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2 focus:outline-none focus:border-violet-500/50 text-slate-900 dark:text-white text-xs font-black tracking-tight"
                           />
                         </td>
-                        <td class="px-8 py-4">
+                        <td class="px-5 py-2.5">
                           <input 
                             v-model.number="item.value"
                             type="number"
@@ -912,7 +923,7 @@ const filteredHistory = computed(() => {
                             class="w-full bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2 focus:outline-none focus:border-violet-500/50 text-violet-600 dark:text-violet-400 text-xs font-black"
                           />
                         </td>
-                        <td class="px-8 py-4 text-right">
+                        <td class="px-5 py-2.5 text-right">
                           <button @click="handleRemoveDeckItem(item.id)" class="p-2.5 bg-slate-100 dark:bg-white/5 hover:bg-red-500/10 text-slate-400 hover:text-red-500 rounded-xl transition-all border border-transparent hover:border-red-500/20">
                             <Trash2 class="w-4 h-4" />
                           </button>
@@ -921,11 +932,11 @@ const filteredHistory = computed(() => {
                     </template>
                     <template v-else>
                       <tr v-for="[type, count] in filteredSpecialDeck" :key="type" class="hover:bg-white/40 dark:hover:bg-violet-500/[0.02] transition-colors group">
-                        <td class="px-8 py-5 text-[11px] font-black text-violet-600 dark:text-violet-400 flex items-center gap-3">
+                        <td class="px-5 py-2.5 text-[11px] font-black text-violet-600 dark:text-violet-400 flex items-center gap-3">
                            <div class="w-1.5 h-1.5 rounded-full bg-violet-500/40 group-hover:bg-violet-500 transition-colors" />
                            {{ type }}
                         </td>
-                        <td class="px-8 py-5 font-black text-sm italic text-violet-800 dark:text-violet-500">{{ count }}</td>
+                        <td class="px-5 py-2.5 font-black text-sm italic text-violet-800 dark:text-violet-500">{{ count }}</td>
                       </tr>
                     </template>
                     <tr v-if="(!editingDeck && filteredSpecialDeck.length === 0) || (editingDeck && deckCardsEdit.filter(i => specialElements.includes(i.key)).length === 0)">
@@ -940,8 +951,8 @@ const filteredHistory = computed(() => {
 
             <!-- Game Time Config Tab -->
             <div v-if="activeTab === 'game-time'" class="space-y-8">
-              <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-                <h3 class="text-xl font-black italic uppercase text-slate-900 dark:text-white flex items-center gap-4">
+              <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <h3 class="text-lg font-black italic uppercase text-slate-900 dark:text-white flex items-center gap-4">
                   <Clock class="w-5 h-5 text-blue-500" />
                   游戏时间配置 <span class="text-slate-400 dark:text-slate-600 font-mono not-italic text-[10px] tracking-normal">/ GAME@TIMING --config</span>
                 </h3>
@@ -954,9 +965,9 @@ const filteredHistory = computed(() => {
                   <div class="h-px flex-1 bg-slate-200 dark:bg-white/5"></div>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <!-- Player Kick Timeout -->
-                  <div class="bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 p-6 rounded-[2rem] shadow-sm relative overflow-hidden">
+                  <div class="bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 p-4 rounded-[1.25rem] shadow-sm relative overflow-hidden">
                     <div class="absolute top-0 right-0 w-32 h-32 bg-blue-500/[0.03] blur-[50px] -mr-16 -mt-16" />
                     <div class="relative z-10">
                       <label class="text-[10px] font-mono text-blue-600 dark:text-blue-400 uppercase tracking-widest font-black flex items-center gap-2 mb-3">
@@ -967,14 +978,14 @@ const filteredHistory = computed(() => {
                         type="number"
                         min="10"
                         max="300"
-                        class="w-full bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 text-lg font-black text-slate-900 dark:text-white focus:outline-none focus:border-blue-500/50 transition-all"
+                        class="w-full bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-lg font-black text-slate-900 dark:text-white focus:outline-none focus:border-blue-500/50 transition-all"
                       />
                       <div class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-2 opacity-70">秒 (范围: 10-300)</div>
                     </div>
                   </div>
 
                   <!-- Player Action Timeout -->
-                  <div class="bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 p-6 rounded-[2rem] shadow-sm relative overflow-hidden">
+                  <div class="bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 p-4 rounded-[1.25rem] shadow-sm relative overflow-hidden">
                     <div class="absolute top-0 right-0 w-32 h-32 bg-green-500/[0.03] blur-[50px] -mr-16 -mt-16" />
                     <div class="relative z-10">
                       <label class="text-[10px] font-mono text-green-600 dark:text-green-400 uppercase tracking-widest font-black flex items-center gap-2 mb-3">
@@ -985,14 +996,14 @@ const filteredHistory = computed(() => {
                         type="number"
                         min="10"
                         max="300"
-                        class="w-full bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 text-lg font-black text-slate-900 dark:text-white focus:outline-none focus:border-green-500/50 transition-all"
+                        class="w-full bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-lg font-black text-slate-900 dark:text-white focus:outline-none focus:border-green-500/50 transition-all"
                       />
                       <div class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-2 opacity-70">秒 (范围: 10-300)</div>
                     </div>
                   </div>
 
                   <!-- Auto Start Timeout -->
-                  <div class="bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 p-6 rounded-[2rem] shadow-sm relative overflow-hidden">
+                  <div class="bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 p-4 rounded-[1.25rem] shadow-sm relative overflow-hidden">
                     <div class="absolute top-0 right-0 w-32 h-32 bg-purple-500/[0.03] blur-[50px] -mr-16 -mt-16" />
                     <div class="relative z-10">
                       <label class="text-[10px] font-mono text-purple-600 dark:text-purple-400 uppercase tracking-widest font-black flex items-center gap-2 mb-3">
@@ -1003,14 +1014,14 @@ const filteredHistory = computed(() => {
                         type="number"
                         min="5"
                         max="60"
-                        class="w-full bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 text-lg font-black text-slate-900 dark:text-white focus:outline-none focus:border-purple-500/50 transition-all"
+                        class="w-full bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-lg font-black text-slate-900 dark:text-white focus:outline-none focus:border-purple-500/50 transition-all"
                       />
                       <div class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-2 opacity-70">秒 (范围: 5-60)</div>
                     </div>
                   </div>
 
                   <!-- Half Ready Timeout -->
-                  <div class="bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 p-6 rounded-[2rem] shadow-sm relative overflow-hidden">
+                  <div class="bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 p-4 rounded-[1.25rem] shadow-sm relative overflow-hidden">
                     <div class="absolute top-0 right-0 w-32 h-32 bg-orange-500/[0.03] blur-[50px] -mr-16 -mt-16" />
                     <div class="relative z-10">
                       <label class="text-[10px] font-mono text-orange-600 dark:text-orange-400 uppercase tracking-widest font-black flex items-center gap-2 mb-3">
@@ -1021,7 +1032,7 @@ const filteredHistory = computed(() => {
                         type="number"
                         min="30"
                         max="120"
-                        class="w-full bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 text-lg font-black text-slate-900 dark:text-white focus:outline-none focus:border-orange-500/50 transition-all"
+                        class="w-full bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-lg font-black text-slate-900 dark:text-white focus:outline-none focus:border-orange-500/50 transition-all"
                       />
                       <div class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-2 opacity-70">秒 (范围: 30-120)</div>
                     </div>
@@ -1034,9 +1045,9 @@ const filteredHistory = computed(() => {
                   <div class="h-px flex-1 bg-slate-200 dark:bg-white/5"></div>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <!-- Reconnect Grace Period -->
-                  <div class="bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 p-6 rounded-[2rem] shadow-sm relative overflow-hidden">
+                  <div class="bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 p-4 rounded-[1.25rem] shadow-sm relative overflow-hidden">
                     <div class="absolute top-0 right-0 w-32 h-32 bg-rose-500/[0.03] blur-[50px] -mr-16 -mt-16" />
                     <div class="relative z-10">
                       <label class="text-[10px] font-mono text-rose-600 dark:text-rose-400 uppercase tracking-widest font-black flex items-center gap-2 mb-3">
@@ -1047,14 +1058,14 @@ const filteredHistory = computed(() => {
                         type="number"
                         min="0"
                         max="300"
-                        class="w-full bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 text-lg font-black text-slate-900 dark:text-white focus:outline-none focus:border-rose-500/50 transition-all"
+                        class="w-full bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-lg font-black text-slate-900 dark:text-white focus:outline-none focus:border-rose-500/50 transition-all"
                       />
                       <div class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-2 opacity-70">秒 (0-300，目前作为预留参数)</div>
                     </div>
                   </div>
 
                   <!-- Points Scaling Enabled -->
-                  <div class="bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 p-6 rounded-[2rem] shadow-sm relative overflow-hidden">
+                  <div class="bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 p-4 rounded-[1.25rem] shadow-sm relative overflow-hidden">
                     <div class="absolute top-0 right-0 w-32 h-32 bg-amber-500/[0.03] blur-[50px] -mr-16 -mt-16" />
                     <div class="relative z-10">
                       <label class="text-[10px] font-mono text-amber-600 dark:text-amber-400 uppercase tracking-widest font-black flex items-center gap-2 mb-3">
@@ -1062,7 +1073,7 @@ const filteredHistory = computed(() => {
                       </label>
                       <select
                         v-model="gameTimeConfigs.points_scaling_enabled"
-                        class="w-full bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 text-lg font-black text-slate-900 dark:text-white focus:outline-none focus:border-amber-500/50 transition-all"
+                        class="w-full bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-lg font-black text-slate-900 dark:text-white focus:outline-none focus:border-amber-500/50 transition-all"
                       >
                         <option value="true">ENABLED / 启用</option>
                         <option value="false">DISABLED / 禁用</option>
@@ -1076,7 +1087,7 @@ const filteredHistory = computed(() => {
                 <div class="flex justify-end mt-6">
                   <button
                     @click="handleUpdateGameTimeConfig"
-                    class="px-8 py-4 bg-gradient-to-r from-blue-500 to-purple-600 text-white font-black uppercase text-sm rounded-2xl hover:shadow-2xl hover:shadow-blue-500/20 transition-all flex items-center gap-3 border border-white/10"
+                    class="px-5 py-2.5 bg-gradient-to-r from-blue-500 to-purple-600 text-white font-black uppercase text-sm rounded-xl hover:shadow-2xl hover:shadow-blue-500/20 transition-all flex items-center gap-3 border border-white/10"
                   >
                     <Save class="w-4 h-4" />
                     保存配置
@@ -1084,9 +1095,9 @@ const filteredHistory = computed(() => {
                 </div>
               </div>
 
-              <div class="p-8 rounded-[2.5rem] bg-blue-500/[0.03] border border-blue-500/10 flex flex-col sm:flex-row items-center sm:items-start gap-6 relative overflow-hidden group">
+              <div class="p-5 rounded-[1.5rem] bg-blue-500/[0.03] border border-blue-500/10 flex flex-col sm:flex-row items-center sm:items-start gap-4 relative overflow-hidden group">
                 <div class="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                <div class="p-5 rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400 shrink-0 border border-blue-500/20 shadow-inner relative z-10">
+                <div class="p-5 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 shrink-0 border border-blue-500/20 shadow-inner relative z-10">
                   <Activity class="w-7 h-7" />
                 </div>
                 <div class="space-y-2 relative z-10 text-center sm:text-left">
@@ -1104,8 +1115,8 @@ const filteredHistory = computed(() => {
 
             <!-- History Tab -->
             <div v-if="activeTab === 'history'" class="space-y-8">
-              <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-                <h3 class="text-xl font-black italic uppercase text-slate-900 dark:text-white flex items-center gap-4">
+              <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <h3 class="text-lg font-black italic uppercase text-slate-900 dark:text-white flex items-center gap-4">
                   <History class="w-5 h-5 text-cyan-500 shrink-0" />
                   全球实验追溯记录 <span class="text-slate-400 dark:text-slate-600 font-mono not-italic text-[10px] tracking-normal">/ SCAN@LOGS --ALL</span>
                 </h3>
@@ -1116,31 +1127,31 @@ const filteredHistory = computed(() => {
                       v-model="searchTerm"
                       type="text" 
                       placeholder="SEARCH EXPERIMENT ID..."
-                      class="bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/5 rounded-2xl pl-12 pr-6 py-3 text-[10px] font-black tracking-widest focus:outline-none focus:border-cyan-500/30 w-full md:w-64 transition-all placeholder:text-slate-400 dark:placeholder:text-slate-700 text-slate-900 dark:text-white"
+                      class="bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/5 rounded-xl pl-12 pr-6 py-2.5 text-[10px] font-black tracking-widest focus:outline-none focus:border-cyan-500/30 w-full md:w-64 transition-all placeholder:text-slate-400 dark:placeholder:text-slate-700 text-slate-900 dark:text-white"
                     />
                   </div>
                 </div>
               </div>
 
-              <div class="overflow-x-auto custom-scrollbar border border-slate-200 dark:border-white/5 rounded-[2.5rem] bg-slate-50 dark:bg-black/20">
+              <div class="overflow-x-auto custom-scrollbar border border-slate-200 dark:border-white/5 rounded-[1.5rem] bg-slate-50 dark:bg-black/20">
                 <table class="w-full text-left">
                   <thead>
                     <tr class="text-slate-400 dark:text-slate-600 text-[9px] font-black uppercase tracking-[0.3em] border-b border-slate-200 dark:border-white/10">
-                      <th class="px-8 py-5">Experiment ID</th>
-                      <th class="px-8 py-5">Timestamp / Sync</th>
-                      <th class="px-8 py-5">Subject Status</th>
-                      <th class="px-8 py-5 text-right">Protocol Data</th>
+                      <th class="px-5 py-2.5">Experiment ID</th>
+                      <th class="px-5 py-2.5">Timestamp / Sync</th>
+                      <th class="px-5 py-2.5">Subject Status</th>
+                      <th class="px-5 py-2.5 text-right">Protocol Data</th>
                     </tr>
                   </thead>
                   <tbody class="divide-y divide-slate-100 dark:divide-white/5 font-mono">
                     <tr v-for="game in filteredHistory" :key="game.id" class="hover:bg-white/40 dark:hover:bg-cyan-500/[0.03] transition-all group cursor-pointer">
-                      <td class="px-8 py-6 font-black text-slate-900 dark:text-white group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors text-xs tracking-tighter">
+                      <td class="px-5 py-2.5 font-black text-slate-900 dark:text-white group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors text-xs tracking-tighter">
                         <span class="text-slate-400 dark:text-slate-600 font-normal opacity-50">STATION:</span>{{ String(game.id).padStart(4, '0') }}
                       </td>
-                      <td class="px-8 py-6 text-[10px] text-slate-500 dark:text-slate-500 font-bold uppercase">
+                      <td class="px-5 py-2.5 text-[10px] text-slate-500 dark:text-slate-500 font-bold uppercase">
                         {{ new Date((game.finished_at || game.created_at || '').replace(' ', 'T')).toLocaleString() }}
                       </td>
-                      <td class="px-8 py-6">
+                      <td class="px-5 py-2.5">
                         <div class="flex items-center gap-3">
                           <span class="text-[9px] px-3.5 py-1.5 bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 rounded-lg border border-cyan-500/20 font-black tracking-widest uppercase shadow-sm">
                             Winner: {{ game.winner_name || 'UNDEFINED' }}
@@ -1148,7 +1159,7 @@ const filteredHistory = computed(() => {
                           <span class="text-[8px] text-slate-400 dark:text-slate-600 uppercase font-black opacity-40">/ COMPLETED</span>
                         </div>
                       </td>
-                      <td class="px-8 py-6 text-right">
+                      <td class="px-5 py-2.5 text-right">
                         <div class="inline-flex items-center justify-center w-8 h-8 rounded-full border border-slate-200 dark:border-white/10 group-hover:border-cyan-500/50 transition-all">
                            <ChevronRight class="w-4 h-4 text-slate-300 dark:text-slate-800 group-hover:text-cyan-500 group-hover:translate-x-1 transition-all" />
                         </div>
@@ -1166,24 +1177,24 @@ const filteredHistory = computed(() => {
 
             <!-- Announcements Tab -->
             <div v-if="activeTab === 'announcements'" class="space-y-8">
-              <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-                <h3 class="text-xl font-black italic uppercase text-slate-900 dark:text-white flex items-center gap-4">
-                  <Bell class="w-5 h-5 text-cyan-500 shrink-0" />
-                  服务器广播矩阵 <span class="text-slate-400 dark:text-slate-600 font-mono not-italic text-[10px] tracking-normal">/ COMMS@BROADCAST --ACTIVE</span>
+              <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <h3 class="text-lg font-black italic uppercase text-slate-900 dark:text-white flex items-center gap-4">
+                  <Megaphone class="w-5 h-5 text-purple-500 shrink-0" />
+                  广播推送 / 播音指挥 <span class="text-slate-400 dark:text-slate-600 font-mono not-italic text-[10px] tracking-normal">/ COMMS@BROADCAST --ACTIVE</span>
                 </h3>
                 <button 
                   @click="showCreateAnnouncementModal = true"
-                  class="bg-cyan-600 hover:bg-cyan-500 text-white px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-3 transition-all shadow-lg"
+                  class="bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-3 transition-all shadow-lg"
                 >
                   <Plus class="w-4 h-4" />
                   NEW_BROADCAST
                 </button>
               </div>
 
-              <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div v-for="ann in announcements" :key="ann.id" 
                   :class="cn(
-                    'p-6 rounded-[2.5rem] border transition-all relative overflow-hidden group',
+                    'p-4 rounded-[1.5rem] border transition-all relative overflow-hidden group',
                     ann.active ? 'bg-cyan-500/[0.03] border-cyan-500/20 shadow-md' : 'bg-slate-50 dark:bg-black/20 border-slate-200 dark:border-white/5 opacity-60'
                   )"
                 >
@@ -1228,7 +1239,7 @@ const filteredHistory = computed(() => {
                     </div>
                   </div>
 
-                  <div class="bg-white/40 dark:bg-black/40 p-5 rounded-2xl relative z-10 border border-slate-100 dark:border-white/5 min-h-[60px] mb-4">
+                  <div class="bg-white/40 dark:bg-black/40 p-5 rounded-xl relative z-10 border border-slate-100 dark:border-white/5 min-h-[60px] mb-4">
                     <p class="text-[11px] leading-relaxed text-slate-600 dark:text-slate-300 font-bold">{{ ann.content }}</p>
                   </div>
 
@@ -1250,15 +1261,15 @@ const filteredHistory = computed(() => {
 
             <!-- Feedbacks Tab -->
             <div v-if="activeTab === 'feedbacks'" class="space-y-8">
-              <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-                <h3 class="text-xl font-black italic uppercase text-slate-900 dark:text-white flex items-center gap-4">
+              <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <h3 class="text-lg font-black italic uppercase text-slate-900 dark:text-white flex items-center gap-4">
                   <MessageSquare class="w-5 h-5 text-sky-500" />
                   外部反馈报告 <span class="text-slate-400 dark:text-slate-600 font-mono not-italic text-[10px] tracking-normal">/ INCOMING@COMMS --FILTERED</span>
                 </h3>
               </div>
 
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div v-for="fb in feedbacks" :key="fb.id" class="p-6 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-[2rem] hover:border-sky-500/30 transition-all flex flex-col gap-4 shadow-sm hover:shadow-xl group relative overflow-hidden">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div v-for="fb in feedbacks" :key="fb.id" class="p-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-[1.25rem] hover:border-sky-500/30 transition-all flex flex-col gap-4 shadow-sm hover:shadow-xl group relative overflow-hidden">
                    <div class="absolute top-0 right-0 w-32 h-32 bg-sky-500/5 blur-[50px] -mr-16 -mt-16 group-hover:bg-sky-500/10 transition-all" />
                    <div class="flex items-center justify-between relative z-10">
                       <div class="flex items-center gap-3">
@@ -1272,7 +1283,7 @@ const filteredHistory = computed(() => {
                       </div>
                       <span class="px-2 py-1 bg-slate-100 dark:bg-white/5 text-slate-400 dark:text-slate-500 text-[8px] font-black uppercase tracking-widest rounded-lg border border-slate-200 dark:border-white/5">{{ fb.page }}</span>
                    </div>
-                   <div class="bg-white/50 dark:bg-black/40 p-5 rounded-2xl relative z-10 border border-slate-100 dark:border-white/5 shadow-inner min-h-[80px]">
+                   <div class="bg-white/50 dark:bg-black/40 p-5 rounded-xl relative z-10 border border-slate-100 dark:border-white/5 shadow-inner min-h-[80px]">
                      <p class="text-[11px] leading-relaxed text-slate-600 dark:text-slate-400 font-bold italic">“{{ fb.content }}”</p>
                    </div>
                    <div class="flex items-center justify-end gap-3 relative z-10">
@@ -1295,11 +1306,11 @@ const filteredHistory = computed(() => {
 
     <!-- 封禁用户模态框 -->
     <div v-if="showBanModal && banTarget" class="fixed inset-0 bg-slate-900/40 dark:bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-      <div class="bg-white dark:bg-[#0c0c0e] border border-slate-200 dark:border-white/10 rounded-[2.5rem] p-10 max-w-md w-full shadow-[0_50px_100px_-20px_rgba(220,38,38,0.15)] animate-in zoom-in relative overflow-hidden">
+      <div class="bg-white dark:bg-[#0c0c0e] border border-slate-200 dark:border-white/10 rounded-[1.5rem] p-4 max-w-md w-full shadow-[0_50px_100px_-20px_rgba(220,38,38,0.15)] animate-in zoom-in relative overflow-hidden">
         <div class="absolute top-0 right-0 w-40 h-40 bg-rose-500/5 blur-[60px] -mr-20 -mt-20" />
 
         <div class="flex items-center justify-between mb-8 relative z-10">
-          <h3 class="text-xl font-black italic uppercase text-slate-900 dark:text-white flex items-center gap-4">
+          <h3 class="text-lg font-black italic uppercase text-slate-900 dark:text-white flex items-center gap-4">
             <Ban class="w-6 h-6 text-rose-500" />
             {{ isBanned(banTarget) ? '修改封禁时间' : '封禁研究员' }} <span class="text-[10px] text-slate-400 font-mono not-italic tracking-normal">/ {{ isBanned(banTarget) ? 'MODIFY_BAN' : 'ACCESS_RESTRICT' }}</span>
           </h3>
@@ -1308,8 +1319,8 @@ const filteredHistory = computed(() => {
           </button>
         </div>
 
-        <div class="p-4 bg-rose-500/5 border border-rose-500/10 rounded-2xl mb-6 relative z-10 flex items-center gap-4">
-          <div class="w-12 h-12 bg-white dark:bg-black/40 rounded-xl flex items-center justify-center text-xl border border-slate-200 dark:border-white/10 shadow-sm overflow-hidden shrink-0">
+        <div class="p-4 bg-rose-500/5 border border-rose-500/10 rounded-xl mb-6 relative z-10 flex items-center gap-4">
+          <div class="w-12 h-12 bg-white dark:bg-black/40 rounded-xl flex items-center justify-center text-lg border border-slate-200 dark:border-white/10 shadow-sm overflow-hidden shrink-0">
             <template v-if="banTarget.avatar && banTarget.avatar.startsWith('data:')">
               <img :src="banTarget.avatar" class="w-full h-full object-cover" />
             </template>
@@ -1357,7 +1368,7 @@ const filteredHistory = computed(() => {
                 v-model="banUntil"
                 type="datetime-local"
                 :min="formatDatetimeLocal(new Date())"
-                class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-2xl px-5 py-4 text-sm font-black text-slate-900 dark:text-white focus:outline-none focus:border-rose-500/50 transition-all"
+                class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-5 py-2.5 text-sm font-black text-slate-900 dark:text-white focus:outline-none focus:border-rose-500/50 transition-all"
               />
             </div>
             <div class="flex items-center gap-2 ml-1 mt-2">
@@ -1374,7 +1385,7 @@ const filteredHistory = computed(() => {
               v-model="banReason"
               rows="3"
               placeholder="请输入封禁原因..."
-              class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-2xl px-5 py-4 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-rose-500/50 transition-all resize-none"
+              class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-5 py-2.5 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-rose-500/50 transition-all resize-none"
             />
           </div>
         </div>
@@ -1382,13 +1393,13 @@ const filteredHistory = computed(() => {
         <div class="flex gap-4 mt-10 relative z-10">
           <button
             @click="showBanModal = false"
-            class="flex-1 px-6 py-4 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-500 dark:text-slate-400 rounded-[1.25rem] font-black text-[10px] uppercase tracking-widest transition-all border border-slate-200 dark:border-white/5"
+            class="flex-1 px-4 py-2.5 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-500 dark:text-slate-400 rounded-[1.25rem] font-black text-[10px] uppercase tracking-widest transition-all border border-slate-200 dark:border-white/5"
           >
             Abort
           </button>
           <button
             @click="handleBanUser"
-            class="flex-1 px-6 py-4 bg-rose-600 hover:bg-rose-500 text-white rounded-[1.25rem] font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-rose-500/20 active:scale-95 border border-rose-500/20"
+            class="flex-1 px-4 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-[1.25rem] font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-rose-500/20 active:scale-95 border border-rose-500/20"
           >
             {{ isBanned(banTarget) ? 'Update Ban' : 'Execute Ban' }}
           </button>
@@ -1398,10 +1409,10 @@ const filteredHistory = computed(() => {
 
     <!-- 发布公告模态框 -->
     <div v-if="showCreateAnnouncementModal" class="fixed inset-0 bg-slate-900/40 dark:bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-      <div class="bg-white dark:bg-[#0c0c0e] border border-slate-200 dark:border-white/10 rounded-[2.5rem] p-10 max-w-lg w-full shadow-[0_50px_100px_-20px_rgba(6,182,212,0.2)] animate-in zoom-in relative overflow-hidden">
+      <div class="bg-white dark:bg-[#0c0c0e] border border-slate-200 dark:border-white/10 rounded-[1.5rem] p-4 max-w-lg w-full shadow-[0_50px_100px_-20px_rgba(6,182,212,0.2)] animate-in zoom-in relative overflow-hidden">
         <div class="absolute top-0 right-0 w-40 h-40 bg-cyan-500/5 blur-[60px] -mr-20 -mt-20" />
         
-        <h3 class="text-xl font-black italic uppercase text-slate-900 dark:text-white mb-8 flex items-center gap-4 relative z-10">
+        <h3 class="text-lg font-black italic uppercase text-slate-900 dark:text-white mb-8 flex items-center gap-4 relative z-10">
           <Megaphone class="w-6 h-6 text-cyan-500" />
           发起全域广播 <span class="text-[10px] text-slate-400 font-mono not-italic tracking-normal">/ NEW_SEC_BROADCAST</span>
         </h3>
@@ -1413,7 +1424,7 @@ const filteredHistory = computed(() => {
               v-model="newAnnouncement.title"
               type="text" 
               placeholder="ENTER BROADCAST TITLE..."
-              class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-2xl px-5 py-4 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500/50 transition-all"
+              class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-5 py-2.5 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500/50 transition-all"
             />
           </div>
 
@@ -1423,7 +1434,7 @@ const filteredHistory = computed(() => {
               v-model="newAnnouncement.content"
               rows="3"
               placeholder="ENTER MESSAGE TO RESEARCHERS..."
-              class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-2xl px-5 py-4 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500/50 transition-all resize-none"
+              class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-5 py-2.5 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500/50 transition-all resize-none"
             />
           </div>
 
@@ -1432,7 +1443,7 @@ const filteredHistory = computed(() => {
               <label class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] block mb-3 ml-1">Priority / 优先级</label>
               <select 
                 v-model="newAnnouncement.type"
-                class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500/30"
+                class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500/30"
               >
                 <option value="info">INFO / 公告</option>
                 <option value="maintenance">MAINTENANCE / 维护</option>
@@ -1443,7 +1454,7 @@ const filteredHistory = computed(() => {
               <label class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] block mb-3 ml-1">Format / 展现形式</label>
               <select 
                 v-model="newAnnouncement.is_ticker"
-                class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500/30"
+                class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500/30"
               >
                 <option :value="true">TICKER / 跑马灯</option>
                 <option :value="false">MODAL / 强制弹窗</option>
@@ -1457,7 +1468,7 @@ const filteredHistory = computed(() => {
               v-model="newAnnouncement.expires_in"
               type="text" 
               placeholder="24h"
-              class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-5 py-3 text-xs font-bold font-mono text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500/50 tracking-widest uppercase"
+              class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-5 py-2.5 text-xs font-bold font-mono text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500/50 tracking-widest uppercase"
             />
           </div>
 
@@ -1496,7 +1507,7 @@ const filteredHistory = computed(() => {
               v-model.number="newAnnouncement.close_delay"
               type="number" 
               placeholder="0 = 立即关闭"
-              class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-5 py-3 text-xs font-bold font-mono text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500/50 tracking-widest uppercase"
+              class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-5 py-2.5 text-xs font-bold font-mono text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500/50 tracking-widest uppercase"
             />
           </div>
         </div>
@@ -1504,13 +1515,13 @@ const filteredHistory = computed(() => {
         <div class="flex gap-4 mt-10 relative z-10">
           <button 
             @click="showCreateAnnouncementModal = false"
-            class="flex-1 px-6 py-4 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-500 rounded-[1.25rem] font-black text-[10px] uppercase tracking-widest transition-all"
+            class="flex-1 px-4 py-2.5 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-500 rounded-[1.25rem] font-black text-[10px] uppercase tracking-widest transition-all"
           >
             Cancel
           </button>
           <button 
             @click="handleCreateAnnouncement"
-            class="flex-1 px-6 py-4 bg-cyan-600 hover:bg-cyan-500 text-white rounded-[1.25rem] font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-cyan-500/20 active:scale-95 border border-cyan-500/20"
+            class="flex-1 px-4 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-[1.25rem] font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-cyan-500/20 active:scale-95 border border-cyan-500/20"
           >
             Broadcast
           </button>
@@ -1520,10 +1531,10 @@ const filteredHistory = computed(() => {
 
     <!-- 编辑公告模态框 -->
     <div v-if="showEditAnnouncementModal && editingAnnouncement" class="fixed inset-0 bg-slate-900/40 dark:bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-      <div class="bg-white dark:bg-[#0c0c0e] border border-slate-200 dark:border-white/10 rounded-[2.5rem] p-10 max-w-lg w-full shadow-[0_50px_100px_-20px_rgba(6,182,212,0.2)] animate-in zoom-in relative overflow-hidden">
+      <div class="bg-white dark:bg-[#0c0c0e] border border-slate-200 dark:border-white/10 rounded-[1.5rem] p-4 max-w-lg w-full shadow-[0_50px_100px_-20px_rgba(6,182,212,0.2)] animate-in zoom-in relative overflow-hidden">
         <div class="absolute top-0 right-0 w-40 h-40 bg-cyan-500/5 blur-[60px] -mr-20 -mt-20" />
 
-        <h3 class="text-xl font-black italic uppercase text-slate-900 dark:text-white mb-8 flex items-center gap-4 relative z-10">
+        <h3 class="text-lg font-black italic uppercase text-slate-900 dark:text-white mb-8 flex items-center gap-4 relative z-10">
           <Edit2 class="w-6 h-6 text-cyan-500" />
           编辑广播 <span class="text-[10px] text-slate-400 font-mono not-italic tracking-normal">/ EDIT_BROADCAST</span>
         </h3>
@@ -1535,7 +1546,7 @@ const filteredHistory = computed(() => {
               v-model="editingAnnouncement.title"
               type="text"
               placeholder="ENTER BROADCAST TITLE..."
-              class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-2xl px-5 py-4 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500/50 transition-all"
+              class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-5 py-2.5 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500/50 transition-all"
             />
           </div>
 
@@ -1545,7 +1556,7 @@ const filteredHistory = computed(() => {
               v-model="editingAnnouncement.content"
               rows="3"
               placeholder="ENTER MESSAGE TO RESEARCHERS..."
-              class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-2xl px-5 py-4 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500/50 transition-all resize-none"
+              class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-5 py-2.5 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500/50 transition-all resize-none"
             />
           </div>
 
@@ -1554,7 +1565,7 @@ const filteredHistory = computed(() => {
               <label class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] block mb-3 ml-1">Priority / 优先级</label>
               <select
                 v-model="editingAnnouncement.type"
-                class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500/30"
+                class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500/30"
               >
                 <option value="info">INFO / 公告</option>
                 <option value="maintenance">MAINTENANCE / 维护</option>
@@ -1565,7 +1576,7 @@ const filteredHistory = computed(() => {
               <label class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] block mb-3 ml-1">Format / 展现形式</label>
               <select
                 v-model="editingAnnouncement.is_ticker"
-                class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500/30"
+                class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500/30"
               >
                 <option :value="true">TICKER / 跑马灯</option>
                 <option :value="false">MODAL / 强制弹窗</option>
@@ -1579,7 +1590,7 @@ const filteredHistory = computed(() => {
               v-model="editingAnnouncement.expires_in"
               type="text"
               placeholder="24h"
-              class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-5 py-3 text-xs font-bold font-mono text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500/50 tracking-widest uppercase"
+              class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-5 py-2.5 text-xs font-bold font-mono text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500/50 tracking-widest uppercase"
             />
           </div>
 
@@ -1618,7 +1629,7 @@ const filteredHistory = computed(() => {
               v-model.number="editingAnnouncement.close_delay"
               type="number"
               placeholder="0 = 立即关闭"
-              class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-5 py-3 text-xs font-bold font-mono text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500/50 tracking-widest uppercase"
+              class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-5 py-2.5 text-xs font-bold font-mono text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500/50 tracking-widest uppercase"
             />
           </div>
         </div>
@@ -1626,13 +1637,13 @@ const filteredHistory = computed(() => {
         <div class="flex gap-4 mt-10 relative z-10">
           <button
             @click="showEditAnnouncementModal = false"
-            class="flex-1 px-6 py-4 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-500 rounded-[1.25rem] font-black text-[10px] uppercase tracking-widest transition-all"
+            class="flex-1 px-4 py-2.5 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-500 rounded-[1.25rem] font-black text-[10px] uppercase tracking-widest transition-all"
           >
             Cancel
           </button>
           <button
             @click="handleUpdateAnnouncement"
-            class="flex-1 px-6 py-4 bg-cyan-600 hover:bg-cyan-500 text-white rounded-[1.25rem] font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-cyan-500/20 active:scale-95 border border-cyan-500/20"
+            class="flex-1 px-4 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-[1.25rem] font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-cyan-500/20 active:scale-95 border border-cyan-500/20"
           >
             Update
           </button>

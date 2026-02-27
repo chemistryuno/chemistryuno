@@ -3,9 +3,8 @@
  * 负责处理游戏房间的 WebSocket 连接和消息
  */
 
-import { onMounted, onUnmounted, type Ref } from 'vue'
+import { onMounted, onUnmounted } from 'vue'
 import websocket from '../utils/websocket'
-import feedback from '../utils/feedback'
 
 export function useGameSocket(
   roomId: string,

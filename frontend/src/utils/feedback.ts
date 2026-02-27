@@ -7,6 +7,10 @@ import { audioEngine, SoundType } from './audioEngine'
 import { vibrationEngine, VibrationPattern, VibrationPreset } from './vibrationEngine'
 
 class FeedbackManager {
+  private soundEnabled = true
+  private vibrationEnabled = true
+  private volume = 0.3
+
   /**
    * 初始化
    */
@@ -40,22 +44,23 @@ class FeedbackManager {
     const vibrationSetting = localStorage.getItem('chemistry-uno-vibration-enabled')
     const volumeSetting = localStorage.getItem('chemistry-uno-volume')
 
-    const soundEnabled = soundSetting !== 'false' // 默认启用
-    const vibrationEnabled = vibrationSetting !== 'false' // 默认启用
-    const volume = volumeSetting ? parseFloat(volumeSetting) : 0.3
+    this.soundEnabled = soundSetting !== 'false' // 默认启用
+    this.vibrationEnabled = vibrationSetting !== 'false' // 默认启用
+    const parsedVolume = volumeSetting ? parseFloat(volumeSetting) : 0.3
+    this.volume = Number.isFinite(parsedVolume) ? parsedVolume : 0.3
 
-    audioEngine.setEnabled(soundEnabled)
-    audioEngine.setVolume(volume)
-    vibrationEngine.setEnabled(vibrationEnabled)
+    audioEngine.setEnabled(this.soundEnabled)
+    audioEngine.setVolume(this.volume)
+    vibrationEngine.setEnabled(this.vibrationEnabled)
   }
 
   /**
    * 保存用户设置
    */
   private saveSettings() {
-    localStorage.setItem('chemistry-uno-sound-enabled', String(this.getSoundEnabled()))
-    localStorage.setItem('chemistry-uno-vibration-enabled', String(this.getVibrationEnabled()))
-    localStorage.setItem('chemistry-uno-volume', String(this.getVolume()))
+    localStorage.setItem('chemistry-uno-sound-enabled', String(this.soundEnabled))
+    localStorage.setItem('chemistry-uno-vibration-enabled', String(this.vibrationEnabled))
+    localStorage.setItem('chemistry-uno-volume', String(this.volume))
   }
 
   /**
@@ -169,6 +174,7 @@ class FeedbackManager {
    */
   setSoundEnabled(enabled: boolean) {
     audioEngine.setEnabled(enabled)
+    this.soundEnabled = enabled
     this.saveSettings()
   }
 
@@ -177,6 +183,7 @@ class FeedbackManager {
    */
   setVibrationEnabled(enabled: boolean) {
     vibrationEngine.setEnabled(enabled)
+    this.vibrationEnabled = enabled
     this.saveSettings()
   }
 
@@ -185,6 +192,7 @@ class FeedbackManager {
    */
   setVolume(volume: number) {
     audioEngine.setVolume(volume)
+    this.volume = volume
     this.saveSettings()
   }
 
@@ -192,23 +200,21 @@ class FeedbackManager {
    * 获取音效启用状态
    */
   getSoundEnabled(): boolean {
-    // 从 localStorage 读取，因为引擎内部状态是私有的
-    return localStorage.getItem('chemistry-uno-sound-enabled') !== 'false'
+    return this.soundEnabled
   }
 
   /**
    * 获取振动启用状态
    */
   getVibrationEnabled(): boolean {
-    return localStorage.getItem('chemistry-uno-vibration-enabled') !== 'false'
+    return this.vibrationEnabled
   }
 
   /**
    * 获取音量
    */
   getVolume(): number {
-    const volumeSetting = localStorage.getItem('chemistry-uno-volume')
-    return volumeSetting ? parseFloat(volumeSetting) : 0.3
+    return this.volume
   }
 
   /**

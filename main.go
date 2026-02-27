@@ -1,10 +1,11 @@
-﻿package main
+package main
 
 import (
 	"chemistryuno/backend/database"
 	"chemistryuno/backend/game"
 	"chemistryuno/backend/handlers"
 	"chemistryuno/backend/middleware"
+	"chemistryuno/backend/plugins"
 	"chemistryuno/backend/repository"
 	"chemistryuno/backend/static"
 	"chemistryuno/backend/utils"
@@ -15,6 +16,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -84,6 +86,13 @@ func main() {
 		log.Printf("⚠️  加载 .env 配置文件出错: %v（将使用系统环境变量）", loadErr)
 	}
 
+	if delayRaw := os.Getenv("CHEMISTRYUNO_START_DELAY_MS"); delayRaw != "" {
+		if delayMs, err := strconv.Atoi(delayRaw); err == nil && delayMs > 0 {
+			log.Printf("⏳ 检测到启动延迟 %dms，等待后继续初始化...", delayMs)
+			time.Sleep(time.Duration(delayMs) * time.Millisecond)
+		}
+	}
+
 	// 确保JWT密钥存在（首次启动自动生成）
 	if err := utils.EnsureJWTSecret(); err != nil {
 		log.Printf("警告: JWT密钥初始化失败: %v", err)
@@ -117,6 +126,9 @@ func main() {
 	// 初始化合法物质缓存
 	game.RebuildSubstanceCache()
 
+	// 加载插件卡牌 registry
+	game.LoadPluginCards()
+
 	// 自动同步物质百科（将反应中的物质录入百科）
 	game.SyncSubstancesFromReactions()
 
@@ -134,6 +146,12 @@ func main() {
 	websocket.GlobalHub = hub // 设置全局 Hub 引用
 	hub.OnRegister = game.PushOnJoinAnnouncements
 	go hub.Run()
+
+	// 在 WebSocket Hub 就绪后加载服务端脚本，确保 onLoad 可推送消息。
+	plugins.LoadServerScripts()
+	plugins.Emit(plugins.EventServerStart, map[string]interface{}{
+		"started_at_unix_mil": startTime.UnixMilli(),
+	})
 
 	// 启动房间监控（处理消极游戏踢人逻辑）
 	game.StartRoomMonitor()
@@ -328,6 +346,12 @@ func main() {
 			auth.GET("/rooms/:id/reaction-hints", handlers.GetReactionHints)
 			auth.POST("/game/check-reaction", handlers.VerifyReaction)
 
+			// 插件卡牌（deck builder 用）
+			auth.GET("/plugin-cards", handlers.GetPluginCards)
+			// 插件浏览（用户只读）
+			auth.GET("/plugins", handlers.GetPluginsWithCards)
+			auth.GET("/plugins/:id/script", handlers.GetPluginScript)
+
 			// WebSocket
 			auth.GET("/ws", handleWebSocket)
 
@@ -381,6 +405,26 @@ func main() {
 			admin.POST("/substances/batch-reject", handlers.BatchRejectSubstances)
 			admin.POST("/reactions/batch-approve", handlers.BatchApproveReactions)
 			admin.POST("/reactions/batch-reject", handlers.BatchRejectReactions)
+
+			// 插件系统管理
+			admin.GET("/plugins", handlers.ListPlugins)
+			admin.POST("/plugins", handlers.CreatePlugin)
+			admin.POST("/plugins/install", handlers.InstallPlugin)
+			admin.PUT("/plugins/:id", handlers.UpdatePlugin)
+			admin.DELETE("/plugins/:id", handlers.DeletePlugin)
+			admin.GET("/plugins/:id/cards", handlers.ListPluginCards)
+			admin.POST("/plugins/:id/cards", handlers.CreatePluginCard)
+			admin.PUT("/plugin-cards/:id", handlers.UpdatePluginCard)
+			admin.DELETE("/plugin-cards/:id", handlers.DeletePluginCard)
+			admin.POST("/plugins/reload", handlers.ReloadPlugins)
+
+			// 服务器重启管理
+			admin.POST("/server/restart", handlers.ScheduleServerRestart)
+			admin.POST("/server/restart/cancel", handlers.CancelServerRestart)
+
+			// 广播系统（全局 / 房间 / 用户）
+			admin.POST("/broadcast", handlers.AdminBroadcast)
+			admin.GET("/rooms/active", handlers.GetActiveRooms)
 		}
 
 		// 积分和悬赏

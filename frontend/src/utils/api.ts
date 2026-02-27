@@ -256,6 +256,18 @@ export const adminAPI = {
   batchRejectReactions: (groupIDs: number[]) =>
     api.post('/admin/reactions/batch-reject', { group_ids: groupIDs }),
 
+  // 广播系统
+  broadcast: (data: {
+    scope: 'global' | 'room' | 'user'
+    target?: string
+    msg_type: 'info' | 'warning' | 'success' | 'error'
+    title?: string
+    content: string
+  }) =>
+    api.post('/admin/broadcast', data),
+  getActiveRooms: () =>
+    api.get('/admin/rooms/active'),
+
   // 公告管理
   getAnnouncements: () =>
     api.get('/admin/announcements'),
@@ -353,6 +365,71 @@ export const friendAPI = {
     api.delete(`/friends/${friendUID}`),
   setRemark: (friendUID: number, remark: string) =>
     api.post('/friends/remark', { friend_uid: friendUID, remark }),
+}
+
+// 插件系统API
+export const pluginAPI = {
+  // 公开接口（需要登录）
+  getPluginCards: () =>
+    api.get('/plugin-cards'),
+  // 用户只读 - 插件浏览
+  getPluginsWithCards: () =>
+    api.get('/plugins'),
+  getPluginScript: (pluginId: number) =>
+    api.get(`/plugins/${pluginId}/script`, { responseType: 'text' }),
+
+  // 管理员接口 - 插件管理
+  getPlugins: () =>
+    api.get('/admin/plugins'),
+  createPlugin: (data: { name: string; description?: string }) =>
+    api.post('/admin/plugins', data),
+  updatePlugin: (id: number, data: { name?: string; description?: string; is_active?: boolean }) =>
+    api.put(`/admin/plugins/${id}`, data),
+  deletePlugin: (id: number) =>
+    api.delete(`/admin/plugins/${id}`),
+
+  // .cumod 文件安装
+  installPlugin: (file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return api.post('/admin/plugins/install', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
+
+  // 管理员接口 - 卡牌管理
+  getPluginCardsByPlugin: (pluginId: number) =>
+    api.get(`/admin/plugins/${pluginId}/cards`),
+  createCard: (pluginId: number, data: {
+    symbol: string
+    display_name?: string
+    effect_type: string
+    effect_config: object
+    default_count?: number
+    color?: string
+  }) =>
+    api.post(`/admin/plugins/${pluginId}/cards`, data),
+  updateCard: (cardId: number, data: {
+    symbol?: string
+    display_name?: string
+    effect_type?: string
+    effect_config?: object
+    default_count?: number
+    color?: string
+  }) =>
+    api.put(`/admin/plugin-cards/${cardId}`, data),
+  deleteCard: (cardId: number) =>
+    api.delete(`/admin/plugin-cards/${cardId}`),
+
+  // 热重载
+  reloadPlugins: () =>
+    api.post('/admin/plugins/reload'),
+
+  // 服务器重启管理
+  scheduleRestart: (delaySeconds: number, reason?: string) =>
+    api.post('/admin/server/restart', { delay_seconds: delaySeconds, reason }),
+  cancelRestart: () =>
+    api.post('/admin/server/restart/cancel'),
 }
 
 export default api

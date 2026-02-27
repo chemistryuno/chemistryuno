@@ -1,3 +1,6 @@
+//go:build scripts
+// +build scripts
+
 package main
 
 import (
@@ -122,7 +125,7 @@ func main() {
 	// 5. 显示结果
 	log.Println("==========================================")
 	log.Println("✅ 测试数据库重置完成！")
-	log.Println("==========================================\n")
+	log.Println("==========================================")
 
 	// 列出所有用户
 	var users []database.User

@@ -123,6 +123,7 @@ const handleLoginSuccess = (token: string, user: any, announcements: any[] = [],
   localStorage.setItem('token', token)
   localStorage.setItem('user', JSON.stringify(user))
   websocket.connect()
+  window.dispatchEvent(new Event('auth-changed'))
 
   // 处理回归玩家
   if (isReturningPlayer) {

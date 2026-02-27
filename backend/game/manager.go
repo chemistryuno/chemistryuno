@@ -1,10 +1,13 @@
-﻿package game
+package game
 
 import (
 	"chemistryuno/backend/database"
 	"chemistryuno/backend/models"
+	"chemistryuno/backend/plugins"
 	"chemistryuno/backend/repository"
 	"chemistryuno/backend/websocket"
+	crand "crypto/rand"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -20,6 +23,16 @@ var (
 	roomMutex  sync.RWMutex
 	configRepo *repository.ConfigRepository
 )
+
+// cryptoRandUint64 使用 crypto/rand 生成密码学安全的随机 uint64
+func cryptoRandUint64() uint64 {
+	var b [8]byte
+	if _, err := crand.Read(b[:]); err != nil {
+		// 极少发生：降级到 math/rand
+		return uint64(rand.Int63())
+	}
+	return binary.LittleEndian.Uint64(b[:])
+}
 
 type GameRoom struct {
 	Room       *models.Room
@@ -204,6 +217,126 @@ func (gr *GameRoom) broadcastRoomUpdate() {
 	}
 }
 
+func emitPluginEvent(event string, payload map[string]interface{}) {
+	cloned := make(map[string]interface{}, len(payload))
+	for k, v := range payload {
+		cloned[k] = v
+	}
+	go plugins.Emit(event, cloned)
+}
+
+func emitRoomCreated(room *models.Room, source string) {
+	if room == nil {
+		return
+	}
+	emitPluginEvent(plugins.EventRoomCreated, map[string]interface{}{
+		"room_id":        room.ID,
+		"name":           room.Name,
+		"created_by_uid": room.CreatedByUID,
+		"max_players":    room.MaxPlayers,
+		"is_private":     room.IsPrivate,
+		"is_pve":         room.IsPvE,
+		"is_points_mode": room.IsPointsMode,
+		"source":         source,
+	})
+}
+
+func emitRoomClosed(roomID string, reason string, source string, remainingPlayers int) {
+	emitPluginEvent(plugins.EventRoomClosed, map[string]interface{}{
+		"room_id":            roomID,
+		"reason":             reason,
+		"source":             source,
+		"remaining_players":  remainingPlayers,
+		"closed_at_unix_mil": time.Now().UnixMilli(),
+	})
+}
+
+func emitPlayerJoin(roomID string, uid int, username string, playerCount int, source string) {
+	emitPluginEvent(plugins.EventPlayerJoin, map[string]interface{}{
+		"room_id":      roomID,
+		"uid":          uid,
+		"username":     username,
+		"player_count": playerCount,
+		"source":       source,
+	})
+}
+
+func emitPlayerLeave(roomID string, uid int, playerCount int, source string) {
+	emitPluginEvent(plugins.EventPlayerLeave, map[string]interface{}{
+		"room_id":      roomID,
+		"uid":          uid,
+		"player_count": playerCount,
+		"source":       source,
+	})
+}
+
+func emitGameStart(roomID string, state *models.GameState) {
+	if state == nil || len(state.Players) == 0 {
+		return
+	}
+	uids := make([]int, 0, len(state.Players))
+	for _, player := range state.Players {
+		uids = append(uids, player.UID)
+	}
+	currentIdx := state.CurrentPlayer
+	if currentIdx < 0 || currentIdx >= len(state.Players) {
+		currentIdx = 0
+	}
+	emitPluginEvent(plugins.EventGameStart, map[string]interface{}{
+		"room_id":               roomID,
+		"player_uids":           uids,
+		"current_player_index":  currentIdx,
+		"current_player_uid":    state.Players[currentIdx].UID,
+		"original_player_count": state.OriginalPlayerCount,
+		"is_tutorial":           state.TutorialScriptMode,
+	})
+}
+
+func emitTurnChanged(roomID string, state *models.GameState, previousIndex int, source string) {
+	if state == nil || state.Status != "playing" || len(state.Players) == 0 {
+		return
+	}
+	currentIndex := state.CurrentPlayer
+	if currentIndex < 0 || currentIndex >= len(state.Players) {
+		return
+	}
+	if previousIndex == currentIndex {
+		return
+	}
+	payload := map[string]interface{}{
+		"room_id":              roomID,
+		"source":               source,
+		"current_player_index": currentIndex,
+		"current_player_uid":   state.Players[currentIndex].UID,
+		"turn_end_time":        state.TurnEndTime,
+		"pending_draw_count":   state.PendingDrawCount,
+		"allowed_any_player":   state.AllowedAnyPlayer,
+		"pending_forced_plays": state.PendingForcedPlays,
+	}
+	if previousIndex >= 0 && previousIndex < len(state.Players) {
+		payload["previous_player_index"] = previousIndex
+		payload["previous_player_uid"] = state.Players[previousIndex].UID
+	}
+	emitPluginEvent(plugins.EventTurnChanged, payload)
+}
+
+func emitCardPlayed(roomID string, state *models.GameState, uid int, cardType string, substance string, effect string, isDouble bool) {
+	payload := map[string]interface{}{
+		"room_id":            roomID,
+		"uid":                uid,
+		"card_type":          cardType,
+		"substance":          substance,
+		"effect":             effect,
+		"is_double":          isDouble,
+		"played_at_unix_mil": time.Now().UnixMilli(),
+	}
+	if state != nil {
+		payload["pending_draw_count"] = state.PendingDrawCount
+		payload["discard_count"] = len(state.DiscardPile)
+	}
+	emitPluginEvent(plugins.EventCardPlayed, payload)
+}
+
 // 记录当前玩家回合开始时间到数据库
 func (gr *GameRoom) recordTurnStart() {
 	if gr.GameState != nil && len(gr.GameState.Players) > 0 {
@@ -307,8 +440,8 @@ func CreateRoomWithKey(name string, creatorUID int, creatorName string, maxPlaye
 		name = "LAB-" + string(b)
 	}
 
-	// 生成简单的房间ID
-	roomID := fmt.Sprintf("room_%d_%d", time.Now().Unix(), rand.Intn(1000))
+	// 生成密码学安全的房间 ID（128 位随机，抵御穷举）
+	roomID := fmt.Sprintf("room_%x%x", cryptoRandUint64(), cryptoRandUint64())
 
 	// 加载牌组配置
 	var deckConfig models.DeckConfig
@@ -435,13 +568,14 @@ func CreateRoomWithKey(name string, creatorUID int, creatorName string, maxPlaye
 	rooms[roomID] = gameRoom
 	roomMutex.Unlock()
 
+	emitRoomCreated(room, "create_room")
 	return room, nil
 }
 
 // generateBackfillAIUID 为补位AI生成唯一的负数UID
 // 扫描房间中现有的所有玩家UID，找到最小的负数UID并递减1
 func generateBackfillAIUID(room *models.Room) int {
-	minUID := -1
+	minUID := 0 // 从 0 开始，确保任何已存在的负数 UID（含 -1 的 PvE AI）都能被正确检测
 
 	// 检查现有玩家中的AI UID
 	for _, uid := range room.Players {
@@ -490,7 +624,7 @@ func StartDuel(challengerUID int, challengerName string, targetUID int, targetNa
 		ID:           1,
 	}
 
-	roomID := fmt.Sprintf("duel_%d_%d", time.Now().Unix(), rand.Intn(1000))
+	roomID := fmt.Sprintf("duel_%x%x", cryptoRandUint64(), cryptoRandUint64())
 	room := &models.Room{
 		ID:            roomID,
 		Name:          fmt.Sprintf("Duel: %s VS %s", challengerName, targetName),
@@ -517,6 +651,7 @@ func StartDuel(challengerUID int, challengerName string, targetUID int, targetNa
 	rooms[roomID] = gameRoom
 	roomMutex.Unlock()
 
+	emitRoomCreated(room, "start_duel")
 	return room, nil
 }
 
@@ -552,6 +687,33 @@ func GetAllRooms(uid int) []*models.Room {
 	}
 
 	// 排序逻辑：waiting 优先，然后按创建时间从新到旧
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].Status != result[j].Status {
+			if result[i].Status == "waiting" {
+				return true
+			}
+			if result[j].Status == "waiting" {
+				return false
+			}
+		}
+		return result[i].CreatedAt.After(result[j].CreatedAt)
+	})
+
+	return result
+}
+
+// GetAllRoomsAdmin 获取所有活跃房间（含私密房间，管理员专用）
+func GetAllRoomsAdmin() []*models.Room {
+	roomMutex.RLock()
+	defer roomMutex.RUnlock()
+
+	result := []*models.Room{}
+	for _, gr := range rooms {
+		if gr.Room.Status != "finished" {
+			result = append(result, gr.Room)
+		}
+	}
+
 	sort.Slice(result, func(i, j int) bool {
 		if result[i].Status != result[j].Status {
 			if result[i].Status == "waiting" {
@@ -1058,7 +1220,9 @@ func (gr *GameRoom) kickPlayer(uid int, reason string) {
 		return
 	}
 
+	remainingPlayers := len(gr.Room.Players)
 	gr.mutex.Unlock()
+	emitPlayerLeave(roomID, uid, remainingPlayers, "kick_player")
 
 	// 广播玩家离开消息
 	if websocket.GlobalHub != nil {
@@ -1072,6 +1236,7 @@ func (gr *GameRoom) kickPlayer(uid int, reason string) {
 
 func (gr *GameRoom) terminateRoom(reason string) {
 	roomID := gr.Room.ID
+	emitRoomClosed(roomID, reason, "terminate_room", len(gr.Room.Players))
 	roomMutex.Lock()
 	delete(rooms, roomID)
 	roomMutex.Unlock()
@@ -1210,6 +1375,7 @@ func JoinRoomWithKey(roomID string, uid int, username string, accessKey string) 
 			if wasOffline {
 				gameRoom.checkAutoStart()
 				gameRoom.broadcastRoomUpdate()
+				emitPlayerJoin(roomID, uid, username, len(gameRoom.Room.Players), "reconnect")
 			}
 			return nil
 		}
@@ -1263,6 +1429,7 @@ func JoinRoomWithKey(roomID string, uid int, username string, accessKey string) 
 	}
 	gameRoom.checkAutoStart()
 	gameRoom.broadcastRoomUpdate()
+	emitPlayerJoin(roomID, uid, username, len(gameRoom.Room.Players), "join_room")
 	return nil
 }
 
@@ -1281,9 +1448,12 @@ func LeaveRoom(roomID string, uid int) error {
 
 	// 移除玩家
 	newPlayers := []int{}
+	removedPlayer := false
 	for _, pid := range gameRoom.Room.Players {
 		if pid != uid {
 			newPlayers = append(newPlayers, pid)
+		} else {
+			removedPlayer = true
 		}
 	}
 	gameRoom.Room.Players = newPlayers
@@ -1356,6 +1526,9 @@ func LeaveRoom(roomID string, uid int) error {
 	if websocket.GlobalHub != nil {
 		websocket.GlobalHub.LeaveRoomByUID(uid)
 	}
+	if removedPlayer {
+		emitPlayerLeave(roomID, uid, len(gameRoom.Room.Players), "leave_room")
+	}
 
 	// 如果是正在游戏中且玩家少于2个，则解散
 	if gameRoom.shouldTerminateRoom() {
@@ -1366,6 +1539,7 @@ func LeaveRoom(roomID string, uid int) error {
 	// 如果所有玩家和观战者均已离开，销毁房间
 	if len(gameRoom.Room.Players) == 0 && len(gameRoom.Room.Spectators) == 0 {
 		gameRoom.cancelStartTimer()
+		emitRoomClosed(roomID, "房间无人，自动关闭", "empty_room", 0)
 		roomMutex.Lock()
 		delete(rooms, roomID)
 		roomMutex.Unlock()
@@ -1400,6 +1574,9 @@ func StartGame(roomID string, uid int) error {
 	if len(gameRoom.Room.Players) < 2 {
 		return errors.New("至少需要2名玩家")
 	}
+
+	// 刷新插件卡牌 registry，确保使用最新数据
+	LoadPluginCards()
 
 	// ===== AI补位逻辑 =====
 	if gameRoom.Room.EnableAIBackfill && !gameRoom.Room.IsPvE {
@@ -1445,7 +1622,12 @@ func StartGame(roomID string, uid int) error {
 	// 脚本化教学模式：使用固定配置
 	if gameRoom.Room.TutorialScript {
 		log.Printf("[教学脚本] 启用脚本化教学模式，使用固定手牌和初始配置")
-		return initTutorialGame(gameRoom, roomID)
+		if err := initTutorialGame(gameRoom, roomID); err != nil {
+			return err
+		}
+		emitGameStart(roomID, gameRoom.GameState)
+		emitTurnChanged(roomID, gameRoom.GameState, -1, "game_start")
+		return nil
 	}
 
 	// 创建牌堆
@@ -1716,6 +1898,8 @@ func StartGame(roomID string, uid int) error {
 		len(gameRoom.GameState.DrawPile), len(gameRoom.GameState.DiscardPile), gameRoom.GameState.CurrentPlayer)
 
 	// 检查第一位是否是 AI
+	emitGameStart(roomID, gameRoom.GameState)
+	emitTurnChanged(roomID, gameRoom.GameState, -1, "game_start")
 	go gameRoom.CheckNextTurnAI()
 
 	return nil
@@ -2163,13 +2347,14 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 		}
 	}
 
-	// +2/4/Au/换向牌可随意打出，无需反应条件
+	// +2/4/Au/换向牌/插件卡 可随意打出，无需反应条件
 	nobleGases := map[string]bool{"He": true, "Ne": true, "Ar": true, "Kr": true, "Xe": true, "Rn": true}
 	specialTypes := map[string]bool{"+2": true, "+4": true, "Au": true, "reverse": true, "skip": true}
-	isSpecial := specialTypes[card.Type] || specialTypes[card.Effect] || nobleGases[card.Type] || nobleGases[substance] || specialTypes[substance]
+	isSpecial := specialTypes[card.Type] || specialTypes[card.Effect] || nobleGases[card.Type] || nobleGases[substance] || specialTypes[substance] || IsPluginCard(card.Type)
 
 	// 无论是否为特殊牌，所有出牌物质均需经过 substances 表校验（纯功能牌在 IsValidSubstance 中有白名单放行）
-	if !IsValidSubstance(substance) {
+	// 插件卡无需物质校验
+	if !IsPluginCard(card.Type) && !IsValidSubstance(substance) {
 		return errors.New("该物质非法，请先在百科中录入: " + substance)
 	}
 
@@ -2322,9 +2507,10 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 		PlayerUID: uid,
 	}
 	// 1. 更新场面状态
-	// 转向牌、跳过牌、Au、+2、+4 不更新场上的物质（不更新 LastCard），使下家仍需与之前的物质反应
+	// 转向牌、跳过牌、Au、+2、+4、插件卡 不更新场上的物质（不更新 LastCard），使下家仍需与之前的物质反应
 	// 其中 Au 会在后续逻辑中显式清空 LastCard
-	isActionCard := activeEffect == "reverse" || activeEffect == "skip" || activeEffect == "Au" || activeEffect == "+2" || activeEffect == "+4"
+	isPluginEffect := IsPluginCard(card.Type)
+	isActionCard := isPluginEffect || activeEffect == "reverse" || activeEffect == "skip" || activeEffect == "Au" || activeEffect == "+2" || activeEffect == "+4"
 	if !isActionCard {
 		gameRoom.GameState.LastCard = &playedCard
 	} else if activeEffect == "+2" || activeEffect == "+4" {
@@ -2334,6 +2520,7 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 		gameRoom.GameState.LastCard = &displayPlayedCard
 	}
 	gameRoom.GameState.DiscardPile = append(gameRoom.GameState.DiscardPile, playedCard)
+	emitCardPlayed(roomID, gameRoom.GameState, uid, card.Type, substance, activeEffect, false)
 
 	// 2. 检查并注册获胜（先注册，以便 getNextPlayer 能正确跳过已完成玩家）
 	isWinner := false
@@ -2445,6 +2632,38 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 				})
 			}
 		}
+
+		// 在执行插件效果之前快照：当前玩家是否已有 force_play 强制出牌任务
+		hadForcedPlays := gameRoom.GameState.PendingForcedPlays > 0
+
+		// 插件卡效果执行（在回合转移前）
+		if isPluginEffect {
+			if err := ExecutePluginEffect(gameRoom, curIdx, card.Type); err != nil {
+				return err
+			}
+		}
+
+		// force_play 机制：若当前玩家本轮有强制出牌任务，消耗一次后决定是否推进回合
+		if hadForcedPlays {
+			gameRoom.GameState.PendingForcedPlays--
+			if gameRoom.GameState.PendingForcedPlays > 0 {
+				// 仍有强制出牌次数，保持当前玩家
+				if websocket.GlobalHub != nil {
+					websocket.GlobalHub.BroadcastToRoom(gameRoom.Room.ID, websocket.Message{
+						Type: "action_toast",
+						Data: fmt.Sprintf("⚡ %s 还需强制打出 %d 张牌！", currentPlayer.Nickname, gameRoom.GameState.PendingForcedPlays),
+					})
+				}
+				gameRoom.GameState.AllowedAnyPlayer = -1
+				gameRoom.GameState.CurrentReaction = ""
+				gameRoom.recordTurnStart()
+				gameRoom.GameState.TurnEndTime = time.Now().Add(getPlayerActionTimeout()).UnixNano() / int64(time.Millisecond)
+				gameRoom.broadcastRoomUpdate()
+				go gameRoom.CheckNextTurnAI()
+				return nil
+			}
+		}
+
 		gameRoom.GameState.CurrentPlayer = getNextPlayer(gameRoom.GameState)
 	}
 
@@ -2507,6 +2726,7 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 	}
 
 	// 检查下一位是否是 AI
+	emitTurnChanged(roomID, gameRoom.GameState, curIdx, "play_card")
 	go gameRoom.CheckNextTurnAI()
 
 	// 广播状态更新 (确保 AI 回合等非 HTTP 触发的消息能到达前端)
@@ -2622,6 +2842,7 @@ func DrawCard(roomID string, uid int, count int) error {
 	if currentPlayer.UID != uid {
 		return errors.New("还没轮到你")
 	}
+	previousTurnIndex := gameRoom.GameState.CurrentPlayer
 
 	// 如果玩家主动摸牌，解除托管状态（重要：防止AI接管人类玩家）
 	if currentPlayer.IsHosted && uid >= 0 {
@@ -2631,6 +2852,10 @@ func DrawCard(roomID string, uid int, count int) error {
 
 	actualCount := count
 	penaltyResolved := false
+	// 如果有强制出牌任务，摸牌意味着放弃，清零后继续
+	if gameRoom.GameState.PendingForcedPlays > 0 {
+		gameRoom.GameState.PendingForcedPlays = 0
+	}
 	// 如果有挂起的加牌，结算加牌
 	if gameRoom.GameState.PendingDrawCount > 0 {
 		actualCount = gameRoom.GameState.PendingDrawCount
@@ -2665,6 +2890,7 @@ func DrawCard(roomID string, uid int, count int) error {
 	}
 
 	// 检查下一位是否是 AI
+	emitTurnChanged(roomID, gameRoom.GameState, previousTurnIndex, "draw_card")
 	go gameRoom.CheckNextTurnAI()
 
 	// 广播状态更新
@@ -3105,6 +3331,7 @@ func DoublePlay(roomID string, uid int, sub1 string, sub2 string) error {
 	gameRoom.GameState.CurrentReaction = reaction.Display
 	gameRoom.GameState.LastCard = &playedCard
 	gameRoom.GameState.DiscardPile = append(gameRoom.GameState.DiscardPile, playedCard)
+	emitCardPlayed(roomID, gameRoom.GameState, uid, representCard.Type, playedCard.Substance, "", true)
 
 	// 处理特殊效果（如果双联中包含功能牌）
 	for _, c := range consumedCards {
@@ -3221,6 +3448,7 @@ func DoublePlay(roomID string, uid int, sub1 string, sub2 string) error {
 	gameRoom.GameState.TurnEndTime = time.Now().Add(getPlayerActionTimeout()).UnixNano() / int64(time.Millisecond)
 
 	// 检查下一位是否是 AI
+	emitTurnChanged(roomID, gameRoom.GameState, curIdx, "double_play")
 	go gameRoom.CheckNextTurnAI()
 
 	// 广播状态更新
@@ -3266,6 +3494,7 @@ func processRoomTimeout(roomID string) {
 	now := time.Now().UnixNano() / int64(time.Millisecond)
 	if gameRoom.GameState.TurnEndTime > 0 && now > gameRoom.GameState.TurnEndTime {
 		// 超时处理：强制摸牌并跳过，同时将真人玩家设为托管状态
+		previousTurnIndex := gameRoom.GameState.CurrentPlayer
 		currentPlayer := gameRoom.GameState.Players[gameRoom.GameState.CurrentPlayer]
 		if !currentPlayer.IsAI {
 			currentPlayer.IsHosted = true
@@ -3294,6 +3523,7 @@ func processRoomTimeout(roomID string) {
 		}
 
 		// 检查下一位是否是 AI (或者托管玩家)
+		emitTurnChanged(roomID, gameRoom.GameState, previousTurnIndex, "timeout_auto_draw")
 		go gameRoom.CheckNextTurnAI()
 
 		// 广播更新

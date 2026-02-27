@@ -56,3 +56,5 @@ tmpclaude-*
 bin/
 android/
 *.db-wal
+.gocache/
+demo/

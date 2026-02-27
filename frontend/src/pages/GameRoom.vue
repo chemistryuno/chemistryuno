@@ -1832,6 +1832,15 @@ watch(() => gameState.value?.current_player, () => {
                  <Activity :class="cn('w-3.5 h-3.5 sm:w-3 sm:h-3', doubleMode && 'animate-spin')" />
                  <span class="text-xs-mobile font-black uppercase tracking-tighter">{{ doubleMode ? '解除超限' : '超限双联' }}</span>
               </button>
+
+              <!-- 强制出牌提示 -->
+              <div
+                v-if="isMyTurn && gameState?.pending_forced_plays > 0"
+                class="flex items-center gap-1 px-2 py-1 rounded-lg bg-orange-500/80 border border-orange-400/50 animate-pulse"
+              >
+                <Zap class="w-3 h-3 fill-current text-white" />
+                <span class="text-[10px] font-black uppercase tracking-widest text-white whitespace-nowrap">强制出牌 ×{{ gameState.pending_forced_plays }}</span>
+              </div>
             </div>
           </div>
 

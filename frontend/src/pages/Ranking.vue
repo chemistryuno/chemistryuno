@@ -128,7 +128,7 @@
                     Number(player.uid) === Number(user.uid) ? 'bg-blue-50/70 dark:bg-blue-500/[0.03]' : 'hover:bg-slate-50/50 dark:hover:bg-white/[0.02]'
                   )"
                 >
-                  <td class="px-6 py-3">
+                  <td class="px-6 py-2">
                     <div class="flex items-center gap-3">
                       <template v-if="!searchTerm">
                         <span :class="cn(
@@ -154,7 +154,7 @@
                       </template>
                     </div>
                   </td>
-                  <td class="px-5 py-3">
+                  <td class="px-5 py-2">
                     <div class="flex items-center gap-3">
                        <div 
                          @click="showResearcherProfile(player.uid)"
@@ -177,7 +177,7 @@
                             <span v-if="Number(player.uid) === Number(user.uid)" class="text-[7px] bg-blue-600 px-1 py-0.5 rounded uppercase font-black tracking-widest text-white">You</span>
                             <span v-if="player.is_banned" class="text-[7px] bg-red-600 px-1 py-0.5 rounded uppercase font-black tracking-widest text-white animate-pulse">CHEATER</span>
                           </span>
-                          <div class="flex items-center gap-2 mt-0.5">
+                          <div class="flex items-center gap-2 mt-0.5 flex-wrap">
                             <span class="text-[7px] font-mono text-slate-400 dark:text-slate-500 uppercase tracking-tighter">UID: {{ player.uid }}</span>
                             <div class="flex items-center gap-1 bg-slate-100 dark:bg-white/5 px-1.5 py-0.5 rounded border border-slate-200 dark:border-white/5">
                               <LevelBadge :level="player.level || 1" :tier="player.tier" :tier-name="player.tier_name" size="xs" :show-level="false" />
@@ -186,18 +186,24 @@
                             <span v-if="player.total_games > 0" class="text-[6px] font-bold text-slate-400/80 uppercase tracking-widest hidden sm:inline-block">
                               Win Rate: {{ Math.round((player.win_count / player.total_games) * 100) }}% ({{ player.total_games }} Sessions)
                             </span>
+                            <span
+                              class="text-[6px] font-bold uppercase tracking-widest"
+                              :class="player.is_online ? 'text-emerald-500' : 'text-slate-400/80'"
+                            >
+                              {{ player.is_online ? '在线' : '上次下线 · ' + formatLastOfflineText(player.last_offline_at) }}
+                            </span>
                           </div>
                        </div>
                     </div>
                   </td>
-                  <td class="px-5 py-3">
+                  <td class="px-5 py-2">
                     <div class="flex flex-col">
                        <span class="text-sm font-black text-slate-900 dark:text-white font-mono tracking-tighter">
                          {{ Math.floor(rankingMode === 'monthly' ? player.monthly_points : player.points) }}
                        </span>
                     </div>
                   </td>
-                  <td class="px-5 py-3">
+                  <td class="px-5 py-2">
                     <div v-if="player.bounty > 0" class="flex flex-col">
                        <div class="flex items-center gap-1 text-rose-500">
                           <Flame class="w-2.5 h-2.5" />
@@ -208,7 +214,7 @@
                       Std
                     </div>
                   </td>
-                  <td class="px-6 py-3 text-right">
+                  <td class="px-6 py-2 text-right">
                     <div v-if="Number(player.uid) !== Number(user.uid)" class="flex items-center justify-end gap-1.5">
                       <button 
                         v-if="player.is_online"
@@ -253,14 +259,14 @@
                   v-if="!searchTerm && myRankInfo && !leaderboard.find(p => Number(p.uid) === Number(user.uid))"
                   class="bg-blue-50/50 dark:bg-blue-500/[0.05] border-t-2 border-dashed border-slate-200 dark:border-white/10"
                 >
-                  <td class="px-6 py-4">
+                  <td class="px-6 py-3">
                     <div class="flex items-center gap-3">
                         <span class="w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black italic bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400">
                           {{ myRankInfo.rank }}
                         </span>
                     </div>
                   </td>
-                  <td class="px-5 py-4">
+                  <td class="px-5 py-3">
                     <div class="flex items-center gap-3">
                        <div class="relative w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-500/20 border border-blue-200 dark:border-blue-500/30 flex items-center justify-center text-sm overflow-hidden shrink-0">
                           <template v-if="myRankInfo.avatar && myRankInfo.avatar.startsWith('data:')">
@@ -276,7 +282,7 @@
                             {{ myRankInfo.nickname || myRankInfo.username }}
                             <span class="text-[7px] bg-blue-600 px-1 py-0.5 rounded uppercase font-black tracking-widest text-white">You</span>
                           </span>
-                          <div class="flex items-center gap-2 mt-0.5">
+                          <div class="flex items-center gap-2 mt-0.5 flex-wrap">
                             <span class="text-[7px] font-mono text-blue-400/60 uppercase tracking-tighter">UID: {{ myRankInfo.uid }}</span>
                             <div class="flex items-center gap-1 bg-blue-500/10 dark:bg-blue-500/5 px-1.5 py-0.5 rounded border border-blue-500/20">
                               <LevelBadge :level="myRankInfo.level || 1" :tier="myRankInfo.tier" :tier-name="myRankInfo.tier_name" size="xs" :show-level="false" />
@@ -285,19 +291,25 @@
                             <span v-if="myRankInfo.total_games > 0" class="text-[6px] font-bold text-blue-400/60 uppercase tracking-widest hidden sm:inline-block">
                               Win Rate: {{ Math.round((myRankInfo.win_count / myRankInfo.total_games) * 100) }}% ({{ myRankInfo.total_games }} Sessions)
                             </span>
+                            <span
+                              class="text-[6px] font-bold uppercase tracking-widest"
+                              :class="myRankInfo.is_online ? 'text-emerald-500' : 'text-blue-400/60'"
+                            >
+                              {{ myRankInfo.is_online ? '在线' : '上次下线 · ' + formatLastOfflineText(myRankInfo.last_offline_at) }}
+                            </span>
                           </div>
                           <span class="text-[6px] font-bold text-blue-400/40 uppercase tracking-widest mt-0.5 ml-0.5">(Outside Top 100)</span>
                        </div>
                     </div>
                   </td>
-                  <td class="px-5 py-4">
+                  <td class="px-5 py-3">
                     <div class="flex flex-col">
                        <span class="text-sm font-black text-blue-600 dark:text-blue-400 font-mono tracking-tighter">
                          {{ Math.floor(rankingMode === 'monthly' ? myRankInfo.monthly_points : myRankInfo.points) }}
                        </span>
                     </div>
                   </td>
-                  <td class="px-5 py-4">
+                  <td class="px-5 py-3">
                     <div v-if="myRankInfo.bounty > 0" class="flex flex-col">
                        <div class="flex items-center gap-1 text-rose-500">
                           <Flame class="w-2.5 h-2.5" />
@@ -308,7 +320,7 @@
                       Std
                     </div>
                   </td>
-                  <td class="px-6 py-4 text-right">
+                  <td class="px-6 py-3 text-right">
                     <span class="text-[8px] font-black text-blue-600 dark:text-blue-500 uppercase tracking-widest italic pr-1">
                       Identity_Linked
                     </span>
@@ -428,6 +440,7 @@ import { pointsAPI, gameAPI, friendAPI, authAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
 import { Trophy, ArrowLeft, Loader2, Target, RefreshCw, ShieldCheck, Crosshair, Flame, X, Swords, MessageCircle, UserPlus, Search } from 'lucide-vue-next'
 import { cn } from '../utils/cn'
+import { formatLastOfflineForRanking } from '../utils/timeFormat'
 import ChatBox from '../components/ChatBox.vue'
 import LevelBadge from '../components/LevelBadge.vue'
 import websocket from '../utils/websocket'
@@ -476,6 +489,10 @@ const selectedProfileUID = ref<number | null>(null)
 const showResearcherProfile = (uid: number) => {
   selectedProfileUID.value = uid
   showProfileModal.value = true
+}
+
+const formatLastOfflineText = (value: string | Date | null | undefined) => {
+  return formatLastOfflineForRanking(value)
 }
 
 // 监听搜索词

@@ -44,6 +44,7 @@ const handleLoginSuccess = (token: string, user: any) => {
   localStorage.setItem('token', token)
   localStorage.setItem('user', JSON.stringify(user))
   websocket.connect()
+  window.dispatchEvent(new Event('auth-changed'))
   router.push('/')
 }
 

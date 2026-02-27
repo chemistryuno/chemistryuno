@@ -7,6 +7,15 @@ import AnnouncementTicker from './components/AnnouncementTicker.vue'
 import DuelInviteModal from './components/DuelInviteModal.vue'
 import feedback from './utils/feedback'
 import { useDialog } from './utils/dialog'
+import { loadPluginScripts, dispatchPluginMessage } from './utils/plugin-runtime'
+
+// --- 服务器重启横幅状态 ---
+const restartBanner = ref<{ visible: boolean; countdown: number; reason: string }>({
+  visible: false,
+  countdown: 0,
+  reason: ''
+})
+let restartInterval: ReturnType<typeof setInterval> | null = null
 
 const loading = ref(true)
 const { showAlert } = useDialog()
@@ -60,6 +69,46 @@ const handleSystemAnnouncement = (msg: any) => {
   }
 }
 
+// 管理员广播：区分 global / room / user 三种来源
+const handleAdminBroadcast = (msg: any) => {
+  const d = msg.data
+  if (!d) return
+  const titleMap: Record<string, string> = {
+    info:    d.title || '📢 管理员通知',
+    warning: d.title || '⚠️ 管理员警告',
+    success: d.title || '✅ 系统提示',
+    error:   d.title || '🚨 紧急通知',
+  }
+  const title = titleMap[d.msg_type] || d.title || '管理员广播'
+  showAlert(d.content, title)
+}
+
+// 服务器重启 WebSocket 事件
+const handleServerRestart = (msg: any) => {
+  const d = msg.data || {}
+  const seconds = typeof d === 'object' ? (d.seconds ?? 30) : 30
+  const reason = typeof d === 'object' ? (d.reason ?? '') : ''
+  restartBanner.value = { visible: true, countdown: seconds, reason }
+  if (restartInterval) clearInterval(restartInterval)
+  restartInterval = setInterval(() => {
+    restartBanner.value.countdown--
+    if (restartBanner.value.countdown <= 0) {
+      clearInterval(restartInterval!)
+      restartInterval = null
+    }
+  }, 1000)
+}
+
+const handleServerRestartNow = () => {
+  restartBanner.value = { visible: true, countdown: 0, reason: '服务器正在重启，请稍候…' }
+  if (restartInterval) { clearInterval(restartInterval); restartInterval = null }
+}
+
+const handleServerRestartCancelled = () => {
+  if (restartInterval) { clearInterval(restartInterval); restartInterval = null }
+  restartBanner.value = { visible: false, countdown: 0, reason: '' }
+}
+
 const updateTheme = () => {
   const storedTheme = localStorage.getItem('theme') || 'system'
   const root = document.documentElement
@@ -91,6 +140,17 @@ const handleGlobalClick = (e: MouseEvent) => {
   }
 }
 
+const handlePluginMessage = (msg: any) => {
+  dispatchPluginMessage(msg)
+}
+
+const handleAuthChanged = () => {
+  const token = localStorage.getItem('token')
+  if (token) {
+    loadPluginScripts()
+  }
+}
+
 onMounted(() => {
   try {
     // 监听主题变化
@@ -100,12 +160,14 @@ onMounted(() => {
       if (e.key === 'theme') updateTheme()
     })
     window.addEventListener('theme-changed', updateTheme)
+    window.addEventListener('auth-changed', handleAuthChanged)
     const token = localStorage.getItem('token')
     const userData = localStorage.getItem('user')
     
     if (token && userData) {
       // 用户已登录，建立 WebSocket 连接
       websocket.connect()
+      loadPluginScripts()
     }
 
     websocket.on('feedback_update', handleFeedbackUpdate)
@@ -114,6 +176,11 @@ onMounted(() => {
     websocket.on('duel_declined', handleDuelDeclined)
     websocket.on('system_announcement', handleSystemAnnouncement)
     websocket.on('force_logout', handleForceLogout)
+    websocket.on('admin_broadcast', handleAdminBroadcast)
+    websocket.on('server_restart', handleServerRestart)
+    websocket.on('server_restart_now', handleServerRestartNow)
+    websocket.on('server_restart_cancelled', handleServerRestartCancelled)
+    websocket.on('plugin_message', handlePluginMessage)
 
     // 全局点击音效监听
     window.addEventListener('click', handleGlobalClick, true)
@@ -133,9 +200,16 @@ onUnmounted(() => {
   websocket.off('duel_declined', handleDuelDeclined)
   websocket.off('system_announcement', handleSystemAnnouncement)
   websocket.off('force_logout', handleForceLogout)
+  websocket.off('admin_broadcast', handleAdminBroadcast)
+  websocket.off('server_restart', handleServerRestart)
+  websocket.off('server_restart_now', handleServerRestartNow)
+  websocket.off('server_restart_cancelled', handleServerRestartCancelled)
+  websocket.off('plugin_message', handlePluginMessage)
+  if (restartInterval) clearInterval(restartInterval)
 
   // 移除全局监听
   window.removeEventListener('click', handleGlobalClick, true)
+  window.removeEventListener('auth-changed', handleAuthChanged)
 })
 </script>
 
@@ -152,6 +226,19 @@ onUnmounted(() => {
   <template v-else>
     <div class="transition-colors duration-300 min-h-screen bg-slate-50 dark:bg-[#0a0a0c] text-slate-900 dark:text-slate-200">
       <AnnouncementTicker />
+      <!-- 服务器重启横幅 -->
+      <Transition name="slide-down">
+        <div
+          v-if="restartBanner.visible"
+          class="fixed top-0 left-0 right-0 z-[9999] bg-orange-500 text-white text-sm font-bold px-4 py-2 flex items-center justify-center gap-3 shadow-lg"
+        >
+          <span>⚠️</span>
+          <span v-if="restartBanner.countdown > 0">
+            服务器将在 {{ restartBanner.countdown }} 秒后重启{{ restartBanner.reason ? `：${restartBanner.reason}` : '' }}，请尽快保存进度
+          </span>
+          <span v-else>{{ restartBanner.reason || '服务器正在重启，请稍候…' }}</span>
+        </div>
+      </Transition>
       <router-view></router-view>
       <CustomDialog />
       <DuelInviteModal v-if="activeDuelInvite" :invite="activeDuelInvite" @close="activeDuelInvite = null" />

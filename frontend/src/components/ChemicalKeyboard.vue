@@ -51,7 +51,7 @@
     </div>
 
     <!-- 可滚动键盘区 -->
-    <div class="keyboard-scroll px-3 py-3 overflow-y-auto overscroll-contain flex flex-col gap-4 max-h-[calc(45vh-120px)]">
+    <div class="keyboard-scroll px-3 py-3 overflow-y-auto overscroll-contain flex flex-col gap-4 max-h-[calc(45vh-120px)] lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start">
       <!-- 元素分类区块（如果需要可以加标题，这里保持紧凑） -->
       <div class="space-y-2">
         <div class="flex items-center gap-2 px-1">

@@ -543,7 +543,11 @@ func SendVerificationCode(c *gin.Context) {
 		}
 	}
 
-	code := utils.GenerateVerificationCode()
+	code, err := utils.GenerateVerificationCode()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成验证码失败"})
+		return
+	}
 	expiresAt := time.Now().Add(10 * time.Minute)
 
 	// 保存到数据库
@@ -1004,6 +1008,7 @@ func SearchUsers(c *gin.Context) {
 			"is_online":      isOnline,
 			"rank":           rank + 1,
 			"monthly_rank":   monthlyRank + 1,
+			"last_offline_at": user.LastOfflineAt,
 		})
 	}
 

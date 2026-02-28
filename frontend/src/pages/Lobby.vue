@@ -75,36 +75,45 @@ const appVersion = ref('V1.2.1 Mendeleef')
 
 // 大厅新手指引
 const showTutorial = ref(false)
+const LOBBY_TUTORIAL_COMPLETED_KEY = 'chemistry-uno-lobby-tutorial-completed'
+const LOBBY_TUTORIAL_SKIPPED_KEY = 'chemistry-uno-lobby-tutorial-skipped'
 
-// 根据屏幕尺寸动态选择导航目标
-const getNavigationSelector = () => {
-  return window.innerWidth < 1024 ? '[data-tutorial="mobile-menu"]' : '[data-tutorial="desktop-nav"]'
-}
+// 导航步骤同时匹配移动端/桌面端，组件内部会优先选择可见元素
+const navigationSelector = '[data-tutorial="mobile-menu"], [data-tutorial="desktop-nav"]'
 
 const lobbyTutorialSteps = computed(() => [
   { id: 'welcome-lobby', titlePlaceholder: '欢迎来到化学UNO大厅', contentPlaceholder: '这里是所有玩家的集结地！你可以创建房间邀请朋友，或加入其他玩家的对局，开启一场融合化学知识与策略的卡牌对决。', position: 'center' as const },
   { id: 'create-room', titlePlaceholder: '创建你的实验室', contentPlaceholder: '点击这里可以新建游戏房间，设置房间名称、对战人数和游戏模式。还可以开启「AI补位」，让AI填满空位，随时开始对战，不用等人！', targetSelector: '[data-tutorial="create-room"]', position: 'bottom' as const },
   { id: 'room-list', titlePlaceholder: '寻找对战房间', contentPlaceholder: '这里列出了当前所有开放的游戏房间。找到感兴趣的房间直接点击加入，与来自各地的化学玩家展开激烈对决！', targetSelector: '[data-tutorial="room-list"]', position: 'top' as const },
-  { id: 'navigation', titlePlaceholder: '快捷导航', contentPlaceholder: '通过导航栏可以快速切换到排行榜、好友列表等页面。随时掌握自己的全球排名，查看对战战绩，探索更多功能！', targetSelector: getNavigationSelector(), position: 'bottom' as const },
+  { id: 'navigation', titlePlaceholder: '快捷导航', contentPlaceholder: '通过导航栏可以快速切换到排行榜、好友列表等页面。随时掌握自己的全球排名，查看对战战绩，探索更多功能！', targetSelector: navigationSelector, position: 'bottom' as const },
   { id: 'user-profile', titlePlaceholder: '你的化学家档案', contentPlaceholder: '点击这里进入个人主页，查看你的等级、积分、历史战绩和成就勋章。努力提升实力，向化学大师的称号冲击！', targetSelector: '[data-tutorial="user-chip"]', position: 'bottom' as const },
   { id: 'ai-arena', titlePlaceholder: 'AI竞技场', contentPlaceholder: '想练习牌技或享受单人挑战？在AI竞技场中与不同难度的AI对战，从初级到专家逐步进阶，随时磨练你的化学牌技！', targetSelector: '[data-tutorial="ai-arena"]', position: 'bottom' as const },
   { id: 'complete-lobby', titlePlaceholder: '开始你的化学之旅！', contentPlaceholder: '你已经了解了大厅的全部功能！现在就创建或加入一个房间，与其他玩家一较高下吧。愿化学元素的力量与你同在，旗开得胜！', position: 'center' as const }
 ])
 
 const checkFirstTimeLobby = () => {
-  const hasSeenLobbyTutorial = localStorage.getItem('chemistry-uno-lobby-tutorial-completed')
-  if (!hasSeenLobbyTutorial) setTimeout(() => showTutorial.value = true, 1500)
+  const hasSeenLobbyTutorial = localStorage.getItem(LOBBY_TUTORIAL_COMPLETED_KEY) === 'true'
+  const hasSkippedLobbyTutorial = localStorage.getItem(LOBBY_TUTORIAL_SKIPPED_KEY) === 'true'
+  if (!hasSeenLobbyTutorial && !hasSkippedLobbyTutorial) {
+    setTimeout(() => showTutorial.value = true, 1500)
+  }
 }
 
 const handleTutorialComplete = async () => {
-  localStorage.setItem('chemistry-uno-lobby-tutorial-completed', 'true')
+  localStorage.setItem(LOBBY_TUTORIAL_COMPLETED_KEY, 'true')
+  localStorage.removeItem(LOBBY_TUTORIAL_SKIPPED_KEY)
   showTutorial.value = false
 
   // 自动创建教学关卡
   await createTutorialMatch()
 }
 
-const handleTutorialClose = () => showTutorial.value = false
+const handleTutorialClose = () => {
+  // 玩家选择跳过后，后续不再自动弹出教程
+  localStorage.setItem(LOBBY_TUTORIAL_COMPLETED_KEY, 'true')
+  localStorage.setItem(LOBBY_TUTORIAL_SKIPPED_KEY, 'true')
+  showTutorial.value = false
+}
 
 // 创建教学关卡
 const createTutorialMatch = async () => {
@@ -171,6 +180,13 @@ const loadDecks = async () => {
   }
 }
 
+// PvE 模式下是否选择了自定义（非全局）牌组
+const pveUsingCustomDeck = computed(() => {
+  if (decks.value.length === 0) return false
+  const selected = decks.value.find((d: any) => d.id === deckID.value)
+  return selected ? !selected.is_global : false
+})
+
 let roomInterval: any
 let timeInterval: any
 
@@ -214,8 +230,17 @@ onMounted(() => {
   if (typeof window !== 'undefined') {
     const win = window as any
     win.showLobbyTutorial = () => { showTutorial.value = true; console.log('✨ 大厅新手指引已启动') }
-    win.resetLobbyTutorial = () => { localStorage.removeItem('chemistry-uno-lobby-tutorial-completed'); console.log('🔄 大厅教程已重置') }
-    win.checkLobbyTutorial = () => { const c = !!localStorage.getItem('chemistry-uno-lobby-tutorial-completed'); console.log('📊 大厅教程:', c ? '已完成' : '未完成', '| 显示:', showTutorial.value); return {completed: c, showing: showTutorial.value} }
+    win.resetLobbyTutorial = () => {
+      localStorage.removeItem(LOBBY_TUTORIAL_COMPLETED_KEY)
+      localStorage.removeItem(LOBBY_TUTORIAL_SKIPPED_KEY)
+      console.log('🔄 大厅教程已重置')
+    }
+    win.checkLobbyTutorial = () => {
+      const completed = localStorage.getItem(LOBBY_TUTORIAL_COMPLETED_KEY) === 'true'
+      const skipped = localStorage.getItem(LOBBY_TUTORIAL_SKIPPED_KEY) === 'true'
+      console.log('📊 大厅教程:', completed ? '已完成' : '未完成', '| 跳过:', skipped ? '是' : '否', '| 显示:', showTutorial.value)
+      return { completed, skipped, showing: showTutorial.value }
+    }
     console.log('%c🏠 Lobby Console Commands', 'color: #06b6d4; font-weight: bold')
     console.log('  showLobbyTutorial() | resetLobbyTutorial() | checkLobbyTutorial()')
   }
@@ -290,7 +315,8 @@ const handleCreateRoom = async () => {
       enableAIBackfill.value, // 启用AI补位
       aiBackfillDifficulty.value, // AI补位难度
       isRanked.value,
-      levelRange.value
+      levelRange.value,
+      false // tutorialScript（普通房间非教学模式）
     )
     const room = response.data
     // 重置状态
@@ -338,10 +364,9 @@ const handleCreateAIRoom = async () => {
       false, // PvE模式不需要补位
       0, // AI补位难度（PvE模式忽略）
       false, // PvE 不设排位
-      0
+      0,
+      false // tutorialScript（AI竞技场非教学模式）
     )
-    const room = response.data
-    showAIArenaModal.value = false
     router.push(`/room/${room.id}`)
   } catch (error: any) {
     showAlert(error.response?.data?.error || '创建AI对战失败', '系统异常')
@@ -1137,8 +1162,8 @@ const copyToClipboard = (text: string) => {
                   @click="aiCount = num"
                   :class="cn(
                     'h-12 rounded-xl text-sm font-black border transition-all flex flex-col items-center justify-center relative group/opt overflow-hidden',
-                    aiCount === num 
-                      ? 'bg-purple-500/10 border-purple-500/50 text-purple-600 dark:text-purple-400 ring-1 ring-purple-500/20 shadow-[0_4px_12px_rgba(168,85,247,0.1)]' 
+                    aiCount === num
+                      ? 'bg-purple-500/10 border-purple-500/50 text-purple-600 dark:text-purple-400 ring-1 ring-purple-500/20 shadow-[0_4px_12px_rgba(168,85,247,0.1)]'
                       : 'bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/5 text-slate-400 dark:text-slate-600 hover:bg-slate-100 dark:hover:bg-white/10'
                   )"
                 >
@@ -1148,8 +1173,53 @@ const copyToClipboard = (text: string) => {
               </div>
             </div>
 
+            <!-- Deck Selection -->
+            <div class="space-y-2">
+              <div class="flex justify-between items-center px-1">
+                <label class="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">选择牌组</label>
+                <span class="text-[8px] text-purple-500/40 font-mono">DECK</span>
+              </div>
+              <div v-if="decks.length === 0" class="p-4 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-center">
+                <p class="text-[10px] text-slate-500 dark:text-slate-400 font-mono">暂无可用牌组，将使用默认全局牌组</p>
+              </div>
+              <div v-else class="space-y-2">
+                <button
+                  v-for="deck in decks"
+                  :key="deck.id"
+                  type="button"
+                  @click="deckID = deck.id; if (!deck.is_global) isPointsMode = false"
+                  :class="cn(
+                    'w-full flex items-center gap-3 p-3.5 rounded-xl border transition-all text-left',
+                    deckID === deck.id
+                      ? 'bg-purple-600/5 dark:bg-purple-600/10 border-purple-500/50 shadow-[0_4px_12px_rgba(168,85,247,0.05)]'
+                      : 'bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/5 hover:border-slate-300 dark:hover:border-white/10'
+                  )"
+                >
+                  <div :class="cn(
+                    'w-9 h-9 rounded-lg flex items-center justify-center transition-colors',
+                    deckID === deck.id ? 'bg-purple-500 text-white' : 'bg-slate-200 dark:bg-white/5 text-slate-400 dark:text-slate-500'
+                  )">
+                    <Beaker class="w-4 h-4" />
+                  </div>
+                  <div class="flex-1">
+                    <p :class="cn('text-[11px] font-black uppercase tracking-wider', deckID === deck.id ? 'text-purple-600 dark:text-purple-400' : 'text-slate-700 dark:text-white')">
+                      {{ deck.name }}
+                    </p>
+                    <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 font-mono uppercase tracking-tighter">
+                      {{ Object.keys(deck.cards || {}).length }} Elements
+                    </p>
+                  </div>
+                  <div v-if="deckID === deck.id" class="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse mr-1"></div>
+                </button>
+              </div>
+            </div>
+
             <!-- Points Mode Toggle -->
-            <div class="flex items-center gap-3 p-4 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-xl group/toggle cursor-pointer transition-all hover:bg-slate-100 dark:hover:bg-white/10" @click="isPointsMode = !isPointsMode">
+            <div
+              class="flex items-center gap-3 p-4 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-xl transition-all"
+              :class="pveUsingCustomDeck ? 'opacity-50 cursor-not-allowed' : 'group/toggle cursor-pointer hover:bg-slate-100 dark:hover:bg-white/10'"
+              @click="!pveUsingCustomDeck && (isPointsMode = !isPointsMode)"
+            >
               <div :class="cn(
                 'w-10 h-6 rounded-full relative transition-colors duration-300',
                 isPointsMode ? 'bg-purple-600' : 'bg-slate-300 dark:bg-slate-700'
@@ -1163,7 +1233,10 @@ const copyToClipboard = (text: string) => {
                 <span :class="cn('text-[10px] font-black uppercase tracking-wider', isPointsMode ? 'text-purple-600 dark:text-purple-400' : 'text-slate-400 dark:text-slate-400')">
                   积分结算
                 </span>
-                <span class="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5 leading-tight">
+                <span v-if="pveUsingCustomDeck" class="text-[9px] text-amber-500/80 dark:text-amber-400/70 mt-0.5 leading-tight">
+                  自定义牌组不支持积分模式
+                </span>
+                <span v-else class="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5 leading-tight">
                   难度 >= 50% 时可获得积分奖励，否则仅供练习
                 </span>
               </div>

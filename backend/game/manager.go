@@ -1611,13 +1611,14 @@ func StartGame(roomID string, uid int) error {
 		DrawPile:            []models.Card{},
 		DiscardPile:         []models.PlayedCard{},
 		Status:              "playing",
-		TurnEndTime:         time.Now().Add(getPlayerActionTimeout()).UnixNano() / int64(time.Millisecond),
+		TurnEndTime:         0,
 		PendingDrawCount:    0,
 		PendingDrawTypes:    nil,
 		AllowedAnyPlayer:    -1,
 		TutorialScriptMode:  gameRoom.Room.TutorialScript,
 		TutorialCurrentStep: 1, // 从第一步开始
 	}
+	setTurnEndTimeByMode(gameRoom.GameState)
 
 	// 脚本化教学模式：使用固定配置
 	if gameRoom.Room.TutorialScript {
@@ -1910,8 +1911,8 @@ func initTutorialGame(gameRoom *GameRoom, roomID string) error {
 	log.Printf("[教学脚本] 开始初始化教学关卡...")
 
 	// 固定手牌配置
-	humanHand := []string{"Na", "Mg", "O", "H", "Au", "Ar", "+2"}
-	aiHand := []string{"H", "Cl", "Br", "Al", "Fe", "Zn", "K"}
+	humanHand := []string{"Na", "Mg", "O", "H", "Au", "Ar", "K"}
+	aiHand := []string{"H", "Cl", "Br", "Mn", "Fe", "Zn", "Ca"}
 	initialDiscard := "Cl2"
 
 	// 确定玩家顺序（人类玩家先手）
@@ -2308,41 +2309,28 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 	// 🎓 教学脚本模式：严格验证出牌是否符合当前步骤
 	if gameRoom.GameState.TutorialScriptMode {
 		currentStep := gameRoom.GameState.TutorialCurrentStep
-
-		// 教学脚本定义（与AI脚本保持一致）
-		type TutorialStep struct {
-			StepNumber int
-			Player     string
-			Action     string
-			Substance  string
-		}
-
-		tutorialSteps := []TutorialStep{
-			{1, "human", "play", "Mg"},
-			{2, "ai", "play", "HCl"},
-			{3, "human", "play", "NaOH"},
-			{4, "ai", "play", "Br2"},
-			{5, "human", "play", "Ar"},
-			{6, "ai", "draw", ""},
-			{7, "human", "play", "Au"},
-			{8, "human", "play", "+2"},
-		}
-
-		// 查找当前步骤
-		var currentScriptStep *TutorialStep
-		for i := range tutorialSteps {
-			if tutorialSteps[i].StepNumber == currentStep {
-				currentScriptStep = &tutorialSteps[i]
-				break
+		currentScriptStep := getTutorialScriptStep(currentStep)
+		if currentScriptStep != nil {
+			// 仅允许脚本中定义的出牌动作
+			if currentScriptStep.Action != "play" {
+				return errors.New("当前步骤不允许出牌，请按教学提示操作")
 			}
-		}
 
-		if currentScriptStep != nil && currentScriptStep.Player == "human" {
+			// 人类玩家只能在 human 步骤行动
+			if uid >= 0 && currentScriptStep.Player != "human" {
+				return errors.New("当前是 AI 演示步骤，请等待 AI 操作")
+			}
+			// AI 只能在 ai 步骤行动
+			if uid < 0 && currentScriptStep.Player != "ai" {
+				return errors.New("当前不是 AI 出牌步骤")
+			}
+
 			if substance != currentScriptStep.Substance {
 				log.Printf("[教学脚本] ❌ 玩家尝试打出 %s，但当前步骤 %d 要求打出 %s",
 					substance, currentStep, currentScriptStep.Substance)
 				return errors.New(fmt.Sprintf("请按照教程出牌，当前步骤应打出 %s", currentScriptStep.Substance))
 			}
+
 			log.Printf("[教学脚本] ✅ 玩家正确打出 %s (步骤 %d)", substance, currentStep)
 		}
 	}
@@ -2657,7 +2645,7 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 				gameRoom.GameState.AllowedAnyPlayer = -1
 				gameRoom.GameState.CurrentReaction = ""
 				gameRoom.recordTurnStart()
-				gameRoom.GameState.TurnEndTime = time.Now().Add(getPlayerActionTimeout()).UnixNano() / int64(time.Millisecond)
+				setTurnEndTimeByMode(gameRoom.GameState)
 				gameRoom.broadcastRoomUpdate()
 				go gameRoom.CheckNextTurnAI()
 				return nil
@@ -2674,7 +2662,7 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 	}
 
 	gameRoom.recordTurnStart()
-	gameRoom.GameState.TurnEndTime = time.Now().Add(getPlayerActionTimeout()).UnixNano() / int64(time.Millisecond)
+	setTurnEndTimeByMode(gameRoom.GameState)
 
 	// 清除消费掉的 AllowedAnyPlayer 标记
 	if gameRoom.GameState.AllowedAnyPlayer == curIdx {
@@ -2719,10 +2707,13 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 		}
 	}
 
-	// 🎓 教学脚本模式：递增步骤
+	// 🎓 教学脚本模式：仅在脚本步骤存在时递增
 	if gameRoom.GameState.TutorialScriptMode {
-		gameRoom.GameState.TutorialCurrentStep++
-		log.Printf("[教学脚本] 📈 步骤递增至 %d", gameRoom.GameState.TutorialCurrentStep)
+		currentScriptStep := getTutorialScriptStep(gameRoom.GameState.TutorialCurrentStep)
+		if currentScriptStep != nil && currentScriptStep.Action == "play" {
+			gameRoom.GameState.TutorialCurrentStep++
+			log.Printf("[教学脚本] 📈 步骤递增至 %d", gameRoom.GameState.TutorialCurrentStep)
+		}
 	}
 
 	// 检查下一位是否是 AI
@@ -2844,6 +2835,11 @@ func DrawCard(roomID string, uid int, count int) error {
 	}
 	previousTurnIndex := gameRoom.GameState.CurrentPlayer
 
+	// 教学脚本关卡禁用摸牌，避免提示与操作不一致
+	if gameRoom.GameState.TutorialScriptMode {
+		return errors.New("教学关卡禁止摸牌，请按底部提示操作")
+	}
+
 	// 如果玩家主动摸牌，解除托管状态（重要：防止AI接管人类玩家）
 	if currentPlayer.IsHosted && uid >= 0 {
 		currentPlayer.IsHosted = false
@@ -2878,7 +2874,7 @@ func DrawCard(roomID string, uid int, count int) error {
 	gameRoom.GameState.CurrentReaction = ""
 
 	gameRoom.recordTurnStart()
-	gameRoom.GameState.TurnEndTime = time.Now().Add(getPlayerActionTimeout()).UnixNano() / int64(time.Millisecond)
+	setTurnEndTimeByMode(gameRoom.GameState)
 
 	// 如果结算了罚牌，清空场面并允许下家随意出牌
 	if penaltyResolved {
@@ -3135,6 +3131,18 @@ func getPlayerActionTimeout() time.Duration {
 	return configRepo.GetDurationValue("player_action_timeout", 30*time.Second)
 }
 
+func setTurnEndTimeByMode(state *models.GameState) {
+	if state == nil {
+		return
+	}
+	// 教学脚本关卡不启用回合倒计时
+	if state.TutorialScriptMode {
+		state.TurnEndTime = 0
+		return
+	}
+	state.TurnEndTime = time.Now().Add(getPlayerActionTimeout()).UnixNano() / int64(time.Millisecond)
+}
+
 // getAutoStartTimeout 获取满员全准备自动开始倒计时（秒）
 func getAutoStartTimeout() int {
 	if configRepo == nil {
@@ -3223,6 +3231,14 @@ func DoublePlay(roomID string, uid int, sub1 string, sub2 string) error {
 	if currentPlayer.IsHosted && uid >= 0 {
 		currentPlayer.IsHosted = false
 		log.Printf("[Game] 🔓 玩家 %s (%d) 主动发动双联反应，解除托管状态", currentPlayer.Nickname, uid)
+	}
+
+	// 🎓 教学脚本模式：当前脚本不允许双联反应
+	if gameRoom.GameState.TutorialScriptMode {
+		currentScriptStep := getTutorialScriptStep(gameRoom.GameState.TutorialCurrentStep)
+		if currentScriptStep != nil {
+			return errors.New("当前步骤不允许双联反应，请按教学提示操作")
+		}
 	}
 
 	// 检查冷却
@@ -3445,7 +3461,7 @@ func DoublePlay(roomID string, uid int, sub1 string, sub2 string) error {
 	if gameRoom.GameState.AllowedAnyPlayer == curIdx {
 		gameRoom.GameState.AllowedAnyPlayer = -1
 	}
-	gameRoom.GameState.TurnEndTime = time.Now().Add(getPlayerActionTimeout()).UnixNano() / int64(time.Millisecond)
+	setTurnEndTimeByMode(gameRoom.GameState)
 
 	// 检查下一位是否是 AI
 	emitTurnChanged(roomID, gameRoom.GameState, curIdx, "double_play")
@@ -3490,6 +3506,9 @@ func processRoomTimeout(roomID string) {
 
 	gameRoom.mutex.Lock()
 	defer gameRoom.mutex.Unlock()
+	if gameRoom.GameState.TutorialScriptMode {
+		return
+	}
 
 	now := time.Now().UnixNano() / int64(time.Millisecond)
 	if gameRoom.GameState.TurnEndTime > 0 && now > gameRoom.GameState.TurnEndTime {
@@ -3512,7 +3531,7 @@ func processRoomTimeout(roomID string) {
 		drawCardsForPlayer(gameRoom, gameRoom.GameState.CurrentPlayer, drawCount)
 		gameRoom.GameState.CurrentPlayer = getNextPlayer(gameRoom.GameState)
 		gameRoom.recordTurnStart()
-		gameRoom.GameState.TurnEndTime = time.Now().Add(getPlayerActionTimeout()).UnixNano() / int64(time.Millisecond)
+		setTurnEndTimeByMode(gameRoom.GameState)
 
 		// 如果结算了罚牌，清空场面并允许下家随意出牌
 		if penaltyResolved {

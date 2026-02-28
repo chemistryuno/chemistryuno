@@ -463,12 +463,23 @@ func UpdateProfile(c *gin.Context) {
 
 // GetAuthConfig 获取鉴权配置模式
 func GetAuthConfig(c *gin.Context) {
+	githubEnabled := strings.TrimSpace(os.Getenv("GITHUB_CLIENT_ID")) != "" &&
+		strings.TrimSpace(os.Getenv("GITHUB_CLIENT_SECRET")) != ""
+	msEnabled := strings.TrimSpace(os.Getenv("MS_CLIENT_ID")) != "" &&
+		strings.TrimSpace(os.Getenv("MS_CLIENT_SECRET")) != ""
+	googleEnabled := strings.TrimSpace(os.Getenv("GOOGLE_CLIENT_ID")) != "" &&
+		strings.TrimSpace(os.Getenv("GOOGLE_CLIENT_SECRET")) != ""
+	// 当前后端实现要求 APPLE_CLIENT_SECRET（尚未启用私钥动态生成）
+	appleEnabled := strings.TrimSpace(os.Getenv("APPLE_CLIENT_ID")) != "" &&
+		strings.TrimSpace(os.Getenv("APPLE_CLIENT_SECRET")) != "" &&
+		strings.TrimSpace(os.Getenv("APPLE_REDIRECT_URI")) != ""
+
 	c.JSON(http.StatusOK, gin.H{
 		"smtp_enabled":   utils.IsSMTPConfigured(),
-		"github_enabled": os.Getenv("GITHUB_CLIENT_ID") != "",
-		"ms_enabled":     os.Getenv("MS_CLIENT_ID") != "",
-		"google_enabled": os.Getenv("GOOGLE_CLIENT_ID") != "",
-		"apple_enabled":  os.Getenv("APPLE_CLIENT_ID") != "",
+		"github_enabled": githubEnabled,
+		"ms_enabled":     msEnabled,
+		"google_enabled": googleEnabled,
+		"apple_enabled":  appleEnabled,
 	})
 }
 
@@ -993,21 +1004,21 @@ func SearchUsers(c *gin.Context) {
 
 		conf := configMap[user.Level]
 		result = append(result, map[string]interface{}{
-			"uid":            user.UID,
-			"username":       user.Username,
-			"nickname":       user.Nickname,
-			"avatar":         user.Avatar,
-			"points":         user.Points,
-			"monthly_points": user.MonthlyPoints,
-			"win_count":      user.WinCount,
-			"total_games":    user.TotalGames,
-			"level":          user.Level,
-			"tier":           conf.Tier,
-			"tier_name":      conf.TierName,
-			"bounty":         totalBounty,
-			"is_online":      isOnline,
-			"rank":           rank + 1,
-			"monthly_rank":   monthlyRank + 1,
+			"uid":             user.UID,
+			"username":        user.Username,
+			"nickname":        user.Nickname,
+			"avatar":          user.Avatar,
+			"points":          user.Points,
+			"monthly_points":  user.MonthlyPoints,
+			"win_count":       user.WinCount,
+			"total_games":     user.TotalGames,
+			"level":           user.Level,
+			"tier":            conf.Tier,
+			"tier_name":       conf.TierName,
+			"bounty":          totalBounty,
+			"is_online":       isOnline,
+			"rank":            rank + 1,
+			"monthly_rank":    monthlyRank + 1,
 			"last_offline_at": user.LastOfflineAt,
 		})
 	}

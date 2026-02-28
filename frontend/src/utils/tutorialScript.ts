@@ -6,7 +6,7 @@
 export interface TutorialStep {
   stepNumber: number
   player: 'human' | 'ai'
-  action: 'play' | 'draw' | 'double'
+  action: 'play' | 'double'
   substance?: string
   substances?: string[] // 用于双元素
   hint: string
@@ -49,30 +49,33 @@ export const TUTORIAL_SCRIPT: TutorialStep[] = [
     player: 'human',
     action: 'play',
     substance: 'Ar',
-    hint: '💡 第三步：打出 <strong>Ar</strong>（氩气）- 这是稀有气体，不会发生反应'
+    hint: '💡 第三步：打出 <strong>Ar</strong>（氩气），触发稳定性效果使方向逆转，接下来由 AI 演示'
   },
   {
     stepNumber: 6,
     player: 'ai',
-    action: 'draw',
+    action: 'play',
+    substance: 'Mn',
     hint: '⚗️ AI 的回合',
-    aiMessage: 'AI 选择摸牌'
+    aiMessage: 'AI 打出了 Mn（锰），与 Br₂ 发生反应'
   },
   {
     stepNumber: 7,
     player: 'human',
     action: 'play',
     substance: 'Au',
-    hint: '💡 第四步：打出 <strong>Au</strong>（金）- 金是惰性金属，不易反应'
+    hint: '💡 第四步：打出 <strong>Au</strong>（金），继续学习特殊牌如何改变回合节奏'
   },
   {
     stepNumber: 8,
     player: 'human',
     action: 'play',
-    substance: '+2',
-    hint: '💡 最后一步：使用特殊卡牌 <strong>+2</strong> 让对手多摸两张牌，结束这场教学对战！'
+    substance: 'K',
+    hint: '💡 最后一步：打出 <strong>K</strong>（钾）收尾，完成本次教学关卡！'
   }
 ]
+
+export const TUTORIAL_TOTAL_STEPS = TUTORIAL_SCRIPT.length
 
 export interface TutorialInitialState {
   humanHand: string[]
@@ -81,8 +84,8 @@ export interface TutorialInitialState {
 }
 
 export const TUTORIAL_INITIAL_STATE: TutorialInitialState = {
-  humanHand: ['Na', 'Mg', 'O', 'H', 'Au', 'Ar', '+2'],
-  aiHand: ['H', 'Cl', 'Br', 'Al', 'Fe', 'Zn', 'K'],
+  humanHand: ['Na', 'Mg', 'O', 'H', 'Au', 'Ar', 'K'],
+  aiHand: ['H', 'Cl', 'Br', 'Mn', 'Fe', 'Zn', 'Ca'],
   discardTop: 'Cl2'
 }
 

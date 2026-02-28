@@ -12,7 +12,7 @@ import LevelUpAnimation from '../components/LevelUpAnimation.vue'
 import GameToast from '../components/GameToast.vue'
 import ChemicalKeyboard from '../components/ChemicalKeyboard.vue'
 import FeedbackSettings from '../components/FeedbackSettings.vue'
-import { getTutorialStep } from '../utils/tutorialScript'
+import { getTutorialStep, TUTORIAL_TOTAL_STEPS } from '../utils/tutorialScript'
 import '../styles/mobile-game.css'
 
 const route = useRoute()
@@ -495,6 +495,12 @@ const isMyTurn = computed(() => {
   if (!currentPlayerObj.value || !user.value || isSpectator.value) return false
   return Number(currentPlayerObj.value.uid) === Number(user.value.uid)
 })
+const hasTurnLimit = computed(() => {
+  if (tutorialScriptMode.value) return false
+  return !!(gameState.value?.turn_end_time && gameState.value.turn_end_time > 0)
+})
+const tutorialStepDisplay = computed(() => Math.min(tutorialCurrentStep.value, TUTORIAL_TOTAL_STEPS))
+const tutorialProgressPercent = computed(() => Math.round((tutorialStepDisplay.value / TUTORIAL_TOTAL_STEPS) * 100))
 const myData = computed(() => {
   if (!gameState.value || !user.value) return null
   return (gameState.value.players || []).find((p: any) => Number(p.uid) === Number(user.value.uid))
@@ -785,9 +791,13 @@ watch(() => gameState.value?.current_reaction, (newReaction, oldReaction) => {
   }
 })
 
-// 监听游戏结束 - 播放胜利/失败音效
+// 监听游戏结束 - 播放胜利/失败音效并标记教学完成
 watch(() => gameState.value?.status, (newStatus) => {
   if (newStatus === 'finished' && gameState.value?.finished_players) {
+    // 教学模式：游戏结束时立即标记已完成
+    if (isTutorialMode.value) {
+      localStorage.setItem('chemistry-uno-tutorial-completed', 'true')
+    }
     const finishedPlayers = gameState.value.finished_players
     const myUID = user.value.uid
     if (finishedPlayers.length > 0 && finishedPlayers[0] === myUID) {
@@ -809,8 +819,12 @@ const handleGameUpdate = (message: any) => {
   if (message.data && typeof message.data === 'object') {
     console.log('[GameRoom] Received full game state object')
     gameState.value = message.data
+    syncTutorialStateFromGameState()
     if (isMyTurn.value) {
       fetchTurnSubstances()
+      if (isTutorialMode.value) {
+        generateTutorialHint()
+      }
     }
   } else {
     console.log('[GameRoom] Received game_update event, reloading state')
@@ -876,6 +890,19 @@ const handlePlayerLeft = () => {
   loadGameState(true).then(() => {
     console.log('[GameRoom] Game state reloaded after player left, players:', playersInfo.value.length)
   })
+}
+
+const syncTutorialStateFromGameState = () => {
+  if (!gameState.value) return
+
+  if (typeof gameState.value.tutorial_script_mode === 'boolean') {
+    tutorialScriptMode.value = gameState.value.tutorial_script_mode
+    isTutorialMode.value = gameState.value.tutorial_script_mode
+  }
+
+  if (typeof gameState.value.tutorial_current_step === 'number' && gameState.value.tutorial_current_step > 0) {
+    tutorialCurrentStep.value = gameState.value.tutorial_current_step
+  }
 }
 
 // 教学模式智能提示
@@ -983,6 +1010,7 @@ const loadGameState = async (silent = false) => {
 
     if (data.game_state) {
       gameState.value = data.game_state
+      syncTutorialStateFromGameState()
       console.log('[GameRoom] Game state updated:', {
         current_player: gameState.value.current_player,
         players_count: gameState.value.players?.length,
@@ -1130,7 +1158,9 @@ onUnmounted(() => {
   if (isTutorialMode.value) {
     localStorage.removeItem('chemistry-uno-tutorial-mode')
     localStorage.removeItem('chemistry-uno-tutorial-welcome-shown')
-    localStorage.setItem('chemistry-uno-tutorial-completed', 'true')
+    if (gameState.value?.status === 'finished') {
+      localStorage.setItem('chemistry-uno-tutorial-completed', 'true')
+    }
     console.log('[GameRoom] Tutorial mode completed and cleared')
   }
 
@@ -1146,8 +1176,28 @@ onUnmounted(() => {
   websocket.off('private_chat', handleChatNotify)
 })
 
+const canRunTutorialAction = (action: 'play' | 'draw' | 'double') => {
+  if (!tutorialScriptMode.value) return true
+
+  const currentStep = getTutorialStep(tutorialCurrentStep.value)
+  if (!currentStep) return true
+
+  if (currentStep.player !== 'human') {
+    showToast('当前是 AI 演示步骤，请等待 AI 操作', '⚠️ 教学模式', 'warning', 2500)
+    return false
+  }
+
+  if (currentStep.action !== action) {
+    showToast('当前步骤不支持该操作，请按提示执行', '⚠️ 教学模式', 'warning', 2500)
+    return false
+  }
+
+  return true
+}
+
 const handleCardClick = async (card: any) => {
   if (!isMyTurn.value) return
+  if (!canRunTutorialAction('play')) return
 
   feedback.click()
 
@@ -1187,6 +1237,7 @@ const handleCardClick = async (card: any) => {
 }
 
 const handlePlayCard = async () => {
+  if (!canRunTutorialAction('play')) return
   if (!selectedSubstance.value) {
     showToast('请选择要合成或放置的化学物质', '未选择目标', 'warning')
     return
@@ -1228,12 +1279,6 @@ const handlePlayCard = async () => {
     // 播放打牌反馈
     feedback.playCard()
 
-    // 脚本化教学模式：进入下一步
-    if (tutorialScriptMode.value) {
-      tutorialCurrentStep.value++
-      generateTutorialHint()
-    }
-
     // 增加经验值并检查成就
     addExp(10)
     checkAchievements(selectedSubstance.value)
@@ -1247,6 +1292,7 @@ const handlePlayCard = async () => {
 }
 
 const handleDoublePlay = async () => {
+  if (!canRunTutorialAction('double')) return
   if (!firstDoubleSubstance.value || !secondDoubleSubstance.value) {
     showToast('请选择参与双联反应的两种物质', '未就绪', 'warning')
     feedback.error()
@@ -1299,6 +1345,7 @@ const removeSubstance = (pos: number) => {
 }
 
 const handleInputPlay = async () => {
+  if (!canRunTutorialAction('play')) return
   if (!substanceInput.value) return
 
   if (doubleMode.value) {
@@ -1333,6 +1380,7 @@ const handleInputPlay = async () => {
 }
 
 const handleDrawCard = async () => {
+  if (!canRunTutorialAction('draw')) return
   try {
     await gameAPI.drawCard(id)
     feedback.drawCard()
@@ -1711,6 +1759,7 @@ watch(() => gameState.value?.current_player, () => {
               )">
                 <!-- Time Progress Bar -->
                 <div 
+                  v-if="hasTurnLimit"
                   class="absolute bottom-0 left-0 h-[3px] transition-all duration-100 ease-linear"
                   :class="[
                     isMyTurn ? 'bg-white/30' : 'bg-blue-500/30',
@@ -1722,7 +1771,7 @@ watch(() => gameState.value?.current_player, () => {
                 <div class="relative flex items-center justify-center shrink-0">
                   <div v-if="isMyTurn" class="absolute inset-0 bg-white rounded-full blur-sm animate-pulse"></div>
                   <Zap v-if="isMyTurn" class="w-3 sm:w-3.5 h-3 sm:h-3.5 fill-current relative z-10" />
-                  <Timer v-else class="w-2.5 sm:w-3 h-2.5 sm:h-3 relative z-10" :class="timeRemaining <= 10 && 'text-rose-500 animate-spin-slow'" />
+                  <Timer v-else class="w-2.5 sm:w-3 h-2.5 sm:h-3 relative z-10" :class="hasTurnLimit && timeRemaining <= 10 && 'text-rose-500 animate-spin-slow'" />
                 </div>
                 <div class="flex flex-col items-start leading-none gap-0.5 min-w-0">
                   <span class="text-[7px] sm:text-[9px] font-black uppercase tracking-widest opacity-70">{{ isMyTurn ? 'Your Operation' : 'Active' }}</span>
@@ -1731,7 +1780,8 @@ watch(() => gameState.value?.current_player, () => {
                   </span>
                 </div>
                 <div v-if="isMyTurn" class="pl-2 border-l border-white/20">
-                  <span class="text-[10px] font-mono font-black">{{ timeRemaining }}S</span>
+                  <span v-if="hasTurnLimit" class="text-[10px] font-mono font-black">{{ timeRemaining }}S</span>
+                  <span v-else class="text-[10px] font-mono font-black">∞</span>
                 </div>
                 <!-- Mini Direction indicator -->
                 <div v-if="!isMyTurn" class="pl-2 ml-1 border-l border-slate-200 dark:border-white/10 shrink-0">
@@ -1798,6 +1848,7 @@ watch(() => gameState.value?.current_player, () => {
                <div class="w-px h-5 sm:h-4 bg-slate-200 dark:bg-white/10 mx-1 sm:mx-0.5"></div>
 
                <button
+                  v-if="!tutorialScriptMode"
                   @click="handleDrawCard"
                   :disabled="!isMyTurn"
                   :class="cn(
@@ -1817,7 +1868,9 @@ watch(() => gameState.value?.current_player, () => {
           <div class="flex items-center gap-2 sm:gap-1.5">
             <div class="bg-blue-600/90 backdrop-blur-md px-4 sm:px-3 py-2 sm:py-1 rounded-full border border-white/20 shadow-md flex items-center gap-2.5 sm:gap-2">
               <Zap class="w-3 h-3 sm:w-2.5 sm:h-2.5 fill-current animate-pulse text-white" />
-              <span class="text-xs-mobile font-black uppercase tracking-widest text-white">操作 ({{ timeRemaining }}s)</span>
+              <span class="text-xs-mobile font-black uppercase tracking-widest text-white">
+                操作 ({{ hasTurnLimit ? (timeRemaining + 's') : '无时限' }})
+              </span>
 
               <!-- 双联行动按钮 -->
               <button
@@ -2226,16 +2279,16 @@ watch(() => gameState.value?.current_player, () => {
             <!-- 脚本进度指示器 -->
             <div v-if="tutorialScriptMode" class="relative mb-2 flex items-center justify-between">
               <div class="text-[9px] font-black text-white/80 uppercase tracking-wider">
-                Step {{ tutorialCurrentStep }}/8
+                Step {{ tutorialStepDisplay }}/{{ TUTORIAL_TOTAL_STEPS }}
               </div>
               <div class="flex-1 mx-2 h-1 bg-white/20 rounded-full overflow-hidden">
                 <div
                   class="h-full bg-white/60 rounded-full transition-all duration-500"
-                  :style="{ width: `${(tutorialCurrentStep / 8) * 100}%` }"
+                  :style="{ width: `${tutorialProgressPercent}%` }"
                 ></div>
               </div>
               <div class="text-[9px] font-bold text-white/60">
-                {{ Math.round((tutorialCurrentStep / 8) * 100) }}%
+                {{ tutorialProgressPercent }}%
               </div>
             </div>
 
@@ -2667,7 +2720,7 @@ watch(() => gameState.value?.current_player, () => {
                 <span class="text-[11px] font-black truncate max-w-[80px] tracking-tight" :class="[
                   gameState?.current_player === index ? 'text-white' : (shouldShowInBlue(player) ? 'text-blue-600 dark:text-blue-400' : 'text-slate-700 dark:text-slate-300')
                 ]">{{ getPlayerDisplayName(player) }}</span>
-                <span v-if="gameState?.current_player === index" class="text-[9px] font-mono font-black px-1 rounded" :class="isMyTurn ? 'bg-white/20 text-white' : 'bg-blue-500/10 text-blue-500'">{{ timeRemaining }}s</span>
+                <span v-if="gameState?.current_player === index && hasTurnLimit" class="text-[9px] font-mono font-black px-1 rounded" :class="isMyTurn ? 'bg-white/20 text-white' : 'bg-blue-500/10 text-blue-500'">{{ timeRemaining }}s</span>
                 <span class="text-[8px] font-mono opacity-40 shrink-0" :class="gameState?.current_player === index ? 'text-white' : 'text-slate-500'">#{{ player.uid }}</span>
                 <Zap v-if="player.double_action_available" :class="cn('w-2.5 h-2.5 fill-current', gameState?.current_player === index ? 'text-amber-300' : 'text-amber-500')" />
               </div>

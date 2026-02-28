@@ -1,195 +1,413 @@
-# 🧪 Chemistry UNO (化学版 UNO)
+# 🧪 Chemistry UNO（化学版 UNO）
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Go Version](https://img.shields.io/badge/Go-1.24+-00ADD8?logo=go)](https://golang.org)
 [![Vue Version](https://img.shields.io/badge/Vue-3.4-4FC08D?logo=vue.js)](https://vuejs.org)
-[![Vite](https://img.shields.io/badge/Vite-Latest-646CFF?logo=vite)](https://vitejs.dev)
+[![Vite](https://img.shields.io/badge/Vite-5.x-646CFF?logo=vite)](https://vitejs.dev)
 
-**Chemistry UNO** 是一款将经典 UNO 玩法与化学反应逻辑相结合的多人在线卡牌游戏。玩家不仅需要考虑出牌策略，还需要利用手中的化学元素进行物质合成并触发特殊化学反应效果。
+**Chemistry UNO** 是一个将 UNO 回合制卡牌机制与化学反应判定结合的多人在线游戏系统。  
+它包含完整的前后端、实时通信、账户安全体系、插件扩展系统、管理后台与内容审核流程。
 
 ---
 
-## ✨ 核心特性
+## 🗂️ 目录
 
-- 🎮 **创新玩法**:
-  - **元素卡牌**: 基础牌由化学元素组成。
-    - **物质合成**: 动态判断玩家当前手牌是否能组成特定化学物质并出牌。
-    - **判定引擎**: 基于酸碱中和、复分解、金属活动性等化学原理的动态反应判定（非简单的硬编码列表）。
-- ⚡ **实时竞技**:
-  - 基于 **WebSocket** 的实时多人对战。
-  - 30秒限时操作系统，超时自动托管，保证游戏流畅度。
-- 🔐 **极致安全与身份恢复**:
-  - **WebAuthn**: 支持 FIDO2/硬件安全密钥（如 Yubikey）进行零密码登录。
-  - **多维度找回**: 业界领先的“双因子找回逻辑”——若不慎丢失密码，可通过物理密钥或 2FA 动态码安全重置。
-  - **2FA**: 集成 Google Authenticator 等两步验证方案。
-  - **RBAC**: 完善的权限系统（Admin, Co-worker, User）。
-- 📊 **管理后台**:
-  - **化学库管理**: 实时管理物质数据状态（草稿/已审核）。
-  - **全量审计**: 前端管理页提供详尽的游戏历史溯源（Reactor Logs）。
-  - **反馈系统**: 玩家反馈实时收集与处理。
-- 🎨 **现代化体验**:
-  - **Modern UI**: 使用 Tailwind CSS 4 构建的现代化响应式界面。
-  - **公式编辑器**: 内置化学公式解析与渲染。
+- [当前版本](#-当前版本)
+- [运行模式速览](#-运行模式速览)
+- [功能总览（当前版本）](#-功能总览当前版本)
+- [化学规则与出牌逻辑（摘要）](#-化学规则与出牌逻辑摘要)
+- [安全设计](#️-安全设计)
+- [技术栈](#-技术栈)
+- [快速开始（开发）](#-快速开始开发)
+- [常用脚本](#-常用脚本)
+- [环境变量（核心项）](#️-环境变量核心项)
+- [API 与路由分组（摘要）](#-api-与路由分组摘要)
+- [项目结构](#-项目结构)
+- [测试建议](#-测试建议)
+- [文档索引](#-文档索引)
+- [FAQ / 排障](#-faq--排障)
+- [贡献](#-贡献)
 
-## 🛠️ 技术栈
+---
 
-### 后端 (Backend)
+## 📌 当前版本
 
-- **语言**: Go (1.24+)
-- **框架**: Gin Web Framework
-- **数据库**: SQLite（modernc 纯 Go 驱动，默认 WAL 模式）或 MySQL（可选）
-- **核心逻辑**: 化学反应裁判与物质解析模块（backend/game）
-- **安全安全**: WebAuthn (go-webauthn), TOTP (pquerna/otp), Argon2, JWT
+- 版本：`1.2.1`
+- 代号：`Mendeleef`
+- 默认端口：前端 `5000` / 后端 `8080`
+- 默认数据库：`SQLite`（可切换 `MySQL`）
 
-### 前端 (Frontend)
+---
 
-- **框架**: Vue 3 (Composition API)
-- **构建工具**: Vite / TypeScript
-- **样式**: Tailwind CSS 4
-- **状态管理**: 响应式 API
-- **图标**: Lucide Icons
+## 🚦 运行模式速览
 
-## 🧬 化学逻辑引擎
+| 模式 | 命令 | 前端入口 | 后端入口 | 说明 |
+| --- | --- | --- | --- | --- |
+| 开发 | `pnpm start` | `http://localhost:5000` | `http://localhost:8080` | 前后端分离开发、热更新 |
+| 测试 | `pnpm test` | `http://localhost:5000` | `http://localhost:8080` | 独立测试数据环境 |
+| 生产构建 | `pnpm build` | `http://localhost:8080` | `http://localhost:8080` | 前端静态资源嵌入后端单体运行 |
 
-本项目包含一个独特的化学逻辑判断模块，模仿了真实的化学反应判定过程：
+---
 
-1. **动态解析**: 支持 `Fe(OH)3`、`Ca(HCO3)2` 等复杂化学式的原子统计与类型识别。
-2. **反应模拟**:
-    - **酸碱理论**: 自动识别酸、碱、盐及氧化物间的反应规律。
-    - **溶解性判定**: 结合溶解性规则判断沉淀生成。
-    - **金属活动性顺序**: 严格遵循 K-Au 序列。
+## ✨ 功能总览（当前版本）
 
-## 🚀 快速开始
+### 1) 账号与身份系统
 
-### 环境依赖
+- 用户注册/登录（支持用户名模式与邮箱模式）
+- 邮箱验证码（注册/重置/改密）
+- 2FA（TOTP）启用、校验、关闭
+- WebAuthn（硬件密钥）：
+  - 无密码登录
+  - WebAuthn 辅助密码重置
+  - WebAuthn 辅助改密
+  - 凭证管理（增删查）
+- OAuth 第三方登录：
+  - GitHub / Microsoft / Google / Apple
+  - OAuth 账号绑定/解绑
+- 会话管理（设备会话列表、单会话下线）
+- 账号冻结（定时冻结）
+- RBAC 角色权限（`admin` / `co-worker` / `user`）
 
-- **Node.js**: >= 18
-- **Go**: >= 1.24
-- **pnpm**: `npm install -g pnpm`
+### 2) 核心对战系统
 
-### 一键安装与启动（开发）
+- 房间系统：
+  - 创建/加入/离开房间
+  - 公开房间与私密房间（访问密钥）
+  - 准备/开始流程
+  - 实时房间状态与在线广播
+- 模式支持：
+  - PvP 多人对战
+  - PvE 人机对战（AI 数量、AI 难度）
+  - AI 自动补位（开局补空位，可配置难度）
+  - 排位开关与等级范围匹配参数
+- 回合机制：
+  - 限时回合（超时处理）
+  - 托管/自动接管逻辑
+  - 重连与状态同步
+  - 完赛玩家状态与观战态处理
+- 出牌机制：
+  - 普通出牌（化学物质）
+  - 双联反应（双物质组合）
+  - 摸牌与惩罚结算
+  - 特殊牌：`+2`、`+4`、`reverse`、`Au`、稀有气体（跳过/转向规则）
+- AI 系统：
+  - 难度驱动的策略决策
+  - 威胁检测、协作策略、卡位策略
+  - 随机策略与最优策略混合
+  - 教学脚本 AI（固定步骤）
 
-项目内置了便捷脚本（Windows/Linux/macOS 通用）：
+### 3) 化学引擎与数据内容
+
+- 化学式解析与元素需求计算（支持复杂化学式）
+- 反应判定与提示查询
+- 物质与反应数据分离管理
+- 物质/反应提交、审核、拒绝、批量审批
+- 重复/待完善内容自动标记
+- 牌组系统：
+  - 全局牌组（管理员）
+  - 个人牌组（玩家）
+  - 初始手牌数配置
+
+### 4) 教学与新手引导
+
+- 大厅新手引导（分步骤聚焦 UI）
+- 引导完成后可自动进入教学关卡
+- 教学关卡脚本模式（固定步骤、固定手牌、步骤提示）
+- 教学提示（回合内动态提示）
+- 跳过教程后可记录状态，避免反复弹出
+
+### 5) 社交与社区功能
+
+- 全局聊天（大厅）
+- 私聊（好友间）
+- 好友系统：
+  - 发送请求
+  - 同意/拒绝
+  - 好友备注
+  - 删除好友
+- 对战邀请（私聊内游戏邀请信息）
+- 用户反馈系统（提交、催办、撤回）
+- 公告系统：
+  - 跑马灯公告
+  - 持久公告
+  - 入场公告
+  - 定时公告
+
+### 6) 积分、等级与竞技
+
+- 总积分排行榜、月积分排行榜
+- 悬赏系统（Bounty）
+- 等级与经验系统（XP、Level）
+- 实时积分结算（含 PvE 难度修正逻辑）
+
+### 7) 管理后台能力（Admin）
+
+- 用户管理（查、建、删、改密、改角色）
+- 封禁与踢出
+- 全局牌组配置管理
+- 游戏历史与反馈处理
+- 系统配置、游戏时间配置
+- 公告全生命周期管理
+- Excel 导出（物质/反应/全量）
+- 批量审批（物质/反应）
+- 管理广播（全局 / 房间 / 指定用户）
+- 活跃房间查询
+- 插件管理（见下）
+- 服务器计划重启/取消重启
+
+### 8) 插件系统（Plugin）
+
+- 插件卡牌注册与运行时加载
+- 插件脚本读取（前端只读查看）
+- 管理端插件功能：
+  - 创建/更新/删除插件
+  - 上传安装 `.cumod`
+  - 插件卡牌增删改查
+  - 热重载插件
+- 插件事件机制（房间创建、回合切换、出牌等事件）
+
+### 9) 实时通信与可运维性
+
+- WebSocket Hub（房间维度广播、用户定向推送）
+- 健康检查（`/api/health`）与 `ping`
+- 优雅停机（SIGINT/SIGTERM）
+- 前端静态资源 embed（后端可单体运行）
+- 后台定时清理任务（如过期反馈）
+
+---
+
+## 🧠 化学规则与出牌逻辑（摘要）
+
+- 手牌中的元素可组合成可用物质后出牌
+- 若场上有物质限制，下一手需与场上物质满足反应条件（除特殊牌）
+- `+2/+4` 支持叠加，未防御时需一次性结算摸牌
+- `Au` 可重置场面并跳过目标
+- 稀有气体触发特殊稳定性逻辑（转向/跳过效果）
+- 支持双联反应（`play-double`）
+
+> 更完整数据模型与接口可参考 `backend/API_DOCUMENTATION.md`。
+
+---
+
+## 🛡️ 安全设计
+
+- 密码哈希：Argon2
+- 鉴权：JWT + SID 会话双层校验
+- 鉴权中间件：统一验证 UID / SID / 封禁状态 / 冻结状态
+- 2FA + WebAuthn + OAuth 组合式登录恢复能力
+- 管理接口全部走 `AuthMiddleware + AdminMiddleware`
+
+---
+
+## 🧰 技术栈
+
+### 后端
+
+- Go 1.24+
+- Gin
+- GORM
+- SQLite（modernc）/ MySQL
+- WebSocket（gorilla/websocket）
+- WebAuthn（go-webauthn）
+- TOTP（pquerna/otp）
+
+### 前端
+
+- Vue 3 + Composition API
+- TypeScript
+- Vite
+- Tailwind CSS 4
+- Axios
+- Vue Router
+
+---
+
+## 🚀 快速开始（开发）
+
+### 依赖要求
+
+- Node.js >= 18
+- pnpm
+- Go >= 1.24
+
+### 初始化并启动
 
 ```bash
-# 1. 克隆并进入目录
-git clone https://github.com/your-repo/chemistryuno.git
+git clone <your-repo-url>
 cd chemistryuno
-
-# 2. 运行初始化脚本（安装依赖 + 环境检查）
 pnpm run init
-
-# 3. 启动全栈项目（后端 :8080 + 前端 :5000）
 pnpm start
 ```
 
 启动后：
 
-- 🌐 前端地址: `http://localhost:5000`
-- ⚙️ 后端 API: `http://localhost:8080`
+- 前端：`http://localhost:5000`
+- 后端：`http://localhost:8080`
 
-### 常见问题
+---
 
-- 默认数据库为 SQLite（单文件，免安装）。如需 MySQL，设置 `DB_TYPE=mysql` 并配置 `MYSQL_DSN` 或 `MYSQL_*` 相关环境变量。
-- Redis 为可选；未配置将自动降级但核心功能不受影响。
-- 如需更多命令与排错，请参见根目录的 COMMANDS 与部署文档。
+## 📜 常用脚本
 
-> 详细命令与排错见：`COMMANDS.md`、`DEPLOYMENT.md`、`QUICKSTART.md`、`backend/API_DOCUMENTATION.md`
+### 根目录
 
-## 📂 目录结构
+- `pnpm run init`：初始化依赖与项目环境
+- `pnpm start`：启动前后端开发环境
+- `pnpm build`：一体化构建
+- `pnpm build:frontend`：仅构建前端
+- `pnpm build:backend`：仅构建后端
+- `pnpm go:test`：执行 Go 测试
+- `pnpm test`：项目测试脚本入口
+
+### 前端目录
+
+- `pnpm -C frontend dev`
+- `pnpm -C frontend build`
+- `pnpm -C frontend type-check`
+
+---
+
+## ⚙️ 环境变量（核心项）
+
+复制 `.env.example` 为 `.env` 后按需修改。
+
+### 基础配置
+
+- `APP_VERSION` / `APP_VERSION_NAME`
+- `DB_TYPE=sqlite|mysql`
+- `SQLITE_PATH`（SQLite）
+- `MYSQL_DSN`（MySQL）
+- `JWT_SECRET`
+- `REDIS_ADDR`（可选）
+
+### 安全配置
+
+- `WEBAUTHN_RPID`
+- `WEBAUTHN_RP_ORIGIN`
+- `WEBAUTHN_ORIGIN`
+
+### SMTP（启用邮箱模式）
+
+- `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM`
+
+### OAuth（第三方登录）
+
+- GitHub：`GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` / `GITHUB_REDIRECT_URI`
+- Microsoft：`MS_CLIENT_ID` / `MS_CLIENT_SECRET` / `MS_TENANT_ID` / `MS_REDIRECT_URI`
+- Google：`GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GOOGLE_REDIRECT_URI`
+- Apple：`APPLE_CLIENT_ID` / `APPLE_CLIENT_SECRET` / `APPLE_REDIRECT_URI`
+
+> Apple 当前实现使用静态 `APPLE_CLIENT_SECRET`。  
+> 若仅配置 `CLIENT_ID` 而未配置必要字段，前端会自动隐藏该 OAuth 入口。
+
+---
+
+## 🔌 API 与路由分组（摘要）
+
+- 公开：`/api/auth/*`、`/api/version`、`/api/health`、`/api/announcements`、`/api/hints`
+- 鉴权：`/api/user/*`、`/api/rooms/*`、`/api/friends/*`、`/api/chat/*`、`/api/points/*`
+- 管理：`/api/admin/*`
+- WebSocket：`/api/ws`
+
+---
+
+## 📁 项目结构
 
 ```text
 .
-├── backend/            # Go 后端源码
-│   ├── game/           # 核心逻辑（化学判定/裁判/定时任务）
-│   ├── handlers/       # API 路由处理器（Auth/WebAuthn/Game/Admin）
-│   ├── models/         # 数据库模型
-│   └── websocket/      # 通信层（Hub/Client）
-├── frontend/           # Vue 前端源码
-│   ├── src/
-│   │   ├── components/ # 基础组件
-│   │   ├── pages/      # 业务页面（Lobby/GameRoom/Admin 等）
-│   │   └── utils/      # API/WS 工具
-├── start.js            # 开发环境一键启动脚本
-├── build.js            # 生产构建脚本（前后端）
-├── COMMANDS.md         # 命令速查表
-├── QUICKSTART.md       # Linux/面板快速部署
-└── DEPLOYMENT.md       # 完整部署指南
+├── backend/
+│   ├── game/                 # 游戏核心逻辑（规则、AI、回合、房间）
+│   ├── handlers/             # HTTP 处理器（auth/game/admin/plugin...）
+│   ├── middleware/           # 鉴权、权限、CORS
+│   ├── repository/           # 数据访问层
+│   ├── websocket/            # WS Hub & Client
+│   ├── scripts/              # 后端脚本/脚本测试
+│   └── static/               # 前端构建产物嵌入目录
+├── frontend/
+│   └── src/
+│       ├── pages/            # 页面（Lobby/GameRoom/Admin/Profile/Login...）
+│       ├── components/       # 组件
+│       ├── composables/      # 复用逻辑
+│       └── utils/            # API/WS/工具函数
+├── tools/                    # 工具脚本
+├── COMMANDS.md
+├── QUICKSTART.md
+├── DEPLOYMENT.md
+└── backend/API_DOCUMENTATION.md
 ```
-
-## 🛡️ 安全架构
-
-本项目采用分级安全验证逻辑，确保高价值账户操作的安全：
-
-- **验证优先级**: 系统会自动检测用户绑定的安全凭证，按 `FIDO2 硬件密钥 > 2FA 动态码 > 传统密码` 的顺序提示验证。
-- **零密码认证**: 完成 WebAuthn 注册后，用户可完全脱离密码，使用生物识别或硬件按钮完成安全挑战。
-- **数据安全**: 敏感信息采用 Argon2 算法进行不可逆哈希存储，API 通信基于 JWT 无状态令牌。
-
-## 📊 管理能力
-
-管理员可进行全方位管控：
-
-- **实时监控**: 追踪每一个 Reactor 实例的运行状态。
-- **物质审核**: 对玩家提交的新物质合成公式进行合规性审查。
-- **数据导出**: 支持游戏历史与积分排行的导出与可视化。
-
-## ⚙️ 基本配置
-
-- `.env`（根目录）：首次运行可复制 `.env.example`，关键变量：
-  - `DB_TYPE`：`sqlite`（默认）或 `mysql`
-  - `SQLITE_PATH`：SQLite 数据文件路径，默认 `./chemistryuno.db`
-  - `MYSQL_DSN` 或 `MYSQL_HOST/PORT/USER/PASSWORD/DATABASE`
-  - `JWT_SECRET`：JWT 签名密钥（首次启动会自动生成或覆盖）
-  - `REDIS_ADDR`：Redis 地址（可选）
-  - `APP_VERSION`、`APP_VERSION_NAME`：版本信息（可选）
-
-## 🏗️ 构建与发布
-
-- 开发构建前端：`pnpm -C frontend build`
-- 一体化构建（前后端）：`pnpm build`
-- 产物：
-  - 后端二进制：根目录 `chemistryuno(.exe)`
-  - 前端静态文件：`backend/static/dist`（构建时自动嵌入）
-  - 完整包：`dist/`（包含运行脚本 start.sh/.bat）
-
-## 🤝 贡献与反馈
-
-欢迎提交 Issue 或 Pull Request 来改进化学平衡判定系统或丰富 UI 设计！
 
 ---
 
-**Chemistry UNO V1.2.1 "Mendeleef"** - 让化学学习变得更有趣。
+## 🧪 测试建议
 
-### TypeScript 类型检查
-
-```bash
-cd frontend
-pnpm type-check
-```
-
-### 构建生产版本
-
-```bash
-cd frontend
-pnpm build
-```
-
-## 更新日志
-
-### v1.2.1
-
-- ✅ 默认使用 modernc 纯 Go SQLite（免 CGO）
-- ✅ 统一开发端口：前端 5000 / 后端 8080
-- ✅ 新增命令速查、部署与快速启动文档
-- ✅ 增强管理后台与化学引擎稳定性
-
-### v1.0.0
-
-- ✅ 迁移到 TypeScript
-- ✅ 切换包管理器为 pnpm
-- ✅ 添加一键启动脚本
-- ✅ 配置 pnpm workspace
+- 后端：`go test ./backend/...`
+- 前端：`pnpm -C frontend build` + `pnpm -C frontend type-check`
+- OAuth 自动化脚本测试：`go test -tags scripts backend/scripts/oauth_third_party_test.go -v`
+- 端到端手测建议：登录/建房/出牌/重连/结算/退出
 
 ---
 
-**快乐编码！** 🚀
+## 📚 文档索引
+
+- 部署：`DEPLOYMENT.md`
+- 快速上手：`QUICKSTART.md`
+- 命令速查：`COMMANDS.md`
+- API 文档：`backend/API_DOCUMENTATION.md`
+- 等级系统：`LEVEL_SYSTEM_DOCS.md`
+
+---
+
+## ❓ FAQ / 排障
+
+### 1) 前端能开，后端接口全 404？
+
+- 确认后端是否已启动在 `:8080`。
+- 本地开发应通过 `pnpm start` 一起启动；仅开前端会导致 API 无法访问。
+
+### 2) OAuth 登录按钮不显示？
+
+- 按钮受后端配置开关控制。
+- 例如 GitHub 至少需要：
+  - `GITHUB_CLIENT_ID`
+  - `GITHUB_CLIENT_SECRET`
+- Apple 目前还需要：
+  - `APPLE_CLIENT_ID`
+  - `APPLE_CLIENT_SECRET`
+  - `APPLE_REDIRECT_URI`
+
+### 3) OAuth 授权后弹窗关闭但没登录？
+
+- 新版本已处理弹窗关闭与消息回传竞态。
+- 若仍复现，优先检查浏览器是否拦截了弹窗/跨窗口消息。
+- 可先跑脚本测试定位：`go test -tags scripts backend/scripts/oauth_third_party_test.go -v`
+
+### 4) 首次启动提示找不到 `.env`？
+
+- 复制模板：`cp .env.example .env`（Windows 用 `copy`）。
+- 至少确保 `JWT_SECRET` 可用（系统也支持首次自动生成）。
+
+### 5) 生产环境推荐怎么跑？
+
+- 使用 `pnpm build` 生成产物后运行 `dist` 内启动脚本。
+- 生产建议前置 Nginx/Caddy，并启用 HTTPS（尤其 WebAuthn/OAuth）。
+
+---
+
+## 🤝 贡献
+
+欢迎提交 Issue / PR。  
+建议提交前完成以下检查：
+
+1. `go test ./backend/...`
+2. `pnpm -C frontend build`
+3. 关键页面功能手测（登录、建房、对局、退出）
+
+---
+
+## 📄 许可证
+
+MIT License
+
+---
+
+**Chemistry UNO V1.2.1 "Mendeleef"**  
+让化学学习与卡牌策略真正结合。

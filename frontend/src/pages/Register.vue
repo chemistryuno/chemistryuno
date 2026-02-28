@@ -66,20 +66,43 @@ const handleOAuthLogin = (provider: 'github' | 'ms' | 'google' | 'apple') => {
     return
   }
 
+  let oauthFinished = false
+
+  const cleanup = () => {
+    window.removeEventListener('message', messageHandler)
+    clearInterval(timer)
+  }
+
   const messageHandler = (event: MessageEvent) => {
+    if (!event.data || typeof event.data !== 'object') return
+
     if (event.data.type === 'oauth-success') {
-      window.removeEventListener('message', messageHandler)
+      oauthFinished = true
+      cleanup()
       const { token, user } = event.data
       handleLoginSuccess(token, user)
       loading.value = false
     } else if (event.data.type === 'oauth-error') {
-      window.removeEventListener('message', messageHandler)
+      oauthFinished = true
+      cleanup()
       error.value = event.data.error || '授权失败'
       loading.value = false
     }
   }
   
   window.addEventListener('message', messageHandler)
+
+  const timer = setInterval(() => {
+    if (popup.closed) {
+      clearInterval(timer)
+      setTimeout(() => {
+        if (!oauthFinished) {
+          cleanup()
+          loading.value = false
+        }
+      }, 600)
+    }
+  }, 1000)
 }
 
 const handleSendCode = async () => {

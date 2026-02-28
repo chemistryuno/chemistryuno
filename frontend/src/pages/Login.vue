@@ -127,16 +127,26 @@ const handleLoginSuccess = (token: string, user: any, announcements: any[] = [],
 
   // 处理回归玩家
   if (isReturningPlayer) {
-    // 清除已完成的大厅教程标记，重新触发新手指引
-    localStorage.removeItem('chemistry-uno-lobby-tutorial-completed')
-    console.log(`[老玩家回归] 用户 ${user.nickname} 距离上次登录 ${daysSinceLastLogin} 天，自动触发新手指引`)
+    const hasSkippedLobbyTutorial = localStorage.getItem('chemistry-uno-lobby-tutorial-skipped') === 'true'
+    if (!hasSkippedLobbyTutorial) {
+      // 清除已完成的大厅教程标记，重新触发新手指引
+      localStorage.removeItem('chemistry-uno-lobby-tutorial-completed')
+      console.log(`[老玩家回归] 用户 ${user.nickname} 距离上次登录 ${daysSinceLastLogin} 天，自动触发新手指引`)
 
-    // 显示欢迎回归消息
-    dialog.showAlert(
-      `欢迎老玩家${user.nickname}回归！您已经 ${daysSinceLastLogin} 天没有登录了，让我们重新熟悉一下游戏界面吧！`,
-      '🎉 欢迎回归',
-      '开始指引'
-    )
+      // 显示欢迎回归消息
+      dialog.showAlert(
+        `欢迎老玩家${user.nickname}回归！您已经 ${daysSinceLastLogin} 天没有登录了，让我们重新熟悉一下游戏界面吧！`,
+        '🎉 欢迎回归',
+        '开始指引'
+      )
+    } else {
+      console.log(`[老玩家回归] 用户 ${user.nickname} 曾跳过大厅教程，保持不自动弹出`)
+      dialog.showAlert(
+        `欢迎老玩家${user.nickname}回归！您已经 ${daysSinceLastLogin} 天没有登录了，祝您游戏愉快！`,
+        '🎉 欢迎回归',
+        '继续游戏'
+      )
+    }
   }
 
   //处理登录时的公告
@@ -237,14 +247,25 @@ const handleOAuthLogin = (provider: 'github' | 'ms' | 'google' | 'apple') => {
     return
   }
 
+  let oauthFinished = false
+
+  const cleanup = () => {
+    window.removeEventListener('message', messageHandler)
+    clearInterval(timer)
+  }
+
   const messageHandler = (event: MessageEvent) => {
+    if (!event.data || typeof event.data !== 'object') return
+
     if (event.data.type === 'oauth-success') {
-      window.removeEventListener('message', messageHandler)
+      oauthFinished = true
+      cleanup()
       const { token, user } = event.data
       handleLoginSuccess(token, user)
       loading.value = false
     } else if (event.data.type === 'oauth-error') {
-      window.removeEventListener('message', messageHandler)
+      oauthFinished = true
+      cleanup()
       error.value = event.data.error || '授权失败'
       loading.value = false
     }
@@ -256,8 +277,13 @@ const handleOAuthLogin = (provider: 'github' | 'ms' | 'google' | 'apple') => {
   const timer = setInterval(() => {
     if (popup.closed) {
       clearInterval(timer)
-      loading.value = false
-      window.removeEventListener('message', messageHandler)
+      // 留一点时间等待 postMessage 到达，避免关闭与消息发送竞态导致登录丢失
+      setTimeout(() => {
+        if (!oauthFinished) {
+          cleanup()
+          loading.value = false
+        }
+      }, 600)
     }
   }, 1000)
 }

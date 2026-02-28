@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { X, ChevronLeft, ChevronRight, Sparkles } from 'lucide-vue-next'
 
 interface TutorialStep {
@@ -66,6 +66,8 @@ const currentStep = ref(0)
 const isVisible = ref(false)
 const spotlightStyle = ref<any>({})
 const tooltipStyle = ref<any>({})
+const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max)
+const clampRange = (value: number, min: number, max: number) => clamp(value, Math.min(min, max), Math.max(min, max))
 
 // 计算聚光灯位置
 const calculateSpotlight = async () => {
@@ -78,13 +80,24 @@ const calculateSpotlight = async () => {
     return
   }
 
-  const target = document.querySelector(step.targetSelector)
+  const targetCandidates = Array.from(document.querySelectorAll(step.targetSelector))
+  const target = targetCandidates.find((el) => {
+    const rect = (el as HTMLElement).getBoundingClientRect()
+    return rect.width > 0 && rect.height > 0
+  }) || targetCandidates[0]
+
   if (!target) {
     spotlightStyle.value = {}
+    tooltipStyle.value = { position: 'center' }
     return
   }
 
   const rect = target.getBoundingClientRect()
+  if (rect.width === 0 || rect.height === 0) {
+    spotlightStyle.value = {}
+    tooltipStyle.value = { position: 'center' }
+    return
+  }
 
   // 精确匹配元素尺寸，添加适度的padding（16px）
   const padding = 16
@@ -98,11 +111,14 @@ const calculateSpotlight = async () => {
   // 计算提示框位置（带边界检测）
   const position = step.position || 'bottom'
   const tooltipOffset = 20
-  const tooltipEstimatedWidth = 320 // 提示框预估宽度
-  const tooltipEstimatedHeight = 200 // 提示框预估高度
   const viewportWidth = window.innerWidth
   const viewportHeight = window.innerHeight
   const edgePadding = 16 // 距离屏幕边缘的最小距离
+  const tooltipEl = document.querySelector('.tutorial-tooltip') as HTMLElement | null
+  const tooltipMeasuredWidth = tooltipEl?.offsetWidth || 0
+  const tooltipMeasuredHeight = tooltipEl?.offsetHeight || 0
+  const tooltipEstimatedWidth = tooltipMeasuredWidth || Math.min(320, viewportWidth - edgePadding * 2)
+  const tooltipEstimatedHeight = tooltipMeasuredHeight || 200
 
   let finalPosition = position
   let tooltipLeft = 0
@@ -184,14 +200,43 @@ const calculateSpotlight = async () => {
     }
   }
 
-  // 最终边界修正：确保提示框在屏幕内
+  let arrowOffsetX = 0
+  let arrowOffsetY = 0
+
+  // 最终边界修正：确保提示框在屏幕内，并保持箭头尽量指向目标
   const halfWidth = tooltipEstimatedWidth / 2
-  if (finalPosition === 'top' || finalPosition === 'bottom') {
-    // 水平居中的情况，检查左右边界
-    if (tooltipLeft - halfWidth < edgePadding) {
-      tooltipLeft = halfWidth + edgePadding
-    } else if (tooltipLeft + halfWidth > viewportWidth - edgePadding) {
-      tooltipLeft = viewportWidth - halfWidth - edgePadding
+  const halfHeight = tooltipEstimatedHeight / 2
+  const maxArrowOffsetX = Math.max(0, halfWidth - 14)
+  const maxArrowOffsetY = Math.max(0, halfHeight - 14)
+
+  switch (finalPosition) {
+    case 'top': {
+      const anchoredLeft = tooltipLeft
+      tooltipLeft = clampRange(tooltipLeft, edgePadding + halfWidth, viewportWidth - edgePadding - halfWidth)
+      arrowOffsetX = clamp(anchoredLeft - tooltipLeft, -maxArrowOffsetX, maxArrowOffsetX)
+      tooltipTop = clampRange(tooltipTop, edgePadding + tooltipEstimatedHeight, viewportHeight - edgePadding)
+      break
+    }
+    case 'bottom': {
+      const anchoredLeft = tooltipLeft
+      tooltipLeft = clampRange(tooltipLeft, edgePadding + halfWidth, viewportWidth - edgePadding - halfWidth)
+      arrowOffsetX = clamp(anchoredLeft - tooltipLeft, -maxArrowOffsetX, maxArrowOffsetX)
+      tooltipTop = clampRange(tooltipTop, edgePadding, viewportHeight - edgePadding - tooltipEstimatedHeight)
+      break
+    }
+    case 'left': {
+      tooltipLeft = clampRange(tooltipLeft, edgePadding + tooltipEstimatedWidth, viewportWidth - edgePadding)
+      const anchoredTop = tooltipTop
+      tooltipTop = clampRange(tooltipTop, edgePadding + halfHeight, viewportHeight - edgePadding - halfHeight)
+      arrowOffsetY = clamp(anchoredTop - tooltipTop, -maxArrowOffsetY, maxArrowOffsetY)
+      break
+    }
+    case 'right': {
+      tooltipLeft = clampRange(tooltipLeft, edgePadding, viewportWidth - edgePadding - tooltipEstimatedWidth)
+      const anchoredTop = tooltipTop
+      tooltipTop = clampRange(tooltipTop, edgePadding + halfHeight, viewportHeight - edgePadding - halfHeight)
+      arrowOffsetY = clamp(anchoredTop - tooltipTop, -maxArrowOffsetY, maxArrowOffsetY)
+      break
     }
   }
 
@@ -199,7 +244,9 @@ const calculateSpotlight = async () => {
     left: `${tooltipLeft}px`,
     top: `${tooltipTop}px`,
     transform,
-    arrowPosition
+    arrowPosition,
+    arrowOffsetX: `${arrowOffsetX}px`,
+    arrowOffsetY: `${arrowOffsetY}px`
   }
 }
 
@@ -253,6 +300,10 @@ watch(currentStep, () => {
 onMounted(() => {
   window.addEventListener('resize', calculateSpotlight)
 })
+
+onUnmounted(() => {
+  window.removeEventListener('resize', calculateSpotlight)
+})
 </script>
 
 <template>
@@ -302,7 +353,9 @@ onMounted(() => {
             :style="tooltipStyle.position === 'center' ? {} : {
               left: tooltipStyle.left,
               top: tooltipStyle.top,
-              transform: tooltipStyle.transform
+              transform: tooltipStyle.transform,
+              '--arrow-offset-x': tooltipStyle.arrowOffsetX || '0px',
+              '--arrow-offset-y': tooltipStyle.arrowOffsetY || '0px'
             }"
           >
             <!-- 箭头指示器 -->
@@ -504,7 +557,7 @@ onMounted(() => {
 
 /* 箭头样式 */
 .arrow-top {
-  left: 50%;
+  left: calc(50% + var(--arrow-offset-x, 0px));
   top: -8px;
   transform: translateX(-50%);
   border-left: 12px solid transparent;
@@ -513,7 +566,7 @@ onMounted(() => {
 }
 
 .arrow-bottom {
-  left: 50%;
+  left: calc(50% + var(--arrow-offset-x, 0px));
   bottom: -8px;
   transform: translateX(-50%);
   border-left: 12px solid transparent;
@@ -523,7 +576,7 @@ onMounted(() => {
 
 .arrow-left {
   left: -8px;
-  top: 50%;
+  top: calc(50% + var(--arrow-offset-y, 0px));
   transform: translateY(-50%);
   border-top: 12px solid transparent;
   border-bottom: 12px solid transparent;
@@ -532,7 +585,7 @@ onMounted(() => {
 
 .arrow-right {
   right: -8px;
-  top: 50%;
+  top: calc(50% + var(--arrow-offset-y, 0px));
   transform: translateY(-50%);
   border-top: 12px solid transparent;
   border-bottom: 12px solid transparent;

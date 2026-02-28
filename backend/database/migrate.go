@@ -66,7 +66,60 @@ func autoMigrate() error {
 		log.Printf("⚠️  等级系统迁移失败: %v", err)
 	}
 
+	// 确保教学关卡所需反应存在
+	if err := ensureTutorialReactions(); err != nil {
+		log.Printf("⚠️  教学反应数据检查失败: %v", err)
+	}
+
 	log.Println("✅ 数据库迁移完成")
+	return nil
+}
+
+// ensureTutorialReactions 幂等地确保教学关卡所需的特定反应存在于数据库中
+func ensureTutorialReactions() error {
+	type tutorialReaction struct {
+		R1, R2, Display string
+	}
+	needed := []tutorialReaction{
+		{"Br2", "Mn", "Mn + Br2 = MnBr2"}, // 教学步骤6：AI用Mn与Br2反应
+	}
+
+	for _, tr := range needed {
+		var count int64
+		DB.Model(&Reaction{}).
+			Where("((r1 = ? AND r2 = ?) OR (r1 = ? AND r2 = ?)) AND status = ?",
+				tr.R1, tr.R2, tr.R2, tr.R1, "approved").
+			Count(&count)
+		if count > 0 {
+			continue
+		}
+
+		// 获取当前最大 group_id，新 group 设为 max+1
+		var maxGroupID uint
+		DB.Model(&Reaction{}).
+			Select("COALESCE(MAX(group_id), 0)").
+			Scan(&maxGroupID)
+		newGroupID := maxGroupID + 1
+
+		// Canonical ordering: r1 <= r2（字母序）
+		r1, r2 := tr.R1, tr.R2
+		if r1 > r2 {
+			r1, r2 = r2, r1
+		}
+		reaction := Reaction{
+			R1:           r1,
+			R2:           r2,
+			Display:      tr.Display,
+			GroupID:      &newGroupID,
+			CreatedByUID: 100000000,
+			Status:       "approved",
+		}
+		if err := DB.Create(&reaction).Error; err != nil {
+			log.Printf("⚠️  添加教学反应 %s + %s 失败: %v", tr.R1, tr.R2, err)
+			return err
+		}
+		log.Printf("✅ 已添加教学关卡反应: %s", tr.Display)
+	}
 	return nil
 }
 

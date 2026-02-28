@@ -27,6 +27,32 @@ var (
 	appleOauthConfig  *oauth2.Config
 )
 
+func hasConfigValue(v string) bool {
+	return strings.TrimSpace(v) != ""
+}
+
+func isGitHubOAuthReady() bool {
+	return hasConfigValue(os.Getenv("GITHUB_CLIENT_ID")) &&
+		hasConfigValue(os.Getenv("GITHUB_CLIENT_SECRET"))
+}
+
+func isMicrosoftOAuthReady() bool {
+	return hasConfigValue(os.Getenv("MS_CLIENT_ID")) &&
+		hasConfigValue(os.Getenv("MS_CLIENT_SECRET"))
+}
+
+func isGoogleOAuthReady() bool {
+	return hasConfigValue(os.Getenv("GOOGLE_CLIENT_ID")) &&
+		hasConfigValue(os.Getenv("GOOGLE_CLIENT_SECRET"))
+}
+
+func isAppleOAuthReady() bool {
+	// 当前实现仅支持静态 APPLE_CLIENT_SECRET
+	return hasConfigValue(os.Getenv("APPLE_CLIENT_ID")) &&
+		hasConfigValue(os.Getenv("APPLE_CLIENT_SECRET")) &&
+		hasConfigValue(os.Getenv("APPLE_REDIRECT_URI"))
+}
+
 // InitOauth 初始化 OAuth 配置
 func InitOauth() {
 	log.Println("🔐 初始化 OAuth 配置...")
@@ -72,28 +98,28 @@ func InitOauth() {
 	enabledProviders := []string{}
 	disabledProviders := []string{}
 
-	if githubOauthConfig.ClientID != "" && githubOauthConfig.ClientSecret != "" {
+	if isGitHubOAuthReady() {
 		log.Println("   ✅ GitHub OAuth 已启用")
 		enabledProviders = append(enabledProviders, "GitHub")
 	} else {
 		disabledProviders = append(disabledProviders, "GitHub")
 	}
 
-	if msOauthConfig.ClientID != "" && msOauthConfig.ClientSecret != "" {
+	if isMicrosoftOAuthReady() {
 		log.Println("   ✅ Microsoft OAuth 已启用")
 		enabledProviders = append(enabledProviders, "Microsoft")
 	} else {
 		disabledProviders = append(disabledProviders, "Microsoft")
 	}
 
-	if googleOauthConfig.ClientID != "" && googleOauthConfig.ClientSecret != "" {
+	if isGoogleOAuthReady() {
 		log.Println("   ✅ Google OAuth 已启用")
 		enabledProviders = append(enabledProviders, "Google")
 	} else {
 		disabledProviders = append(disabledProviders, "Google")
 	}
 
-	if appleOauthConfig.ClientID != "" {
+	if isAppleOAuthReady() {
 		log.Println("   ✅ Apple OAuth 已启用")
 		enabledProviders = append(enabledProviders, "Apple")
 	} else {
@@ -127,7 +153,7 @@ func generateStateToken(c *gin.Context, intent string) (string, error) {
 
 // GitHubLogin 重定向到 GitHub 登录
 func GitHubLogin(c *gin.Context) {
-	if githubOauthConfig.ClientID == "" {
+	if !isGitHubOAuthReady() {
 		c.JSON(http.StatusNotImplemented, gin.H{"error": "GitHub OAuth 未配置"})
 		return
 	}
@@ -152,7 +178,7 @@ func GitHubLogin(c *gin.Context) {
 
 // MicrosoftLogin 重定向到 Microsoft 登录
 func MicrosoftLogin(c *gin.Context) {
-	if msOauthConfig.ClientID == "" {
+	if !isMicrosoftOAuthReady() {
 		c.JSON(http.StatusNotImplemented, gin.H{"error": "Microsoft OAuth 未配置"})
 		return
 	}
@@ -177,7 +203,7 @@ func MicrosoftLogin(c *gin.Context) {
 
 // GoogleLogin 重定向到 Google 登录
 func GoogleLogin(c *gin.Context) {
-	if googleOauthConfig.ClientID == "" {
+	if !isGoogleOAuthReady() {
 		c.JSON(http.StatusNotImplemented, gin.H{"error": "Google OAuth 未配置"})
 		return
 	}
@@ -202,7 +228,7 @@ func GoogleLogin(c *gin.Context) {
 
 // AppleLogin 重定向到 Apple 登录
 func AppleLogin(c *gin.Context) {
-	if appleOauthConfig.ClientID == "" {
+	if !isAppleOAuthReady() {
 		c.JSON(http.StatusNotImplemented, gin.H{"error": "Apple OAuth 未配置"})
 		return
 	}

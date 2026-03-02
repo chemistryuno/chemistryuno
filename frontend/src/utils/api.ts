@@ -61,14 +61,14 @@ export const authAPI = {
     api.post('/auth/reset-password', data),
   resetPasswordBy2FA: (data: any) =>
     api.post('/auth/2fa/reset-password', data),
-  beginWebAuthnLogin: (username: string = '') =>
-    api.get(`/auth/webauthn/login/begin${username ? `?username=${username}` : ''}`),
-  finishWebAuthnLogin: (credential: any, username: string = '') =>
-    api.post(`/auth/webauthn/login/finish${username ? `?username=${username}` : ''}`, credential),
-  beginResetPasswordWebAuthn: (username: string) =>
-    api.post('/auth/webauthn/reset-password/begin', { username }),
-  finishResetPasswordWebAuthn: (username: string, newPassword: string, credential: any) =>
-    api.post(`/auth/webauthn/reset-password/finish?username=${username}&new_password=${newPassword}`, credential),
+  beginWebAuthnLogin: (identifier: string = '') =>
+    api.get(`/auth/webauthn/login/begin${identifier ? `?identifier=${encodeURIComponent(identifier)}` : ''}`),
+  finishWebAuthnLogin: (credential: any, identifier: string = '') =>
+    api.post(`/auth/webauthn/login/finish${identifier ? `?identifier=${encodeURIComponent(identifier)}` : ''}`, credential),
+  beginResetPasswordWebAuthn: (identifier: string) =>
+    api.post('/auth/webauthn/reset-password/begin', { identifier }),
+  finishResetPasswordWebAuthn: (identifier: string, newPassword: string, credential: any) =>
+    api.post(`/auth/webauthn/reset-password/finish?identifier=${encodeURIComponent(identifier)}&new_password=${encodeURIComponent(newPassword)}`, credential),
   getUserInfo: () =>
     api.get('/user/info'),
   changePassword: (oldPassword: string, newPassword: string, code: string = '', useEmail: boolean = false) =>
@@ -221,6 +221,8 @@ export const adminAPI = {
     api.get('/admin/deck-config'),
   updateGlobalDeckConfig: (name: string, cards: Record<string, number>, initialCards?: number) =>
     api.put('/admin/deck-config', { name, cards, initial_cards: initialCards }),
+  resetGlobalDeckConfig: () =>
+    api.post('/admin/deck-config/reset'),
   getGameHistory: () =>
     api.get('/admin/game-history'),
   getFeedbacks: () =>
@@ -377,6 +379,8 @@ export const pluginAPI = {
     api.get('/plugins'),
   getPluginScript: (pluginId: number) =>
     api.get(`/plugins/${pluginId}/script`, { responseType: 'text' }),
+  getPluginSettings: (pluginId: number) =>
+    api.get(`/plugins/${pluginId}/settings`),
 
   // 管理员接口 - 插件管理
   getPlugins: () =>
@@ -385,6 +389,12 @@ export const pluginAPI = {
     api.post('/admin/plugins', data),
   updatePlugin: (id: number, data: { name?: string; description?: string; is_active?: boolean }) =>
     api.put(`/admin/plugins/${id}`, data),
+  updatePluginSettings: (pluginId: number, settings: Record<string, string>) =>
+    api.put(`/admin/plugins/${pluginId}/settings`, { settings }),
+  getPluginSettingsHistory: (pluginId: number) =>
+    api.get(`/admin/plugins/${pluginId}/settings/history`),
+  rollbackPluginSettings: (pluginId: number, snapshotId: string) =>
+    api.post(`/admin/plugins/${pluginId}/settings/rollback`, { snapshot_id: snapshotId }),
   deletePlugin: (id: number) =>
     api.delete(`/admin/plugins/${id}`),
 

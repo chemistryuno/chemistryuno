@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory, type RouteLocationNormalized, type NavigationGuardNext } from 'vue-router'
+import { createRouter, createWebHistory, type RouteLocationNormalized } from 'vue-router'
 import Login from './pages/Login.vue'
 import Register from './pages/Register.vue'
 import Lobby from './pages/Lobby.vue'
@@ -117,7 +117,34 @@ const router = createRouter({
   routes
 })
 
-router.beforeEach((to: RouteLocationNormalized, _from: RouteLocationNormalized, next: NavigationGuardNext) => {
+const isDataRoute = (path: string): boolean => path === '/data' || path.startsWith('/data/')
+
+const findActiveRoomId = async (token: string, uid: number): Promise<string | null> => {
+  try {
+    const res = await fetch('/api/rooms', {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    })
+    if (!res.ok) return null
+
+    const payload = await res.json()
+    const rooms = Array.isArray(payload) ? payload : (Array.isArray(payload?.data) ? payload.data : [])
+    const activeRoom = rooms.find((room: any) => {
+      const roomStatus = room?.status
+      const players = Array.isArray(room?.players) ? room.players : []
+      return (roomStatus === 'waiting' || roomStatus === 'playing') &&
+        players.some((playerUID: any) => Number(playerUID) === uid)
+    })
+
+    return activeRoom?.id ? String(activeRoom.id) : null
+  } catch (error) {
+    console.error('Failed to check active room before entering data routes', error)
+    return null
+  }
+}
+
+router.beforeEach(async (to: RouteLocationNormalized, _from: RouteLocationNormalized) => {
   const token = localStorage.getItem('token')
   let user = null
   try {
@@ -128,28 +155,30 @@ router.beforeEach((to: RouteLocationNormalized, _from: RouteLocationNormalized, 
   }
 
   if (to.meta.requiresAuth && !token) {
-    // 保存当前完整路径（包括查询参数）作为登录后的重定向目标
-    const redirectPath = to.fullPath
-    next({
+    return {
       path: '/login',
-      query: { redirect: redirectPath }
-    })
+      query: { redirect: to.fullPath }
+    }
   } else if (to.meta.guestOnly && token) {
-    // 如果已登录用户访问登录页，检查是否有redirect参数
-    // 只允许同源路径（必须以 / 开头），防止开放重定向攻击
     const redirect = to.query.redirect as string
     if (redirect && redirect.startsWith('/') && !redirect.startsWith('//')) {
-      next(redirect)
-    } else {
-      next('/')
+      return redirect
     }
+    return '/'
   } else if (to.meta.adminOnly && (!user || !user.is_admin)) {
-    next('/')
+    return '/'
   } else if (to.meta.coWorkerOnly && (!user || (user.role !== 'admin' && user.role !== 'co-worker'))) {
-    next('/')
-  } else {
-    next()
+    return '/'
   }
+
+  if (token && user?.uid && isDataRoute(to.path)) {
+    const activeRoomID = await findActiveRoomId(token, Number(user.uid))
+    if (activeRoomID) {
+      return `/room/${activeRoomID}`
+    }
+  }
+
+  return true
 })
 
 export default router

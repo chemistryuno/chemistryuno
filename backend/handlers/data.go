@@ -5,12 +5,14 @@ import (
 	"chemistryuno/backend/game"
 	"chemistryuno/backend/middleware"
 	"chemistryuno/backend/repository"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // SubstanceUpdateRequest 物质更新请求
@@ -56,7 +58,10 @@ func SubmitSubstanceUpdate(c *gin.Context) {
 		gid := uint(id)
 		groupID = &gid
 		// 更新原物质的 group_id
-		database.DB.Model(&database.Substance{}).Where("id = ?", id).Update("group_id", gid)
+		if err := database.DB.Model(&database.Substance{}).Where("id = ?", id).Update("group_id", gid).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "更新分组失败"})
+			return
+		}
 	}
 
 	// 解析元素（如果未提供）
@@ -173,7 +178,10 @@ func ApproveSubstanceUpdate(c *gin.Context) {
 		gid := uint(id)
 		groupID = &gid
 		// 补全 group_id 以免下次失效
-		database.DB.Model(&database.Substance{}).Where("id = ?", id).Update("group_id", gid)
+		if err := database.DB.Model(&database.Substance{}).Where("id = ?", id).Update("group_id", gid).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "更新分组失败"})
+			return
+		}
 	}
 
 	// 批准整个组
@@ -222,7 +230,10 @@ func RejectSubstanceUpdate(c *gin.Context) {
 		return
 	}
 	// 如果是 NULL 情况，确保也删除了自己（以防 repo 里的 DeleteByGroupID 没查到）
-	database.DB.Delete(&database.Substance{}, id)
+	if err := database.DB.Delete(&database.Substance{}, id).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "删除失败"})
+		return
+	}
 
 	// 重建物质缓存
 	game.RebuildSubstanceCache()
@@ -263,8 +274,12 @@ func GetSubstancesByGroup(c *gin.Context) {
 	// 如果本来就没有组，至少返回它自己
 	if len(substances) == 0 {
 		var sub database.Substance
-		if err := database.DB.First(&sub, id).Error; err == nil {
+		err := database.DB.First(&sub, id).Error
+		if err == nil {
 			substances = append(substances, sub)
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+			return
 		}
 	}
 
@@ -350,7 +365,10 @@ func SubmitNewSubstance(c *gin.Context) {
 
 	// 检查是否已存在相同化学式的物质
 	var existingSubstances []database.Substance
-	database.DB.Where("formula = ? AND status = ?", req.Formula, "approved").Find(&existingSubstances)
+	if err := database.DB.Where("formula = ? AND status = ?", req.Formula, "approved").Find(&existingSubstances).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "查询失败"})
+		return
+	}
 
 	var groupID *uint
 	if len(existingSubstances) > 0 {
@@ -362,7 +380,10 @@ func SubmitNewSubstance(c *gin.Context) {
 			gid := existingSubstances[0].ID
 			groupID = &gid
 			// 更新现有物质的 group_id
-			database.DB.Model(&database.Substance{}).Where("id = ?", existingSubstances[0].ID).Update("group_id", gid)
+			if err := database.DB.Model(&database.Substance{}).Where("id = ?", existingSubstances[0].ID).Update("group_id", gid).Error; err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "更新分组失败"})
+				return
+			}
 		}
 	}
 
@@ -406,7 +427,10 @@ func SubmitNewSubstance(c *gin.Context) {
 	} else if groupID == nil {
 		// 如果是全新物质，使用新创建的 ID 作为 group_id
 		gid := newSubstance.ID
-		database.DB.Model(&database.Substance{}).Where("id = ?", newSubstance.ID).Update("group_id", gid)
+		if err := database.DB.Model(&database.Substance{}).Where("id = ?", newSubstance.ID).Update("group_id", gid).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "更新分组失败"})
+			return
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{

@@ -2,8 +2,18 @@ package repository
 
 import (
 	"chemistryuno/backend/database"
+	"context"
+	"encoding/json"
+	"fmt"
+	"log"
+	"time"
 
 	"gorm.io/gorm"
+)
+
+const (
+	activePluginCardsCacheKey = "cache:plugin_cards:active:v1"
+	activePluginCardsCacheTTL = 30 * time.Second
 )
 
 // PluginRepository 插件数据访问层
@@ -37,20 +47,42 @@ func (r *PluginRepository) GetPlugin(id uint) (*database.Plugin, error) {
 
 // CreatePlugin 创建插件
 func (r *PluginRepository) CreatePlugin(p *database.Plugin) error {
-	return r.db.Create(p).Error
+	if err := r.db.Create(p).Error; err != nil {
+		return err
+	}
+	r.invalidateActiveCardsCache()
+	return nil
 }
 
 // UpdatePlugin 更新插件
 func (r *PluginRepository) UpdatePlugin(p *database.Plugin) error {
-	return r.db.Save(p).Error
+	if err := r.db.Save(p).Error; err != nil {
+		return err
+	}
+	r.invalidateActiveCardsCache()
+	return nil
 }
 
 // DeletePlugin 删除插件及其卡牌
 func (r *PluginRepository) DeletePlugin(id uint) error {
-	if err := r.db.Where("plugin_id = ?", id).Delete(&database.PluginCard{}).Error; err != nil {
+	if err := r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("plugin_id = ?", id).Delete(&database.PluginCard{}).Error; err != nil {
+			return err
+		}
+		settingsPattern := fmt.Sprintf("plugin_settings.%d.%%", id)
+		if err := tx.Where("`key` LIKE ?", settingsPattern).Delete(&database.SystemConfig{}).Error; err != nil {
+			return err
+		}
+		historyKey := fmt.Sprintf("plugin_settings_history.%d", id)
+		if err := tx.Where("`key` = ?", historyKey).Delete(&database.SystemConfig{}).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&database.Plugin{}, id).Error
+	}); err != nil {
 		return err
 	}
-	return r.db.Delete(&database.Plugin{}, id).Error
+	r.invalidateActiveCardsCache()
+	return nil
 }
 
 // --- PluginCard 操作 ---
@@ -64,11 +96,18 @@ func (r *PluginRepository) GetCardsByPlugin(pluginID uint) ([]database.PluginCar
 
 // GetAllActiveCards 获取所有激活插件的卡牌
 func (r *PluginRepository) GetAllActiveCards() ([]database.PluginCard, error) {
+	if cards, ok := r.loadActiveCardsCache(); ok {
+		return cards, nil
+	}
+
 	var cards []database.PluginCard
 	err := r.db.
 		Joins("JOIN plugins ON plugins.id = plugin_cards.plugin_id").
 		Where("plugins.is_active = ?", true).
 		Find(&cards).Error
+	if err == nil {
+		r.storeActiveCardsCache(cards)
+	}
 	return cards, err
 }
 
@@ -107,15 +146,82 @@ func (r *PluginRepository) GetCardBySymbol(symbol string) (*database.PluginCard,
 
 // CreateCard 创建插件卡牌
 func (r *PluginRepository) CreateCard(c *database.PluginCard) error {
-	return r.db.Create(c).Error
+	if err := r.db.Create(c).Error; err != nil {
+		return err
+	}
+	r.invalidateActiveCardsCache()
+	return nil
 }
 
 // UpdateCard 更新插件卡牌
 func (r *PluginRepository) UpdateCard(c *database.PluginCard) error {
-	return r.db.Save(c).Error
+	if err := r.db.Save(c).Error; err != nil {
+		return err
+	}
+	r.invalidateActiveCardsCache()
+	return nil
 }
 
 // DeleteCard 删除插件卡牌
 func (r *PluginRepository) DeleteCard(id uint) error {
-	return r.db.Delete(&database.PluginCard{}, id).Error
+	if err := r.db.Delete(&database.PluginCard{}, id).Error; err != nil {
+		return err
+	}
+	r.invalidateActiveCardsCache()
+	return nil
+}
+
+func (r *PluginRepository) loadActiveCardsCache() ([]database.PluginCard, bool) {
+	if !database.IsRedisConfigured() {
+		return nil, false
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := database.EnsureRedisConnection(ctx); err != nil {
+		return nil, false
+	}
+
+	payload, err := database.RedisClient.Get(ctx, activePluginCardsCacheKey).Result()
+	if err != nil || payload == "" {
+		return nil, false
+	}
+
+	var cards []database.PluginCard
+	if err := json.Unmarshal([]byte(payload), &cards); err != nil {
+		return nil, false
+	}
+	return cards, true
+}
+
+func (r *PluginRepository) storeActiveCardsCache(cards []database.PluginCard) {
+	if !database.IsRedisConfigured() {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := database.EnsureRedisConnection(ctx); err != nil {
+		return
+	}
+
+	payload, err := json.Marshal(cards)
+	if err != nil {
+		return
+	}
+	if err := database.RedisClient.Set(ctx, activePluginCardsCacheKey, payload, activePluginCardsCacheTTL).Err(); err != nil {
+		log.Printf("[PluginRepo] failed to set Redis cache: %v", err)
+	}
+}
+
+func (r *PluginRepository) invalidateActiveCardsCache() {
+	if !database.IsRedisConfigured() {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := database.EnsureRedisConnection(ctx); err != nil {
+		return
+	}
+	if err := database.RedisClient.Del(ctx, activePluginCardsCacheKey).Err(); err != nil {
+		log.Printf("[PluginRepo] failed to invalidate Redis cache: %v", err)
+	}
 }

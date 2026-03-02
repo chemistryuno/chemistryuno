@@ -1,7 +1,9 @@
-﻿package handlers
+package handlers
 
 import (
 	"chemistryuno/backend/database"
+	"chemistryuno/backend/game"
+	"chemistryuno/backend/models"
 	"chemistryuno/backend/repository"
 	"encoding/json"
 	"net/http"
@@ -27,14 +29,35 @@ func GetMyDecks(c *gin.Context) {
 		return
 	}
 
-	var decks []interface{}
+	decks := make([]models.DeckConfig, 0, len(globalDecks)+len(userDecks))
 	// 添加所有全局牌组
 	for i := range globalDecks {
-		decks = append(decks, &globalDecks[i])
+		cards := normalizeDeckCardsFromJSON(globalDecks[i].Cards)
+		if len(cards) == 0 {
+			cards = game.BuiltinDeckDefaults()
+		}
+		decks = append(decks, models.DeckConfig{
+			ID:           int(globalDecks[i].ID),
+			Name:         globalDecks[i].Name,
+			IsGlobal:     globalDecks[i].IsGlobal,
+			Cards:        cards,
+			InitialCards: normalizeInitialCards(globalDecks[i].InitialCards),
+			CreatedBy:    int(globalDecks[i].CreatedByUID),
+			CreatedAt:    globalDecks[i].CreatedAt,
+		})
 	}
 	// 添加用户的所有牌组
 	for i := range userDecks {
-		decks = append(decks, &userDecks[i])
+		cards := normalizeDeckCardsFromJSON(userDecks[i].Cards)
+		decks = append(decks, models.DeckConfig{
+			ID:           int(userDecks[i].ID),
+			Name:         userDecks[i].Name,
+			IsGlobal:     userDecks[i].IsGlobal,
+			Cards:        cards,
+			InitialCards: normalizeInitialCards(userDecks[i].InitialCards),
+			CreatedBy:    int(userDecks[i].CreatedByUID),
+			CreatedAt:    userDecks[i].CreatedAt,
+		})
 	}
 
 	c.JSON(http.StatusOK, decks)
@@ -57,8 +80,23 @@ func CreateMyDeck(c *gin.Context) {
 		req.InitialCards = 10
 	}
 
+	normalizedCards, unknownCards := game.NormalizeBuiltinDeckCards(req.Cards)
+	if len(unknownCards) > 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":          "自定义卡组仅支持原有普通牌和特殊牌，插件牌请在插件中管理",
+			"unknown_cards":  unknownCards,
+			"allowed_scope":  "builtin_only",
+			"plugin_managed": true,
+		})
+		return
+	}
+	if len(normalizedCards) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "卡组不能为空"})
+		return
+	}
+
 	// 将cards转换为JSON字符串
-	cardsJSON, err := json.Marshal(req.Cards)
+	cardsJSON, err := json.Marshal(normalizedCards)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "序列化牌组失败"})
 		return
@@ -99,8 +137,23 @@ func UpdateMyDeck(c *gin.Context) {
 		req.InitialCards = 10
 	}
 
+	normalizedCards, unknownCards := game.NormalizeBuiltinDeckCards(req.Cards)
+	if len(unknownCards) > 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":          "自定义卡组仅支持原有普通牌和特殊牌，插件牌请在插件中管理",
+			"unknown_cards":  unknownCards,
+			"allowed_scope":  "builtin_only",
+			"plugin_managed": true,
+		})
+		return
+	}
+	if len(normalizedCards) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "卡组不能为空"})
+		return
+	}
+
 	// 将cards转换为JSON字符串
-	cardsJSON, err := json.Marshal(req.Cards)
+	cardsJSON, err := json.Marshal(normalizedCards)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "序列化牌组失败"})
 		return
@@ -155,4 +208,20 @@ func DeleteMyDeck(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "卡组已删除"})
+}
+
+func normalizeDeckCardsFromJSON(raw database.JSON) map[string]int {
+	var cards map[string]int
+	if err := json.Unmarshal([]byte(raw), &cards); err != nil {
+		return map[string]int{}
+	}
+	normalizedCards, _ := game.NormalizeBuiltinDeckCards(cards)
+	return normalizedCards
+}
+
+func normalizeInitialCards(v int) int {
+	if v <= 0 {
+		return 10
+	}
+	return v
 }

@@ -523,7 +523,10 @@ func handleOAuthUser(c *gin.Context, provider, providerID, username, email, nick
 		} else if provider == "apple" {
 			targetUser.AppleID = providerID
 		}
-		database.DB.Save(targetUser)
+		if err := database.DB.Save(targetUser).Error; err != nil {
+			sendOAuthError(c, http.StatusInternalServerError, "绑定失败，请稍后重试")
+			return
+		}
 
 		c.Header("Content-Type", "text/html; charset=utf-8")
 		c.String(http.StatusOK, `
@@ -540,11 +543,15 @@ func handleOAuthUser(c *gin.Context, provider, providerID, username, email, nick
 	}
 
 	// 登录逻辑 (intent == "login" 或默认)
+	email = strings.ToLower(strings.TrimSpace(email))
+	if email == "" {
+		sendOAuthError(c, http.StatusBadRequest, "OAuth account did not provide an email address")
+		return
+	}
+
 	if user == nil {
 		// 尝试通过邮箱关联
-		if email != "" {
-			user, _ = userRepo.FindByEmail(email)
-		}
+		user, _ = userRepo.FindByEmail(email)
 
 		if user != nil {
 			// 关联现有用户
@@ -557,21 +564,28 @@ func handleOAuthUser(c *gin.Context, provider, providerID, username, email, nick
 			} else if provider == "apple" {
 				user.AppleID = providerID
 			}
-			database.DB.Save(user)
+			if err := database.DB.Save(user).Error; err != nil {
+				sendOAuthError(c, http.StatusInternalServerError, "关联已有账号失败")
+				return
+			}
 		} else {
 			// 创建新用户
 			if nickname == "" {
-				nickname = username
+				nickname = email
 			}
 
 			// 确保用户名唯一
-			finalUsername := username
+			baseUsername := strings.Split(email, "@")[0]
+			if baseUsername == "" {
+				baseUsername = "oauth_user"
+			}
+			finalUsername := baseUsername
 			for i := 1; ; i++ {
 				exists, _ := userRepo.ExistsByUsername(finalUsername)
 				if !exists {
 					break
 				}
-				finalUsername = fmt.Sprintf("%s_%d", username, i)
+				finalUsername = fmt.Sprintf("%s_%d", baseUsername, i)
 			}
 
 			user = &database.User{
@@ -610,7 +624,11 @@ func handleOAuthUser(c *gin.Context, provider, providerID, username, email, nick
 	}
 
 	// 生成 Token，现在包含有效的 sid
-	token, err := utils.GenerateToken(int(user.UID), user.Username, user.IsAdmin, user.Role, sid)
+	loginIdentity := strings.TrimSpace(user.Email)
+	if loginIdentity == "" {
+		loginIdentity = user.Username
+	}
+	token, err := utils.GenerateToken(int(user.UID), loginIdentity, user.IsAdmin, user.Role, sid)
 	if err != nil {
 		sendOAuthError(c, http.StatusInternalServerError, "实验室访问令牌签署失败")
 		return

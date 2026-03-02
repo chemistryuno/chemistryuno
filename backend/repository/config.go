@@ -2,8 +2,11 @@ package repository
 
 import (
 	"chemistryuno/backend/database"
+	"errors"
 	"strconv"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 // ConfigRepository 配置仓库
@@ -93,18 +96,29 @@ func (r *ConfigRepository) InitDefaultConfigs() error {
 
 	for oldKey, newKey := range migrationMap {
 		var oldConfig database.SystemConfig
-		if err := database.DB.Where("`key` = ?", oldKey).Take(&oldConfig).Error; err == nil {
-			// 如果旧键存在，检查新键是否存在
-			var newConfig database.SystemConfig
-			if err := database.DB.Where("`key` = ?", newKey).Take(&newConfig).Error; err != nil {
-				// 新键不存在，则迁移
-				database.DB.Create(&database.SystemConfig{
-					Key:   newKey,
-					Value: oldConfig.Value,
-				})
+		err := database.DB.Where("`key` = ?", oldKey).Take(&oldConfig).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+
+		var newConfig database.SystemConfig
+		err = database.DB.Where("`key` = ?", newKey).Take(&newConfig).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			if err := database.DB.Create(&database.SystemConfig{
+				Key:   newKey,
+				Value: oldConfig.Value,
+			}).Error; err != nil {
+				return err
 			}
-			// 删除旧键
-			database.DB.Where("`key` = ?", oldKey).Delete(&database.SystemConfig{})
+		} else if err != nil {
+			return err
+		}
+
+		if err := database.DB.Where("`key` = ?", oldKey).Delete(&database.SystemConfig{}).Error; err != nil {
+			return err
 		}
 	}
 
@@ -119,10 +133,10 @@ func (r *ConfigRepository) InitDefaultConfigs() error {
 
 	for key, value := range defaults {
 		var existing database.SystemConfig
-		// 使用原生 SQL 查询键，确保兼容性
+		// Use raw key lookup for broad SQL compatibility.
 		err := database.DB.Where("`key` = ?", key).Take(&existing).Error
-		if err != nil {
-			// 配置不存在，创建默认值
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// Create the key with default value when absent.
 			config := database.SystemConfig{
 				Key:   key,
 				Value: value,
@@ -130,6 +144,8 @@ func (r *ConfigRepository) InitDefaultConfigs() error {
 			if err := database.DB.Create(&config).Error; err != nil {
 				return err
 			}
+		} else if err != nil {
+			return err
 		}
 	}
 	return nil

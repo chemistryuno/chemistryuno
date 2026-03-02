@@ -6,6 +6,7 @@ import (
 	"chemistryuno/backend/repository"
 	"chemistryuno/backend/utils"
 	"chemistryuno/backend/websocket"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -16,7 +17,36 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/pquerna/otp/totp"
+	"gorm.io/gorm"
 )
+
+// consumeVerificationCode atomically deletes one matching, unexpired code.
+func consumeVerificationCode(email, code, codeType string) (bool, error) {
+	consumed := false
+	err := database.DB.Transaction(func(tx *gorm.DB) error {
+		var vCode database.VerificationCode
+		err := tx.Where("email = ? AND code = ? AND type = ? AND expires_at > ?", email, code, codeType, time.Now()).
+			Order("created_at DESC").
+			First(&vCode).Error
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil
+			}
+			return err
+		}
+
+		result := tx.Where("id = ?", vCode.ID).Delete(&database.VerificationCode{})
+		if result.Error != nil {
+			return result.Error
+		}
+		consumed = result.RowsAffected > 0
+		return nil
+	})
+	if err != nil {
+		return false, err
+	}
+	return consumed, nil
+}
 
 // 用户注册
 func Register(c *gin.Context) {
@@ -26,104 +56,69 @@ func Register(c *gin.Context) {
 		return
 	}
 
-	smtpConfigured := utils.IsSMTPConfigured()
-	userRepo := repository.NewUserRepository()
-
-	// 统一处理邮箱大小写
-	if req.Email != "" {
-		req.Email = strings.ToLower(strings.TrimSpace(req.Email))
-	}
-
-	// 1. 系统模式判断与参数验证
-	if smtpConfigured {
-		if req.Email == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "邮箱验证模式下邮箱不能为空"})
-			return
-		}
-		if req.Code == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "请提供验证码"})
-			return
-		}
-		fmt.Printf("注册尝试 - 邮箱: %s, 来源IP: %s\n", req.Email, c.ClientIP())
-
-		// 检查邮箱是否存在
-		exists, err := userRepo.ExistsByEmail(req.Email)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误"})
-			return
-		}
-		if exists {
-			c.JSON(http.StatusConflict, gin.H{"error": "该邮箱已被注册"})
-			return
-		}
-
-		// 验证码校验
-		var code database.VerificationCode
-		err = database.DB.Where("email = ? AND code = ? AND type = ? AND expires_at > ?",
-			req.Email, req.Code, "register", time.Now()).First(&code).Error
-		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "验证码错误或已过期"})
-			return
-		}
-		// 校验成功后删除验证码
-		database.DB.Delete(&code)
-	} else {
-		if req.Username == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "用户名不能为空"})
-			return
-		}
-		fmt.Printf("注册尝试 - 用户: %s, 来源IP: %s\n", req.Username, c.ClientIP())
-
-		// 1. 检查用户名是否已存在
-		exists, err := userRepo.ExistsByUsername(req.Username)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误"})
-			return
-		}
-		if exists {
-			c.JSON(http.StatusConflict, gin.H{"error": "用户名已存在"})
-			return
-		}
-	}
-
-	// 2. 加密密码
-	hashedPassword, err := utils.HashPassword(req.Password)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "密码加密失败"})
+	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
+	if req.Email == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "email is required"})
 		return
 	}
 
-	// 3. 创建用户
+	userRepo := repository.NewUserRepository()
+	exists, err := userRepo.ExistsByEmail(req.Email)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		return
+	}
+	if exists {
+		c.JSON(http.StatusConflict, gin.H{"error": "email already registered"})
+		return
+	}
+
+	if utils.IsSMTPConfigured() {
+		if req.Code == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "verification code is required"})
+			return
+		}
+		consumed, err := consumeVerificationCode(req.Email, req.Code, "register")
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+			return
+		}
+		if !consumed {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "verification code invalid or expired"})
+			return
+		}
+	}
+
+	hashedPassword, err := utils.HashPassword(req.Password)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to hash password"})
+		return
+	}
+
+	legacyUsername := strings.Split(req.Email, "@")[0]
 	user := &database.User{
-		Username:      req.Username,
+		Username:      legacyUsername,
 		Email:         req.Email,
 		Nickname:      req.Nickname,
 		Password:      hashedPassword,
-		Avatar:        "🧪",
+		Avatar:        "\U0001F9EA",
 		Role:          "user",
 		Points:        1000,
 		MonthlyPoints: 1000,
-		Level:         1, // 默认等级为 1
+		Level:         1,
 	}
 
-	// 如果没有设置 username (邮箱模式)，可以将 email 的 prefix 作为其内部 username 或保持为空
-	if user.Username == "" && user.Email != "" {
-		user.Username = strings.Split(user.Email, "@")[0]
-	}
-
-	err = userRepo.Create(user)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建用户失败"})
+	if err := userRepo.Create(user); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create user"})
 		return
 	}
 
 	c.JSON(http.StatusCreated, gin.H{
-		"message": "注册成功",
+		"message": "register success",
 		"uid":     user.UID,
 	})
 }
 
-// 用户登录
 func Login(c *gin.Context) {
 	var req models.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -131,28 +126,16 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	identifier := req.Username
-	if identifier == "" {
-		identifier = req.Email
-	}
-
-	// 邮箱不区分大小写
-	if strings.Contains(identifier, "@") {
-		identifier = strings.ToLower(strings.TrimSpace(identifier))
-	} else {
-		identifier = strings.TrimSpace(identifier)
-	}
-
-	fmt.Printf("登录尝试 - 用户: %s, 来源IP: %s\n", identifier, c.ClientIP())
+	email := strings.ToLower(strings.TrimSpace(req.Email))
+	fmt.Printf("login attempt - email: %s, ip: %s\n", email, c.ClientIP())
 
 	userRepo := repository.NewUserRepository()
-	dbUser, err := userRepo.FindByEmailOrUsername(identifier)
+	dbUser, err := userRepo.FindByEmail(email)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "用户不存在或密码错误"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid email or password"})
 		return
 	}
 
-	// 转换为models.User
 	user := models.User{
 		UID:              int(dbUser.UID),
 		Username:         dbUser.Username,
@@ -168,43 +151,38 @@ func Login(c *gin.Context) {
 		FrozenUntil:      dbUser.FrozenUntil,
 	}
 
-	// 检查封禁状态
 	now := time.Now()
 	if user.BannedUntil != nil && now.Before(*user.BannedUntil) {
 		banReason := dbUser.BanReason
 		if banReason == "" {
-			banReason = "您由于不正当游戏而被封禁"
+			banReason = "account is banned due to policy violations"
 		}
 		c.JSON(http.StatusForbidden, gin.H{
-			"error":        fmt.Sprintf("您被封禁，理由：%s", banReason),
+			"error":        fmt.Sprintf("account banned: %s", banReason),
 			"banned_until": user.BannedUntil.Format(time.RFC3339),
 		})
 		return
 	}
 
-	// 检查冻结状态
 	if user.FrozenUntil != nil && now.Before(*user.FrozenUntil) {
 		c.JSON(http.StatusForbidden, gin.H{
-			"error":        "您的账号当前处于冷冻状态",
+			"error":        "account is temporarily frozen",
 			"frozen_until": user.FrozenUntil.Format(time.RFC3339),
 		})
 		return
 	}
 
-	// 密码登录
 	if !utils.CheckPassword(req.Password, user.PasswordHash) {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "用户名或密码错误"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid email or password"})
 		return
 	}
 
-	// 禁止AI账号登录（UID为负数的账号）
 	if user.UID < 0 {
-		log.Printf("[AI登录拦截] 尝试登录AI账号 UID=%d, IP=%s", user.UID, c.ClientIP())
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "AI账号无法登录"})
+		log.Printf("[AI login blocked] UID=%d, IP=%s", user.UID, c.ClientIP())
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "AI account cannot login"})
 		return
 	}
 
-	// 如果开启了2FA
 	if user.TwoFactorEnabled {
 		c.JSON(http.StatusOK, gin.H{
 			"two_factor_required": true,
@@ -213,21 +191,22 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	// 生成会话
 	sid, err := utils.CreateSession(user.UID, c.GetHeader("User-Agent"), c.ClientIP())
 	if err != nil || sid == "" {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建会话失败"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create session"})
 		return
 	}
 
-	// 生成token
-	token, err := utils.GenerateToken(int(user.UID), user.Username, user.IsAdmin, user.Role, sid)
+	loginIdentity := user.Email
+	if loginIdentity == "" {
+		loginIdentity = user.Username
+	}
+	token, err := utils.GenerateToken(int(user.UID), loginIdentity, user.IsAdmin, user.Role, sid)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成token失败"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate token"})
 		return
 	}
 
-	// 检查上次离线时间，判断是否是回归玩家（超过30天未活跃）
 	isReturningPlayer := false
 	daysSinceLastLogin := 0
 	if dbUser.LastOfflineAt != nil {
@@ -235,11 +214,10 @@ func Login(c *gin.Context) {
 		daysSinceLastLogin = int(daysSince)
 		if daysSince >= 30 {
 			isReturningPlayer = true
-			log.Printf("[老玩家回归] 用户 %s (UID=%d) 距离上次活跃 %d 天", user.Nickname, user.UID, daysSinceLastLogin)
+			log.Printf("[returning user] %s (UID=%d), inactive days=%d", user.Nickname, user.UID, daysSinceLastLogin)
 		}
 	}
 
-	// 4. 获取当前可用公告 (登陆触发器)
 	announcementRepo := repository.NewAnnouncementRepository()
 	dbAnnouncements, _ := announcementRepo.FindActive()
 	var announcements []models.Announcement
@@ -254,13 +232,14 @@ func Login(c *gin.Context) {
 		})
 	}
 
-	fmt.Printf("登录成功 - 用户: %s (UID=%d), SID: %s, IP: %s\n", user.Username, user.UID, sid, c.ClientIP())
+	fmt.Printf("login success - email: %s (UID=%d), SID: %s, IP: %s\n", user.Email, user.UID, sid, c.ClientIP())
 
 	c.JSON(http.StatusOK, gin.H{
 		"token": token,
 		"user": gin.H{
 			"uid":                user.UID,
 			"username":           user.Username,
+			"email":              user.Email,
 			"nickname":           user.Nickname,
 			"avatar":             user.Avatar,
 			"is_admin":           user.IsAdmin,
@@ -273,7 +252,6 @@ func Login(c *gin.Context) {
 	})
 }
 
-// 修改密码
 func ChangePassword(c *gin.Context) {
 	uid := c.GetInt("uid")
 
@@ -304,14 +282,15 @@ func ChangePassword(c *gin.Context) {
 			return
 		}
 		// 验证邮箱码
-		var vCode database.VerificationCode
-		err := database.DB.Where("email = ? AND code = ? AND type = ? AND expires_at > ?", user.Email, req.Code, "change_password", time.Now()).Order("created_at desc").First(&vCode).Error
+		consumed, err := consumeVerificationCode(user.Email, req.Code, "change_password")
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "验证码错误或已过期"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
 			return
 		}
-		// 验证成功，删除验证码
-		database.DB.Delete(&vCode)
+		if !consumed {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "verification code invalid or expired"})
+			return
+		}
 	} else if user.TwoFactorEnabled {
 		// 如果开启了2FA且没选择邮箱验证，强制使用2FA
 		if req.Code == "" {
@@ -359,57 +338,52 @@ func ChangePassword(c *gin.Context) {
 // 通过2FA重置密码
 func ResetPasswordBy2FA(c *gin.Context) {
 	var req struct {
-		Username    string `json:"username" binding:"required"`
+		Email       string `json:"email" binding:"required,email"`
 		Code        string `json:"code" binding:"required"`
 		NewPassword string `json:"new_password" binding:"required,min=6"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "参数无效"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid params"})
 		return
 	}
 
+	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
 	userRepo := repository.NewUserRepository()
-	dbUser, err := userRepo.FindByEmailOrUsername(req.Username)
+	dbUser, err := userRepo.FindByEmail(req.Email)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "账户核验失败，请核对用户名"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "account verification failed"})
 		return
 	}
 
 	if !dbUser.TwoFactorEnabled {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "该账户未开启 2FA，无法通过此方式找回。请联系管理员。"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "2FA is not enabled for this account"})
 		return
 	}
 
-	// 验证 2FA 码
 	valid, _ := totp.ValidateCustom(req.Code, dbUser.TwoFactorSecret, time.Now().UTC(), totp.ValidateOpts{
 		Period: 30,
 		Skew:   2,
 		Digits: 6,
 	})
-
 	if !valid {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "验证码无效"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid code"})
 		return
 	}
 
-	// 加密新密码
 	hashedPassword, err := utils.HashPassword(req.NewPassword)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "密码处理失败"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to process password"})
 		return
 	}
 
-	// 更新密码
-	err = userRepo.UpdatePassword(dbUser.UID, hashedPassword)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新密码失败"})
+	if err := userRepo.UpdatePassword(dbUser.UID, hashedPassword); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update password"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "密码重置成功，请使用新密码登录"})
+	c.JSON(http.StatusOK, gin.H{"message": "password reset success, please login again"})
 }
 
-// 更新头像
 func UpdateAvatar(c *gin.Context) {
 	uid := c.GetInt("uid")
 
@@ -508,6 +482,10 @@ func SendVerificationCode(c *gin.Context) {
 	err := database.DB.Where("email = ? AND created_at > ?", req.Email, time.Now().Add(-1*time.Minute)).Order("created_at desc").First(&latestCode).Error
 	if err == nil {
 		c.JSON(http.StatusTooManyRequests, gin.H{"error": "请求过快，请稍后再试"})
+		return
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
 		return
 	}
 
@@ -660,11 +638,13 @@ func ResetPasswordByEmail(c *gin.Context) {
 	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
 
 	// 验证验证码
-	var code database.VerificationCode
-	err := database.DB.Where("email = ? AND code = ? AND type = ? AND expires_at > ?",
-		req.Email, req.Code, "reset", time.Now()).First(&code).Error
+	consumed, err := consumeVerificationCode(req.Email, req.Code, "reset")
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "验证码错误或已过期"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		return
+	}
+	if !consumed {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "verification code invalid or expired"})
 		return
 	}
 
@@ -690,7 +670,6 @@ func ResetPasswordByEmail(c *gin.Context) {
 	}
 
 	// 成功后删除验证码
-	database.DB.Delete(&code)
 
 	// 强制登出所有会话
 	sessionRepo := repository.NewSessionRepository()
@@ -728,20 +707,24 @@ func ChangeEmail(c *gin.Context) {
 	}
 
 	// 1. 验证原邮箱验证码
-	var oldCode database.VerificationCode
-	err = database.DB.Where("email = ? AND code = ? AND type = ? AND expires_at > ?",
-		dbUser.Email, req.OldCode, "change_email_old", time.Now()).First(&oldCode).Error
+	oldConsumed, err := consumeVerificationCode(dbUser.Email, req.OldCode, "change_email_old")
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "原邮箱验证码错误或已过期"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		return
+	}
+	if !oldConsumed {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "verification code invalid or expired"})
 		return
 	}
 
 	// 2. 验证新邮箱验证码
-	var newCode database.VerificationCode
-	err = database.DB.Where("email = ? AND code = ? AND type = ? AND expires_at > ?",
-		req.NewEmail, req.NewCode, "change_email_new", time.Now()).First(&newCode).Error
+	newConsumed, err := consumeVerificationCode(req.NewEmail, req.NewCode, "change_email_new")
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "新邮箱验证码错误或已过期"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		return
+	}
+	if !newConsumed {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "verification code invalid or expired"})
 		return
 	}
 
@@ -761,8 +744,6 @@ func ChangeEmail(c *gin.Context) {
 	}
 
 	// 成功后删除验证码
-	database.DB.Delete(&oldCode)
-	database.DB.Delete(&newCode)
 
 	c.JSON(http.StatusOK, gin.H{"message": "邮箱地址已更新"})
 }
@@ -789,15 +770,15 @@ func DeleteAccount(c *gin.Context) {
 
 	if utils.IsSMTPConfigured() {
 		// 验证码校验
-		var code database.VerificationCode
-		err = database.DB.Where("email = ? AND code = ? AND type = ? AND expires_at > ?",
-			user.Email, req.Code, "delete_account", time.Now()).First(&code).Error
+		consumed, err := consumeVerificationCode(user.Email, req.Code, "delete_account")
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "验证码错误或已过期"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
 			return
 		}
-		// 校验成功后删除验证码
-		database.DB.Delete(&code)
+		if !consumed {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "verification code invalid or expired"})
+			return
+		}
 	}
 
 	err = userRepo.Delete(uint(uid))
@@ -901,7 +882,6 @@ func GetUserInfo(c *gin.Context) {
 	if uid < 0 {
 		c.JSON(http.StatusOK, gin.H{
 			"uid":      uid,
-			"username": c.GetString("username"),
 			"nickname": "AI研究员",
 			"role":     "ai",
 			"points":   1000,
@@ -975,7 +955,10 @@ func SearchUsers(c *gin.Context) {
 
 	// 预先获取等级配置以避免循环查询
 	var levelConfigs []database.LevelConfig
-	database.DB.Find(&levelConfigs)
+	if err := database.DB.Find(&levelConfigs).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		return
+	}
 	configMap := make(map[int]database.LevelConfig)
 	for _, conf := range levelConfigs {
 		configMap[conf.Level] = conf
@@ -998,9 +981,15 @@ func SearchUsers(c *gin.Context) {
 
 		// 计算排名
 		var rank int64
-		database.DB.Model(&database.User{}).Where("points > ?", user.Points).Count(&rank)
+		if err := database.DB.Model(&database.User{}).Where("points > ?", user.Points).Count(&rank).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+			return
+		}
 		var monthlyRank int64
-		database.DB.Model(&database.User{}).Where("monthly_points > ?", user.MonthlyPoints).Count(&monthlyRank)
+		if err := database.DB.Model(&database.User{}).Where("monthly_points > ?", user.MonthlyPoints).Count(&monthlyRank).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+			return
+		}
 
 		conf := configMap[user.Level]
 		result = append(result, map[string]interface{}{

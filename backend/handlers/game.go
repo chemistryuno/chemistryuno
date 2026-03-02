@@ -1,4 +1,4 @@
-﻿package handlers
+package handlers
 
 import (
 	"chemistryuno/backend/game"
@@ -58,8 +58,8 @@ func CreateRoom(c *gin.Context) {
 		AIBackfillDifficulty int  `json:"ai_backfill_difficulty"` // 补位AI难度
 
 		// 等级匹配系统
-		IsRanked   bool `json:"is_ranked"`    // 是否为排位模式
-		LevelRange int  `json:"level_range"`  // 允许的等级范围（默认5）
+		IsRanked   bool `json:"is_ranked"`   // 是否为排位模式
+		LevelRange int  `json:"level_range"` // 允许的等级范围（默认5）
 
 		// 教学脚本系统
 		TutorialScript bool `json:"tutorial_script"` // 是否启用脚本化教学
@@ -104,9 +104,8 @@ func CreateRoom(c *gin.Context) {
 	}
 
 	uid := c.GetInt("uid")
-	username := c.GetString("username")
 
-	room, err := game.CreateRoomWithKey(req.Name, uid, username, req.MaxPlayers, req.DeckID, req.IsPointsMode, req.IsPrivate, req.AccessKey, req.IsPvE, req.PvEDifficulty, req.AICount, req.EnableAIBackfill, req.AIBackfillDifficulty, req.IsRanked, req.LevelRange, req.TutorialScript)
+	room, err := game.CreateRoomWithKey(req.Name, uid, req.MaxPlayers, req.DeckID, req.IsPointsMode, req.IsPrivate, req.AccessKey, req.IsPvE, req.PvEDifficulty, req.AICount, req.EnableAIBackfill, req.AIBackfillDifficulty, req.IsRanked, req.LevelRange, req.TutorialScript)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -119,12 +118,11 @@ func CreateRoom(c *gin.Context) {
 func JoinRoom(c *gin.Context) {
 	roomID := c.Param("id")
 	uid := c.GetInt("uid")
-	username := c.GetString("username")
 
 	// 从查询参数获取访问密钥
 	accessKey := c.Query("key")
 
-	err := game.JoinRoomWithKey(roomID, uid, username, accessKey)
+	err := game.JoinRoomWithKey(roomID, uid, accessKey)
 	if err != nil {
 		if err.Error() == "房间不存在" {
 			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
@@ -254,7 +252,6 @@ func PlayCard(c *gin.Context) {
 	}
 
 	broadcastUpdate(roomID)
-	game.ResetPlayerHosted(roomID, uid)
 	c.JSON(http.StatusOK, gin.H{"message": "出牌成功"})
 }
 
@@ -274,7 +271,6 @@ func DrawCard(c *gin.Context) {
 	}
 
 	broadcastUpdate(roomID)
-	game.ResetPlayerHosted(roomID, uid)
 	c.JSON(http.StatusOK, gin.H{"message": "摸牌成功"})
 }
 
@@ -339,7 +335,6 @@ func DoublePlay(c *gin.Context) {
 	}
 
 	broadcastUpdate(roomID)
-	game.ResetPlayerHosted(roomID, uid)
 	c.JSON(http.StatusOK, gin.H{"message": "双联反应发动成功！"})
 }
 
@@ -355,12 +350,13 @@ func InitiateDuel(c *gin.Context) {
 	}
 
 	challengerUID := c.GetInt("uid")
-	challengerName := c.GetString("username")
-	challengerNickname := challengerName
+	challengerName := ""
+	challengerNickname := "玩家"
 
 	// 获取挑战者完整信息
 	cUser, err := repository.UserRepo.FindByUID(uint(challengerUID))
 	if err == nil && cUser != nil {
+		challengerName = cUser.Username
 		challengerNickname = cUser.Nickname
 	}
 
@@ -432,12 +428,13 @@ func RespondToDuel(c *gin.Context) {
 	}
 
 	responderUID := c.GetInt("uid")
-	responderName := c.GetString("username")
-	responderNickname := responderName // 默认使用用户名
+	responderName := ""
+	responderNickname := "玩家" // 默认
 
 	// 获取完整用户信息以获取昵称
 	user, err := repository.UserRepo.FindByUID(uint(responderUID))
 	if err == nil && user != nil {
+		responderName = user.Username
 		responderNickname = user.Nickname
 	}
 
@@ -448,7 +445,7 @@ func RespondToDuel(c *gin.Context) {
 		websocket.GlobalHub.SendToUID(challengerUID, websocket.Message{
 			Type: "duel_declined",
 			Data: gin.H{
-				"username": responderName,
+				"uid":      responderUID,
 				"nickname": responderNickname,
 			},
 		})

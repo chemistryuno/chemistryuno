@@ -47,7 +47,7 @@ func AuthMiddleware() gin.HandlerFunc {
 
 		// 强制要求 SID 存在（防止旧版 Token 或非法 Token 绕过会话检查）
 		if claims.SID == "" {
-			log.Printf("[强制踢出] Token中缺少SID: UID=%d, Username=%s, IP=%s", claims.UID, claims.Username, c.ClientIP())
+			log.Printf("[强制踢出] Token中缺少SID: UID=%d, IP=%s", claims.UID, c.ClientIP())
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "认证信息不完整，请重新登录"})
 			c.Abort()
 			return
@@ -57,7 +57,6 @@ func AuthMiddleware() gin.HandlerFunc {
 		if claims.UID < 0 {
 			// 将用户信息存入上下文
 			c.Set("uid", claims.UID)
-			c.Set("username", claims.Username)
 			c.Set("is_admin", claims.IsAdmin)
 			c.Set("role", claims.Role)
 			c.Next()
@@ -85,7 +84,6 @@ func AuthMiddleware() gin.HandlerFunc {
 
 		// 将用户信息存入上下文
 		c.Set("uid", claims.UID)
-		c.Set("username", claims.Username)
 		c.Set("is_admin", claims.IsAdmin)
 		c.Set("role", claims.Role)
 		c.Set("sid", claims.SID)

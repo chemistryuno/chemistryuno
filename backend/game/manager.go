@@ -376,16 +376,7 @@ func IsPlayerIdle(uid int) bool {
 
 // 初始化默认牌组配置
 func getDefaultDeckConfig() map[string]int {
-	return map[string]int{
-		"H": 12, "O": 12,
-		"C": 4, "N": 4, "F": 4, "Na": 4, "Mg": 4, "Al": 4,
-		"Si": 4, "P": 4, "S": 4, "Cl": 4, "K": 4, "Ca": 4,
-		"Mn": 4, "Fe": 4, "Cu": 4, "Zn": 4, "Br": 4, "I": 4, "Ag": 4,
-		"+2": 8, "+4": 4,
-		"He": 1, "Ne": 1, "Ar": 1, "Kr": 1,
-		"Au": 4,
-		// "Choice": 4,  // 已移除
-	}
+	return BuiltinDeckDefaults()
 }
 
 // 获取当前全局牌组配置
@@ -400,16 +391,24 @@ func getGlobalDeckConfigFromDB() (map[string]int, string, int) {
 	if err := json.Unmarshal([]byte(deck.Cards), &cards); err != nil {
 		return getDefaultDeckConfig(), "默认牌组", 10
 	}
-	return cards, deck.Name, deck.InitialCards
+	normalizedCards, _ := NormalizeBuiltinDeckCards(cards)
+	if len(normalizedCards) == 0 {
+		normalizedCards = getDefaultDeckConfig()
+	}
+	initialCards := deck.InitialCards
+	if initialCards <= 0 {
+		initialCards = 10
+	}
+	return normalizedCards, deck.Name, initialCards
 }
 
 // 创建房间
-func CreateRoom(name string, creatorUID int, creatorName string, maxPlayers int, deckID int, isPointsMode bool, isPrivate bool) (*models.Room, error) {
-	return CreateRoomWithKey(name, creatorUID, creatorName, maxPlayers, deckID, isPointsMode, isPrivate, "", false, 0, 0, false, 0, false, 5, false)
+func CreateRoom(name string, creatorUID int, maxPlayers int, deckID int, isPointsMode bool, isPrivate bool) (*models.Room, error) {
+	return CreateRoomWithKey(name, creatorUID, maxPlayers, deckID, isPointsMode, isPrivate, "", false, 0, 0, false, 0, false, 5, false)
 }
 
 // 创建房间（支持自定义访问密钥）
-func CreateRoomWithKey(name string, creatorUID int, creatorName string, maxPlayers int, deckID int, isPointsMode bool, isPrivate bool, customKey string, isPvE bool, difficulty int, aiCount int, enableAIBackfill bool, aiBackfillDifficulty int, isRanked bool, levelRange int, tutorialScript bool) (*models.Room, error) {
+func CreateRoomWithKey(name string, creatorUID int, maxPlayers int, deckID int, isPointsMode bool, isPrivate bool, customKey string, isPvE bool, difficulty int, aiCount int, enableAIBackfill bool, aiBackfillDifficulty int, isRanked bool, levelRange int, tutorialScript bool) (*models.Room, error) {
 	if isPointsMode && isPrivate && !isPvE {
 		return nil, errors.New("积分模式下不可创建私密房间")
 	}
@@ -477,12 +476,26 @@ func CreateRoomWithKey(name string, creatorUID int, creatorName string, maxPlaye
 				deckConfig.IsGlobal = true
 				deckConfig.ID = 1
 			} else {
-				deckConfig.Cards = cards
+				normalizedCards, _ := NormalizeBuiltinDeckCards(cards)
+				if len(normalizedCards) == 0 {
+					cards, dname, initialCards := getGlobalDeckConfigFromDB()
+					deckConfig.Cards = cards
+					deckConfig.Name = dname
+					deckConfig.InitialCards = initialCards
+					deckConfig.IsGlobal = true
+					deckConfig.ID = 1
+				} else {
+					deckConfig.Cards = normalizedCards
+				}
 			}
 		}
 	}
 
 	// 生成私密房间访问密钥
+	if deckConfig.InitialCards <= 0 {
+		deckConfig.InitialCards = 10
+	}
+
 	var accessKey string
 	if isPrivate {
 		if customKey != "" {
@@ -740,34 +753,6 @@ func GetRoomStatus(roomID string) (exists bool, status string) {
 	}
 
 	return true, gr.Room.Status
-}
-
-// ResetPlayerHosted 解除玩家的托管状态
-func ResetPlayerHosted(roomID string, uid int) {
-	roomMutex.RLock()
-	gameRoom, exists := rooms[roomID]
-	roomMutex.RUnlock()
-
-	if !exists {
-		return
-	}
-
-	gameRoom.mutex.Lock()
-	defer gameRoom.mutex.Unlock()
-
-	if gameRoom.GameState == nil {
-		return
-	}
-
-	for i := range gameRoom.GameState.Players {
-		if gameRoom.GameState.Players[i].UID == uid {
-			if gameRoom.GameState.Players[i].IsHosted {
-				gameRoom.GameState.Players[i].IsHosted = false
-				log.Printf("[Game] 🔓 玩家 %s (%d) 主动操作，解除托管", gameRoom.GameState.Players[i].Nickname, uid)
-			}
-			break
-		}
-	}
 }
 
 // 积分结算逻辑
@@ -1111,10 +1096,10 @@ func (gr *GameRoom) CheckNextTurnAI() {
 	}
 
 	currentPlayer := gr.GameState.Players[currentPlayerIdx]
-	shouldTrigger := currentPlayer.UID < 0 || currentPlayer.IsHosted
+	shouldTrigger := currentPlayer.UID < 0
 	gr.mutex.RUnlock()
 
-	// 如果是 AI 或托管，触发思考逻辑
+	// 如果是 AI，触发思考逻辑
 	if shouldTrigger {
 		gr.TriggerAITurn()
 	}
@@ -1306,12 +1291,12 @@ func ToggleReady(roomID string, uid int) error {
 }
 
 // 加入房间
-func JoinRoom(roomID string, uid int, username string) error {
-	return JoinRoomWithKey(roomID, uid, username, "")
+func JoinRoom(roomID string, uid int) error {
+	return JoinRoomWithKey(roomID, uid, "")
 }
 
 // JoinRoomWithKey 携带密钥加入房间
-func JoinRoomWithKey(roomID string, uid int, username string, accessKey string) error {
+func JoinRoomWithKey(roomID string, uid int, accessKey string) error {
 	banned, until, reason, _ := isBanned(uid)
 	if banned {
 		if reason == "" {
@@ -1371,11 +1356,30 @@ func JoinRoomWithKey(roomID string, uid int, username string, accessKey string) 
 				delete(gameRoom.OfflineAt, uid)
 				wasOffline = true
 			}
-			// 只有在玩家之前处于离线状态时才广播更新和检查自动开始
-			if wasOffline {
+			ensurePvEReady := gameRoom.Room.IsPvE && gameRoom.Room.Status == "waiting"
+			if ensurePvEReady {
+				isReady := false
+				for _, readyUID := range gameRoom.Room.ReadyUIDs {
+					if readyUID == uid {
+						isReady = true
+						break
+					}
+				}
+				if !isReady {
+					gameRoom.Room.ReadyUIDs = append(gameRoom.Room.ReadyUIDs, uid)
+				}
+				if uid > 0 {
+					repository.UserRepo.UpdateRoomReadyStatus(uint(uid), true)
+				}
+			}
+
+			// 离线重连或 PvE 重进等待房时都需要重新检查自动开局
+			if wasOffline || ensurePvEReady {
 				gameRoom.checkAutoStart()
 				gameRoom.broadcastRoomUpdate()
-				emitPlayerJoin(roomID, uid, username, len(gameRoom.Room.Players), "reconnect")
+				if wasOffline {
+					emitPlayerJoin(roomID, uid, "", len(gameRoom.Room.Players), "reconnect")
+				}
 			}
 			return nil
 		}
@@ -1424,12 +1428,26 @@ func JoinRoomWithKey(roomID string, uid int, username string, accessKey string) 
 	}
 
 	gameRoom.Room.Players = append(gameRoom.Room.Players, uid)
-	if uid > 0 {
+	if gameRoom.Room.IsPvE {
+		isReady := false
+		for _, readyUID := range gameRoom.Room.ReadyUIDs {
+			if readyUID == uid {
+				isReady = true
+				break
+			}
+		}
+		if !isReady {
+			gameRoom.Room.ReadyUIDs = append(gameRoom.Room.ReadyUIDs, uid)
+		}
+		if uid > 0 {
+			repository.UserRepo.UpdateRoomReadyStatus(uint(uid), true)
+		}
+	} else if uid > 0 {
 		repository.UserRepo.UpdateRoomReadyStatus(uint(uid), false)
 	}
 	gameRoom.checkAutoStart()
 	gameRoom.broadcastRoomUpdate()
-	emitPlayerJoin(roomID, uid, username, len(gameRoom.Room.Players), "join_room")
+	emitPlayerJoin(roomID, uid, "", len(gameRoom.Room.Players), "join_room")
 	return nil
 }
 
@@ -1545,7 +1563,7 @@ func LeaveRoom(roomID string, uid int) error {
 		roomMutex.Unlock()
 		log.Printf("房间 %s 已空，已自动关闭并清理资源", roomID)
 	} else {
-		// 检查下一位是否是 AI (或者托管玩家)
+		// 检查下一位是否是 AI
 		go gameRoom.CheckNextTurnAI()
 		// 广播更新
 		gameRoom.broadcastRoomUpdate()
@@ -1644,6 +1662,24 @@ func StartGame(roomID string, uid int) error {
 	}
 
 	// 洗牌
+	// 插件牌由插件系统管理，不进入全局卡组配置；开局按插件默认数量自动注入。
+	pluginCardCount := make(map[string]int)
+	for _, pluginCard := range GetAllPluginCards() {
+		if pluginCard == nil || pluginCard.DefaultCount <= 0 {
+			continue
+		}
+		for i := 0; i < pluginCard.DefaultCount; i++ {
+			gameRoom.GameState.DrawPile = append(gameRoom.GameState.DrawPile, models.Card{
+				Type:  pluginCard.Symbol,
+				Count: 1,
+			})
+		}
+		pluginCardCount[pluginCard.Symbol] += pluginCard.DefaultCount
+	}
+	if len(pluginCardCount) > 0 {
+		log.Printf("[插件牌] 已注入插件牌到牌堆: %v", pluginCardCount)
+	}
+
 	rand.Shuffle(len(gameRoom.GameState.DrawPile), func(i, j int) {
 		gameRoom.GameState.DrawPile[i], gameRoom.GameState.DrawPile[j] =
 			gameRoom.GameState.DrawPile[j], gameRoom.GameState.DrawPile[i]
@@ -1693,6 +1729,19 @@ func StartGame(roomID string, uid int) error {
 	})
 	aiNameIdx := 0
 
+	// 批量预加载所有人类玩家信息，避免 N+1 查询
+	humanUIDs := make([]uint, 0)
+	for _, pid := range shuffledPlayers {
+		if pid >= 0 {
+			humanUIDs = append(humanUIDs, uint(pid))
+		}
+	}
+	userMap, err := repository.UserRepo.FindByUIDs(humanUIDs)
+	if err != nil {
+		log.Printf("[StartGame] ⚠️  批量加载玩家信息失败: %v，降级为逐个查询", err)
+		userMap = map[uint]*database.User{}
+	}
+
 	// 初始化玩家
 	for _, pid := range shuffledPlayers {
 		username := ""
@@ -1709,8 +1758,8 @@ func StartGame(roomID string, uid int) error {
 			}
 			avatar = "🤖"
 		} else {
-			user, err := repository.UserRepo.FindByUID(uint(pid))
-			if err != nil {
+			user := userMap[uint(pid)]
+			if user == nil {
 				username = fmt.Sprintf("研究员_%d", pid)
 				nickname = username
 				avatar = "🧪"
@@ -1735,7 +1784,6 @@ func StartGame(roomID string, uid int) error {
 			DoubleActionAvailable: false,
 			ActionProgress:        0,
 			IsAI:                  pid < 0,
-			IsHosted:              false, // 初始状态：非托管
 		}
 
 		// 从洗好的牌堆顶部抽取初始手牌（按配置的比例随机分配）
@@ -1759,35 +1807,18 @@ func StartGame(roomID string, uid int) error {
 	var initialCard models.Card
 	var foundBase bool
 
-	// 从 reactions 表获取所有已批准的反应
+	// 从 reactions 表获取所有已批准物质（仅读 r1/r2 列，避免全表加载）
 	reactionRepo := repository.NewReactionRepository()
-	approvedReactions, err := reactionRepo.FindApprovedReactions()
+	availableSubstances, err := reactionRepo.FindDistinctSubstances()
 
-	if err == nil && len(approvedReactions) > 0 {
-		// 提取所有 r1 和 r2 物质（去重）
-		substanceSet := make(map[string]bool)
-		for _, reaction := range approvedReactions {
-			if reaction.R1 != "" {
-				substanceSet[reaction.R1] = true
-			}
-			if reaction.R2 != "" {
-				substanceSet[reaction.R2] = true
-			}
-		}
-
-		// 转换为切片
-		availableSubstances := make([]string, 0, len(substanceSet))
-		for substance := range substanceSet {
-			availableSubstances = append(availableSubstances, substance)
-		}
-
+	if err == nil && len(availableSubstances) > 0 {
 		// 随机选择一个物质作为场上初始物质
 		if len(availableSubstances) > 0 {
 			randomIndex := rand.Intn(len(availableSubstances))
 			initialSubstance = availableSubstances[randomIndex]
 
-			log.Printf("[场上初始物质] 🎲 从 %d 个已批准反应中提取了 %d 种物质，随机选择: %s",
-				len(approvedReactions), len(availableSubstances), initialSubstance)
+			log.Printf("[场上初始物质] 🎲 已批准物质总数=%d，随机选择: %s",
+				len(availableSubstances), initialSubstance)
 
 			// 从牌堆中找出对应的卡牌作为"底座"
 			// 优先找非功能牌，且类型匹配的卡牌
@@ -1800,6 +1831,9 @@ func StartGame(roomID string, uid int) error {
 						isSpecial = true
 						break
 					}
+				}
+				if IsPluginCard(card.Type) {
+					isSpecial = true
 				}
 
 				// 优先选择与初始物质匹配的普通卡牌
@@ -1823,6 +1857,9 @@ func StartGame(roomID string, uid int) error {
 							isSpecial = true
 							break
 						}
+					}
+					if IsPluginCard(card.Type) {
+						isSpecial = true
 					}
 
 					if !isSpecial {
@@ -1852,7 +1889,8 @@ func StartGame(roomID string, uid int) error {
 	} else {
 		// 回退方案：如果 reactions 为空或没找到合适的底牌，从牌堆抽第一张非功能牌
 		log.Println("[场上初始物质] ⚠️  未找到合适的初始物质，使用备用方案")
-		for len(gameRoom.GameState.DrawPile) > 0 {
+		maxAttempts := len(gameRoom.GameState.DrawPile)
+		for attempts := 0; attempts < maxAttempts && len(gameRoom.GameState.DrawPile) > 0; attempts++ {
 			firstCard := gameRoom.GameState.DrawPile[0]
 			gameRoom.GameState.DrawPile = gameRoom.GameState.DrawPile[1:]
 
@@ -1863,6 +1901,9 @@ func StartGame(roomID string, uid int) error {
 					isSpecial = true
 					break
 				}
+			}
+			if IsPluginCard(firstCard.Type) {
+				isSpecial = true
 			}
 
 			if !isSpecial {
@@ -1878,6 +1919,9 @@ func StartGame(roomID string, uid int) error {
 			} else {
 				gameRoom.GameState.DrawPile = append(gameRoom.GameState.DrawPile, firstCard)
 			}
+		}
+		if gameRoom.GameState.LastCard == nil {
+			log.Printf("[场上初始物质] ⚠️  牌堆中未找到可作为底牌的普通牌，跳过初始底牌设置（draw_pile=%d）", len(gameRoom.GameState.DrawPile))
 		}
 	}
 
@@ -1954,7 +1998,6 @@ func initTutorialGame(gameRoom *GameRoom, roomID string) error {
 		DoubleActionAvailable: false,
 		ActionProgress:        0,
 		IsAI:                  false,
-		IsHosted:              false,
 	}
 
 	// 添加人类玩家手牌
@@ -1979,7 +2022,6 @@ func initTutorialGame(gameRoom *GameRoom, roomID string) error {
 		DoubleActionAvailable: false,
 		ActionProgress:        0,
 		IsAI:                  true,
-		IsHosted:              false,
 	}
 
 	// 添加AI手牌
@@ -2292,12 +2334,6 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 	}
 	if currentPlayer.UID != uid {
 		return errors.New("还没轮到你")
-	}
-
-	// 如果玩家主动出牌，解除托管状态（重要：防止AI接管人类玩家）
-	if currentPlayer.IsHosted && uid >= 0 {
-		currentPlayer.IsHosted = false
-		log.Printf("[Game] 🔓 玩家 %s (%d) 主动出牌，解除托管状态", currentPlayer.Nickname, uid)
 	}
 
 	// 若未指定substance，说明玩家单击了元素手牌
@@ -2761,8 +2797,66 @@ func getNextPlayer(state *models.GameState) int {
 	return state.CurrentPlayer
 }
 
+func buildFreshDrawPileFromConfig(gameRoom *GameRoom) []models.Card {
+	baseCards := gameRoom.Room.DeckConfig.Cards
+	if len(baseCards) == 0 {
+		baseCards = getDefaultDeckConfig()
+	}
+
+	freshPile := make([]models.Card, 0)
+	for cardType, count := range baseCards {
+		if count <= 0 {
+			continue
+		}
+		effect := getCardEffect(cardType)
+		for i := 0; i < count; i++ {
+			freshPile = append(freshPile, models.Card{
+				Type:   cardType,
+				Count:  1,
+				Effect: effect,
+			})
+		}
+	}
+
+	// 插件牌按默认数量注入新牌堆
+	for _, pluginCard := range GetAllPluginCards() {
+		if pluginCard == nil || pluginCard.DefaultCount <= 0 {
+			continue
+		}
+		for i := 0; i < pluginCard.DefaultCount; i++ {
+			freshPile = append(freshPile, models.Card{
+				Type:  pluginCard.Symbol,
+				Count: 1,
+			})
+		}
+	}
+
+	return freshPile
+}
+
+func shuffleCardsWithFreshSeed(cards []models.Card) int64 {
+	seed := int64(cryptoRandUint64() & 0x7fffffffffffffff)
+	if seed == 0 {
+		seed = time.Now().UnixNano()
+	}
+
+	rng := rand.New(rand.NewSource(seed))
+	rng.Shuffle(len(cards), func(i, j int) {
+		cards[i], cards[j] = cards[j], cards[i]
+	})
+	return seed
+}
+
 func reshuffleDeck(gameRoom *GameRoom) {
 	if len(gameRoom.GameState.AllUsedCards) == 0 {
+		// 彻底没有可回收牌时，重建一副新牌堆继续游戏。
+		freshPile := buildFreshDrawPileFromConfig(gameRoom)
+		if len(freshPile) == 0 {
+			return
+		}
+		seed := shuffleCardsWithFreshSeed(freshPile)
+		gameRoom.GameState.DrawPile = freshPile
+		log.Printf("[牌堆重建] ♻️ 牌堆已耗尽，已按配置重建新牌堆 %d 张（seed=%d）", len(freshPile), seed)
 		return
 	}
 	// 将池中卡牌放回摸牌堆
@@ -2838,12 +2932,6 @@ func DrawCard(roomID string, uid int, count int) error {
 	// 教学脚本关卡禁用摸牌，避免提示与操作不一致
 	if gameRoom.GameState.TutorialScriptMode {
 		return errors.New("教学关卡禁止摸牌，请按底部提示操作")
-	}
-
-	// 如果玩家主动摸牌，解除托管状态（重要：防止AI接管人类玩家）
-	if currentPlayer.IsHosted && uid >= 0 {
-		currentPlayer.IsHosted = false
-		log.Printf("[Game] 🔓 玩家 %s (%d) 主动摸牌，解除托管状态", currentPlayer.Nickname, uid)
 	}
 
 	actualCount := count
@@ -3227,12 +3315,6 @@ func DoublePlay(roomID string, uid int, sub1 string, sub2 string) error {
 		currentPlayer = gameRoom.GameState.Players[curIdx]
 	}
 
-	// 如果玩家主动发动双联反应，解除托管状态（重要：防止AI接管人类玩家）
-	if currentPlayer.IsHosted && uid >= 0 {
-		currentPlayer.IsHosted = false
-		log.Printf("[Game] 🔓 玩家 %s (%d) 主动发动双联反应，解除托管状态", currentPlayer.Nickname, uid)
-	}
-
 	// 🎓 教学脚本模式：当前脚本不允许双联反应
 	if gameRoom.GameState.TutorialScriptMode {
 		currentScriptStep := getTutorialScriptStep(gameRoom.GameState.TutorialCurrentStep)
@@ -3512,12 +3594,11 @@ func processRoomTimeout(roomID string) {
 
 	now := time.Now().UnixNano() / int64(time.Millisecond)
 	if gameRoom.GameState.TurnEndTime > 0 && now > gameRoom.GameState.TurnEndTime {
-		// 超时处理：强制摸牌并跳过，同时将真人玩家设为托管状态
+		// 超时处理：强制摸牌并跳过
 		previousTurnIndex := gameRoom.GameState.CurrentPlayer
 		currentPlayer := gameRoom.GameState.Players[gameRoom.GameState.CurrentPlayer]
 		if !currentPlayer.IsAI {
-			currentPlayer.IsHosted = true
-			log.Printf("[Game] ⚡ 玩家 %s (%d) 超时，进入自动托管模式", currentPlayer.Nickname, currentPlayer.UID)
+			log.Printf("[Game] ⚡ 玩家 %s (%d) 超时，自动摸牌并跳过本回合", currentPlayer.Nickname, currentPlayer.UID)
 		}
 
 		drawCount := 2
@@ -3541,7 +3622,7 @@ func processRoomTimeout(roomID string) {
 			gameRoom.GameState.AllowedAnyPlayer = -1
 		}
 
-		// 检查下一位是否是 AI (或者托管玩家)
+		// 检查下一位是否是 AI
 		emitTurnChanged(roomID, gameRoom.GameState, previousTurnIndex, "timeout_auto_draw")
 		go gameRoom.CheckNextTurnAI()
 

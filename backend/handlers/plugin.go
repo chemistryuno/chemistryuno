@@ -37,7 +37,30 @@ func ListPlugins(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取插件列表失败"})
 		return
 	}
-	c.JSON(http.StatusOK, plugins)
+
+	type pluginAdminView struct {
+		database.Plugin
+		CardCount       int  `json:"card_count"`
+		HasScript       bool `json:"has_script"`
+		HasClientScript bool `json:"has_client_script"`
+		HasServerScript bool `json:"has_server_script"`
+	}
+
+	result := make([]pluginAdminView, 0, len(plugins))
+	for _, p := range plugins {
+		cards, _ := repository.PluginRepo.GetCardsByPlugin(p.ID)
+		hasClient := strings.TrimSpace(p.Script) != ""
+		hasServer := strings.TrimSpace(p.ServerScript) != ""
+		result = append(result, pluginAdminView{
+			Plugin:          p,
+			CardCount:       len(cards),
+			HasScript:       hasClient,
+			HasClientScript: hasClient,
+			HasServerScript: hasServer,
+		})
+	}
+
+	c.JSON(http.StatusOK, result)
 }
 
 // CreatePlugin 创建插件
@@ -52,25 +75,44 @@ func CreatePlugin(c *gin.Context) {
 	}
 
 	var req struct {
-		Name        string `json:"name" binding:"required"`
-		Description string `json:"description"`
+		Name         string          `json:"name" binding:"required"`
+		Description  string          `json:"description"`
+		ConfigSchema json.RawMessage `json:"config_schema"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误: " + err.Error()})
 		return
 	}
 
+	normalizedSchema, parsedSchema, schemaErr := normalizePluginConfigSchema(req.ConfigSchema)
+	if schemaErr != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "config_schema 非法: " + schemaErr.Error()})
+		return
+	}
+
 	plugin := &database.Plugin{
-		Name:        req.Name,
-		Description: req.Description,
-		AuthorUID:   authorUID,
-		IsActive:    true,
-		CreatedAt:   time.Now(),
+		Name:         req.Name,
+		Description:  req.Description,
+		AuthorUID:    authorUID,
+		ConfigSchema: normalizedSchema,
+		IsActive:     true,
+		CreatedAt:    time.Now(),
 	}
 
 	if err := repository.PluginRepo.CreatePlugin(plugin); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建插件失败: " + err.Error()})
 		return
+	}
+
+	for _, field := range parsedSchema {
+		defaultValue := convertDefaultValue(field)
+		if defaultValue == "" {
+			continue
+		}
+		if err := upsertPluginSetting(plugin.ID, field.Key, defaultValue); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "初始化插件配置失败: " + err.Error()})
+			return
+		}
 	}
 
 	game.LoadPluginCards()
@@ -94,9 +136,10 @@ func UpdatePlugin(c *gin.Context) {
 	}
 
 	var req struct {
-		Name        *string `json:"name"`
-		Description *string `json:"description"`
-		IsActive    *bool   `json:"is_active"`
+		Name         *string          `json:"name"`
+		Description  *string          `json:"description"`
+		IsActive     *bool            `json:"is_active"`
+		ConfigSchema *json.RawMessage `json:"config_schema"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误: " + err.Error()})
@@ -111,6 +154,26 @@ func UpdatePlugin(c *gin.Context) {
 	}
 	if req.IsActive != nil {
 		plugin.IsActive = *req.IsActive
+	}
+	if req.ConfigSchema != nil {
+		normalizedSchema, parsedSchema, schemaErr := normalizePluginConfigSchema(*req.ConfigSchema)
+		if schemaErr != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "config_schema 非法: " + schemaErr.Error()})
+			return
+		}
+		plugin.ConfigSchema = normalizedSchema
+
+		// 对 schema 字段做默认值补齐，避免因更新 schema 后缺配置导致前端空白
+		for _, field := range parsedSchema {
+			defaultValue := convertDefaultValue(field)
+			if defaultValue == "" {
+				continue
+			}
+			if err := upsertPluginSetting(plugin.ID, field.Key, defaultValue); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "同步插件配置失败: " + err.Error()})
+				return
+			}
+		}
 	}
 
 	if err := repository.PluginRepo.UpdatePlugin(plugin); err != nil {
@@ -190,6 +253,16 @@ func CreatePluginCard(c *gin.Context) {
 	}
 
 	// 校验 effect_type
+	symbol := strings.ToUpper(strings.TrimSpace(req.Symbol))
+	if symbol == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "symbol cannot be empty"})
+		return
+	}
+	if isBuiltinDeckCardSymbol(symbol) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "symbol conflicts with builtin deck cards; use a dedicated plugin symbol"})
+		return
+	}
+
 	validTypes := map[string]bool{"swap": true, "force_play": true, "convert": true}
 	if !validTypes[req.EffectType] {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "effect_type 必须为 swap / force_play / convert"})
@@ -212,7 +285,7 @@ func CreatePluginCard(c *gin.Context) {
 
 	card := &database.PluginCard{
 		PluginID:     uint(pluginID),
-		Symbol:       req.Symbol,
+		Symbol:       symbol,
 		DisplayName:  req.DisplayName,
 		EffectType:   req.EffectType,
 		EffectConfig: string(req.EffectConfig),
@@ -266,6 +339,10 @@ func UpdatePluginCard(c *gin.Context) {
 			return
 		}
 		// 若 symbol 发生变更，检查新符号是否已被其他卡牌占用
+		if isBuiltinDeckCardSymbol(newSymbol) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "symbol conflicts with builtin deck cards; use a dedicated plugin symbol"})
+			return
+		}
 		if newSymbol != card.Symbol {
 			if existing, err := repository.PluginRepo.GetCardBySymbol(newSymbol); err == nil && existing != nil {
 				c.JSON(http.StatusConflict, gin.H{"error": fmt.Sprintf("symbol「%s」已被卡牌 ID %d 使用", newSymbol, existing.ID)})
@@ -393,4 +470,17 @@ func validateEffectConfig(effectType string, raw json.RawMessage) error {
 		}
 	}
 	return nil
+}
+
+func isBuiltinDeckCardSymbol(symbol string) bool {
+	trimmed := strings.TrimSpace(symbol)
+	if trimmed == "" {
+		return false
+	}
+	for builtinSymbol := range game.BuiltinDeckDefaults() {
+		if strings.EqualFold(trimmed, builtinSymbol) {
+			return true
+		}
+	}
+	return false
 }

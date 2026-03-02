@@ -3,11 +3,10 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { authAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
-import { Lock, User, FlaskConical, ShieldCheck, Zap, Loader2, Key, Mail, Send } from 'lucide-vue-next'
+import { Lock, FlaskConical, ShieldCheck, Zap, Loader2, Key, Mail, Send } from 'lucide-vue-next'
 import OAuthLogos from '../components/icons/OAuthLogos.vue'
 import websocket from '../utils/websocket'
 
-const username = ref('')
 const email = ref('')
 const nickname = ref('')
 const password = ref('')
@@ -132,6 +131,11 @@ const handleSendCode = async () => {
 const handleSubmit = async () => {
   error.value = ''
 
+  if (!email.value || !email.value.includes('@')) {
+    error.value = '请输入有效的邮箱地址'
+    return
+  }
+
   if (password.value !== confirmPassword.value) {
     error.value = '两次输入的密码不一致'
     return
@@ -146,8 +150,7 @@ const handleSubmit = async () => {
 
   try {
     await authAPI.register({
-      username: smtpEnabled.value ? undefined : username.value,
-      email: smtpEnabled.value ? email.value : undefined,
+      email: email.value,
       code: smtpEnabled.value ? code.value : undefined,
       nickname: nickname.value,
       password: password.value,
@@ -185,20 +188,7 @@ const handleSubmit = async () => {
               {{ error }}
             </div>
 
-            <div v-if="!smtpEnabled" class="relative group">
-              <div class="absolute left-0 pl-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-cyan-500 transition-colors pointer-events-none">
-                <User class="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              </div>
-              <input
-                v-model="username"
-                type="text"
-                required
-                class="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-slate-100 pl-9 pr-2.5 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none transition-all placeholder:text-slate-500/50 text-xs sm:text-sm font-bold"
-                placeholder="设定登录名 (Username)"
-              />
-            </div>
-
-            <div v-else class="space-y-2.5 sm:space-y-3">
+            <div class="space-y-2.5 sm:space-y-3">
               <div class="relative group">
                 <div class="absolute left-0 pl-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-cyan-500 transition-colors pointer-events-none">
                   <Mail class="w-3.5 h-3.5 sm:w-4 sm:h-4" />
@@ -212,7 +202,7 @@ const handleSubmit = async () => {
                 />
               </div>
 
-              <div class="relative group flex gap-2">
+              <div v-if="smtpEnabled" class="relative group flex gap-2">
                 <div class="relative flex-1 group">
                   <div class="absolute left-0 pl-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-cyan-500 transition-colors pointer-events-none">
                     <ShieldCheck class="w-3.5 h-3.5 sm:w-4 sm:h-4" />

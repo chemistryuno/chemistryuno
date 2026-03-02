@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { User, Lock, Fingerprint, Loader2, Eye, EyeOff, Mail, Shield, AlertTriangle } from 'lucide-vue-next'
+import { Lock, Fingerprint, Loader2, Eye, EyeOff, Mail, Shield, AlertTriangle } from 'lucide-vue-next'
 import { authAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
 
@@ -11,12 +11,12 @@ defineProps<{
 
 const emit = defineEmits<{
   (e: 'close'): void
-  (e: 'submit', username: string, code: string, newPassword: string): void
+  (e: 'submit', email: string, code: string, newPassword: string): void
 }>()
 
 const dialog = useDialog()
 const smtpEnabled = ref(false)
-const username = ref('')
+const email = ref('')
 
 const code = ref('')
 const newPassword = ref('')
@@ -40,14 +40,14 @@ onMounted(async () => {
 })
 
 const handleSendCode = async () => {
-  if (!username.value) {
+  if (!email.value) {
     alert('请输入您的注册邮箱')
     return
   }
 
   emailLoading.value = true
   try {
-    await authAPI.sendCode(username.value, 'reset')
+    await authAPI.sendCode(email.value, 'reset')
     dialog.showAlert('验证码已发送至您的电子邮箱，请在10分钟内完成重置。', '发送成功')
     countdown.value = 60
     const timer = setInterval(() => {
@@ -71,7 +71,7 @@ const handleReset = async () => {
     emailLoading.value = true
     try {
       await authAPI.resetPasswordByEmail({
-        email: username.value,
+        email: email.value,
         code: code.value,
         new_password: newPassword.value
       })
@@ -85,7 +85,7 @@ const handleReset = async () => {
     return
   }
   
-  emit('submit', username.value, code.value, newPassword.value)
+  emit('submit', email.value, code.value, newPassword.value)
 }
 </script>
 
@@ -141,9 +141,9 @@ const handleReset = async () => {
       <form @submit.prevent="handleReset" class="space-y-4">
         <div class="space-y-4">
           <div class="relative group">
-            <component :is="recoveryMode === 'email' ? Mail : User" class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500 group-focus-within:text-cyan-500 transition-colors" />
+            <Mail class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500 group-focus-within:text-cyan-500 transition-colors" />
             <input
-              v-model="username"
+              v-model="email"
               type="text"
               :placeholder="recoveryMode === 'email' ? '实验室注册邮箱' : '研究员登录名'"
               class="w-full bg-slate-50/50 dark:bg-black/40 border border-slate-200 dark:border-white/10 focus:border-cyan-500/50 rounded-xl py-4 pl-12 pr-5 outline-none transition-all text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 font-bold text-sm"

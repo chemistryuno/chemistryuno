@@ -33,12 +33,11 @@ func (gr *GameRoom) TriggerAITurn() {
 		return
 	}
 	currentPlayer := gameRoom.GameState.Players[gameRoom.GameState.CurrentPlayer]
-	// 托管逻辑：如果是人类玩家但处于托管状态，或者是 AI 玩家，则继续
 	if currentPlayer.UID != targetUID {
 		gameRoom.mutex.Unlock()
 		return
 	}
-	if !currentPlayer.IsAI && !currentPlayer.IsHosted {
+	if !currentPlayer.IsAI {
 		gameRoom.mutex.Unlock()
 		return
 	}
@@ -65,12 +64,12 @@ func (gr *GameRoom) TriggerAITurn() {
 
 	// 1. 难度判定：决定是否"尝试"寻找最优解
 	difficulty := gameRoom.Room.PvEDifficulty
-	// 如果不是 PvE 房间而是托管或 AI 补位，尝试获取补位难度
+	// 如果不是 PvE 房间，尝试获取 AI 补位难度
 	if !gameRoom.Room.IsPvE {
 		if gameRoom.Room.EnableAIBackfill {
 			difficulty = gameRoom.Room.AIBackfillDifficulty
 		} else {
-			// 纯人类房间的托管 AI，给一个中等偏上的默认难度 (70)，避免托管时太蠢
+			// 兜底难度
 			difficulty = 70
 		}
 	}
@@ -350,7 +349,7 @@ func (gr *GameRoom) aiTryPlayCard(player *models.PlayerState) bool {
 		if gr.Room.EnableAIBackfill {
 			difficulty = gr.Room.AIBackfillDifficulty
 		} else {
-			difficulty = 70 // 托管默认难度
+			difficulty = 70 // 默认难度
 		}
 	}
 

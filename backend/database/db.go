@@ -1,12 +1,14 @@
-﻿package database
+package database
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -20,8 +22,15 @@ import (
 var (
 	DB          *gorm.DB
 	RedisClient *redis.Client
-	ctx         = context.Background()
+
+	redisMu           sync.RWMutex
+	redisOpts         *redis.Options
+	redisConfigured   bool
+	redisLastRetryAt  time.Time
+	redisRetryBackoff = 5 * time.Second
 )
+
+var errRedisDisabled = errors.New("redis is disabled")
 
 // InitDB 初始化GORM数据库连接和Redis
 func InitDB(dbPath string) error {
@@ -154,11 +163,16 @@ func InitDB(dbPath string) error {
 
 // initRedis 初始化Redis客户端（可选功能）
 func initRedis() {
-	redisAddr := os.Getenv("REDIS_ADDR")
+	if !getEnvBool("REDIS_ENABLED", true) {
+		setRedisConfig(nil, false)
+		setRedisClient(nil)
+		log.Println("ℹ️  Redis已禁用（REDIS_ENABLED=false）")
+		return
+	}
 
-	// 默认尝试连接本地Redis
-	if redisAddr == "" {
-		// 尝试常见的Redis端口
+	redisAddr := strings.TrimSpace(os.Getenv("REDIS_ADDR"))
+	if redisAddr == "" && getEnvBool("REDIS_AUTO_DISCOVER", false) {
+		// 可选自动探测（默认关闭），避免误连到非预期本地实例
 		defaultAddrs := []string{"localhost:6379", "127.0.0.1:6379"}
 		for _, addr := range defaultAddrs {
 			if tryConnectRedis(addr, "") {
@@ -167,23 +181,21 @@ func initRedis() {
 				break
 			}
 		}
-
-		if redisAddr == "" {
-			log.Println("ℹ️  Redis未配置（缓存功能已禁用，不影响核心功能）")
-			log.Println("💡 如需启用Redis，请设置环境变量: REDIS_ADDR=localhost:6379")
-			RedisClient = nil
-			return
-		}
+	}
+	if redisAddr == "" {
+		setRedisConfig(nil, false)
+		setRedisClient(nil)
+		log.Println("ℹ️  Redis未配置（缓存功能已禁用，不影响核心功能）")
+		log.Println("💡 如需启用Redis，请设置环境变量: REDIS_ADDR=localhost:6379")
+		return
 	}
 
 	redisPassword := os.Getenv("REDIS_PASSWORD")
-	redisDB := 0 // 使用默认数据库0
-
-	// 从环境变量获取连接池配置（可选）
+	redisDB := getEnvInt("REDIS_DB", 0)
 	poolSize := getEnvInt("REDIS_POOL_SIZE", 100)
 	minIdleConns := getEnvInt("REDIS_MIN_IDLE_CONNS", 10)
 
-	RedisClient = redis.NewClient(&redis.Options{
+	opts := &redis.Options{
 		Addr:         redisAddr,
 		Password:     redisPassword,
 		DB:           redisDB,
@@ -194,18 +206,112 @@ func initRedis() {
 		ReadTimeout:  1 * time.Second,
 		WriteTimeout: 1 * time.Second,
 		PoolTimeout:  2 * time.Second,
-	})
+	}
+	setRedisConfig(opts, true)
 
-	// 测试连接
-	pingCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-	defer cancel()
-
-	if err := RedisClient.Ping(pingCtx).Err(); err != nil {
-		log.Printf("⚠️  Redis连接失败: %v (缓存功能已禁用)", err)
-		RedisClient.Close()
-		RedisClient = nil
+	// 启动时尝试连接；失败后保留配置，后续按需重连
+	if err := reconnectRedis(context.Background(), 2*time.Second); err != nil {
+		log.Printf("⚠️  Redis连接失败: %v (稍后将自动重试)", err)
 	} else {
-		log.Printf("✅ Redis连接成功: %s", redisAddr)
+		log.Printf("✅ Redis连接成功: %s (db=%d)", redisAddr, redisDB)
+	}
+}
+
+// GetRedisStatus 返回 Redis 状态（disabled / ok / error）。
+// 当 Redis 已配置但连接断开时，会按退避策略尝试自动重连。
+func GetRedisStatus(parent context.Context) (string, error) {
+	if !IsRedisConfigured() {
+		return "disabled", nil
+	}
+	if parent == nil {
+		parent = context.Background()
+	}
+	pingCtx, cancel := context.WithTimeout(parent, 2*time.Second)
+	defer cancel()
+	if err := EnsureRedisConnection(pingCtx); err != nil {
+		return "error", err
+	}
+	return "ok", nil
+}
+
+// IsRedisConfigured 返回 Redis 是否已显式配置（并非是否当前可用）。
+func IsRedisConfigured() bool {
+	redisMu.RLock()
+	defer redisMu.RUnlock()
+	return redisConfigured && redisOpts != nil
+}
+
+// EnsureRedisConnection 确保 Redis 客户端可用。
+func EnsureRedisConnection(parent context.Context) error {
+	if parent == nil {
+		parent = context.Background()
+	}
+	if !IsRedisConfigured() {
+		return errRedisDisabled
+	}
+
+	redisMu.RLock()
+	client := RedisClient
+	redisMu.RUnlock()
+	if client != nil {
+		if err := client.Ping(parent).Err(); err == nil {
+			return nil
+		}
+		setRedisClient(nil)
+	}
+
+	return reconnectRedis(parent, 2*time.Second)
+}
+
+func reconnectRedis(parent context.Context, timeout time.Duration) error {
+	if parent == nil {
+		parent = context.Background()
+	}
+	redisMu.Lock()
+	if !redisConfigured || redisOpts == nil {
+		redisMu.Unlock()
+		return errRedisDisabled
+	}
+	if RedisClient != nil {
+		redisMu.Unlock()
+		return nil
+	}
+	if !redisLastRetryAt.IsZero() && time.Since(redisLastRetryAt) < redisRetryBackoff {
+		redisMu.Unlock()
+		return fmt.Errorf("redis reconnect backoff: retry later")
+	}
+	opts := *redisOpts
+	redisLastRetryAt = time.Now()
+	redisMu.Unlock()
+
+	client := redis.NewClient(&opts)
+	pingCtx, cancel := context.WithTimeout(parent, timeout)
+	defer cancel()
+	if err := client.Ping(pingCtx).Err(); err != nil {
+		_ = client.Close()
+		return err
+	}
+	setRedisClient(client)
+	return nil
+}
+
+func setRedisConfig(opts *redis.Options, configured bool) {
+	redisMu.Lock()
+	redisOpts = opts
+	redisConfigured = configured
+	if !configured {
+		redisLastRetryAt = time.Time{}
+	}
+	redisMu.Unlock()
+}
+
+func setRedisClient(client *redis.Client) {
+	redisMu.Lock()
+	old := RedisClient
+	RedisClient = client
+	redisMu.Unlock()
+	if old != nil && old != client {
+		_ = old.Close()
 	}
 }
 
@@ -234,6 +340,22 @@ func getEnvInt(key string, defaultValue int) int {
 		}
 	}
 	return defaultValue
+}
+
+// getEnvBool 从环境变量获取布尔值
+func getEnvBool(key string, defaultValue bool) bool {
+	value := strings.TrimSpace(strings.ToLower(os.Getenv(key)))
+	if value == "" {
+		return defaultValue
+	}
+	switch value {
+	case "1", "true", "yes", "on":
+		return true
+	case "0", "false", "no", "off":
+		return false
+	default:
+		return defaultValue
+	}
 }
 
 // getGormLogLevel 从环境变量获取 GORM 日志级别
@@ -275,7 +397,5 @@ func Close() {
 	if sqlDB, err := DB.DB(); err == nil {
 		sqlDB.Close()
 	}
-	if RedisClient != nil {
-		RedisClient.Close()
-	}
+	setRedisClient(nil)
 }

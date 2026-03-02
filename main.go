@@ -138,6 +138,9 @@ func main() {
 	// 标记名称等于化学式的物质为待完善
 	game.MarkIncompleteNameSubstances()
 
+	// 自动清理非法反应和物质数据
+	game.CleanInvalidData()
+
 	// 记录启动时间
 	startTime := time.Now()
 
@@ -199,17 +202,16 @@ func main() {
 			}
 
 			// 检查Redis连接
-			redisStatus := "disabled"
-			if database.RedisClient != nil {
-				if err := database.RedisClient.Ping(context.Background()).Err(); err == nil {
-					redisStatus = "ok"
-				} else {
-					redisStatus = "error"
-				}
+			redisStatus, _ := database.GetRedisStatus(context.Background())
+			healthStatus := "healthy"
+			if dbStatus != "ok" {
+				healthStatus = "error"
+			} else if redisStatus == "error" {
+				healthStatus = "degraded"
 			}
 
 			c.JSON(200, gin.H{
-				"status":    "healthy",
+				"status":    healthStatus,
 				"database":  dbStatus,
 				"redis":     redisStatus,
 				"uptime":    time.Since(startTime).String(),
@@ -351,6 +353,7 @@ func main() {
 			// 插件浏览（用户只读）
 			auth.GET("/plugins", handlers.GetPluginsWithCards)
 			auth.GET("/plugins/:id/script", handlers.GetPluginScript)
+			auth.GET("/plugins/:id/settings", handlers.GetPluginSettings)
 
 			// WebSocket
 			auth.GET("/ws", handleWebSocket)
@@ -370,40 +373,41 @@ func main() {
 
 		// 管理员路由
 		admin := api.Group("/admin")
-		admin.Use(middleware.AuthMiddleware(), middleware.AdminMiddleware())
+		admin.Use(middleware.AuthMiddleware(), middleware.CoWorkerMiddleware())
 		{
 			admin.GET("/users", handlers.GetAllUsers)
-			admin.POST("/users", handlers.CreateUser)
-			admin.DELETE("/users/:uid", handlers.DeleteUser)
-			admin.PUT("/users/:uid/password", handlers.AdminChangePassword)
-			admin.PUT("/users/:uid/role", handlers.PromoteUser)
+			admin.POST("/users", middleware.AdminMiddleware(), handlers.CreateUser)
+			admin.DELETE("/users/:uid", middleware.AdminMiddleware(), handlers.DeleteUser)
+			admin.PUT("/users/:uid/password", middleware.AdminMiddleware(), handlers.AdminChangePassword)
+			admin.PUT("/users/:uid/role", middleware.AdminMiddleware(), handlers.PromoteUser)
 			admin.POST("/users/ban", handlers.BanUser)
 			admin.POST("/users/kick", handlers.KickPlayer)
-			admin.GET("/deck-config", handlers.GetGlobalDeckConfig)
-			admin.PUT("/deck-config", handlers.UpdateGlobalDeckConfig)
-			admin.GET("/game-history", handlers.GetGameHistory)
-			admin.GET("/feedbacks", handlers.GetAllFeedbacks)
-			admin.PUT("/feedbacks/:id/status", handlers.UpdateFeedbackStatus)
-			admin.GET("/configs", handlers.GetSystemConfigs)
-			admin.PUT("/configs", handlers.UpdateSystemConfig)
-			admin.GET("/game-time-configs", handlers.GetGameTimeConfigs)
-			admin.PUT("/game-time-configs", handlers.UpdateGameTimeConfig)
+			admin.GET("/deck-config", middleware.AdminMiddleware(), handlers.GetGlobalDeckConfig)
+			admin.PUT("/deck-config", middleware.AdminMiddleware(), handlers.UpdateGlobalDeckConfig)
+			admin.POST("/deck-config/reset", middleware.AdminMiddleware(), handlers.ResetGlobalDeckConfig)
+			admin.GET("/game-history", middleware.AdminMiddleware(), handlers.GetGameHistory)
+			admin.GET("/feedbacks", middleware.AdminMiddleware(), handlers.GetAllFeedbacks)
+			admin.PUT("/feedbacks/:id/status", middleware.AdminMiddleware(), handlers.UpdateFeedbackStatus)
+			admin.GET("/configs", middleware.AdminMiddleware(), handlers.GetSystemConfigs)
+			admin.PUT("/configs", middleware.AdminMiddleware(), handlers.UpdateSystemConfig)
+			admin.GET("/game-time-configs", middleware.AdminMiddleware(), handlers.GetGameTimeConfigs)
+			admin.PUT("/game-time-configs", middleware.AdminMiddleware(), handlers.UpdateGameTimeConfig)
 			// 公告管理
-			admin.GET("/announcements", handlers.GetAllAnnouncements)
-			admin.POST("/announcements", handlers.CreateAnnouncement)
-			admin.PUT("/announcements/:id", handlers.UpdateAnnouncement)
-			admin.PUT("/announcements/:id/status", handlers.UpdateAnnouncementStatus)
-			admin.DELETE("/announcements/:id", handlers.DeleteAnnouncement)
+			admin.GET("/announcements", middleware.AdminMiddleware(), handlers.GetAllAnnouncements)
+			admin.POST("/announcements", middleware.AdminMiddleware(), handlers.CreateAnnouncement)
+			admin.PUT("/announcements/:id", middleware.AdminMiddleware(), handlers.UpdateAnnouncement)
+			admin.PUT("/announcements/:id/status", middleware.AdminMiddleware(), handlers.UpdateAnnouncementStatus)
+			admin.DELETE("/announcements/:id", middleware.AdminMiddleware(), handlers.DeleteAnnouncement)
 
 			// Excel导出路由（管理员专用）
-			admin.GET("/export/substances", handlers.ExportSubstancesToExcel)
-			admin.GET("/export/reactions", handlers.ExportReactionsToExcel)
-			admin.GET("/export/all", handlers.ExportAllDataToExcel)
+			admin.GET("/export/substances", middleware.AdminMiddleware(), handlers.ExportSubstancesToExcel)
+			admin.GET("/export/reactions", middleware.AdminMiddleware(), handlers.ExportReactionsToExcel)
+			admin.GET("/export/all", middleware.AdminMiddleware(), handlers.ExportAllDataToExcel)
 
 			// 批量审批路由（管理员专用）
-			admin.POST("/substances/batch-approve", handlers.BatchApproveSubstances)
-			admin.POST("/substances/batch-reject", handlers.BatchRejectSubstances)
-			admin.POST("/reactions/batch-approve", handlers.BatchApproveReactions)
+			admin.POST("/substances/batch-approve", middleware.AdminMiddleware(), handlers.BatchApproveSubstances)
+			admin.POST("/substances/batch-reject", middleware.AdminMiddleware(), handlers.BatchRejectSubstances)
+			admin.POST("/reactions/batch-approve", middleware.AdminMiddleware(), handlers.BatchApproveReactions)
 			admin.POST("/reactions/batch-reject", handlers.BatchRejectReactions)
 
 			// 插件系统管理
@@ -412,6 +416,9 @@ func main() {
 			admin.POST("/plugins/install", handlers.InstallPlugin)
 			admin.PUT("/plugins/:id", handlers.UpdatePlugin)
 			admin.DELETE("/plugins/:id", handlers.DeletePlugin)
+			admin.PUT("/plugins/:id/settings", handlers.UpdatePluginSettings)
+			admin.GET("/plugins/:id/settings/history", handlers.GetPluginSettingsHistory)
+			admin.POST("/plugins/:id/settings/rollback", handlers.RollbackPluginSettings)
 			admin.GET("/plugins/:id/cards", handlers.ListPluginCards)
 			admin.POST("/plugins/:id/cards", handlers.CreatePluginCard)
 			admin.PUT("/plugin-cards/:id", handlers.UpdatePluginCard)

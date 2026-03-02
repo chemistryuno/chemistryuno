@@ -54,15 +54,23 @@ const initialCardsEdit = ref(10)
 const activeTab = ref('users')
 const loading = ref(false)
 
-const tabs = [
-  { id: 'users', label: '研究员', icon: Users },
-  { id: 'deck', label: '核心库存', icon: Layers },
-  { id: 'special', label: '稀有元素', icon: Star },
-  { id: 'announcements', label: '广播推送', icon: Megaphone },
-  { id: 'feedbacks', label: '通讯报告', icon: MessageSquare },
-  { id: 'game-time', label: '时间配置', icon: Clock },
-  { id: 'history', label: '实验日志', icon: History }
-]
+const tabs = computed(() => {
+  const allTabs = [
+    { id: 'users', label: '研究员', icon: Users },
+    { id: 'deck', label: '核心库存', icon: Layers },
+    { id: 'special', label: '稀有元素', icon: Star },
+    { id: 'announcements', label: '广播推送', icon: Megaphone },
+    { id: 'feedbacks', label: '通讯报告', icon: MessageSquare },
+    { id: 'game-time', label: '时间配置', icon: Clock },
+    { id: 'history', label: '实验日志', icon: History }
+  ]
+  
+  const user = JSON.parse(localStorage.getItem('user') || '{}')
+  if (user.role === 'co-worker') {
+    return allTabs.filter(tab => tab.id === 'users')
+  }
+  return allTabs
+})
 
 const searchTerm = ref('')
 const showCreateAnnouncementModal = ref(false)
@@ -694,6 +702,7 @@ const filteredHistory = computed(() => {
                       <td class="px-4 py-2.5 text-right">
                         <div v-if="!u.is_admin" class="flex items-center gap-2 justify-end transition-all">
                           <button
+                            v-if="tabs.length > 1"
                             @click="handlePromoteUser(u.uid, u.role)"
                             class="p-2.5 bg-slate-100 dark:bg-white/5 hover:bg-violet-500/10 text-slate-400 hover:text-violet-600 rounded-xl transition-all border border-transparent hover:border-violet-500/20"
                             title="ELEVATE_AUTH"

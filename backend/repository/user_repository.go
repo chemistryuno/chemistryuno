@@ -32,6 +32,23 @@ func (r *UserRepository) FindByUID(uid uint) (*database.User, error) {
 	return &user, nil
 }
 
+// FindByUIDs 根据UID列表批量查找用户，返回 uid->User 映射
+func (r *UserRepository) FindByUIDs(uids []uint) (map[uint]*database.User, error) {
+	if len(uids) == 0 {
+		return map[uint]*database.User{}, nil
+	}
+	var users []database.User
+	err := r.db.Where("uid IN ?", uids).Find(&users).Error
+	if err != nil {
+		return nil, err
+	}
+	userMap := make(map[uint]*database.User, len(users))
+	for i := range users {
+		userMap[users[i].UID] = &users[i]
+	}
+	return userMap, nil
+}
+
 // FindByUsername 根据用户名查找用户
 func (r *UserRepository) FindByUsername(username string) (*database.User, error) {
 	var user database.User
@@ -356,15 +373,22 @@ func (r *UserRepository) GetAllUsers() ([]database.User, error) {
 
 // IncrementNegativePlayCount 增加消极游戏计数
 func (r *UserRepository) IncrementNegativePlayCount(uid uint) (int, error) {
-	var user database.User
-	err := r.db.First(&user, uid).Error
-	if err != nil {
-		return 0, err
+	updateResult := r.db.Model(&database.User{}).
+		Where("uid = ?", uid).
+		Update("negative_play_count", gorm.Expr("negative_play_count + 1"))
+	if updateResult.Error != nil {
+		return 0, updateResult.Error
+	}
+	if updateResult.RowsAffected == 0 {
+		return 0, gorm.ErrRecordNotFound
 	}
 
-	user.NegativePlayCount++
-	err = r.db.Save(&user).Error
-	return user.NegativePlayCount, err
+	var count int
+	err := r.db.Model(&database.User{}).
+		Select("negative_play_count").
+		Where("uid = ?", uid).
+		Scan(&count).Error
+	return count, err
 }
 
 // ResetNegativePlayCount 重置消极游戏计数
@@ -539,7 +563,12 @@ func (r *UserRepository) SearchUsers(query string) ([]database.User, error) {
 // GetLeaderboard 获取排行榜
 func (r *UserRepository) GetLeaderboard(orderBy string, limit int) ([]database.User, error) {
 	var users []database.User
-	err := r.db.Order(orderBy + " DESC").Limit(limit).Find(&users).Error
+	safeOrderBy := "points"
+	switch orderBy {
+	case "points", "monthly_points", "total_xp", "win_count", "total_games", "created_at", "uid":
+		safeOrderBy = orderBy
+	}
+	err := r.db.Order(safeOrderBy + " DESC").Limit(limit).Find(&users).Error
 	return users, err
 }
 

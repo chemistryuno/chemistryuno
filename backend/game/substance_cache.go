@@ -205,6 +205,8 @@ func SyncSubstancesFromReactions() {
 				EnsureSubstancesExist(database.DB, elements, 100000000)
 			}
 		}
+	} else {
+		log.Printf("[自动同步] 加载牌组配置失败: %v", err)
 	}
 
 	log.Println("[自动同步] 物质百科同步完成")
@@ -218,7 +220,10 @@ func EnsureSubstancesExist(tx *gorm.DB, formulas []string, creatorUID uint) {
 		}
 		f = NormalizeSubscripts(f)
 		var count int64
-		tx.Model(&database.Substance{}).Where("formula = ?", f).Count(&count)
+		if err := tx.Model(&database.Substance{}).Where("formula = ?", f).Count(&count).Error; err != nil {
+			log.Printf("[自动录入] 查询物质 %s 失败: %v", f, err)
+			continue
+		}
 		if count == 0 {
 			// 自动分析元素
 			elementsMap := ParseSubstanceForElements(f)
@@ -239,7 +244,9 @@ func EnsureSubstancesExist(tx *gorm.DB, formulas []string, creatorUID uint) {
 				log.Printf("[自动录入] 为 %s 创建物质失败: %v", f, err)
 			} else {
 				// 为新物质设置 group_id
-				tx.Model(&database.Substance{}).Where("id = ?", substance.ID).Update("group_id", substance.ID)
+				if err := tx.Model(&database.Substance{}).Where("id = ?", substance.ID).Update("group_id", substance.ID).Error; err != nil {
+					log.Printf("[自动录入] 为 %s 设置 group_id 失败: %v", f, err)
+				}
 				log.Printf("[自动录入] 成功将 %s 录入物质百科", f)
 			}
 		}

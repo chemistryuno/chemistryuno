@@ -21,11 +21,22 @@ func Setup2FA(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "未找到用户信息"})
 		return
 	}
-	username := c.GetString("username")
+
+	// 获取用户邮箱或昵称用于 TOTP 标识
+	user, err := repository.UserRepo.FindByUID(uint(uid))
+	if err != nil || user == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
+		return
+	}
+
+	accountName := user.Email
+	if accountName == "" {
+		accountName = user.Nickname
+	}
 
 	key, err := totp.Generate(totp.GenerateOpts{
 		Issuer:      "ChemistryUno",
-		AccountName: username,
+		AccountName: accountName,
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成2FA密钥失败"})
@@ -169,6 +180,7 @@ func Verify2FALogin(c *gin.Context) {
 	user := models.User{
 		UID:              int(dbUser.UID),
 		Username:         dbUser.Username,
+		Email:            dbUser.Email,
 		PasswordHash:     dbUser.Password,
 		Avatar:           dbUser.Avatar,
 		IsAdmin:          dbUser.IsAdmin,
@@ -228,7 +240,11 @@ func Verify2FALogin(c *gin.Context) {
 	}
 
 	// 生成token
-	token, err := utils.GenerateToken(int(user.UID), user.Username, user.IsAdmin, user.Role, sid)
+	loginIdentity := user.Email
+	if loginIdentity == "" {
+		loginIdentity = user.Username
+	}
+	token, err := utils.GenerateToken(int(user.UID), loginIdentity, user.IsAdmin, user.Role, sid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成token失败"})
 		return
@@ -253,6 +269,7 @@ func Verify2FALogin(c *gin.Context) {
 		"user": gin.H{
 			"uid":      user.UID,
 			"username": user.Username,
+			"email":    user.Email,
 			"avatar":   user.Avatar,
 			"is_admin": user.IsAdmin,
 			"role":     user.Role,

@@ -1,4 +1,4 @@
-﻿package models
+package models
 
 import (
 	"time"
@@ -50,10 +50,16 @@ func (u *User) WebAuthnID() []byte {
 }
 
 func (u *User) WebAuthnName() string {
+	if u.Email != "" {
+		return u.Email
+	}
 	return u.Username
 }
 
 func (u *User) WebAuthnDisplayName() string {
+	if u.Email != "" {
+		return u.Email
+	}
 	return u.Username
 }
 
@@ -81,16 +87,14 @@ type UserCredential struct {
 }
 
 type RegisterRequest struct {
-	Username string `json:"username"`
-	Email    string `json:"email"`
+	Email    string `json:"email" binding:"required,email"`
 	Nickname string `json:"nickname" binding:"required,min=1,max=20"`
 	Password string `json:"password" binding:"required,min=6"`
 	Code     string `json:"code"`
 }
 
 type LoginRequest struct {
-	Username string `json:"username"`
-	Email    string `json:"email"`
+	Email    string `json:"email" binding:"required,email"`
 	Password string `json:"password" binding:"required"`
 }
 

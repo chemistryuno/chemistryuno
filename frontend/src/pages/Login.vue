@@ -4,13 +4,13 @@ import { useRouter } from 'vue-router'
 import api, { authAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
 import feedback from '../utils/feedback'
-import { Beaker, Lock, User, Loader2, Fingerprint, Shield, Cpu, Mail, Eye, EyeOff } from 'lucide-vue-next'
+import { Beaker, Lock, Loader2, Fingerprint, Shield, Cpu, Mail, Eye, EyeOff } from 'lucide-vue-next'
 import ResetPassword2FAModal from '../components/ResetPassword2FAModal.vue'
 import OAuthLogos from '../components/icons/OAuthLogos.vue'
 import websocket from '../utils/websocket'
 import { get } from '@github/webauthn-json'
 
-const identifier = ref(localStorage.getItem('last_username') || '')
+const identifier = ref(localStorage.getItem('last_email') || '')
 const password = ref('')
 const showPassword = ref(false)
 
@@ -21,7 +21,6 @@ const resetLoading = ref(false)
 const tempUID = ref<number | null>(null)
 const error = ref('')
 const loading = ref(false)
-const smtpEnabled = ref(false)
 const githubEnabled = ref(false)
 const msEnabled = ref(false)
 const googleEnabled = ref(false)
@@ -32,7 +31,6 @@ const dialog = useDialog()
 onMounted(async () => {
   try {
     const res = await authAPI.getAuthConfig()
-    smtpEnabled.value = res.data.smtp_enabled
     githubEnabled.value = res.data.github_enabled
     msEnabled.value = res.data.ms_enabled
     googleEnabled.value = res.data.google_enabled
@@ -47,18 +45,18 @@ const handleForgotPassword = () => {
   showResetModal.value = true
 }
 
-const handleResetSubmit = async (username: string, code: string, newPw: string) => {
+const handleResetSubmit = async (email: string, code: string, newPw: string) => {
   resetLoading.value = true
   try {
     await authAPI.resetPasswordBy2FA({
-      username,
+      email,
       code,
       new_password: newPw
     })
     showResetModal.value = false
     dialog.showAlert('实验凭证已成功找回并更新，请尝试重新授权登录。', '协议更新成功')
   } catch (err: any) {
-    dialog.showAlert(err.response?.data?.error || '凭证验证失败，请核对用户名及动态验证码。', '协议冲突')
+    dialog.showAlert(err.response?.data?.error || '凭证验证失败，请核对邮箱及动态验证码。', '协议冲突')
   } finally {
     resetLoading.value = false
   }
@@ -69,12 +67,12 @@ const handleSubmit = async () => {
 
   loading.value = true
   
-  // 保存最后一次输入的用户名
-  localStorage.setItem('last_username', identifier.value)
+  // 保存最后一次输入的邮箱
+  localStorage.setItem('last_email', identifier.value)
 
   try {
     const response = await authAPI.login({
-      username: identifier.value,
+      email: identifier.value,
       password: password.value,
     })
     
@@ -175,7 +173,7 @@ const handleLoginSuccess = (token: string, user: any, announcements: any[] = [],
 const handleWebAuthnLogin = async () => {
   // 验证是否输入了用户名/邮箱
   if (!identifier.value || identifier.value.trim() === '') {
-    error.value = smtpEnabled.value ? '请先输入您的邮箱地址' : '请先输入您的用户名'
+    error.value = '请先输入您的邮箱地址'
     return
   }
 
@@ -315,18 +313,18 @@ const handleOAuthLogin = (provider: 'github' | 'ms' | 'google' | 'apple') => {
             <form @submit.prevent="handleSubmit" class="space-y-2 sm:space-y-2.5">
               <div class="space-y-0.5">
                   <label class="text-[10px] sm:text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">
-                    {{ smtpEnabled ? '电子邮箱' : '账号' }}
+                    电子邮箱
                   </label>
                   <div class="relative group">
                     <div class="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-400 dark:text-slate-500 group-focus-within:text-blue-500 transition-colors">
-                      <component :is="smtpEnabled ? Mail : User" class="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                      <Mail class="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     </div>
                     <input
                       v-model="identifier"
                       type="text"
                       required
                       class="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-slate-100 pl-9 pr-2.5 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all placeholder:text-slate-500/50 text-xs sm:text-sm font-bold"
-                      :placeholder="smtpEnabled ? '注册时的邮箱' : '请输入用户名'"
+                      placeholder="请输入邮箱"
                     />
                   </div>
               </div>

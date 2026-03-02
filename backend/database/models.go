@@ -1,4 +1,4 @@
-﻿package database
+package database
 
 import (
 	"database/sql/driver"
@@ -185,15 +185,30 @@ type Friendship struct {
 	ID           uint      `gorm:"primaryKey;autoIncrement" json:"id"`
 	UserUID      uint      `gorm:"not null;index:idx_friendship" json:"user_uid"`   // 发起方
 	FriendUID    uint      `gorm:"not null;index:idx_friendship" json:"friend_uid"` // 接收方
-	Status       string    `gorm:"default:pending;size:20" json:"status"`           // pending, accepted, declined
-	HelloMessage string    `gorm:"size:255" json:"hello_message"`                   // 发时附带的消息
-	UserRemark   string    `gorm:"size:100" json:"user_remark"`                     // UserUID 对 FriendUID 的备注
-	FriendRemark string    `gorm:"size:100" json:"friend_remark"`                   // FriendUID 对 UserUID 的备注
+	PairKey      string    `gorm:"size:50;not null;default:''" json:"-"`
+	Status       string    `gorm:"default:pending;size:20" json:"status"` // pending, accepted, declined
+	HelloMessage string    `gorm:"size:255" json:"hello_message"`         // 发时附带的消息
+	UserRemark   string    `gorm:"size:100" json:"user_remark"`           // UserUID 对 FriendUID 的备注
+	FriendRemark string    `gorm:"size:100" json:"friend_remark"`         // FriendUID 对 UserUID 的备注
 	CreatedAt    time.Time `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt    time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 
 	User   User `gorm:"foreignKey:UserUID" json:"-"`
 	Friend User `gorm:"foreignKey:FriendUID" json:"friend"`
+}
+
+func FriendshipPairKey(uid1, uid2 uint) string {
+	if uid1 < uid2 {
+		return fmt.Sprintf("%d:%d", uid1, uid2)
+	}
+	return fmt.Sprintf("%d:%d", uid2, uid1)
+}
+
+func (f *Friendship) BeforeCreate(tx *gorm.DB) error {
+	if f.PairKey == "" {
+		f.PairKey = FriendshipPairKey(f.UserUID, f.FriendUID)
+	}
+	return nil
 }
 
 func (Friendship) TableName() string {

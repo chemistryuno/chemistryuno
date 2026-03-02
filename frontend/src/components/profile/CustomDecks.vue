@@ -13,6 +13,17 @@ const newDeckName = ref('')
 const selectedElements = ref<Record<string, number>>({})
 const initialHandSize = ref(10)
 
+const BUILTIN_DEFAULT_CARDS: Record<string, number> = {
+  H: 12,
+  O: 12,
+  C: 4, N: 4, F: 4, Na: 4, Mg: 4, Al: 4,
+  Si: 4, P: 4, S: 4, Cl: 4, K: 4, Ca: 4,
+  Mn: 4, Fe: 4, Cu: 4, Zn: 4, Br: 4, I: 4, Ag: 4,
+  '+2': 8, '+4': 4,
+  He: 1, Ne: 1, Ar: 1, Kr: 1,
+  Au: 4
+}
+
 // 可选元素列表
 const ALL_ELEMENTS = [
   'H', 'He', 'C', 'N', 'O', 'F', 'Ne',
@@ -56,7 +67,7 @@ const openCreate = () => {
     selectedElements.value = { ...globalDeck.cards }
     initialHandSize.value = globalDeck.initial_cards || 10
   } else {
-    selectedElements.value = { 'H': 12, 'O': 12, 'C': 4, '+2': 8, '+4': 4 }
+    selectedElements.value = { ...BUILTIN_DEFAULT_CARDS }
     initialHandSize.value = 10
   }
 }
@@ -65,6 +76,7 @@ const copyDeck = (deck: any) => {
   editingDeck.value = { id: 0, name: '' }
   newDeckName.value = `${deck.name} (副本)`
   selectedElements.value = { ...deck.cards }
+  initialHandSize.value = deck.initial_cards || 10
 }
 
 const toggleElement = (el: string) => {

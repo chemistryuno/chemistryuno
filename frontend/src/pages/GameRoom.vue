@@ -12,6 +12,7 @@ import LevelUpAnimation from '../components/LevelUpAnimation.vue'
 import GameToast from '../components/GameToast.vue'
 import ChemicalKeyboard from '../components/ChemicalKeyboard.vue'
 import FeedbackSettings from '../components/FeedbackSettings.vue'
+import PingDisplay from '../components/PingDisplay.vue'
 import { getTutorialStep, TUTORIAL_TOTAL_STEPS } from '../utils/tutorialScript'
 import '../styles/mobile-game.css'
 
@@ -1723,10 +1724,10 @@ watch(() => gameState.value?.current_player, () => {
             <span class="text-[10px] font-black uppercase tracking-widest">{{ (roomInfo?.is_pve && isSpectator) ? '结算实验' : '' }}</span>
           </button>
           <div class="hidden xs:block">
-            <h2 class="text-xs-mobile font-black tracking-widest uppercase font-mono text-slate-400">Node: {{ id.substring(0, 6) }}</h2>
-            <div class="flex items-center gap-1">
-               <div :class="cn('w-1.5 h-1.5 sm:w-1 sm:h-1 rounded-full animate-pulse', roomInfo?.status === 'waiting' ? 'bg-amber-500' : 'bg-emerald-500')"></div>
-               <span class="text-xs-mobile font-black uppercase text-slate-500 tracking-tighter">{{ roomInfo?.status === 'waiting' ? 'Idle' : 'Active' }}</span>
+            <h2 class="text-xs-mobile font-black tracking-widest uppercase font-mono text-slate-400">Node: {{ roomInfo?.name || id.substring(0, 6) }}</h2>
+            <div class="flex items-center gap-1.5">
+               <span class="text-xs-mobile font-black uppercase text-slate-500 tracking-tighter">延迟</span>
+               <PingDisplay />
             </div>
           </div>
         </div>
@@ -2859,7 +2860,7 @@ watch(() => gameState.value?.current_player, () => {
               </div>
               <div class="p-3 bg-slate-50 dark:bg-white/5 rounded-xl border border-slate-200 dark:border-white/10">
                 <p class="text-[8px] text-slate-400 mb-1 uppercase tracking-wider">起始手牌</p>
-                <p class="text-[11px] font-black text-slate-900 dark:text-white">{{ roomInfo.deck_config.initial_cards || 7 }} 张</p>
+                <p class="text-[11px] font-black text-slate-900 dark:text-white">{{ roomInfo.deck_config.initial_cards || 10 }} 张</p>
               </div>
             </div>
             <div class="p-4 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl">

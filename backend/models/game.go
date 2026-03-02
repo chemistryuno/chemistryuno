@@ -1,4 +1,4 @@
-﻿package models
+package models
 
 import (
 	"encoding/json"
@@ -51,11 +51,11 @@ type Room struct {
 	BackfilledAIUIDs     []int `json:"backfilled_ai_uids"`     // 记录自动补充的AI UID列表
 
 	// 等级匹配系统
-	IsRanked   bool `json:"is_ranked"`    // 是否为排位模式（启用严格等级匹配）
-	LevelRange int  `json:"level_range"`  // 允许的等级范围（±N级）
-	MinLevel   int  `json:"min_level"`    // 允许的最低等级
-	MaxLevel   int  `json:"max_level"`    // 允许的最高等级
-	CreatedByUID int `json:"created_by_uid"` // 房主UID（用于计算等级范围）
+	IsRanked     bool `json:"is_ranked"`      // 是否为排位模式（启用严格等级匹配）
+	LevelRange   int  `json:"level_range"`    // 允许的等级范围（±N级）
+	MinLevel     int  `json:"min_level"`      // 允许的最低等级
+	MaxLevel     int  `json:"max_level"`      // 允许的最高等级
+	CreatedByUID int  `json:"created_by_uid"` // 房主UID（用于计算等级范围）
 
 	// 教学脚本系统
 	TutorialScript bool `json:"tutorial_script"` // 是否启用脚本化教学
@@ -141,7 +141,6 @@ type PlayerState struct {
 	DoubleActionAvailable bool   `json:"double_action_available"` // 是否可以使用双联反应（每2次普通行动可用1次）
 	ActionProgress        int    `json:"action_progress"`         // 行动进度（0->1->2(可用)）
 	IsAI                  bool   `json:"is_ai"`                   // 是否为 AI 玩家
-	IsHosted              bool   `json:"is_hosted"`               // 是否处于托管状态（真人玩家超时进入）
 }
 
 // 已出牌

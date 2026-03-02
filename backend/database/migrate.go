@@ -1,6 +1,7 @@
-﻿package database
+package database
 
 import (
+	"chemistryuno/backend/deckcfg"
 	"encoding/json"
 	"log"
 	"os"
@@ -54,6 +55,10 @@ func autoMigrate() error {
 	// 执行数据迁移逻辑 (特别是针对 Reaction 表的 R1/R2 结构升级)
 	if err := MigrateReactionsToR1R2(); err != nil {
 		log.Printf("⚠️  Reaction 数据迁移失败: %v", err)
+	}
+
+	if err := migrateFriendshipPairKey(); err != nil {
+		log.Printf("⚠️  Friendship pair key migration failed: %v", err)
 	}
 
 	// 修复可能存在的 R1/R2 顺序问题
@@ -182,6 +187,11 @@ func initDefaultData() error {
 			return err
 		}
 		log.Println("✅ 默认牌组配置创建成功")
+	}
+
+	// 兼容历史默认牌组：旧版本会把全局牌组写成“普通牌各 1 张，且无特殊牌”。
+	if err := migrateLegacyGlobalDeckConfig(); err != nil {
+		log.Printf("⚠️  兼容迁移默认牌组失败: %v", err)
 	}
 
 	// 初始化默认物质数据（如果需要）
@@ -356,19 +366,14 @@ func createDefaultAdmin() error {
 
 // createDefaultDeckConfig 创建默认全局牌组配置
 func createDefaultDeckConfig() error {
-	defaultCards := `{
-		"H": 12, "O": 12,
-		"C": 4, "N": 4, "F": 4, "Na": 4, "Mg": 4, "Al": 4,
-		"Si": 4, "P": 4, "S": 4, "Cl": 4, "K": 4, "Ca": 4,
-		"Mn": 4, "Fe": 4, "Cu": 4, "Zn": 4, "Br": 4, "I": 4, "Ag": 4,
-		"+2": 8, "+4": 4,
-		"He": 1, "Ne": 1, "Ar": 1, "Kr": 1,
-		"Au": 4
-	}`
+	defaultCards, err := json.Marshal(deckcfg.BuiltinDeckDefaults())
+	if err != nil {
+		return err
+	}
 
 	deckConfig := DeckConfig{
 		Name:         "默认牌组",
-		Cards:        []byte(defaultCards),
+		Cards:        defaultCards,
 		InitialCards: 10,
 		CreatedByUID: 100000000, // admin用户 (UID起始值为100000000)
 		IsGlobal:     true,
@@ -379,6 +384,55 @@ func createDefaultDeckConfig() error {
 	}
 
 	log.Println("✅ 默认牌组配置创建成功")
+	return nil
+}
+
+// migrateLegacyGlobalDeckConfig upgrades the old broken default global deck config.
+func migrateLegacyGlobalDeckConfig() error {
+	var globalDecks []DeckConfig
+	if err := DB.Where("is_global = ?", true).Find(&globalDecks).Error; err != nil {
+		return err
+	}
+
+	if len(globalDecks) == 0 {
+		return nil
+	}
+
+	defaultCardsJSON, err := json.Marshal(deckcfg.BuiltinDeckDefaults())
+	if err != nil {
+		return err
+	}
+
+	for i := range globalDecks {
+		deck := &globalDecks[i]
+
+		// 仅修复系统默认牌组，避免覆盖管理员主动自定义的全局牌组。
+		if deck.CreatedByUID != 100000000 {
+			continue
+		}
+		if deck.Name != "默认牌组" {
+			continue
+		}
+
+		var cards map[string]int
+		if err := json.Unmarshal(deck.Cards, &cards); err != nil {
+			continue
+		}
+		if !deckcfg.IsLegacyOneCountGlobalDeck(cards) {
+			continue
+		}
+
+		updates := map[string]interface{}{
+			"cards":         defaultCardsJSON,
+			"initial_cards": 10,
+		}
+		if err := DB.Model(&DeckConfig{}).Where("id = ?", deck.ID).Updates(updates).Error; err != nil {
+			return err
+		}
+
+		log.Printf("✅ 已修复历史默认牌组配置 (deck_id=%d)", deck.ID)
+	}
+
 	return nil
 }
 

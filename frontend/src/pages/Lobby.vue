@@ -367,6 +367,7 @@ const handleCreateAIRoom = async () => {
       0,
       false // tutorialScript（AI竞技场非教学模式）
     )
+    const room = response.data
     router.push(`/room/${room.id}`)
   } catch (error: any) {
     showAlert(error.response?.data?.error || '创建AI对战失败', '系统异常')
@@ -501,7 +502,7 @@ const copyToClipboard = (text: string) => {
               <router-link to="/plugins" class="p-2 hover:bg-purple-500/10 rounded-xl transition-all text-purple-500/70 hover:text-purple-400 touch-feedback" title="插件市场">
                 <Puzzle class="w-4 h-4" />
               </router-link>
-              <router-link v-if="user.is_admin" to="/admin" class="p-2 hover:bg-yellow-500/10 rounded-xl transition-all text-yellow-500/70 hover:text-yellow-400 touch-feedback" title="管理面板">
+              <router-link v-if="user.is_admin || user.role === 'co-worker'" to="/admin" class="p-2 hover:bg-yellow-500/10 rounded-xl transition-all text-yellow-500/70 hover:text-yellow-400 touch-feedback" title="管理面板">
                 <Shield class="w-4 h-4" />
               </router-link>
               <div class="w-px h-5 bg-white/10 mx-1"></div>
@@ -559,7 +560,7 @@ const copyToClipboard = (text: string) => {
                 <Puzzle class="w-6 h-6 text-purple-500 mb-2" />
                 <span class="text-xs font-black uppercase tracking-widest">插件市场</span>
               </router-link>
-              <router-link v-if="user.is_admin" @click="isMobileMenuOpen = false" to="/admin" class="flex flex-col items-center justify-center p-4 bg-slate-100 dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/10">
+              <router-link v-if="user.is_admin || user.role === 'co-worker'" @click="isMobileMenuOpen = false" to="/admin" class="flex flex-col items-center justify-center p-4 bg-slate-100 dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/10">
                 <Shield class="w-6 h-6 text-yellow-500 mb-2" />
                 <span class="text-xs font-black uppercase tracking-widest">管理面板</span>
               </router-link>
@@ -1312,7 +1313,7 @@ const copyToClipboard = (text: string) => {
                   </div>
                   <div class="p-3 bg-white dark:bg-black/20 rounded-lg">
                     <p class="text-[8px] text-slate-400 mb-1 uppercase tracking-wider">起始手牌</p>
-                    <p class="text-[11px] font-black text-slate-900 dark:text-white">{{ selectedDeckConfig.initial_cards || 7 }} 张</p>
+                    <p class="text-[11px] font-black text-slate-900 dark:text-white">{{ selectedDeckConfig.initial_cards || 10 }} 张</p>
                   </div>
                 </div>
               </div>

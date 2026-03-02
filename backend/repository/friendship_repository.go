@@ -2,6 +2,7 @@ package repository
 
 import (
 	"chemistryuno/backend/database"
+	"errors"
 	"time"
 
 	"gorm.io/gorm"
@@ -27,13 +28,22 @@ func (r *FriendshipRepository) CreateRequest(userUID, friendUID uint, message st
 		return nil
 	}
 
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
+
 	f := database.Friendship{
 		UserUID:      userUID,
 		FriendUID:    friendUID,
+		PairKey:      database.FriendshipPairKey(userUID, friendUID),
 		Status:       "pending",
 		HelloMessage: message,
 	}
-	return r.db.Create(&f).Error
+	err = r.db.Create(&f).Error
+	if err != nil && errors.Is(err, gorm.ErrDuplicatedKey) {
+		return nil
+	}
+	return err
 }
 
 func (r *FriendshipRepository) UpdateStatus(id uint, status string) error {
@@ -155,4 +165,3 @@ func (r *FriendshipRepository) GetFriendsWithRemarks(uid uint) ([]map[string]int
 
 	return result, nil
 }
-

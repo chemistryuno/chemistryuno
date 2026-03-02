@@ -197,6 +197,8 @@ func AwardXP(uid int, xp int) error {
 					Type: "action_toast",
 					Data: fmt.Sprintf("🎉 恭喜升级！你现在是 %s %d 级研究员！", levelConfig.TierName, level),
 				})
+			} else {
+				log.Printf("[LevelUp] failed to load level config, level=%d, err=%v", level, err)
 			}
 		}
 	}

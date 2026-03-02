@@ -11,24 +11,26 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// GetLevelInfo 获取等级信息
+// GetLevelInfo returns current user's level info.
 func GetLevelInfo(c *gin.Context) {
 	uid, exists := c.Get("uid")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "未登录"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
-	// 修复类型转换：uid 可能是 int 或 uint
 	var uidUint uint
 	switch v := uid.(type) {
 	case int:
 		if v < 0 {
-			// AI 账号不计等级，返回虚拟数据或禁止访问
 			c.JSON(http.StatusOK, gin.H{
-				"level": 1, "xp": 0, "total_xp": 0,
-				"tier": "ai", "tier_name": "AI研究员",
-				"next_level_xp": 0, "progress_percent": 0,
+				"level":            1,
+				"xp":               0,
+				"total_xp":         0,
+				"tier":             "ai",
+				"tier_name":        "AI",
+				"next_level_xp":    0,
+				"progress_percent": 0,
 			})
 			return
 		}
@@ -36,45 +38,43 @@ func GetLevelInfo(c *gin.Context) {
 	case uint:
 		uidUint = v
 	default:
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "无效的用户ID类型"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid uid type"})
 		return
 	}
 
 	levelInfo, err := game.GetLevelInfo(uidUint)
 	if err != nil {
-		// 如果用户不存在，返回 401 触发前端登出
 		if err.Error() == "用户不存在" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "会话已失效"})
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "session invalid"})
 			return
 		}
-		// 记录详细错误信息以便调试
 		c.Error(err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取等级信息失败", "detail": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get level info"})
 		return
 	}
 
 	c.JSON(http.StatusOK, levelInfo)
 }
 
-// GetUserLevelInfo 获取指定用户的等级信息（公开信息）
+// GetUserLevelInfo returns public level info of target user.
 func GetUserLevelInfo(c *gin.Context) {
 	uidStr := c.Param("uid")
 	targetUID, err := strconv.ParseUint(uidStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的用户ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid uid"})
 		return
 	}
 
 	levelInfo, err := game.GetLevelInfo(uint(targetUID))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取等级信息失败"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get level info"})
 		return
 	}
 
 	c.JSON(http.StatusOK, levelInfo)
 }
 
-// GetLevelLeaderboard 获取等级排行榜
+// GetLevelLeaderboard returns leaderboard sorted by total_xp.
 func GetLevelLeaderboard(c *gin.Context) {
 	limit := 100
 	if limitStr := c.Query("limit"); limitStr != "" {
@@ -85,11 +85,20 @@ func GetLevelLeaderboard(c *gin.Context) {
 
 	users, err := repository.UserRepo.GetLeaderboard("total_xp", limit)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取排行榜失败"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get leaderboard"})
 		return
 	}
 
-	// 转换为包含等级信息的格式
+	var levelConfigs []database.LevelConfig
+	if err := database.DB.Find(&levelConfigs).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		return
+	}
+	levelConfigMap := make(map[int]database.LevelConfig, len(levelConfigs))
+	for _, cfg := range levelConfigs {
+		levelConfigMap[cfg.Level] = cfg
+	}
+
 	type LeaderboardEntry struct {
 		UID      uint   `json:"uid"`
 		Nickname string `json:"nickname"`
@@ -102,12 +111,7 @@ func GetLevelLeaderboard(c *gin.Context) {
 
 	result := make([]LeaderboardEntry, 0, len(users))
 	for _, user := range users {
-		// 查询等级配置
-		var levelConfig database.LevelConfig
-		if err := database.DB.Where("level = ?", user.Level).First(&levelConfig).Error; err != nil {
-			continue
-		}
-
+		levelConfig := levelConfigMap[user.Level]
 		result = append(result, LeaderboardEntry{
 			UID:      user.UID,
 			Nickname: user.Nickname,
@@ -122,25 +126,23 @@ func GetLevelLeaderboard(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
-// GetAllLevelConfigs 获取所有等级配置（用于前端展示）
+// GetAllLevelConfigs returns all level configs.
 func GetAllLevelConfigs(c *gin.Context) {
 	var configs []database.LevelConfig
 	if err := database.DB.Order("level ASC").Find(&configs).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取等级配置失败"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get level configs"})
 		return
 	}
 
 	c.JSON(http.StatusOK, configs)
 }
 
-// RegisterLevelRoutes 注册等级相关路由
+// RegisterLevelRoutes registers level routes.
 func RegisterLevelRoutes(router *gin.Engine, authMiddleware gin.HandlerFunc) {
-	// 公开路由
 	router.GET("/api/level/configs", GetAllLevelConfigs)
 	router.GET("/api/level/leaderboard", GetLevelLeaderboard)
 	router.GET("/api/level/user/:uid", GetUserLevelInfo)
 
-	// 需要认证的路由
 	authGroup := router.Group("/api/level")
 	authGroup.Use(middleware.AuthMiddleware())
 	{

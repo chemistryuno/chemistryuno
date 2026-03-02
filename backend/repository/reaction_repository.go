@@ -22,6 +22,39 @@ func (r *ReactionRepository) FindApprovedReactions() ([]database.Reaction, error
 	return reactions, err
 }
 
+// FindDistinctSubstances 从已批准反应中返回所有不重复的物质列表（仅读 r1/r2 列，不加载完整行）
+func (r *ReactionRepository) FindDistinctSubstances() ([]string, error) {
+	var r1s, r2s []string
+	if err := r.db.Model(&database.Reaction{}).
+		Where("status = ?", "approved").
+		Distinct("r1").
+		Pluck("r1", &r1s).Error; err != nil {
+		return nil, err
+	}
+	if err := r.db.Model(&database.Reaction{}).
+		Where("status = ?", "approved").
+		Distinct("r2").
+		Pluck("r2", &r2s).Error; err != nil {
+		return nil, err
+	}
+	set := make(map[string]bool, len(r1s)+len(r2s))
+	for _, s := range r1s {
+		if s != "" {
+			set[s] = true
+		}
+	}
+	for _, s := range r2s {
+		if s != "" {
+			set[s] = true
+		}
+	}
+	result := make([]string, 0, len(set))
+	for s := range set {
+		result = append(result, s)
+	}
+	return result, nil
+}
+
 // CheckReactionExists 检查反应是否存在
 func (r *ReactionRepository) CheckReactionExists(r1, r2 string) (bool, error) {
 	var count int64

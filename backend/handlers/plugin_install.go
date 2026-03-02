@@ -30,13 +30,14 @@ import (
 
 // pluginManifest 瀵瑰簲 manifest.json
 type pluginManifest struct {
-	Name        string `json:"name"`
-	Version     string `json:"version"`
-	Author      string `json:"author"`
-	Description string `json:"description"`
-	GameVersion string `json:"game_version"` // optional game version compatibility
-	Script      string `json:"script"`       // legacy client script entry
-	Scripts     struct {
+	Name         string          `json:"name"`
+	Version      string          `json:"version"`
+	Author       string          `json:"author"`
+	Description  string          `json:"description"`
+	GameVersion  string          `json:"game_version"` // optional game version compatibility
+	Script       string          `json:"script"`       // legacy client script entry
+	ConfigSchema json.RawMessage `json:"config_schema"`
+	Scripts      struct {
 		Client string `json:"client"` // client script path
 		Server string `json:"server"` // server script path
 	} `json:"scripts"`
@@ -274,6 +275,12 @@ func InstallPlugin(c *gin.Context) {
 		return
 	}
 
+	normalizedSchema, parsedSchema, schemaErr := normalizePluginConfigSchema(manifest.ConfigSchema)
+	if schemaErr != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "manifest.json 中 config_schema 非法: " + schemaErr.Error()})
+		return
+	}
+
 	// 瑙ｆ瀽鑴氭湰鍏ュ彛锛堝彲閫夛級
 	clientPath, err := normalizeScriptPath(manifest.Scripts.Client)
 	if err != nil {
@@ -341,8 +348,13 @@ func InstallPlugin(c *gin.Context) {
 	// 鏍￠獙鎵€鏈夊崱鐗屽畾涔?
 	validTypes := map[string]bool{"swap": true, "force_play": true, "convert": true}
 	for i, cd := range cardDefs {
-		if strings.TrimSpace(cd.Symbol) == "" {
+		symbol := strings.ToUpper(strings.TrimSpace(cd.Symbol))
+		if symbol == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("cards.json 绗?%d 涓崱鐗岀己灏?symbol 瀛楁", i+1)})
+			return
+		}
+		if isBuiltinDeckCardSymbol(symbol) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("cards.json symbol %s conflicts with builtin deck cards", symbol)})
 			return
 		}
 		if !validTypes[cd.EffectType] {
@@ -365,6 +377,7 @@ func InstallPlugin(c *gin.Context) {
 		AuthorUID:    authorUID,
 		Script:       string(clientScriptBytes),
 		ServerScript: string(serverScriptBytes),
+		ConfigSchema: normalizedSchema,
 		IsActive:     true,
 		CreatedAt:    time.Now(),
 	}
@@ -398,6 +411,16 @@ func InstallPlugin(c *gin.Context) {
 			continue
 		}
 		createdCards = append(createdCards, card)
+	}
+
+	for _, field := range parsedSchema {
+		defaultValue := convertDefaultValue(field)
+		if defaultValue == "" {
+			continue
+		}
+		if err := upsertPluginSetting(plugin.ID, field.Key, defaultValue); err != nil {
+			log.Printf("[Plugin] failed to seed setting %s for plugin %d: %v", field.Key, plugin.ID, err)
+		}
 	}
 
 	game.LoadPluginCards()

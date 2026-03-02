@@ -29,6 +29,19 @@ var (
 	sessionMutex sync.RWMutex
 )
 
+func resolveWebAuthnIdentifier(c *gin.Context) string {
+	if c == nil {
+		return ""
+	}
+	if identifier := strings.TrimSpace(c.Query("identifier")); identifier != "" {
+		return strings.ToLower(identifier)
+	}
+	if email := strings.TrimSpace(c.Query("email")); email != "" {
+		return strings.ToLower(email)
+	}
+	return ""
+}
+
 func InitWebAuthn() {
 	var err error
 
@@ -185,13 +198,13 @@ func BeginLogin(c *gin.Context) {
 		return
 	}
 
-	username := c.Query("username")
+	identifier := resolveWebAuthnIdentifier(c)
 	var options *protocol.CredentialAssertion
 	var sessionData *webauthn.SessionData
 	var err error
 
-	if username != "" {
-		user, err2 := repository.UserRepo.FindByUsername(username)
+	if identifier != "" {
+		user, err2 := repository.UserRepo.FindByEmail(identifier)
 		if err2 == nil {
 			credentials, _ := repository.WebAuthnRepo.FindByUserUID(uint(user.UID))
 			waUser := &WebAuthnUser{User: user, Credentials: credentials}
@@ -249,11 +262,11 @@ func FinishLogin(c *gin.Context) {
 	c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
 	var user *database.User
-	username := c.Query("username")
+	identifier := resolveWebAuthnIdentifier(c)
 
-	if username != "" {
+	if identifier != "" {
 		// 如果提供了用户名，直接查找用户
-		user, err = repository.UserRepo.FindByUsername(username)
+		user, err = repository.UserRepo.FindByEmail(identifier)
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
 			return
@@ -325,7 +338,11 @@ func FinishLogin(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建会话失败"})
 		return
 	}
-	token, err := utils.GenerateToken(int(user.UID), user.Username, user.IsAdmin, user.Role, sid)
+	loginIdentity := strings.TrimSpace(user.Email)
+	if loginIdentity == "" {
+		loginIdentity = user.Username
+	}
+	token, err := utils.GenerateToken(int(user.UID), loginIdentity, user.IsAdmin, user.Role, sid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成token失败"})
 		return
@@ -353,6 +370,7 @@ func FinishLogin(c *gin.Context) {
 		"user": gin.H{
 			"uid":                int(user.UID),
 			"username":           user.Username,
+			"email":              user.Email,
 			"avatar":             user.Avatar,
 			"is_admin":           user.IsAdmin,
 			"role":               user.Role,
@@ -411,14 +429,25 @@ func BeginResetPasswordWebAuthn(c *gin.Context) {
 	}
 
 	var req struct {
-		Username string `json:"username" binding:"required"`
+		Identifier string `json:"identifier"`
+		Email      string `json:"email"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "用户名不能为空"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
 	}
 
-	user, err := repository.UserRepo.FindByUsername(req.Username)
+	identifier := strings.TrimSpace(req.Identifier)
+	if identifier == "" {
+		identifier = strings.TrimSpace(req.Email)
+	}
+	if identifier == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "identifier cannot be empty"})
+		return
+	}
+	identifier = strings.ToLower(identifier)
+
+	user, err := repository.UserRepo.FindByEmail(identifier)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
 		return
@@ -448,9 +477,9 @@ func BeginResetPasswordWebAuthn(c *gin.Context) {
 
 // FinishResetPasswordWebAuthn 完成通过 WebAuthn 重置密码 (公开接口)
 func FinishResetPasswordWebAuthn(c *gin.Context) {
-	username := c.Query("username")
+	identifier := resolveWebAuthnIdentifier(c)
 	newPassword := c.Query("new_password")
-	if username == "" || newPassword == "" {
+	if identifier == "" || newPassword == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "缺少必要参数"})
 		return
 	}
@@ -478,7 +507,7 @@ func FinishResetPasswordWebAuthn(c *gin.Context) {
 		return
 	}
 
-	user, err := repository.UserRepo.FindByUsername(username)
+	user, err := repository.UserRepo.FindByEmail(identifier)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
 		return
@@ -615,10 +644,16 @@ func (u *WebAuthnUser) WebAuthnID() []byte {
 }
 
 func (u *WebAuthnUser) WebAuthnName() string {
+	if email := strings.TrimSpace(u.User.Email); email != "" {
+		return email
+	}
 	return u.User.Username
 }
 
 func (u *WebAuthnUser) WebAuthnDisplayName() string {
+	if email := strings.TrimSpace(u.User.Email); email != "" {
+		return email
+	}
 	return u.User.Username
 }
 

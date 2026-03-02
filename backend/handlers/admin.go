@@ -1,4 +1,4 @@
-﻿package handlers
+package handlers
 
 import (
 	"chemistryuno/backend/database"
@@ -47,8 +47,8 @@ func CreateUser(c *gin.Context) {
 		return
 	}
 
-	// 检查用户名是否已存在
-	exists, err := userRepo.ExistsByUsername(req.Username)
+	// 检查邮箱是否已存在
+	exists, err := userRepo.ExistsByEmail(req.Email)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误"})
 		return
@@ -65,9 +65,9 @@ func CreateUser(c *gin.Context) {
 		return
 	}
 
-	// 创建用户
+	legacyUsername := strings.Split(req.Email, "@")[0]
 	user := &database.User{
-		Username:      req.Username,
+		Username:      legacyUsername,
 		Password:      hashedPassword,
 		Avatar:        "🧪",
 		Role:          "user",
@@ -110,6 +110,30 @@ func KickPlayer(c *gin.Context) {
 		return
 	}
 
+	// 权限检查：获取执行操作的用户角色
+	role, _ := c.Get("role")
+	roleStr := role.(string)
+
+	// 获取目标用户角色
+	targetUser, err := userRepo.FindByUID(uint(req.TargetUID))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "目标用户不存在"})
+		return
+	}
+
+	// 规则 2.3: admin 无法被封禁/踢出
+	if targetUser.Role == "admin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "无法对管理员执行此操作"})
+		return
+	}
+
+	// 规则 2.2: co-worker 只能踢出/封禁普通玩家 (user)
+	// 规则 2.1: admin 可以封禁/踢出 co-worker
+	if roleStr == "co-worker" && targetUser.Role == "co-worker" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "co-worker 无法踢出另一名 co-worker"})
+		return
+	}
+
 	if req.Reason == "" {
 		req.Reason = "您由于不正当游戏而被踢出"
 	}
@@ -140,6 +164,28 @@ func BanUser(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+
+	// 权限检查
+	role, _ := c.Get("role")
+	roleStr := role.(string)
+
+	targetUser, err := userRepo.FindByUID(uint(req.TargetUID))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "目标用户不存在"})
+		return
+	}
+
+	// 管理员无法被封禁
+	if targetUser.Role == "admin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "无法封禁管理人员"})
+		return
+	}
+
+	// co-worker 只能封禁 user
+	if roleStr == "co-worker" && targetUser.Role == "co-worker" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "co-worker 无法封禁另一名 co-worker"})
 		return
 	}
 
@@ -195,13 +241,21 @@ func GetGlobalDeckConfig(c *gin.Context) {
 	// 解析Cards JSON
 	var cards map[string]int
 	json.Unmarshal([]byte(deck.Cards), &cards)
+	normalizedCards, _ := game.NormalizeBuiltinDeckCards(cards)
+	if len(normalizedCards) == 0 {
+		normalizedCards = game.BuiltinDeckDefaults()
+	}
+	initialCards := deck.InitialCards
+	if initialCards <= 0 {
+		initialCards = 10
+	}
 
 	config := models.DeckConfig{
 		ID:           int(deck.ID),
 		Name:         deck.Name,
 		IsGlobal:     deck.IsGlobal,
-		Cards:        cards,
-		InitialCards: deck.InitialCards,
+		Cards:        normalizedCards,
+		InitialCards: initialCards,
 		CreatedBy:    int(deck.CreatedByUID),
 		CreatedAt:    deck.CreatedAt,
 	}
@@ -226,7 +280,22 @@ func UpdateGlobalDeckConfig(c *gin.Context) {
 		req.InitialCards = 10
 	}
 
-	cardsJSON, _ := json.Marshal(req.Cards)
+	normalizedCards, unknownCards := game.NormalizeBuiltinDeckCards(req.Cards)
+	if len(unknownCards) > 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":          "卡组配置仅支持原有普通牌和特殊牌，插件牌请在插件中管理",
+			"unknown_cards":  unknownCards,
+			"allowed_scope":  "builtin_only",
+			"plugin_managed": true,
+		})
+		return
+	}
+	if len(normalizedCards) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "卡组不能为空"})
+		return
+	}
+
+	cardsJSON, _ := json.Marshal(normalizedCards)
 
 	// 更新数据库
 	deck, err := deckRepo.FindGlobalDeck()
@@ -246,6 +315,35 @@ func UpdateGlobalDeckConfig(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "全局牌组配置更新成功"})
+}
+
+// ResetGlobalDeckConfig 恢复全局牌组默认配置
+// POST /api/admin/deck-config/reset
+func ResetGlobalDeckConfig(c *gin.Context) {
+	deck, err := deckRepo.FindGlobalDeck()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "全局配置不存在"})
+		return
+	}
+
+	cards := game.BuiltinDeckDefaults()
+	cardsJSON, _ := json.Marshal(cards)
+
+	deck.Name = "默认牌组"
+	deck.Cards = cardsJSON
+	deck.InitialCards = 10
+
+	if err := deckRepo.Update(deck); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "恢复默认牌组失败"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":       "已恢复默认牌组配置",
+		"name":          deck.Name,
+		"cards":         cards,
+		"initial_cards": deck.InitialCards,
+	})
 }
 
 // 删除用户（管理员）

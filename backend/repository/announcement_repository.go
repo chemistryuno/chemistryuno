@@ -59,9 +59,21 @@ func (r *AnnouncementRepository) Create(announcement *Announcement) error {
 
 // Update 更新公告完整信息
 func (r *AnnouncementRepository) Update(id uint, announcement *Announcement) error {
+	updates := map[string]interface{}{
+		"title":         announcement.Title,
+		"content":       announcement.Content,
+		"type":          announcement.Type,
+		"is_ticker":     announcement.IsTicker,
+		"is_persistent": announcement.IsPersistent,
+		"on_join":       announcement.OnJoin,
+		"cron_interval": announcement.CronInterval,
+		"close_delay":   announcement.CloseDelay,
+		"expires_at":    announcement.ExpiresAt,
+	}
+
 	return r.db.Model(&Announcement{}).
 		Where("id = ?", id).
-		Updates(announcement).Error
+		Updates(updates).Error
 }
 
 // UpdateActive 更新公告激活状态

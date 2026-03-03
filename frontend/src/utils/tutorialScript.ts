@@ -34,7 +34,7 @@ export const TUTORIAL_SCRIPT: TutorialStep[] = [
     player: 'human',
     action: 'play',
     substance: 'NaOH',
-    hint: '💡 第二步：使用 <strong>Na</strong> 和 <strong>O</strong>、<strong>H</strong> 合成 <strong>NaOH</strong>（氢氧化钠），它会和 HCl 发生中和反应'
+    hint: '💡 第二步：使用 <strong>Na</strong>、<strong>O</strong>、<strong>H</strong> 组合打出 <strong>NaOH</strong>（氢氧化钠），中和 AI 的 HCl'
   },
   {
     stepNumber: 4,
@@ -49,29 +49,29 @@ export const TUTORIAL_SCRIPT: TutorialStep[] = [
     player: 'human',
     action: 'play',
     substance: 'Ar',
-    hint: '💡 第三步：打出 <strong>Ar</strong>（氩气），触发稳定性效果使方向逆转，接下来由 AI 演示'
+    hint: '💡 第三步：打出 <strong>Ar</strong>（氩气），触发稳定性效果跳过 AI'
   },
   {
     stepNumber: 6,
     player: 'ai',
     action: 'play',
-    substance: 'Mn',
-    hint: '⚗️ AI 的回合',
-    aiMessage: 'AI 打出了 Mn（锰），与 Br₂ 发生反应'
+    substance: '',
+    hint: '⚗️ AI 无法响应，正在摸牌...',
+    aiMessage: 'AI 选择摸牌'
   },
   {
     stepNumber: 7,
     player: 'human',
     action: 'play',
     substance: 'Au',
-    hint: '💡 第四步：打出 <strong>Au</strong>（金），继续学习特殊牌如何改变回合节奏'
+    hint: '💡 第四步：打出 <strong>Au</strong>（金），金属性稳定，可接在任何牌之后'
   },
   {
     stepNumber: 8,
     player: 'human',
     action: 'play',
-    substance: 'K',
-    hint: '💡 最后一步：打出 <strong>K</strong>（钾）收尾，完成本次教学关卡！'
+    substance: '+2',
+    hint: '💡 最后一步：打出 <strong>+2</strong>，完成本次教学关卡！'
   }
 ]
 

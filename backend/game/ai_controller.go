@@ -725,12 +725,24 @@ func (gr *GameRoom) executeTutorialScript() {
 
 	if currentScriptStep.Action == "play" {
 		substance := currentScriptStep.Substance
-		// 使用通用出牌逻辑，允许 AI 用元素组合出 HCl、Br2 等脚本物质
-		if err := PlayCard(roomID, currentUID, models.Card{Type: substance}, substance); err != nil {
-			log.Printf("[教学脚本] ⚠️  AI脚本出牌失败(%s): %v", substance, err)
+		// 🎓 教学脚本模式：AI 强制从虚空中打出指定物质，不消耗实际手牌以防万一
+		// 构造一张临时虚拟卡牌进行出牌
+		virtualCard := models.Card{Type: substance, Effect: getCardEffect(substance)}
+		if err := PlayCard(roomID, currentUID, virtualCard, substance); err != nil {
+			log.Printf("[教学脚本] ⚠️  AI脚本强制出牌失败(%s): %v", substance, err)
 			return
 		}
-		log.Printf("[教学脚本] ✅ AI打出了 %s", substance)
+		log.Printf("[教学脚本] ✅ AI强制打出了 %s", substance)
+		return
+	}
+
+	if currentScriptStep.Action == "draw" {
+		// AI 摸一张牌
+		if err := DrawCard(roomID, currentUID, 1); err != nil {
+			log.Printf("[教学脚本] ⚠️  AI脚本摸牌失败: %v", err)
+			return
+		}
+		log.Printf("[教学脚本] ✅ AI执行了摸牌")
 		return
 	}
 

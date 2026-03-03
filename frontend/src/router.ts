@@ -14,6 +14,7 @@ import DataConfig from './pages/DataConfig.vue'
 import Substances from './pages/Substances.vue'
 import Chat from './pages/Chat.vue'
 import UserSpace from './pages/UserSpace.vue'
+import OAuthCallback from './pages/OAuthCallback.vue'
 
 const routes = [
   {
@@ -66,7 +67,7 @@ const routes = [
     path: '/admin',
     name: 'Admin',
     component: Admin,
-    meta: { requiresAuth: true, adminOnly: true }
+    meta: { requiresAuth: true, coWorkerOnly: true }
   },
   {
     path: '/admin/plugins',
@@ -109,6 +110,12 @@ const routes = [
     name: 'UserSpace',
     component: UserSpace,
     meta: { requiresAuth: true }
+  },
+  {
+    // OAuth 降级回调页：当 window.opener 不可用时，后端将 token 通过 URL hash 重定向至此
+    path: '/oauth-callback',
+    name: 'OAuthCallback',
+    component: OAuthCallback
   }
 ]
 

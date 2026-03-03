@@ -13,9 +13,9 @@ var tutorialScriptSteps = []tutorialScriptStep{
 	{StepNumber: 3, Player: "human", Action: "play", Substance: "NaOH"},
 	{StepNumber: 4, Player: "ai", Action: "play", Substance: "Br2"},
 	{StepNumber: 5, Player: "human", Action: "play", Substance: "Ar"},
-	{StepNumber: 6, Player: "ai", Action: "play", Substance: "Mn"},  // Ar逆转后AI用Mn与Br2反应
+	{StepNumber: 6, Player: "ai", Action: "draw", Substance: ""},
 	{StepNumber: 7, Player: "human", Action: "play", Substance: "Au"},
-	{StepNumber: 8, Player: "human", Action: "play", Substance: "K"},
+	{StepNumber: 8, Player: "human", Action: "play", Substance: "+2"},
 }
 
 func getTutorialScriptStep(stepNumber int) *tutorialScriptStep {

@@ -37,24 +37,24 @@ func initJWTSecret() {
 }
 
 type Claims struct {
-	UID      int    `json:"uid"`
-	Username string `json:"username"`
-	IsAdmin  bool   `json:"is_admin"`
-	Role     string `json:"role"`
-	SID      string `json:"sid,omitempty"`
+	UID     int    `json:"uid"`
+	Email   string `json:"email"`
+	IsAdmin bool   `json:"is_admin"`
+	Role    string `json:"role"`
+	SID     string `json:"sid,omitempty"`
 	jwt.RegisteredClaims
 }
 
 // GenerateToken 生成JWT Token
-func GenerateToken(uid int, username string, isAdmin bool, role string, sid string) (string, error) {
+func GenerateToken(uid int, email string, isAdmin bool, role string, sid string) (string, error) {
 	initJWTSecret() // 确保密钥已初始化
 
 	claims := Claims{
-		UID:      uid,
-		Username: username,
-		IsAdmin:  isAdmin,
-		Role:     role,
-		SID:      sid,
+		UID:     uid,
+		Email:   email,
+		IsAdmin: isAdmin,
+		Role:    role,
+		SID:     sid,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),

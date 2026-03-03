@@ -338,11 +338,7 @@ func FinishLogin(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建会话失败"})
 		return
 	}
-	loginIdentity := strings.TrimSpace(user.Email)
-	if loginIdentity == "" {
-		loginIdentity = user.Username
-	}
-	token, err := utils.GenerateToken(int(user.UID), loginIdentity, user.IsAdmin, user.Role, sid)
+	token, err := utils.GenerateToken(int(user.UID), user.Email, user.IsAdmin, user.Role, sid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成token失败"})
 		return

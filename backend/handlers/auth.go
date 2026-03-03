@@ -197,11 +197,7 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	loginIdentity := user.Email
-	if loginIdentity == "" {
-		loginIdentity = user.Username
-	}
-	token, err := utils.GenerateToken(int(user.UID), loginIdentity, user.IsAdmin, user.Role, sid)
+	token, err := utils.GenerateToken(int(user.UID), user.Email, user.IsAdmin, user.Role, sid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate token"})
 		return

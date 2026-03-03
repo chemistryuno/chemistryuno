@@ -1,6 +1,6 @@
 <template>
   <div
-    class="chemical-keyboard fixed inset-x-0 bg-slate-900/95 dark:bg-black/95 backdrop-blur-2xl border-t border-white/10 z-50 pb-safe shadow-[0_-8px_30px_rgb(0,0,0,0.5)] flex flex-col transition-transform duration-300"
+    class="chemical-keyboard fixed inset-x-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border-t border-slate-200 dark:border-white/10 z-50 pb-safe shadow-[0_-8px_30px_rgba(0,0,0,0.1)] dark:shadow-[0_-8px_30px_rgba(0,0,0,0.5)] flex flex-col transition-transform duration-300"
     :style="{
       transform: isDragging ? `translateY(${dragOffset}px)` : 'translateY(0)',
       bottom: '144px'
@@ -14,49 +14,49 @@
       @touchend="handleTouchEnd"
     >
       <!-- 拖拽手柄指示器 -->
-      <div class="mx-auto w-12 h-1.5 bg-white/20 rounded-full mb-2 group-hover:bg-white/30 transition-colors"></div>
+      <div class="mx-auto w-12 h-1.5 bg-slate-300 dark:bg-white/20 rounded-full mb-2 group-hover:bg-slate-400 dark:group-hover:bg-white/30 transition-colors"></div>
 
       <div class="px-4 flex items-center justify-between gap-3">
         <div class="flex items-center gap-2">
           <div class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
-          <span class="text-[10px] font-black uppercase tracking-[0.2em] text-blue-400 font-mono">Input_Matrix</span>
+          <span class="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600 dark:text-blue-400 font-mono">Input_Matrix</span>
         </div>
 
         <div class="flex items-center gap-2">
           <!-- 退格按钮 -->
           <button
             @click="handleBackspace"
-            class="w-10 h-10 flex items-center justify-center bg-white/5 hover:bg-amber-500/20 rounded-[14px] border border-white/10 hover:border-amber-500/30 transition-all touch-feedback group"
+            class="w-10 h-10 flex items-center justify-center bg-slate-100 dark:bg-white/5 hover:bg-amber-100 dark:hover:bg-amber-500/20 rounded-[14px] border border-slate-200 dark:border-white/10 hover:border-amber-300 dark:hover:border-amber-500/30 transition-all touch-feedback group"
           >
-            <ArrowLeft class="w-4 h-4 text-slate-400 group-hover:text-amber-400" />
+            <ArrowLeft class="w-4 h-4 text-slate-500 dark:text-slate-400 group-hover:text-amber-600 dark:group-hover:text-amber-400" />
           </button>
 
           <!-- 清空按钮 -->
           <button
             @click="handleClear"
-            class="w-10 h-10 flex items-center justify-center bg-white/5 hover:bg-red-500/20 rounded-[14px] border border-white/10 hover:border-red-500/30 transition-all touch-feedback group"
+            class="w-10 h-10 flex items-center justify-center bg-slate-100 dark:bg-white/5 hover:bg-red-100 dark:hover:bg-red-500/20 rounded-[14px] border border-slate-200 dark:border-white/10 hover:border-red-300 dark:hover:border-red-500/30 transition-all touch-feedback group"
           >
-            <Delete class="w-4 h-4 text-slate-400 group-hover:text-red-400" />
+            <Delete class="w-4 h-4 text-slate-500 dark:text-slate-400 group-hover:text-red-600 dark:group-hover:text-red-400" />
           </button>
 
           <!-- 关闭按钮 -->
           <button
             @click="$emit('close')"
-            class="w-10 h-10 flex items-center justify-center bg-white/10 hover:bg-white/20 rounded-[14px] border border-white/10 transition-all touch-feedback"
+            class="w-10 h-10 flex items-center justify-center bg-slate-200 dark:bg-white/10 hover:bg-slate-300 dark:hover:bg-white/20 rounded-[14px] border border-slate-300 dark:border-white/10 transition-all touch-feedback"
           >
-            <X class="w-4 h-4 text-white" />
+            <X class="w-4 h-4 text-slate-700 dark:text-white" />
           </button>
         </div>
       </div>
     </div>
 
     <!-- 可滚动键盘区 -->
-    <div class="keyboard-scroll px-3 py-3 overflow-y-auto overscroll-contain flex flex-col gap-4 max-h-[calc(45vh-120px)] lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start">
+    <div class="keyboard-scroll px-3 py-3 overflow-y-auto overscroll-contain flex flex-col gap-4 max-h-[calc(45vh-120px)] lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start text-slate-900 dark:text-white">
       <!-- 元素分类区块（如果需要可以加标题，这里保持紧凑） -->
       <div class="space-y-2">
         <div class="flex items-center gap-2 px-1">
-          <span class="text-[9px] font-black text-slate-500 uppercase tracking-widest">Chemical Elements</span>
-          <div class="h-px flex-1 bg-white/5"></div>
+          <span class="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Chemical Elements</span>
+          <div class="h-px flex-1 bg-slate-200 dark:bg-white/5"></div>
         </div>
 
         <div class="overflow-x-auto flex gap-3 pb-2 custom-scrollbar-hidden snap-x px-1">
@@ -67,12 +67,14 @@
               @click="handleInput(element)"
               :class="cn(
                 'group relative h-12 w-14 xs:w-16 flex flex-col items-center justify-center rounded-xl border transition-all touch-feedback active:scale-90 snap-start',
-                element.length === 2 ? 'bg-blue-600/10 border-blue-500/20' : 'bg-indigo-600/10 border-indigo-500/20'
+                element.length === 2 
+                  ? 'bg-blue-50 dark:bg-blue-600/10 border-blue-200 dark:border-blue-500/20 hover:border-blue-400 dark:hover:border-blue-500/40' 
+                  : 'bg-indigo-50 dark:bg-indigo-600/10 border-indigo-200 dark:border-indigo-500/20 hover:border-indigo-400 dark:hover:border-indigo-500/40'
               )"
             >
                <div class="absolute inset-x-0 bottom-0 h-0.5 bg-blue-500/20 scale-x-0 group-hover:scale-x-100 transition-transform"></div>
-               <span class="text-sm font-black text-blue-100 group-hover:text-white">{{ element }}</span>
-               <span class="text-[7px] font-bold text-blue-500/60 transition-colors uppercase font-serif italic">{{ getElementName(element) }}</span>
+               <span class="text-sm font-black text-blue-700 dark:text-blue-100 group-hover:text-blue-900 dark:group-hover:text-white">{{ element }}</span>
+               <span class="text-[7px] font-bold text-blue-400 dark:text-blue-500/60 transition-colors uppercase font-serif italic">{{ getElementName(element) }}</span>
             </button>
           </div>
         </div>
@@ -81,8 +83,8 @@
       <!-- 数字区块 -->
       <div class="space-y-2">
         <div class="flex items-center gap-2 px-1">
-          <span class="text-[9px] font-black text-slate-500 uppercase tracking-widest">Scientific Symbols</span>
-          <div class="h-px flex-1 bg-white/5"></div>
+          <span class="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Scientific Symbols</span>
+          <div class="h-px flex-1 bg-slate-200 dark:bg-white/5"></div>
         </div>
 
         <div class="grid grid-cols-6 gap-2">
@@ -91,7 +93,7 @@
             v-for="num in [1, 2, 3, 4, 5, 6, 7, 8, 9, 0]"
             :key="num"
             @click="handleInput(String(num))"
-            class="h-12 flex items-center justify-center bg-emerald-600/10 hover:bg-emerald-600/20 rounded-xl border border-emerald-500/20 hover:border-emerald-500/40 transition-all touch-feedback text-emerald-100 font-mono font-black"
+            class="h-12 flex items-center justify-center bg-emerald-50 dark:bg-emerald-600/10 hover:bg-emerald-100 dark:hover:bg-emerald-600/20 rounded-xl border border-emerald-200 dark:border-emerald-500/20 hover:border-emerald-400 dark:hover:border-emerald-500/40 transition-all touch-feedback text-emerald-700 dark:text-emerald-100 font-mono font-black"
           >
             {{ num }}
           </button>
@@ -101,7 +103,7 @@
             v-for="sym in ['(', ')', '[', ']']"
             :key="sym"
             @click="handleInput(sym)"
-            class="h-12 flex items-center justify-center bg-amber-600/10 hover:bg-amber-600/20 rounded-xl border border-amber-500/20 hover:border-amber-500/40 transition-all touch-feedback text-amber-100 font-mono font-black text-lg"
+            class="h-12 flex items-center justify-center bg-amber-50 dark:bg-amber-600/10 hover:bg-amber-100 dark:hover:bg-amber-600/20 rounded-xl border border-amber-200 dark:border-amber-500/20 hover:border-amber-400 dark:hover:border-amber-500/40 transition-all touch-feedback text-amber-700 dark:text-amber-100 font-mono font-black text-lg"
           >
             {{ sym }}
           </button>
@@ -231,6 +233,10 @@ const handleConfirm = () => {
   flex: 1;
   /* 自定义滚动条 */
   scrollbar-width: thin;
+  scrollbar-color: rgba(100, 116, 139, 0.2) transparent;
+}
+
+.dark .keyboard-scroll {
   scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
 }
 
@@ -239,8 +245,12 @@ const handleConfirm = () => {
 }
 
 .keyboard-scroll::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(100, 116, 139, 0.2);
   border-radius: 10px;
+}
+
+.dark .keyboard-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
 }
 
 @keyframes slideUp {

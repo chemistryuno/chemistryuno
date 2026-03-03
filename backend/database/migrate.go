@@ -86,7 +86,8 @@ func ensureTutorialReactions() error {
 		R1, R2, Display string
 	}
 	needed := []tutorialReaction{
-		{"Br2", "Mn", "Mn + Br2 = MnBr2"}, // 教学步骤6：AI用Mn与Br2反应
+		{"HCl", "Mg", "Mg + 2HCl = MgCl2 + H2"},             // 教学步骤2：AI响应Mg
+		{"Br2", "NaOH", "Br2 + 2NaOH = NaBr + NaBrO + H2O"}, // 教学步骤4：AI响应NaOH
 	}
 
 	for _, tr := range needed {

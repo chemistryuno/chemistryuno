@@ -1955,8 +1955,8 @@ func initTutorialGame(gameRoom *GameRoom, roomID string) error {
 	log.Printf("[教学脚本] 开始初始化教学关卡...")
 
 	// 固定手牌配置
-	humanHand := []string{"Na", "Mg", "O", "H", "Au", "Ar", "K"}
-	aiHand := []string{"H", "Cl", "Br", "Mn", "Fe", "Zn", "Ca"}
+	humanHand := []string{"Mg", "Na", "O", "H", "Ar", "Au", "+2"}
+	aiHand := []string{"H", "Cl", "Br", "O"}
 	initialDiscard := "Cl2"
 
 	// 确定玩家顺序（人类玩家先手）
@@ -2263,6 +2263,8 @@ func GetRoomState(roomID string, uid int) (map[string]interface{}, error) {
 			"xp_changes":            gameRoom.GameState.XPChanges,
 			"original_player_count": gameRoom.GameState.OriginalPlayerCount,
 			"quitted_count":         gameRoom.GameState.QuittedCount,
+			"tutorial_script_mode":  gameRoom.GameState.TutorialScriptMode,
+			"tutorial_current_step": gameRoom.GameState.TutorialCurrentStep,
 		}
 	}
 
@@ -2273,12 +2275,13 @@ func getCardEffect(cardType string) string {
 	effects := map[string]string{
 		"+2": "+2",
 		"+4": "+4",
-		"He": "reverse",
-		"Ne": "reverse",
-		"Ar": "reverse",
-		"Kr": "reverse",
+		"He": "skip",
+		"Ne": "skip",
+		"Ar": "skip",
+		"Kr": "skip",
+		"Xe": "skip",
+		"Rn": "skip",
 		"Au": "Au",
-		// "Choice": "wild", // 已移除
 	}
 	return effects[cardType]
 }
@@ -2746,7 +2749,7 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 	// 🎓 教学脚本模式：仅在脚本步骤存在时递增
 	if gameRoom.GameState.TutorialScriptMode {
 		currentScriptStep := getTutorialScriptStep(gameRoom.GameState.TutorialCurrentStep)
-		if currentScriptStep != nil && currentScriptStep.Action == "play" {
+		if currentScriptStep != nil && (currentScriptStep.Action == "play" || currentScriptStep.Action == "draw" || currentScriptStep.Action == "double") {
 			gameRoom.GameState.TutorialCurrentStep++
 			log.Printf("[教学脚本] 📈 步骤递增至 %d", gameRoom.GameState.TutorialCurrentStep)
 		}
@@ -2929,9 +2932,24 @@ func DrawCard(roomID string, uid int, count int) error {
 	}
 	previousTurnIndex := gameRoom.GameState.CurrentPlayer
 
-	// 教学脚本关卡禁用摸牌，避免提示与操作不一致
+	// 教学脚本关卡禁用摸牌，仅在脚本要求时开放
 	if gameRoom.GameState.TutorialScriptMode {
-		return errors.New("教学关卡禁止摸牌，请按底部提示操作")
+		currentStep := gameRoom.GameState.TutorialCurrentStep
+		currentScriptStep := getTutorialScriptStep(currentStep)
+		if currentScriptStep == nil || currentScriptStep.Action != "draw" {
+			return errors.New("教学关卡禁止在此步摸牌，请按底部提示操作")
+		}
+
+		// AI 摸牌校验（如果 AI 通过此函数摸牌）
+		if uid < 0 && currentScriptStep.Player != "ai" {
+			return errors.New("当前不是 AI 摸牌步骤")
+		}
+		// 人类玩家摸牌校验
+		if uid >= 0 && currentScriptStep.Player != "human" {
+			return errors.New("当前是 AI 演示步骤，请等待 AI 操作")
+		}
+
+		log.Printf("[教学脚本] ✅ 玩家执行摸牌 (步骤 %d)", currentStep)
 	}
 
 	actualCount := count
@@ -2954,6 +2972,15 @@ func DrawCard(roomID string, uid int, count int) error {
 	currentPlayer.ActionProgress++
 	if currentPlayer.ActionProgress >= 2 {
 		currentPlayer.DoubleActionAvailable = true
+	}
+
+	// 🎓 教学脚本模式：仅在脚本步骤存在时递增
+	if gameRoom.GameState.TutorialScriptMode {
+		currentScriptStep := getTutorialScriptStep(gameRoom.GameState.TutorialCurrentStep)
+		if currentScriptStep != nil && (currentScriptStep.Action == "play" || currentScriptStep.Action == "draw" || currentScriptStep.Action == "double") {
+			gameRoom.GameState.TutorialCurrentStep++
+			log.Printf("[教学脚本] 📈 步骤递增至 %d", gameRoom.GameState.TutorialCurrentStep)
+		}
 	}
 
 	// 摸牌后跳过回合

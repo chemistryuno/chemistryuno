@@ -624,34 +624,76 @@ func handleOAuthUser(c *gin.Context, provider, providerID, username, email, nick
 	}
 
 	// 生成 Token，现在包含有效的 sid
-	loginIdentity := strings.TrimSpace(user.Email)
-	if loginIdentity == "" {
-		loginIdentity = user.Username
-	}
-	token, err := utils.GenerateToken(int(user.UID), loginIdentity, user.IsAdmin, user.Role, sid)
+	token, err := utils.GenerateToken(int(user.UID), user.Email, user.IsAdmin, user.Role, sid)
 	if err != nil {
 		sendOAuthError(c, http.StatusInternalServerError, "实验室访问令牌签署失败")
 		return
 	}
 
-	// 通信与跳转
-	c.Header("Content-Type", "text/html; charset=utf-8")
-	c.String(http.StatusOK, fmt.Sprintf(`
-		<script>
-			if (window.opener) {
-				window.opener.postMessage({
-					type: 'oauth-success',
-					token: '%s',
-					user: %s
-				}, '*');
+	// 将 token 和 user 序列化为 JSON，以便在 JS 中安全嵌入（防止特殊字符破坏脚本）
+	userJSON := ToJSON(user)
+	payloadJSON, _ := json.Marshal(map[string]interface{}{
+		"type":  "oauth-success",
+		"token": token,
+		"user":  json.RawMessage(userJSON),
+	})
+
+	// 计算前端回调页基础 URL（用于 window.opener 不可用时的降级重定向）
+	frontendBaseURL := strings.TrimRight(strings.TrimSpace(os.Getenv("FRONTEND_BASE_URL")), "/")
+	if frontendBaseURL == "" {
+		// 未配置时，从请求的 Referer 或 Origin 推断前端地址
+		origin := c.GetHeader("Origin")
+		if origin == "" {
+			referer := c.GetHeader("Referer")
+			if referer != "" {
+				// 只取协议+主机+端口部分
+				if idx := strings.Index(referer, "/"); idx >= 0 {
+					// scheme://host 部分
+					parts := strings.SplitN(referer, "/", 4)
+					if len(parts) >= 3 {
+						origin = parts[0] + "//" + parts[2]
+					}
+				}
 			}
-			window.close();
-		</script>
-		<div style="font-family:sans-serif;text-align:center;padding-top:100px;color:#2563eb;">
-			<h3>访问批准</h3>
-			<p>欢迎回来，正在同步进入实验室...</p>
-		</div>
-	`, token, ToJSON(user)))
+		}
+		if origin != "" {
+			frontendBaseURL = origin
+		}
+	}
+	fallbackURL := frontendBaseURL + "/oauth-callback#token=" + token
+
+	// 通信与跳转
+	// postMessage 优先（弹窗场景），window.opener 不可用时降级重定向（跨域 / 独立标签场景）
+	c.Header("Content-Type", "text/html; charset=utf-8")
+	c.String(http.StatusOK, fmt.Sprintf(`<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>授权成功</title></head>
+<body>
+<div style="font-family:sans-serif;text-align:center;padding-top:100px;color:#2563eb;">
+  <h3>访问批准</h3>
+  <p>欢迎回来，正在同步进入实验室...</p>
+</div>
+<script>
+  (function() {
+    var payload = %s;
+    if (window.opener && !window.opener.closed) {
+      try {
+        window.opener.postMessage(payload, '*');
+        setTimeout(function() { window.close(); }, 100);
+        return;
+      } catch(e) {
+        // opener 跨域访问受限，降级到重定向
+      }
+    }
+    // 降级方案：通过 URL hash 将 token 传递给前端
+    window.location.replace(%s);
+  })();
+</script>
+</body>
+</html>`, string(payloadJSON), func() string {
+		b, _ := json.Marshal(fallbackURL)
+		return string(b)
+	}()))
 }
 
 // UnbindOAuth 处理解绑逻辑

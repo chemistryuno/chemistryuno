@@ -239,12 +239,7 @@ func Verify2FALogin(c *gin.Context) {
 		return
 	}
 
-	// 生成token
-	loginIdentity := user.Email
-	if loginIdentity == "" {
-		loginIdentity = user.Username
-	}
-	token, err := utils.GenerateToken(int(user.UID), loginIdentity, user.IsAdmin, user.Role, sid)
+	token, err := utils.GenerateToken(int(user.UID), user.Email, user.IsAdmin, user.Role, sid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成token失败"})
 		return

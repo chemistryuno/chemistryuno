@@ -145,66 +145,59 @@ const currentTier = computed(() => levelData.value ? tierConfig[levelData.value.
             ]"
           >
             <!-- 能量脉冲线条 -->
-            <div class="absolute inset-0 pointer-events-none overflow-hidden">
-               <div v-for="i in 3" :key="i" 
+            <div class="absolute inset-0 pointer-events-none overflow-hidden opacity-30">
+               <div v-for="i in 2" :key="i" 
                     class="absolute w-full h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent animate-pulse-line"
-                    :style="{ top: (i * 25) + '%', animationDelay: (i * 0.5) + 's' }"></div>
+                    :style="{ top: (i * 33) + '%', animationDelay: (i * 0.5) + 's' }"></div>
             </div>
 
-            <!-- 卡片内部流光 (Scanner effect) -->
-            <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/[0.05] to-transparent -translate-x-full animate-shine pointer-events-none"></div>
-
-            <div class="relative p-10 pt-16 flex flex-col items-center text-center">
+            <div class="relative p-8 pt-12 flex flex-col items-center text-center">
               
               <!-- 顶部状态标签 -->
               <div 
-                class="absolute top-8 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-1.5 rounded-full border bg-white/5 transition-all duration-500"
+                class="absolute top-6 left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-1 rounded-full border bg-white/5 transition-all duration-500"
                 :class="[
                   animationStage >= 2 ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4',
                   `border-${levelData.tier}/20 text-${levelData.tier}`
                 ]"
               >
-                <Sparkles class="w-3.5 h-3.5 animate-spin-slow" />
-                <span class="text-[10px] font-black uppercase tracking-[0.3em]">Quantum Evolution</span>
+                <Sparkles class="w-3 h-3 animate-spin-slow text-blue-400" />
+                <span class="text-[9px] font-black uppercase tracking-[0.2em] text-blue-400">Level Upgraded</span>
               </div>
 
               <!-- 等级徽章/图标容器 -->
-              <div class="relative mb-12">
-                <!-- 旋转环 1 -->
+              <div class="relative mb-6">
+                <!-- 旋转环 -->
                 <div 
-                  class="absolute -inset-8 rounded-full border border-dashed border-white/10 animate-spin-slow opacity-20"
-                ></div>
-                <!-- 旋转环 2 -->
-                <div 
-                  class="absolute -inset-12 rounded-full border border-white/5 animate-spin-reverse opacity-10"
+                  class="absolute -inset-6 rounded-full border border-dashed border-white/10 animate-spin-slow opacity-20"
                 ></div>
 
                 <!-- 核心图标 -->
                 <div 
-                  class="relative w-32 h-40 sm:w-40 sm:h-48 flex flex-col items-center justify-center transition-all duration-700"
+                  class="relative w-24 h-32 sm:w-28 sm:h-36 flex flex-col items-center justify-center transition-all duration-700"
                   :class="animationStage >= 2 ? 'scale-100 rotate-0' : 'scale-75 rotate-12'"
                 >
                   <div 
-                    class="absolute inset-0 blur-[40px] opacity-40 transition-all duration-1000"
+                    class="absolute inset-0 blur-[30px] opacity-30 transition-all duration-1000"
                     :class="animationStage >= 3 ? 'scale-125' : 'scale-50'"
                     :style="{ background: `radial-gradient(circle, ${currentTier.color}, transparent)` }"
                   ></div>
                   
                   <component 
                     :is="currentTier.icon" 
-                    class="w-20 h-20 sm:w-28 sm:h-28 text-white filter drop-shadow-[0_0_20px_rgba(255,255,255,0.4)] transition-all duration-500"
+                    class="w-16 h-16 sm:w-20 sm:h-20 text-white filter drop-shadow-[0_0_15px_rgba(255,255,255,0.4)] transition-all duration-500"
                     :class="animationStage >= 3 ? 'scale-110' : 'scale-90'"
                   />
                   
-                  <div class="mt-4 flex flex-col items-center">
-                    <div class="text-[10px] font-black uppercase tracking-[0.4em] opacity-40 text-white mb-1">Rank Status</div>
-                    <div class="text-xl font-black text-white tracking-widest uppercase">{{ levelData.tier }}</div>
+                  <div class="mt-2 flex flex-col items-center">
+                    <div class="text-[8px] font-black uppercase tracking-[0.3em] opacity-40 text-white">Rank Status</div>
+                    <div class="text-xl font-black text-white tracking-tight uppercase">{{ levelData.tier_name }}</div>
                   </div>
                 </div>
               </div>
 
               <!-- 核心文字信息 -->
-              <div class="space-y-4 w-full">
+              <div class="space-y-4 w-full mb-6">
                 <div class="space-y-1">
                    <h2 
                     class="text-4xl sm:text-5xl font-black tracking-tighter text-white"
@@ -212,28 +205,27 @@ const currentTier = computed(() => levelData.value ? tierConfig[levelData.value.
                   >
                     LEVEL <span class="bg-gradient-to-b from-white to-white/60 bg-clip-text text-transparent">{{ levelData.level }}</span>
                   </h2>
-                  <div 
-                    class="h-1 w-24 mx-auto rounded-full transition-all duration-1000"
-                    :class="animationStage >= 2 ? 'w-32 opacity-100' : 'w-0 opacity-0'"
-                    :style="{ background: `linear-gradient(to right, transparent, ${currentTier.color}, transparent)` }"
-                  ></div>
                 </div>
 
                 <div 
                   class="flex flex-col items-center gap-2 transition-all duration-500 delay-300"
                   :class="animationStage >= 2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'"
                 >
-                  <div class="flex items-center gap-3">
-                    <span class="text-sm font-medium text-white/40 uppercase tracking-widest">Upgrade to</span>
-                    <span 
-                      class="px-4 py-1.5 rounded-xl text-lg font-black text-white border shadow-2xl transition-all"
-                      :class="`bg-gradient-to-br ${currentTier.gradient} border-white/20 ${currentTier.glow}`"
-                    >
-                      {{ levelData.tier_name }} 研究员
-                    </span>
-                  </div>
+                  <p class="text-xs text-white/40 font-bold uppercase tracking-[0.15em]">基因序列进化完成</p>
                 </div>
               </div>
+
+              <!-- 操作按钮 -->
+              <button 
+                @click="hide"
+                class="pointer-events-auto group relative flex items-center gap-3 px-8 py-3 bg-white text-black font-black rounded-2xl transition-all hover:scale-105 active:scale-95 overflow-hidden"
+              >
+                <div class="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-transparent via-black/10 to-transparent"></div>
+                <span class="uppercase tracking-widest text-xs">接受进化</span>
+                <ChevronRight class="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              </button>
+            </div>
+          </div>
 
               <!-- 统计数值展示 -->
               <div 

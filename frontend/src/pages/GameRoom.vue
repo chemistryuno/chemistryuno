@@ -2353,139 +2353,109 @@ watch(() => gameState.value?.current_player, () => {
       </div>
 
       <!-- Experimental Victory / Failure Protocol -->
-      <div v-if="gameState?.status === 'finished'" class="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-hidden bg-slate-900/60 backdrop-blur-2xl">
-        <!-- Cool Background Effects -->
-        <div class="absolute inset-0 pointer-events-none overflow-hidden">
-           <div v-for="i in 12" :key="i" 
+      <div v-if="gameState?.status === 'finished'" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xl transition-all duration-500">
+        <!-- Cool Background Effects (Minimized for focus) -->
+        <div class="absolute inset-0 pointer-events-none overflow-hidden opacity-30">
+           <div v-for="i in 8" :key="i" 
                 class="absolute w-px h-[200%] bg-gradient-to-t from-transparent via-blue-500/20 to-transparent animate-beam"
-                :style="{ left: (i * 8) + '%', animationDelay: (i * 0.3) + 's', animationDuration: (3 + Math.random() * 2) + 's' }">
-           </div>
-           <div v-for="i in 20" :key="'c'+i" 
-                class="absolute w-1.5 h-1.5 rounded-full animate-confetti opacity-0 blur-[1px]"
-                :style="{ 
-                  left: Math.random() * 100 + '%', 
-                  backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'][Math.floor(Math.random() * 5)],
-                  animationDelay: Math.random() * 5 + 's',
-                  animationDuration: (3 + Math.random() * 2) + 's'
-                }">
+                :style="{ left: (i * 12) + '%', animationDelay: (i * 0.3) + 's', animationDuration: (3 + Math.random() * 2) + 's' }">
            </div>
         </div>
 
-        <div class="relative w-full max-w-sm sm:max-w-lg bg-white/95 dark:bg-[#0d0d10]/95 border border-slate-200 dark:border-white/10 rounded-[32px] sm:rounded-[40px] shadow-3xl flex flex-col items-center text-center overflow-hidden animate-zoom-in p-5 sm:p-10 backdrop-blur-md max-h-[90vh]">
+        <div class="relative w-full max-w-sm sm:max-w-md bg-white/95 dark:bg-[#0d0d10]/95 border border-slate-200 dark:border-white/10 rounded-[32px] shadow-3xl flex flex-col items-center text-center overflow-hidden animate-zoom-in p-6 sm:p-8 backdrop-blur-md max-h-[85vh]">
            <div class="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-blue-600 via-purple-600 to-emerald-600 animate-shimmer"></div>
 
-           <div class="relative mb-4 sm:mb-8 group shrink-0">
-              <div class="absolute -inset-10 bg-blue-500/20 rounded-full blur-[50px] animate-pulse"></div>
-              <div class="absolute -inset-4 bg-gradient-to-br from-blue-500/40 to-emerald-500/40 rounded-[28px] sm:rounded-[32px] blur-xl animate-win-glow"></div>
+           <div class="relative mb-4 group shrink-0">
+              <div class="absolute -inset-8 bg-blue-500/10 rounded-full blur-[40px] animate-pulse"></div>
               
-              <div class="relative w-20 h-20 sm:w-28 h-28 bg-gradient-to-br from-slate-800 to-black dark:from-blue-600 dark:to-blue-900 rounded-[28px] sm:rounded-[40px] flex items-center justify-center shadow-2xl border border-white/20 transform rotate-6 group-hover:rotate-0 transition-transform duration-700">
-                 <Trophy class="w-10 h-10 sm:w-14 h-14 text-yellow-400 drop-shadow-[0_0_15px_rgba(250,204,21,0.6)]" />
-              </div>
-
-              <!-- Floating Particles around trophy -->
-              <div class="absolute -top-1 -right-1 w-8 h-8 sm:w-10 sm:h-10 bg-white dark:bg-slate-800 rounded-xl sm:rounded-2xl flex items-center justify-center shadow-xl border border-blue-500/30 animate-float">
-                 <Zap class="w-4 h-4 sm:w-5 h-5 text-blue-500 fill-current" />
+              <div class="relative w-16 h-16 sm:w-20 h-20 bg-gradient-to-br from-slate-800 to-black dark:from-blue-600 dark:to-blue-900 rounded-2xl sm:rounded-3xl flex items-center justify-center shadow-xl border border-white/20 transform hover:rotate-0 transition-transform duration-500">
+                 <Trophy class="w-8 h-8 sm:w-10 h-10 text-yellow-400 drop-shadow-[0_0_10px_rgba(250,204,21,0.5)]" />
               </div>
            </div>
 
-           <div class="flex-1 w-full overflow-y-auto custom-scrollbar px-1 mb-4 sm:mb-0">
-             <div class="space-y-3 sm:space-y-4 mb-4 sm:mb-8 w-full">
+           <div class="flex-1 w-full overflow-y-auto custom-scrollbar px-1 mb-4">
+             <div class="space-y-3 mb-4 w-full">
                 <div class="inline-flex items-center gap-2 px-3 py-1 bg-blue-500/10 border border-blue-500/20 rounded-full">
-                   <span class="w-1.5 h-1.5 bg-blue-500 rounded-full animate-ping"></span>
-                   <span class="text-[8px] sm:text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-[0.2em] font-mono">Experiment_Finalized</span>
+                   <span class="text-[8px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest font-mono">Mission_Complete</span>
                 </div>
 
                 <div class="px-2">
                   <template v-if="winner?.uid === user.uid">
-                    <h2 class="text-3xl sm:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-b from-slate-900 to-slate-600 dark:from-white dark:to-blue-200 tracking-tighter leading-none mb-2">
+                    <h2 class="text-3xl sm:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-b from-slate-900 to-slate-600 dark:from-white dark:to-blue-200 tracking-tighter leading-tight mb-1">
                       实验大成功
                     </h2>
-                    <p class="text-[10px] sm:text-sm text-slate-500 dark:text-blue-400/60 font-medium tracking-wide">
-                      恭喜首席研究员！你已成功稳定了量子反应核心。
+                    <p class="text-[11px] text-slate-500 dark:text-blue-400/60 font-medium">
+                      恭喜首席研究员！量子反应核心已稳定。
                     </p>
                   </template>
                   <template v-else>
-                    <h2 class="text-3xl sm:text-5xl font-black text-slate-900 dark:text-white tracking-tighter leading-none mb-1 sm:mb-2">
+                    <h2 class="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tighter leading-tight mb-1">
                       反应已终止
                     </h2>
-                    <p class="text-[10px] sm:text-sm text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
-                      本次实验由 <span class="font-black px-1.5 py-0.5 rounded-lg ml-1" :class="shouldShowInBlue(winner) ? 'text-blue-600 dark:text-blue-400 bg-blue-500/5' : 'text-blue-600 dark:text-blue-400 bg-blue-500/5'">{{ getPlayerDisplayName(winner) }}</span> 成功收官。
+                    <p class="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                      本次实验由 <span class="font-black text-blue-600 dark:text-blue-400">{{ getPlayerDisplayName(winner) }}</span> 成功收官。
                     </p>
                   </template>
                 </div>
 
-                <div class="w-full mt-4 sm:mt-6 bg-slate-50/80 dark:bg-white/[0.03] border border-slate-200 dark:border-white/5 rounded-[24px] sm:rounded-[32px] p-3 sm:p-5 shadow-inner relative overflow-hidden group/board">
-                   <div class="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent pointer-events-none"></div>
-                   
-                   <div class="flex items-center justify-between mb-3 sm:mb-4 px-1 sm:px-2 relative z-10">
-                      <div class="flex items-center gap-1.5 sm:gap-2">
-                        <div class="w-1 h-3 sm:w-1.5 sm:h-4 bg-blue-500 rounded-full"></div>
-                        <span class="text-[9px] sm:text-[11px] font-black uppercase tracking-[0.1em] sm:tracking-[0.15em] text-slate-500">积分与经验变动</span>
-                      </div>
-                      <div class="flex items-center gap-1 px-2 py-0.5 sm:py-1 bg-blue-500/10 rounded-lg sm:rounded-xl border border-blue-500/20">
-                         <Sparkles class="w-2.5 h-2.5 sm:w-3 sm:h-3 text-blue-500" />
-                         <span class="text-[7px] sm:text-[9px] font-black text-blue-500 font-mono">DATA_SYNC_OK</span>
+                <div class="w-full mt-2 bg-slate-50/50 dark:bg-white/[0.02] border border-slate-200 dark:border-white/5 rounded-2xl p-3 shadow-inner relative overflow-hidden group/board">
+                   <div class="flex items-center justify-between mb-2 px-1 relative z-10">
+                      <span class="text-[9px] font-black uppercase tracking-widest text-slate-500">实验数据摘要</span>
+                      <div class="flex items-center gap-1 px-1.5 py-0.5 bg-blue-500/10 rounded-md border border-blue-500/10">
+                         <span class="text-[7px] font-black text-blue-500 font-mono">SYNC_OK</span>
                       </div>
                    </div>
 
-                   <div class="space-y-1.5 sm:space-y-2 relative z-10">
+                   <div class="space-y-1 relative z-10">
                       <div 
                         v-for="(item, index) in sortedPointsChanges" 
                         :key="item.uid"
-                        class="flex items-center justify-between group/row p-2 sm:p-3 rounded-xl sm:rounded-2xl transition-all hover:bg-white dark:hover:bg-white/10 hover:shadow-lg animate-slide-in-bottom"
-                        :style="{ animationDelay: (index * 0.1) + 's' }"
-                        :class="item.uid === user.uid ? 'bg-blue-600/10 ring-1 ring-blue-500/20' : ''"
+                        class="flex items-center justify-between group/row p-2 rounded-xl transition-all hover:bg-white dark:hover:bg-white/5 animate-slide-in-bottom"
+                        :style="{ animationDelay: (index * 0.05) + 's' }"
+                        :class="item.uid === user.uid ? 'bg-blue-600/5 ring-1 ring-blue-500/10' : ''"
                       >
-                         <div class="flex items-center gap-3 sm:gap-4">
+                         <div class="flex items-center gap-3">
                             <div class="relative">
-                              <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl flex items-center justify-center font-black text-[10px] sm:text-sm" :class="[
-                                index === 0 ? 'bg-yellow-400 text-yellow-900 shadow-lg shadow-yellow-500/20 scale-105 sm:scale-110' :
-                                index === 1 ? 'bg-slate-300 text-slate-700 shadow-md' :
-                                index === 2 ? 'bg-orange-400 text-orange-900 shadow-md' :
+                              <div class="w-6 h-6 rounded-lg flex items-center justify-center font-black text-[10px]" :class="[
+                                index === 0 ? 'bg-yellow-400 text-yellow-900 shadow-lg' :
                                 'bg-slate-100 dark:bg-black/40 text-slate-500'
                               ]">
                                 {{ index + 1 }}
                               </div>
-                              <Star v-if="index === 0" class="absolute -top-1.5 -right-1.5 w-3 h-3 sm:w-4 sm:h-4 text-yellow-500 fill-current" />
                             </div>
                             
                             <div class="flex flex-col items-start leading-tight">
-                              <span class="text-xs sm:text-sm font-black flex items-center gap-1.5 sm:gap-2" :class="shouldShowInBlue(item.player) ? 'text-blue-600 dark:text-blue-400' : 'text-slate-700 dark:text-slate-100'">
-                                <span class="truncate max-w-[80px] sm:max-w-[120px]">{{ getPlayerDisplayName(item.player) }}</span>
-                                <span v-if="item.uid === user.uid" class="px-1 py-0.5 bg-blue-500 text-[6px] sm:text-[8px] text-white rounded-md uppercase tracking-widest font-mono shrink-0">YOU</span>
+                              <span class="text-xs font-black flex items-center gap-1.5" :class="shouldShowInBlue(item.player) ? 'text-blue-600 dark:text-blue-400' : 'text-slate-700 dark:text-slate-100'">
+                                <span class="truncate max-w-[100px]">{{ getPlayerDisplayName(item.player) }}</span>
+                                <span v-if="item.uid === user.uid" class="px-1 py-0.5 bg-blue-500 text-[6px] text-white rounded-md uppercase font-mono shrink-0">ME</span>
                               </span>
-                              <span class="text-[7px] sm:text-[9px] font-bold text-slate-400 uppercase tracking-tighter shrink-0">ID: {{ item.uid }}</span>
                             </div>
                          </div>
                          
-                         <div class="flex items-center gap-1.5 sm:gap-2">
+                         <div class="flex items-center gap-1.5">
                             <div :class="cn(
-                               'px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl font-black font-mono text-[10px] sm:text-sm shadow-sm transition-all group-hover/row:scale-110',
-                               item.points >= 0 ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-500 border border-rose-500/20'
+                               'px-2 py-0.5 rounded-lg font-black font-mono text-[10px]',
+                               item.points >= 0 ? 'text-emerald-500' : 'text-rose-500'
                             )">
                               {{ item.points >= 0 ? '+' : '' }}{{ item.points }}
                             </div>
-                            <div v-if="item.xp > 0" :class="cn(
-                               'px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl font-black font-mono text-[10px] sm:text-sm shadow-sm transition-all group-hover/row:scale-110',
-                               'bg-blue-500/10 text-blue-500 border border-blue-500/20'
-                            )">
-                              +{{ item.xp }} XP
+                            <div v-if="item.xp > 0" class="px-2 py-0.5 rounded-lg font-black font-mono text-[10px] text-blue-500">
+                              +{{ item.xp }}XP
                             </div>
-                            <Trophy v-if="index === 0" class="w-3 h-3 sm:w-4 sm:h-4 text-yellow-500 animate-pulse" />
                          </div>
                       </div>
                    </div>
                 </div>
+             </div>
            </div>
 
-           <div class="w-full shrink-0">
+           <div class="w-full shrink-0 flex gap-3">
               <button
                 @click="feedback.click(); router.push('/')"
-                class="w-full h-14 sm:h-20 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-2xl sm:rounded-[28px] transition-all shadow-2xl hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2 sm:gap-3 group relative overflow-hidden"
+                class="flex-1 h-12 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-xl transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2 group"
               >
-                 <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
-                 <span class="uppercase tracking-[0.15em] sm:tracking-[0.25em] text-[10px] sm:text-base">返回指挥大厅</span>
-                 <ChevronRight class="w-4 h-4 sm:w-7 sm:h-7 group-hover:translate-x-1.5 transition-transform" />
+                 <span class="uppercase tracking-widest text-xs">回到主页</span>
+                 <ChevronRight class="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </button>
            </div>
         </div>

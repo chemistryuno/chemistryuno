@@ -44,11 +44,11 @@
             </router-link>
             <div class="w-px h-6 bg-slate-200 dark:bg-white/5" />
             <button 
-              @click="router.push('/')"
+              @click="router.push('/data')"
               class="flex items-center gap-2 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors group"
             >
               <ArrowLeft class="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-              <span class="text-[10px] font-black uppercase tracking-widest">Exit</span>
+              <span class="text-[10px] font-black uppercase tracking-widest">Back</span>
             </button>
           </div>
         </div>
@@ -157,7 +157,7 @@
             <!-- 状态过滤器 -->
             <div class="flex items-center bg-slate-50 dark:bg-white/5 p-1 rounded-xl border border-slate-200 dark:border-white/10 overflow-x-auto custom-scrollbar no-scrollbar">
               <button 
-                v-for="status in ['all', 'pending_coworker', 'pending_admin', 'approved', 'rejected']" 
+                v-for="status in ['all', 'pending', 'approved', 'rejected']" 
                 :key="status"
                 @click="filterStatus = status"
                 :class="[
@@ -167,7 +167,7 @@
                     : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
                 ]"
               >
-                {{ status === 'all' ? 'All' : status.replace('pending_', 'P_').toUpperCase() }}
+                {{ status === 'all' ? 'All' : status === 'pending' ? 'Pending' : status.toUpperCase() }}
               </button>
             </div>
 
@@ -227,8 +227,7 @@
                   <td class="px-4 py-3 font-bold text-slate-900 dark:text-white text-[10px]">
                     <div class="flex items-center gap-4 border-l-2" 
                       :class="{
-                        'border-amber-500/50 pl-4': reaction.status === 'pending_coworker',
-                        'border-blue-500/50 pl-4': reaction.status === 'pending_admin',
+                        'border-blue-500/50 pl-4': reaction.status === 'pending_coworker' || reaction.status === 'pending_admin' || reaction.status === 'pending',
                         'border-emerald-500/50 pl-4': reaction.status === 'approved',
                         'border-red-500/50 pl-4': reaction.status === 'rejected'
                       }">

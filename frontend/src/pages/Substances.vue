@@ -156,7 +156,7 @@
             <!-- 状态过滤器 -->
             <div class="flex items-center bg-slate-50 dark:bg-white/5 p-1 rounded-xl border border-slate-200 dark:border-white/10 overflow-x-auto no-scrollbar">
               <button 
-                v-for="status in ['all', 'pending_coworker', 'pending_admin', 'approved', 'rejected']" 
+                v-for="status in ['all', 'pending', 'approved', 'rejected']" 
                 :key="status"
                 @click="filterStatus = status"
                 :class="[
@@ -166,7 +166,7 @@
                     : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
                 ]"
               >
-                {{ status === 'all' ? 'All' : status.replace('pending_', 'P_').toUpperCase() }}
+                {{ status === 'all' ? 'All' : status === 'pending' ? 'Pending' : status.toUpperCase() }}
               </button>
             </div>
 

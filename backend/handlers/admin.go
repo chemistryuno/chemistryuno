@@ -552,7 +552,7 @@ func ApproveReaction(c *gin.Context) {
 	}
 
 	// 检查当前状态是否符合审批流
-	currentStatus, err := reactionRepo.GetStatusByGroupID(groupID)
+	_, err = reactionRepo.GetStatusByGroupID(groupID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "未找到该反应请求"})
 		return
@@ -563,20 +563,8 @@ func ApproveReaction(c *gin.Context) {
 	if req.Reject {
 		newStatus = "rejected"
 	} else {
-		if role == "co-worker" {
-			if currentStatus != "pending_coworker" {
-				c.JSON(http.StatusForbidden, gin.H{"error": "当前状态不符合协作者审批权限"})
-				return
-			}
-			newStatus = "pending_admin"
-		} else if role == "admin" {
-			// 管理员可以审批 pending_admin 或者是跳过协作者审批 pending_coworker
-			if currentStatus != "pending_admin" && currentStatus != "pending_coworker" {
-				c.JSON(http.StatusForbidden, gin.H{"error": "该反应不需要管理员再审批"})
-				return
-			}
-			newStatus = "approved"
-		}
+		// 统一合并审批状态：co-worker 和 admin 都可以直接批准
+		newStatus = "approved"
 	}
 
 	// 如果提供了 display，且管理员/协作者修改了方程式

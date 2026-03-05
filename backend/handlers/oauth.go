@@ -60,7 +60,7 @@ func InitOauth() {
 	githubOauthConfig = &oauth2.Config{
 		ClientID:     strings.TrimSpace(os.Getenv("GITHUB_CLIENT_ID")),
 		ClientSecret: strings.TrimSpace(os.Getenv("GITHUB_CLIENT_SECRET")),
-		RedirectURL:  strings.TrimSpace(os.Getenv("GITHUB_REDIRECT_URI")),
+		RedirectURL:  strings.TrimSpace(os.Getenv("GITHUB_REDIRECT_URI")), // 这里确保读取 .env
 		Scopes:       []string{"user:email", "read:user"},
 		Endpoint:     github.Endpoint,
 	}
@@ -68,7 +68,7 @@ func InitOauth() {
 	msOauthConfig = &oauth2.Config{
 		ClientID:     strings.TrimSpace(os.Getenv("MS_CLIENT_ID")),
 		ClientSecret: strings.TrimSpace(os.Getenv("MS_CLIENT_SECRET")),
-		RedirectURL:  strings.TrimSpace(os.Getenv("MS_REDIRECT_URI")),
+		RedirectURL:  strings.TrimSpace(os.Getenv("MS_REDIRECT_URI")), // 这里确保读取 .env
 		Scopes:       []string{"User.Read"},
 		Endpoint:     microsoft.AzureADEndpoint(strings.TrimSpace(os.Getenv("MS_TENANT_ID"))),
 	}
@@ -76,7 +76,7 @@ func InitOauth() {
 	googleOauthConfig = &oauth2.Config{
 		ClientID:     strings.TrimSpace(os.Getenv("GOOGLE_CLIENT_ID")),
 		ClientSecret: strings.TrimSpace(os.Getenv("GOOGLE_CLIENT_SECRET")),
-		RedirectURL:  strings.TrimSpace(os.Getenv("GOOGLE_REDIRECT_URI")),
+		RedirectURL:  strings.TrimSpace(os.Getenv("GOOGLE_REDIRECT_URI")), // 这里确保读取 .env
 		Scopes: []string{
 			"https://www.googleapis.com/auth/userinfo.email",
 			"https://www.googleapis.com/auth/userinfo.profile",
@@ -86,7 +86,7 @@ func InitOauth() {
 
 	appleOauthConfig = &oauth2.Config{
 		ClientID:    strings.TrimSpace(os.Getenv("APPLE_CLIENT_ID")),
-		RedirectURL: strings.TrimSpace(os.Getenv("APPLE_REDIRECT_URI")),
+		RedirectURL: strings.TrimSpace(os.Getenv("APPLE_REDIRECT_URI")), // 这里确保读取 .env
 		Scopes:      []string{"name", "email"},
 		Endpoint: oauth2.Endpoint{
 			AuthURL:  "https://appleid.apple.com/auth/authorize",

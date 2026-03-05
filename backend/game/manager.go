@@ -779,16 +779,13 @@ func handlePointsCalculation(gr *GameRoom) {
 		}
 	}
 
-	// 计算积分倍率：每有一个未完成玩家离开，结算减少 1/总人数
-	multiplier := 1.0
-	if configRepo.GetBoolValue("points_scaling_enabled", true) && gr.GameState.OriginalPlayerCount > 0 {
-		multiplier = 1.0 - (float64(gr.GameState.QuittedCount) / float64(gr.GameState.OriginalPlayerCount))
-		if multiplier < 0 {
-			multiplier = 0
-		}
+	// 1. 计算总人数（包括已退出的玩家，反映原本的对局规模）
+	totalPlayers := gr.GameState.OriginalPlayerCount
+	if totalPlayers <= 0 {
+		totalPlayers = len(fullRanking)
 	}
 
-	// 如果 PointsChanges 还没初始化，初始化它
+	// 2. 如果 PointsChanges 还没初始化，初始化它
 	if gr.GameState.PointsChanges == nil {
 		gr.GameState.PointsChanges = make(map[int]int)
 	}
@@ -799,37 +796,49 @@ func handlePointsCalculation(gr *GameRoom) {
 	for i, uid := range fullRanking {
 		rank := i + 1
 
-		// 1. 处理积分
+		// 3. 处理积分
 		points := 0
 
-		// AI 玩家（UID < 0）和已退出玩家不获得额外积分（但可能在中间结算时已获得 0）
+		// AI 玩家（UID < 0）和已退出玩家不获得额外积分
 		if uid > 0 {
 			// 如果已经在中间实时结算过了，不再重复增加数据库积分，仅确保 PointsChanges 中有值
 			if prevPoints, ok := gr.GameState.PointsChanges[uid]; ok && prevPoints > 0 {
 				points = prevPoints
 			} else {
-				// 计算应得积分
-				if rank == 1 {
-					points = 100
-				} else if rank == 2 {
-					points = 50
-				} else if rank == 3 {
-					points = 33
-				} else if rank == len(fullRanking) && len(fullRanking) > 1 {
-					points = 5 // 参与奖
-				} else {
-					points = 100 / rank
-				}
-
-				points = int(float64(points) * multiplier)
-
-				// PvE 模式积分修正
+				// 4. 计算应得积分
 				if gr.Room.IsPvE {
+					// 仅在 AI 模式（PvE）下使用动态人数加成规则
+					baseBonus := (totalPlayers - rank + 1) * 10
+					if rank == 1 {
+						baseBonus += totalPlayers * 25 // 获胜者额外加成
+					}
+					points = baseBonus
+
+					// PvE 模式积分难度系数修正
 					if gr.Room.PvEDifficulty < 50 {
 						points = 0
 					} else {
 						points = int(float64(points) * float64(gr.Room.PvEDifficulty) / 100.0)
 					}
+				} else {
+					// PvP 模式（常规对局）
+					// 基础规则：100 / 排名
+					points = 100 / rank
+
+					// 如果是最后一名，只获得 5 分参与奖
+					if rank == len(fullRanking) && len(fullRanking) > 1 {
+						points = 5
+					}
+
+					// 结算倍率（只有常规对局启用）：每有一个玩家离开，结算减少 1/总人数
+					multiplier := 1.0
+					if configRepo.GetBoolValue("points_scaling_enabled", true) && totalPlayers > 0 {
+						multiplier = 1.0 - (float64(gr.GameState.QuittedCount) / float64(totalPlayers))
+						if multiplier < 0 {
+							multiplier = 0
+						}
+					}
+					points = int(float64(points) * multiplier)
 				}
 
 				if points < 1 && (!gr.Room.IsPvE || gr.Room.PvEDifficulty >= 50) {

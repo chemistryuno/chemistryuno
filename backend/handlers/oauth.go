@@ -151,6 +151,25 @@ func generateStateToken(c *gin.Context, intent string) (string, error) {
 	return utils.GenerateOAuthState(intent, uid)
 }
 
+// getBaseURL 获取当前请求的基础 URL (例如 http://localhost:5000)
+func getBaseURL(c *gin.Context) string {
+	scheme := "http"
+	if c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https" {
+		scheme = "https"
+	}
+	host := c.Request.Host
+	if xForwardedHost := c.GetHeader("X-Forwarded-Host"); xForwardedHost != "" {
+		host = xForwardedHost
+	}
+
+	// 优先使用环境变量配置的域名（如果存在）
+	if configuredHost := os.Getenv("APP_HOST"); configuredHost != "" {
+		return configuredHost
+	}
+
+	return fmt.Sprintf("%s://%s", scheme, host)
+}
+
 // GitHubLogin 重定向到 GitHub 登录
 func GitHubLogin(c *gin.Context) {
 	if !isGitHubOAuthReady() {
@@ -172,7 +191,14 @@ func GitHubLogin(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
-	url := githubOauthConfig.AuthCodeURL(state)
+
+	// 动态修正配置中的 RedirectURL，如果环境变量为空或为了保持环境一致性
+	config := *githubOauthConfig
+	if config.RedirectURL == "" {
+		config.RedirectURL = getBaseURL(c) + "/api/auth/github/callback"
+	}
+
+	url := config.AuthCodeURL(state)
 	c.Redirect(http.StatusTemporaryRedirect, url)
 }
 
@@ -197,7 +223,13 @@ func MicrosoftLogin(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
-	url := msOauthConfig.AuthCodeURL(state)
+
+	config := *msOauthConfig
+	if config.RedirectURL == "" {
+		config.RedirectURL = getBaseURL(c) + "/api/auth/ms/callback"
+	}
+
+	url := config.AuthCodeURL(state)
 	c.Redirect(http.StatusTemporaryRedirect, url)
 }
 
@@ -222,7 +254,13 @@ func GoogleLogin(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
-	url := googleOauthConfig.AuthCodeURL(state)
+
+	config := *googleOauthConfig
+	if config.RedirectURL == "" {
+		config.RedirectURL = getBaseURL(c) + "/api/auth/google/callback"
+	}
+
+	url := config.AuthCodeURL(state)
 	c.Redirect(http.StatusTemporaryRedirect, url)
 }
 
@@ -247,7 +285,13 @@ func AppleLogin(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
-	url := appleOauthConfig.AuthCodeURL(state)
+
+	config := *appleOauthConfig
+	if config.RedirectURL == "" {
+		config.RedirectURL = getBaseURL(c) + "/api/auth/apple/callback"
+	}
+
+	url := config.AuthCodeURL(state)
 	c.Redirect(http.StatusTemporaryRedirect, url)
 }
 
@@ -260,14 +304,19 @@ func GitHubCallback(c *gin.Context) {
 		return
 	}
 
+	config := *githubOauthConfig
+	if config.RedirectURL == "" {
+		config.RedirectURL = getBaseURL(c) + "/api/auth/github/callback"
+	}
+
 	code := c.Query("code")
-	token, err := githubOauthConfig.Exchange(context.Background(), code)
+	token, err := config.Exchange(context.Background(), code)
 	if err != nil {
 		sendOAuthError(c, http.StatusInternalServerError, "无法换取 GitHub 访问令牌")
 		return
 	}
 
-	client := githubOauthConfig.Client(context.Background(), token)
+	client := config.Client(context.Background(), token)
 	resp, err := client.Get("https://api.github.com/user")
 	if err != nil {
 		sendOAuthError(c, http.StatusInternalServerError, "获取 GitHub 用户信息失败")
@@ -319,14 +368,19 @@ func MicrosoftCallback(c *gin.Context) {
 		return
 	}
 
+	config := *msOauthConfig
+	if config.RedirectURL == "" {
+		config.RedirectURL = getBaseURL(c) + "/api/auth/ms/callback"
+	}
+
 	code := c.Query("code")
-	token, err := msOauthConfig.Exchange(context.Background(), code)
+	token, err := config.Exchange(context.Background(), code)
 	if err != nil {
 		sendOAuthError(c, http.StatusInternalServerError, "无法换取 Microsoft 访问令牌")
 		return
 	}
 
-	client := msOauthConfig.Client(context.Background(), token)
+	client := config.Client(context.Background(), token)
 	resp, err := client.Get("https://graph.microsoft.com/v1.0/me")
 	if err != nil {
 		sendOAuthError(c, http.StatusInternalServerError, "获取 Microsoft 用户信息失败")
@@ -362,14 +416,19 @@ func GoogleCallback(c *gin.Context) {
 		return
 	}
 
+	config := *googleOauthConfig
+	if config.RedirectURL == "" {
+		config.RedirectURL = getBaseURL(c) + "/api/auth/google/callback"
+	}
+
 	code := c.Query("code")
-	token, err := googleOauthConfig.Exchange(context.Background(), code)
+	token, err := config.Exchange(context.Background(), code)
 	if err != nil {
 		sendOAuthError(c, http.StatusInternalServerError, "无法换取 Google 访问令牌")
 		return
 	}
 
-	client := googleOauthConfig.Client(context.Background(), token)
+	client := config.Client(context.Background(), token)
 	resp, err := client.Get("https://www.googleapis.com/oauth2/v2/userinfo")
 	if err != nil {
 		sendOAuthError(c, http.StatusInternalServerError, "获取 Google 用户信息失败")

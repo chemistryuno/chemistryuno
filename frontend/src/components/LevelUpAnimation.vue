@@ -224,30 +224,6 @@ const currentTier = computed(() => levelData.value ? tierConfig[levelData.value.
                 <span class="uppercase tracking-widest text-xs">接受进化</span>
                 <ChevronRight class="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </button>
-            </div>
-          </div>
-
-              <!-- 统计数值展示 -->
-              <div 
-                class="grid grid-cols-2 gap-4 w-full mt-12 transition-all duration-500 delay-500"
-                :class="animationStage >= 3 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'"
-              >
-                <div class="bg-white/5 border border-white/10 rounded-[28px] p-5">
-                   <div class="flex items-center justify-center gap-2 mb-1">
-                     <Zap class="w-3.5 h-3.5 text-yellow-400" />
-                     <span class="text-[10px] font-black uppercase text-white/40 tracking-widest">Total XP</span>
-                   </div>
-                   <div class="text-xl font-black text-white font-mono">{{ levelData.total_xp.toLocaleString() }}</div>
-                </div>
-                <div class="bg-white/5 border border-white/10 rounded-[28px] p-5">
-                   <div class="flex items-center justify-center gap-2 mb-1">
-                     <Trophy class="w-3.5 h-3.5 text-blue-400" />
-                     <span class="text-[10px] font-black uppercase text-white/40 tracking-widest">New Rank</span>
-                     <ChevronRight class="w-3 h-3 text-white/20" />
-                   </div>
-                   <div class="text-xl font-black text-white">{{ levelData.tier_name }}</div>
-                </div>
-              </div>
 
               <!-- 装饰性粒子容器 -->
               <div v-if="animationStage >= 3" class="absolute inset-0 pointer-events-none">
@@ -262,15 +238,37 @@ const currentTier = computed(() => levelData.value ? tierConfig[levelData.value.
                         opacity: 0.3 + (Math.random() * 0.4)
                       }"></div>
               </div>
-
-              <!-- 交互提示 -->
-              <div 
-                class="mt-12 text-[10px] font-black uppercase tracking-[0.5em] text-white/20 animate-pulse transition-opacity duration-1000"
-                :class="animationStage >= 3 ? 'opacity-100' : 'opacity-0'"
-              >
-                TOUCH_TO_CONTINUED
-              </div>
             </div>
+          </div>
+
+          <!-- 统计数值展示 -->
+          <div 
+            class="grid grid-cols-2 gap-4 w-full mt-12 transition-all duration-500 delay-500"
+            :class="animationStage >= 3 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'"
+          >
+            <div class="bg-white/5 border border-white/10 rounded-[28px] p-5 pointer-events-none">
+               <div class="flex items-center justify-center gap-2 mb-1">
+                 <Zap class="w-3.5 h-3.5 text-yellow-400" />
+                 <span class="text-[10px] font-black uppercase text-white/40 tracking-widest">Total XP</span>
+               </div>
+               <div class="text-xl font-black text-white font-mono">{{ levelData?.total_xp?.toLocaleString() }}</div>
+            </div>
+            <div class="bg-white/5 border border-white/10 rounded-[28px] p-5 pointer-events-none">
+               <div class="flex items-center justify-center gap-2 mb-1">
+                 <Trophy class="w-3.5 h-3.5 text-blue-400" />
+                 <span class="text-[10px] font-black uppercase text-white/40 tracking-widest">New Rank</span>
+                 <ChevronRight class="w-3 h-3 text-white/20" />
+               </div>
+               <div class="text-xl font-black text-white">{{ levelData?.tier_name }}</div>
+            </div>
+          </div>
+
+          <!-- 交互提示 -->
+          <div 
+            class="mt-12 text-center text-[10px] font-black uppercase tracking-[0.5em] text-white/20 animate-pulse transition-opacity duration-1000"
+            :class="animationStage >= 3 ? 'opacity-100' : 'opacity-0'"
+          >
+            TOUCH_TO_CONTINUED
           </div>
         </div>
       </div>

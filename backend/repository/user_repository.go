@@ -212,7 +212,7 @@ func (r *UserRepository) UpdateProfile(uid uint, req *models.UpdateProfileReques
 
 // Delete 删除用户（软删除）
 func (r *UserRepository) Delete(uid uint) error {
-	return r.db.Delete(&database.User{}, uid).Error
+	return r.db.Unscoped().Delete(&database.User{}, uid).Error
 }
 
 // CheckBanStatus 检查封禁状态
@@ -508,7 +508,7 @@ func (r *UserRepository) GetAllUsersOrderByCreatedAt() ([]database.User, error) 
 
 // DeleteNonAdmin 删除非管理员用户
 func (r *UserRepository) DeleteNonAdmin(uid uint) error {
-	return r.db.Where("uid = ? AND is_admin = ?", uid, false).Delete(&database.User{}).Error
+	return r.db.Unscoped().Where("uid = ?", uid).Delete(&database.User{}).Error
 }
 
 // UpdateRole 更新用户角色和管理员状态

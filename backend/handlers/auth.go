@@ -95,9 +95,34 @@ func Register(c *gin.Context) {
 		return
 	}
 
-	legacyUsername := strings.Split(req.Email, "@")[0]
+	// 获取最大 UID 并计算新 UID
+	maxUID, err := userRepo.GetMaxUID()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error when fetching max uid"})
+		return
+	}
+	newUID := maxUID + 1
+	if newUID < 100000000 {
+		newUID = 100000000 // 建议起始 UID
+	}
+
+	baseUsername := strings.Split(req.Email, "@")[0]
+	if baseUsername == "" {
+		baseUsername = "researcher"
+	}
+	finalUsername := baseUsername
+	// 确保用户名唯一，避免同名前缀冲突
+	for i := 1; ; i++ {
+		exists, _ := userRepo.ExistsByUsername(finalUsername)
+		if !exists {
+			break
+		}
+		finalUsername = fmt.Sprintf("%s_%d", baseUsername, i)
+	}
+
 	user := &database.User{
-		Username:      legacyUsername,
+		UID:           newUID,
+		Username:      finalUsername,
 		Email:         req.Email,
 		Nickname:      req.Nickname,
 		Password:      hashedPassword,

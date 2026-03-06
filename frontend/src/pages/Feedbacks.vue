@@ -13,7 +13,9 @@ import {
   AlertCircle,
   BellRing,
   Trash2,
-  Trophy
+  Trophy,
+  ChevronRight,
+  FileText
 } from 'lucide-vue-next'
 import FeedbackButton from '../components/FeedbackButton.vue'
 
@@ -21,15 +23,20 @@ const router = useRouter()
 const { showAlert, showConfirm } = useDialog()
 const feedbackButtonRef = ref<InstanceType<typeof FeedbackButton> | null>(null)
 const feedbacks = ref<any[]>([])
+const activeSurveys = ref<any[]>([])
 const loading = ref(false)
 
 const load = async () => {
   loading.value = true
   try {
-    const res = await authAPI.getMyFeedbacks()
-    feedbacks.value = res.data
+    const [fbRes, svRes] = await Promise.all([
+      authAPI.getMyFeedbacks(),
+      authAPI.getAllActiveSurveys()
+    ])
+    feedbacks.value = fbRes.data
+    activeSurveys.value = svRes.data || []
   } catch (e: any) {
-    showAlert(e.response?.data?.error || '获取反馈失败', '错误')
+    showAlert(e.response?.data?.error || '加载数据失败', '错误')
   } finally {
     loading.value = false
   }
@@ -120,8 +127,8 @@ const urge = async (id: number, idx: number) => {
             <Megaphone class="w-8 h-8 text-blue-500" />
           </div>
           反馈与消息 / Feedbacks
-          <span v-if="feedbacks.length > 0" class="text-sm font-black bg-blue-500/10 text-blue-500 px-3 py-1 rounded-full border border-blue-500/20 tabular-nums">
-            {{ feedbacks.length }}
+          <span v-if="feedbacks.length + activeSurveys.length > 0" class="text-sm font-black bg-blue-500/10 text-blue-500 px-3 py-1 rounded-full border border-blue-500/20 tabular-nums">
+            {{ feedbacks.length + activeSurveys.length }}
           </span>
         </h2>
         
@@ -140,6 +147,42 @@ const urge = async (id: number, idx: number) => {
       </div>
 
       <div v-else>
+        <!-- 激活的问卷调查 -->
+        <div v-if="activeSurveys.length > 0" class="mb-12 space-y-4">
+          <h3 class="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.3em] flex items-center gap-2 mb-4">
+            <span class="w-2 h-2 bg-indigo-500 rounded-full animate-pulse"></span>
+            ACTIVE_RESEARCH_SURVEYS / 正在进行的调研
+          </h3>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <router-link 
+              v-for="sv in activeSurveys" 
+              :key="sv.id" 
+              :to="'/surveys/' + sv.id"
+              class="group block bg-white dark:bg-[#111114] border border-slate-200 dark:border-indigo-500/20 p-6 rounded-3xl hover:border-indigo-500 hover:shadow-xl hover:shadow-indigo-500/10 transition-all relative overflow-hidden"
+            >
+              <div class="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 blur-[40px] -mr-16 -mt-16 group-hover:bg-indigo-500/10 transition-all"></div>
+              <div class="flex items-center justify-between relative z-10">
+                <div class="flex items-center gap-4">
+                  <div class="w-12 h-12 bg-indigo-500/10 rounded-2xl flex items-center justify-center text-indigo-500 border border-indigo-500/20 group-hover:scale-110 transition-transform">
+                    <FileText class="w-6 h-6" />
+                  </div>
+                  <div class="flex flex-col">
+                    <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">调查问卷</span>
+                    <h4 class="text-base font-black text-slate-900 dark:text-white group-hover:text-indigo-500 transition-colors tracking-tight">{{ sv.title }}</h4>
+                  </div>
+                </div>
+                <ChevronRight class="w-5 h-5 text-slate-300 group-hover:text-indigo-500 group-hover:translate-x-1 transition-all" />
+              </div>
+              <p class="mt-4 text-xs font-medium text-slate-500 dark:text-slate-400 leading-relaxed line-clamp-2 relative z-10">{{ sv.description || '点击参与本次调查，帮助我们改进实验环境。' }}</p>
+            </router-link>
+          </div>
+        </div>
+
+        <h3 class="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.3em] flex items-center gap-2 mb-4">
+          <span class="w-2 h-2 bg-blue-500 rounded-full"></span>
+          MY_FEEDBACK_HISTORY / 我的反馈历史
+        </h3>
+
         <div v-if="feedbacks.length === 0" class="bg-white dark:bg-[#111114] border-2 border-dashed border-slate-200 dark:border-white/5 rounded-[2.5rem] p-20 flex flex-col items-center justify-center text-center">
           <Clock class="w-16 h-16 text-slate-200 dark:text-white/5 mb-6" />
           <h3 class="text-xl font-bold text-slate-400">尚无反馈记录</h3>

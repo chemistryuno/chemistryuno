@@ -9,6 +9,7 @@ import AdminPlugins from './pages/AdminPlugins.vue'
 import Plugins from './pages/Plugins.vue'
 import Reactions from './pages/Reactions.vue'
 import Feedbacks from './pages/Feedbacks.vue'
+import Survey from './pages/Survey.vue'
 import Ranking from './pages/Ranking.vue'
 import DataConfig from './pages/DataConfig.vue'
 import Substances from './pages/Substances.vue'
@@ -57,6 +58,12 @@ const routes = [
     path: '/feedbacks',
     name: 'Feedbacks',
     component: Feedbacks,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/surveys/:id',
+    name: 'Survey',
+    component: Survey,
     meta: { requiresAuth: true }
   },
   {

@@ -28,7 +28,8 @@ import {
   Ban,
   UserMinus,
   X,
-  Puzzle
+  Puzzle,
+  FileText
 } from 'lucide-vue-next'
 import { cn } from '../utils/cn'
 
@@ -38,6 +39,98 @@ const users = ref<any[]>([])
 const gameHistory = ref<any[]>([])
 const feedbacks = ref<any[]>([])
 const announcements = ref<any[]>([])
+const surveys = ref<any[]>([])
+const showCreateSurveyModal = ref(false)
+const newSurvey = ref<any>({
+  title: '',
+  description: '',
+  reward_points: 0,
+  reward_exp: 0,
+  questions: [
+    { title: '', type: 'radio', options: '', order: 1 }
+  ]
+})
+
+const addQuestion = () => {
+  newSurvey.value.questions.push({
+    title: '',
+    type: 'radio',
+    options: '',
+    order: newSurvey.value.questions.length + 1
+  })
+}
+
+const removeQuestion = (index: number) => {
+  newSurvey.value.questions.splice(index, 1)
+  // 重新排序
+  newSurvey.value.questions.forEach((q: any, i: number) => q.order = i + 1)
+}
+
+const handleExportSurvey = async (id: number) => {
+  try {
+    const response = await adminAPI.exportSurvey(id)
+    const url = window.URL.createObjectURL(new Blob([response.data]))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `survey_${id}_export.xlsx`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  } catch (error: any) {
+    showAlert('导出失败: ' + (error.response?.data?.error || error.message), '错误')
+  }
+}
+
+const handleCreateSurvey = async () => {
+  if (!newSurvey.value.title) {
+    showAlert('请输入问卷标题', '验证失败')
+    return
+  }
+  
+  if (newSurvey.value.questions.length === 0) {
+    showAlert('请至少添加一个问题', '验证失败')
+    return
+  }
+
+  // 验证问题
+  for (const q of newSurvey.value.questions) {
+    if (!q.title) {
+      showAlert('所有问题都必须有标题', '验证失败')
+      return
+    }
+    if ((q.type === 'radio' || q.type === 'checkbox') && !q.options) {
+      showAlert('选择题必须提供选项（每行一个）', '验证失败')
+      return
+    }
+  }
+
+  try {
+    const payload = {
+      title: newSurvey.value.title,
+      description: newSurvey.value.description,
+      reward_points: newSurvey.value.reward_points || 0,
+      reward_exp: newSurvey.value.reward_exp || 0,
+      questions: newSurvey.value.questions.map((q: any) => ({
+        ...q,
+        options: q.options ? JSON.stringify(q.options.split('\n').filter((o: string) => o.trim())) : ''
+      }))
+    }
+    
+    await adminAPI.createSurvey(payload)
+    await showAlert('问卷已发布', '成功')
+    showCreateSurveyModal.value = false
+    newSurvey.value = {
+      title: '',
+      description: '',
+      reward_points: 0,
+      reward_exp: 0,
+      questions: [{ title: '', type: 'radio', options: '', order: 1 }]
+    }
+    loadData()
+  } catch (error: any) {
+    showAlert(error.response?.data?.error || '发布失败', '错误')
+  }
+}
 
 const gameTimeConfigs = ref<any>({
   player_kick_timeout: '30',
@@ -60,6 +153,7 @@ const tabs = computed(() => {
     { id: 'deck', label: '核心库存', icon: Layers },
     { id: 'special', label: '稀有元素', icon: Star },
     { id: 'announcements', label: '广播推送', icon: Megaphone },
+    { id: 'surveys', label: '问卷调查', icon: FileText },
     { id: 'feedbacks', label: '通讯报告', icon: MessageSquare },
     { id: 'game-time', label: '时间配置', icon: Clock },
     { id: 'history', label: '实验日志', icon: History }
@@ -108,6 +202,9 @@ const loadData = async () => {
     } else if (activeTab.value === 'announcements') {
       const response = await adminAPI.getAnnouncements()
       announcements.value = response.data || []
+    } else if (activeTab.value === 'surveys') {
+      const response = await adminAPI.getSurveys()
+      surveys.value = response.data || []
     } else if (activeTab.value === 'game-time') {
       const response = await adminAPI.getGameTimeConfigs()
       if (response.data?.configs) {
@@ -335,6 +432,15 @@ const handleDeleteAnnouncement = async (id: number) => {
     loadData()
   } catch (err: any) {
     await showAlert(err.response?.data?.error || '删除失败')
+  }
+}
+
+const handleToggleSurvey = async (id: number, active: boolean) => {
+  try {
+    await adminAPI.updateSurveyStatus(id, active)
+    loadData()
+  } catch (err: any) {
+    await showAlert(err.response?.data?.error || '状态切换失败')
   }
 }
 
@@ -1268,6 +1374,65 @@ const filteredHistory = computed(() => {
               </div>
             </div>
 
+            <!-- Surveys Tab -->
+            <div v-if="activeTab === 'surveys'" class="space-y-8">
+              <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <h3 class="text-lg font-black italic uppercase text-slate-900 dark:text-white flex items-center gap-4">
+                  <FileText class="w-5 h-5 text-indigo-500" />
+                  内部问卷调查系统 <span class="text-slate-400 dark:text-slate-600 font-mono not-italic text-[10px] tracking-normal">/ INTERNAL_SURVEYS --REGISTRY</span>
+                </h3>
+                <button @click="showCreateSurveyModal = true" class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-[10px] font-black uppercase tracking-[0.2em] shadow-xl shadow-indigo-500/20 transition-all hover:scale-[1.02] active:scale-95 flex items-center gap-2">
+                  <Plus class="w-4 h-4" /> 发布新问卷
+                </button>
+              </div>
+
+              <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div v-for="sv in surveys" :key="sv.id" class="group relative bg-white dark:bg-black/20 border border-slate-200 dark:border-white/5 p-6 rounded-[2rem] hover:border-indigo-500/40 transition-all flex flex-col gap-6 shadow-sm hover:shadow-2xl overflow-hidden">
+                   <div class="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 blur-[50px] -mr-16 -mt-16 group-hover:bg-indigo-500/10 transition-all" />
+
+                   <div class="flex items-center justify-between relative z-10">
+                      <div class="flex items-center gap-4">
+                        <div class="w-10 h-10 rounded-xl flex items-center justify-center border bg-indigo-500/10 text-indigo-500 border-indigo-500/20">
+                          <FileText class="w-5 h-5" />
+                        </div>
+                        <div class="flex flex-col">
+                          <span class="text-[10px] font-black uppercase tracking-widest text-slate-500">SURVEY_ID: {{ sv.id }}</span>
+                          <span class="text-sm font-black text-slate-900 dark:text-white">{{ sv.title }}</span>
+                        </div>
+                      </div>
+                      <button @click="handleExportSurvey(sv.id)" class="p-2 hover:bg-indigo-500/10 text-indigo-500 rounded-lg transition-all" title="导出数据 (Excel)">
+                        <Layers class="w-4 h-4" />
+                      </button>
+                   </div>
+
+                   <p class="text-[11px] leading-relaxed text-slate-500 dark:text-slate-400 font-bold line-clamp-2 relative z-10 min-h-[32px]">
+                      {{ sv.description || '无描述文本' }}
+                   </p>
+
+                   <div class="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-slate-400 relative z-10">
+                      <div class="flex items-center gap-2">
+                        <Clock class="w-3.5 h-3.5" />
+                        {{ new Date(sv.created_at).toLocaleDateString() }}
+                      </div>
+                      <div class="flex items-center gap-2">
+                        <button @click="handleToggleSurvey(sv.id, !sv.is_active)" 
+                          :class="cn(
+                            'px-4 py-2 rounded-xl border transition-all text-[8px] tracking-widest font-black',
+                            sv.is_active ? 'bg-emerald-500 text-white border-emerald-600 shadow-xl shadow-emerald-500/20' : 'bg-slate-100 dark:bg-white/5 text-slate-400 border-slate-200 dark:border-white/10'
+                          )"
+                        >
+                          {{ sv.is_active ? 'ACTIVE' : 'DISABLED' }}
+                        </button>
+                      </div>
+                   </div>
+                </div>
+
+                <div v-if="surveys.length === 0" class="col-span-full py-20 text-center text-slate-400 italic font-black uppercase tracking-[0.3em] text-[10px]">
+                  / NO_ACTIVE_SURV_DATA_RECORDED
+                </div>
+              </div>
+            </div>
+
             <!-- Feedbacks Tab -->
             <div v-if="activeTab === 'feedbacks'" class="space-y-8">
               <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -1655,6 +1820,114 @@ const filteredHistory = computed(() => {
             class="flex-1 px-4 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-[1.25rem] font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-cyan-500/20 active:scale-95 border border-cyan-500/20"
           >
             Update
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 发布问卷调查模态框 (内部) -->
+    <div v-if="showCreateSurveyModal" class="fixed inset-0 bg-slate-900/40 dark:bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+      <div class="bg-white dark:bg-[#0c0c0e] border border-slate-200 dark:border-white/10 rounded-[1.25rem] p-5 max-w-xl w-full max-h-[85vh] overflow-y-auto custom-scrollbar shadow-[0_50px_100px_-20px_rgba(79,70,229,0.2)] animate-in zoom-in relative">
+        <div class="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 blur-[50px] -mr-16 -mt-16" />
+        
+        <h3 class="text-base font-black italic uppercase text-slate-900 dark:text-white mb-6 flex items-center gap-3 relative z-10">
+          <FileText class="w-5 h-5 text-indigo-500" />
+          设计新问卷 <span class="text-[9px] text-slate-400 font-mono not-italic tracking-normal">/ SURVEY_GEN</span>
+        </h3>
+        
+        <div class="space-y-4 relative z-10">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label class="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-2 ml-1">问卷标题</label>
+              <input 
+                v-model="newSurvey.title"
+                type="text" 
+                placeholder="TITLE..."
+                class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2 text-[11px] font-bold text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500/50 transition-all italic"
+              />
+            </div>
+            <div>
+              <label class="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-2 ml-1">奖励 (积分/经验)</label>
+              <div class="grid grid-cols-2 gap-2">
+                <input 
+                  v-model.number="newSurvey.reward_points"
+                  type="number" 
+                  placeholder="POINTS..."
+                  class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2 text-[11px] font-bold text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500/50 transition-all italic"
+                />
+                <input 
+                  v-model.number="newSurvey.reward_exp"
+                  type="number" 
+                  placeholder="EXP..."
+                  class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2 text-[11px] font-bold text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500/50 transition-all italic"
+                />
+              </div>
+            </div>
+          </div>
+          <div>
+            <label class="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-2 ml-1">描述 (可选)</label>
+            <input 
+              v-model="newSurvey.description"
+              type="text" 
+              placeholder="DESC..."
+              class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2 text-[11px] font-bold text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500/50 transition-all"
+            />
+          </div>
+
+          <!-- Questions Section -->
+          <div class="space-y-3">
+            <div class="flex items-center justify-between border-b border-slate-100 dark:border-white/5 pb-1.5">
+              <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest">问题列表</span>
+              <button @click="addQuestion" class="px-2 py-1 bg-indigo-500/10 text-indigo-500 hover:bg-indigo-500 hover:text-white rounded-lg text-[8px] font-black uppercase tracking-widest transition-all border border-indigo-500/20">
+                ADD_Q
+              </button>
+            </div>
+
+            <div v-for="(q, index) in newSurvey.questions" :key="index" class="p-3 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl space-y-3 relative group/item">
+              <div class="flex items-start gap-3">
+                <div class="flex-1">
+                  <input 
+                    v-model="q.title"
+                    type="text" 
+                    placeholder="问题标题..."
+                    class="w-full bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-1.5 text-[10px] font-bold text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500/30 transition-all"
+                  />
+                </div>
+                <select v-model="q.type" class="bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-lg px-2 py-1.5 text-[9px] font-black uppercase text-slate-900 dark:text-white focus:outline-none w-24">
+                  <option value="radio">单选</option>
+                  <option value="checkbox">多选</option>
+                  <option value="text">简答</option>
+                  <option value="textarea">详述</option>
+                </select>
+                <button @click="removeQuestion(index)" class="p-1.5 text-slate-400 hover:text-red-500 transition-colors">
+                  <Trash2 class="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              <div v-if="q.type === 'radio' || q.type === 'checkbox'" class="animate-in slide-in-from-top-1 duration-200">
+                <textarea 
+                  v-model="q.options"
+                  rows="2"
+                  placeholder="选项 (每行一个)..."
+                  class="w-full bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-1.5 text-[10px] font-bold text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500/30 transition-all resize-none"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex gap-3 mt-8 relative z-10 sticky bottom-0 bg-white dark:bg-[#0c0c0e] pt-3 border-t border-slate-50 dark:border-white/5">
+          <button
+            @click="showCreateSurveyModal = false"
+            class="flex-1 px-4 py-2 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-500 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all"
+          >
+            Abort
+          </button>
+          <button
+            @click="handleCreateSurvey"
+            class="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-indigo-500/20 active:scale-95 border border-indigo-500/20"
+          >
+            Publish
           </button>
         </div>
       </div>

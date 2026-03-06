@@ -603,8 +603,10 @@ func handleOAuthUser(c *gin.Context, provider, providerID, username, email, nick
 
 	// 登录逻辑 (intent == "login" 或默认)
 	email = strings.ToLower(strings.TrimSpace(email))
+
+	// 如果无法提供邮箱，由于系统强制要求邮箱，告知前端需要补充信息
 	if email == "" {
-		sendOAuthError(c, http.StatusBadRequest, "OAuth account did not provide an email address")
+		sendOAuthError(c, http.StatusBadRequest, "NEED_EMAIL")
 		return
 	}
 
@@ -647,7 +649,15 @@ func handleOAuthUser(c *gin.Context, provider, providerID, username, email, nick
 				finalUsername = fmt.Sprintf("%s_%d", baseUsername, i)
 			}
 
+			// 获取最大 UID 并计算新 UID
+			maxUID, _ := userRepo.GetMaxUID() // OAuth 模式下为了流程顺畅，如果获取失败则回退到 0 让数据库自增
+			newUID := maxUID + 1
+			if newUID < 100000000 {
+				newUID = 100000000
+			}
+
 			user = &database.User{
+				UID:           newUID,
 				Username:      finalUsername,
 				Email:         email,
 				Nickname:      nickname,
@@ -655,6 +665,8 @@ func handleOAuthUser(c *gin.Context, provider, providerID, username, email, nick
 				Role:          "user",
 				Points:        1000, // 初始积分
 				MonthlyPoints: 1000, // 初始月积分
+				Level:         1,    // 确保有初始等级
+				XP:            0,
 				OAuthProvider: provider,
 			}
 

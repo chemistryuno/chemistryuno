@@ -369,6 +369,16 @@ func main() {
 				reactions.DELETE("/:id", middleware.AdminMiddleware(), handlers.DeleteReaction)
 			}
 
+			// 问卷调查路由
+			surveys := auth.Group("/surveys")
+			{
+				surveys.GET("/active", handlers.GetActiveSurveysForUser)
+				surveys.GET("/all", handlers.GetAllActiveSurveys)
+				surveys.GET("/:id", handlers.GetSurveyDetail)
+				surveys.POST("/:id/submit", handlers.SubmitSurveyResponse)
+				surveys.POST("/:id/dismiss", handlers.DismissSurvey)
+			}
+
 		}
 
 		// 管理员路由
@@ -432,6 +442,12 @@ func main() {
 			// 广播系统（全局 / 房间 / 用户）
 			admin.POST("/broadcast", handlers.AdminBroadcast)
 			admin.GET("/rooms/active", handlers.GetActiveRooms)
+
+			// 问卷管理
+			admin.GET("/surveys", handlers.GetSurveys)
+			admin.POST("/surveys", handlers.CreateSurvey)
+			admin.PUT("/surveys/:id/status", handlers.UpdateSurveyStatus)
+			admin.GET("/surveys/:id/export", middleware.AdminMiddleware(), handlers.ExportSurveyResponses)
 		}
 
 		// 积分和悬赏

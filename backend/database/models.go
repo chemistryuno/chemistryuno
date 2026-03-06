@@ -290,6 +290,78 @@ func (DeckConfig) TableName() string {
 	return "deck_configs"
 }
 
+// Survey GORM模型 - 问卷调查表
+type Survey struct {
+	ID           uint             `gorm:"primaryKey;autoIncrement" json:"id"`
+	Title        string           `gorm:"not null;size:255" json:"title"`
+	Description  string           `gorm:"type:text" json:"description"`
+	IsActive     bool             `gorm:"default:true;index" json:"is_active"`
+	RewardPoints int              `gorm:"default:0" json:"reward_points"`
+	RewardExp    int              `gorm:"default:0" json:"reward_exp"`
+	Questions    []SurveyQuestion `gorm:"foreignKey:SurveyID;constraint:OnDelete:CASCADE" json:"questions,omitempty"`
+	CreatedBy    uint             `gorm:"not null" json:"created_by"`
+	CreatedAt    time.Time        `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt    time.Time        `gorm:"autoUpdateTime" json:"updated_at"`
+}
+
+func (Survey) TableName() string {
+	return "surveys"
+}
+
+// SurveyQuestion 问卷题目模型
+type SurveyQuestion struct {
+	ID          uint      `gorm:"primaryKey;autoIncrement" json:"id"`
+	SurveyID    uint      `gorm:"not null;index" json:"survey_id"`
+	Title       string    `gorm:"not null;size:500" json:"title"`
+	Description string    `gorm:"type:text" json:"description"`
+	Type        string    `gorm:"not null;size:20" json:"type"` // radio, checkbox, text, textarea
+	Options     JSON      `gorm:"type:text" json:"options"`     // 选项数组 ["Option 1", "Option 2"]
+	IsRequired  bool      `gorm:"default:true" json:"is_required"`
+	Order       int       `gorm:"default:0" json:"order"`
+	CreatedAt   time.Time `gorm:"autoCreateTime" json:"created_at"`
+}
+
+func (SurveyQuestion) TableName() string {
+	return "survey_questions"
+}
+
+// SurveyResponse 问卷结果容器 (每个用户每个问卷一份)
+type SurveyResponse struct {
+	ID        uint           `gorm:"primaryKey;autoIncrement" json:"id"`
+	SurveyID  uint           `gorm:"not null;index" json:"survey_id"`
+	UserUID   uint           `gorm:"not null;index" json:"user_uid"`
+	Answers   []SurveyAnswer `gorm:"foreignKey:ResponseID;constraint:OnDelete:CASCADE" json:"answers,omitempty"`
+	CreatedAt time.Time      `gorm:"autoCreateTime" json:"created_at"`
+}
+
+func (SurveyResponse) TableName() string {
+	return "survey_responses"
+}
+
+// SurveyAnswer 单个题目的回答
+type SurveyAnswer struct {
+	ID         uint   `gorm:"primaryKey;autoIncrement" json:"id"`
+	ResponseID uint   `gorm:"not null;index" json:"response_id"`
+	QuestionID uint   `gorm:"not null;index" json:"question_id"`
+	Answer     string `gorm:"type:text" json:"answer"` // JSON格式存储
+}
+
+func (SurveyAnswer) TableName() string {
+	return "survey_answers"
+}
+
+// SurveyDismissal 记录玩家选择不再提醒某个问卷
+type SurveyDismissal struct {
+	ID        uint      `gorm:"primaryKey;autoIncrement" json:"id"`
+	UserUID   uint      `gorm:"not null;uniqueIndex:idx_user_survey" json:"user_uid"`
+	SurveyID  uint      `gorm:"not null;uniqueIndex:idx_user_survey" json:"survey_id"`
+	CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`
+}
+
+func (SurveyDismissal) TableName() string {
+	return "survey_dismissals"
+}
+
 // GameHistory GORM模型 - 游戏历史表
 type GameHistory struct {
 	ID                  uint      `gorm:"primaryKey;autoIncrement" json:"id"`

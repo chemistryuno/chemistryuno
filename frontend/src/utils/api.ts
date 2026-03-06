@@ -108,6 +108,16 @@ export const authAPI = {
     api.post(`/feedbacks/${id}/urge`),
   withdrawFeedback: (id: number) =>
     api.post('/feedback/withdraw', { id }),
+  getActiveSurveys: () =>
+    api.get('/surveys/active'),
+  getAllActiveSurveys: () =>
+    api.get('/surveys/all'),
+  dismissSurvey: (id: number) =>
+    api.post(`/surveys/${id}/dismiss`),
+  getSurveyDetail: (id: number) =>
+    api.get(`/surveys/${id}`),
+  submitSurveyAnswers: (id: number, answers: any[]) =>
+    api.post(`/surveys/${id}/submit`, { answers }),
   getGlobalChatHistory: (limit: number = 50) =>
     api.get(`/chat/global/history?limit=${limit}`),
   getPrivateChatHistory: (friendUID: number, limit: number = 50) =>
@@ -281,6 +291,16 @@ export const adminAPI = {
     api.put(`/admin/announcements/${id}/status`, { active }),
   deleteAnnouncement: (id: number) =>
     api.delete(`/admin/announcements/${id}`),
+
+  // 问卷管理
+  getSurveys: () =>
+    api.get('/admin/surveys'),
+  createSurvey: (data: any) =>
+    api.post('/admin/surveys', data),
+  updateSurveyStatus: (id: number, isActive: boolean) =>
+    api.put(`/admin/surveys/${id}/status`, { is_active: isActive }),
+  exportSurvey: (id: number) =>
+    api.get(`/admin/surveys/${id}/export`, { responseType: 'blob' }),
 }
 
 export const commonAPI = {

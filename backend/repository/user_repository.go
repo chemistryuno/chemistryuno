@@ -589,3 +589,10 @@ func (r *UserRepository) AddXP(uid uint, xp int) error {
 			"total_xp": gorm.Expr("total_xp + ?", xp),
 		}).Error
 }
+
+// GetMaxUID 获取当前最大 UID
+func (r *UserRepository) GetMaxUID() (uint, error) {
+	var maxUID uint
+	err := r.db.Model(&database.User{}).Select("MAX(uid)").Scan(&maxUID).Error
+	return maxUID, err
+}

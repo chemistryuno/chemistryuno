@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 import { gameAPI, authAPI, commonAPI, friendAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
 import websocket from '../utils/websocket'
-import { Beaker, Plus, Shield, LogOut, Settings, Play, X, Loader2, Database, MessageCircle, Trophy, Megaphone, Menu, Puzzle } from 'lucide-vue-next'
+import { Beaker, Plus, Shield, LogOut, Settings, Play, X, Loader2, Database, MessageCircle, Trophy, Megaphone, Menu, Puzzle, FileText, ChevronRight, ExternalLink } from 'lucide-vue-next'
 import { cn } from '../utils/cn'
 import ChatBox from '../components/ChatBox.vue'
 import TutorialGuide from '../components/TutorialGuide.vue'
@@ -68,6 +68,41 @@ const enableAIBackfill = ref(false)
 const aiBackfillDifficulty = ref(50)
 
 const loading = ref(false)
+const activeSurveys = ref<any[]>([])
+const showSurveyModal = ref(false)
+const currentSurvey = ref<any>(null)
+
+const loadSurveys = async () => {
+  try {
+    const res = await authAPI.getActiveSurveys()
+    activeSurveys.value = res.data || []
+    if (activeSurveys.value.length > 0) {
+      currentSurvey.value = activeSurveys.value[0]
+      showSurveyModal.value = true
+    }
+  } catch (err) {
+    console.error('加载调查问卷失败:', err)
+  }
+}
+
+const handleDismissSurvey = async () => {
+  if (!currentSurvey.value) return
+  try {
+    await authAPI.dismissSurvey(currentSurvey.value.id)
+    showSurveyModal.value = false
+    // 检查是否还有其他问卷
+    const nextSurveys = activeSurveys.value.filter(s => s.id !== currentSurvey.value.id)
+    if (nextSurveys.length > 0) {
+      setTimeout(() => {
+        activeSurveys.value = nextSurveys
+        currentSurvey.value = nextSurveys[0]
+        showSurveyModal.value = true
+      }, 500)
+    }
+  } catch (err) {
+    console.error('忽略问卷失败:', err)
+  }
+}
 const currentTime = ref(new Date())
 const onlineCount = ref(0)
 const isMobileMenuOpen = ref(false)
@@ -214,6 +249,7 @@ onMounted(() => {
   loadPersistentAnnouncements()
   loadFriends()
   loadVersion()
+  loadSurveys() // 加载问卷调查
   websocket.connect()
   websocket.on('online_count', handleOnlineCountUpdate)
   websocket.on('system_announcement', handleSystemAnnouncement)
@@ -811,6 +847,58 @@ const copyToClipboard = (text: string) => {
           </div>
         </div>
       </footer>
+    </div>
+
+    <!-- 问卷调查提醒弹窗 -->
+    <div v-if="showSurveyModal && currentSurvey" class="fixed inset-0 z-[110] flex items-center justify-center p-4 sm:p-6">
+      <div class="absolute inset-0 bg-slate-900/40 dark:bg-black/80 backdrop-blur-xl animate-in fade-in" />
+      <div class="relative w-full max-w-md bg-white dark:bg-[#0c0c0e] border border-slate-200 dark:border-indigo-500/30 rounded-[2.5rem] shadow-[0_50px_100px_-20px_rgba(79,70,229,0.3)] overflow-hidden flex flex-col p-8 sm:p-10 animate-in zoom-in slide-in-from-bottom-10 duration-500">
+        <div class="absolute top-0 right-0 w-48 h-48 bg-indigo-500/10 blur-[80px] -mr-24 -mt-24" />
+        
+        <div class="flex flex-col items-center text-center gap-6 relative z-10">
+          <div class="w-16 h-16 sm:w-20 sm:h-20 bg-indigo-600/10 border border-indigo-500/20 rounded-3xl flex items-center justify-center text-indigo-600 dark:text-indigo-400 shadow-inner">
+            <FileText class="w-8 h-8 sm:w-10 sm:h-10" />
+          </div>
+          
+          <div class="space-y-2">
+            <h2 class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight italic uppercase">协助研究调查</h2>
+            <p class="text-[10px] font-black text-slate-400 dark:text-slate-500 font-mono uppercase tracking-[0.3em]">Research_Collaboration_Protocol</p>
+          </div>
+          
+          <div class="bg-indigo-500/5 dark:bg-black/40 border border-indigo-500/10 rounded-2xl p-6 w-full">
+            <h3 class="text-base font-black text-slate-800 dark:text-white mb-2">{{ currentSurvey.title }}</h3>
+            <p class="text-xs font-bold text-slate-500 dark:text-slate-400 leading-relaxed">{{ currentSurvey.description || '请参与我们的最新研究调查，您的反馈对项目的改进至关重要。' }}</p>
+          </div>
+          
+          <div class="flex flex-col gap-3 w-full mt-4">
+            <a 
+              :href="currentSurvey.url" 
+              target="_blank"
+              class="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-indigo-600/20 transition-all hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-3"
+            >
+              立即填写 <ExternalLink class="w-4 h-4" />
+            </a>
+            <div class="grid grid-cols-2 gap-3">
+              <button 
+                @click="showSurveyModal = false"
+                class="bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-500 dark:text-slate-400 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all"
+              >
+                稍后再说
+              </button>
+              <button 
+                @click="handleDismissSurvey"
+                class="bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all border border-rose-500/10"
+              >
+                不再提醒
+              </button>
+            </div>
+          </div>
+          
+          <p class="text-[8px] font-mono text-slate-400 border-t border-slate-100 dark:border-white/5 pt-4 w-full mt-2 uppercase tracking-tight">
+            ID: {{ currentSurvey.id }} // REF_DATE: {{ new Date(currentSurvey.created_at).toLocaleDateString() }}
+          </p>
+        </div>
+      </div>
     </div>
 
     <!-- Modern Create Modal -->
@@ -1444,4 +1532,63 @@ const copyToClipboard = (text: string) => {
 
     <!-- Tutorial Guide for Lobby -->
     <TutorialGuide :show="showTutorial" :steps="lobbyTutorialSteps" @close="handleTutorialClose" @complete="handleTutorialComplete" />
+
+    <!-- 调查问卷弹窗 (内部) -->
+    <div v-if="showSurveyModal && currentSurvey" class="fixed inset-0 bg-slate-900/40 dark:bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+      <div class="bg-white dark:bg-[#0c0c0e] border border-slate-200 dark:border-white/10 rounded-[2.5rem] p-8 max-w-lg w-full shadow-[0_50px_100px_-20px_rgba(79,70,229,0.3)] animate-in zoom-in relative overflow-hidden group">
+        <div class="absolute top-0 right-0 w-48 h-48 bg-indigo-500/5 blur-[80px] -mr-24 -mt-24 group-hover:bg-indigo-500/10 transition-all opacity-50" />
+        <div class="absolute bottom-0 left-0 w-32 h-32 bg-indigo-500/5 blur-[80px] -ml-16 -mb-16 opacity-50" />
+
+        <div class="relative z-10 text-center">
+          <div class="w-16 h-16 bg-indigo-500/10 text-indigo-500 border border-indigo-500/20 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-indigo-500/5 ring-4 ring-indigo-500/5">
+            <FileText class="w-8 h-8" />
+          </div>
+
+          <h3 class="text-xl font-black text-slate-900 dark:text-white mb-2 uppercase italic tracking-tighter">研究员专属调研任务</h3>
+          <p class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.3em] mb-6">Internal_Research_Protocol_v2</p>
+
+          <div class="bg-indigo-500/5 border border-indigo-500/10 rounded-2xl p-6 mb-8 text-left transition-all hover:bg-indigo-500/[0.08]">
+             <h4 class="text-sm font-black text-slate-900 dark:text-white mb-2 uppercase italic">{{ currentSurvey.title }}</h4>
+             <p class="text-xs font-bold text-slate-500 dark:text-slate-400 leading-relaxed italic line-clamp-3 mb-4">“{{ currentSurvey.description || '您的意见对我们非常重要，请根据实际体验完成本次问卷。' }}”</p>
+             
+             <!-- Rewards Badge -->
+             <div v-if="currentSurvey.reward_points > 0 || currentSurvey.reward_exp > 0" class="flex items-center gap-2 pt-2 border-t border-indigo-500/10">
+               <div v-if="currentSurvey.reward_points > 0" class="flex items-center gap-1.5 px-2 py-1 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                 <div class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shadow-[0_0_5px_rgba(245,158,11,0.5)]"></div>
+                 <span class="text-[9px] font-black text-amber-600 dark:text-amber-500 uppercase tracking-tighter">+{{ currentSurvey.reward_points }} PTS</span>
+               </div>
+               <div v-if="currentSurvey.reward_exp > 0" class="flex items-center gap-1.5 px-2 py-1 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                 <div class="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse shadow-[0_0_5px_rgba(59,130,246,0.5)]"></div>
+                 <span class="text-[9px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-tighter">+{{ currentSurvey.reward_exp }} EXP</span>
+               </div>
+             </div>
+          </div>
+
+          <div class="space-y-3">
+            <router-link
+              :to="'/surveys/' + currentSurvey.id"
+              @click="showSurveyModal = false"
+              class="block w-full px-6 py-3.5 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white rounded-2xl font-black uppercase tracking-[0.2em] text-xs transition-all shadow-xl shadow-indigo-500/20 hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-3 border border-white/10"
+            >
+              <Play class="w-4 h-4 fill-white text-white" />
+              立即开始任务 / Respond_Now
+            </router-link>
+            
+            <button 
+              @click="handleDismissSurvey"
+              class="w-full px-6 py-3 bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 hover:text-red-500 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all border border-slate-200 dark:border-white/5 flex items-center justify-center gap-2"
+            >
+              <X class="w-3.5 h-3.5" />
+              不再提醒 / Ignore_Permanently
+            </button>
+            <button 
+              @click="showSurveyModal = false"
+              class="text-[9px] font-black text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 uppercase tracking-widest transition-all pt-2 block w-full text-center"
+            >
+              稍后再说 / Dismiss_Temporarily
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
 </template>

@@ -42,6 +42,11 @@ func autoMigrate() error {
 		&LevelConfig{},
 		&Plugin{},
 		&PluginCard{},
+		&Survey{},
+		&SurveyDismissal{},
+		&SurveyQuestion{},
+		&SurveyResponse{},
+		&SurveyAnswer{},
 	)
 
 	if err != nil {

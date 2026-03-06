@@ -84,7 +84,12 @@ const handleOAuthLogin = (provider: 'github' | 'ms' | 'google' | 'apple') => {
     } else if (event.data.type === 'oauth-error') {
       oauthFinished = true
       cleanup()
-      error.value = event.data.error || '授权失败'
+      if (event.data.error === 'NEED_EMAIL') {
+        error.value = '第三方账号未公开邮箱，请先手动填写邮箱、昵称和验证码进行常规注册，稍后再个人设置中绑定。'
+        showAlert('您的第三方账号未设置或未公开邮箱地址。请先完成常规注册。', '需要补充邮箱')
+      } else {
+        error.value = event.data.error || '授权失败'
+      }
       loading.value = false
     }
   }
@@ -141,6 +146,11 @@ const handleSubmit = async () => {
     return
   }
 
+  if (password.value.length < 6) {
+    error.value = '密码长度至少需要6位'
+    return
+  }
+
   if (smtpEnabled.value && !code.value) {
     error.value = '请输入邮箱验证码'
     return
@@ -158,7 +168,20 @@ const handleSubmit = async () => {
     await showAlert('注册成功，请使用新凭据登录。', '研究员注册成功')
     router.push('/login')
   } catch (err: any) {
-    error.value = err.response?.data?.error || '注册失败'
+    const backendError = err.response?.data?.error || ''
+    
+    // 映射后端错误信息为更友好的中文提示
+    if (backendError.includes('email already registered')) {
+      error.value = '该邮箱已被注册，请尝试直接登录'
+    } else if (backendError.includes('verification code invalid')) {
+      error.value = '验证码错误或已过期，请重新获取'
+    } else if (backendError.includes('failed to create user')) {
+      error.value = '档案创建失败，请联系管理员'
+    } else if (backendError) {
+      error.value = backendError
+    } else {
+      error.value = '注册请求异常，请稍后重试'
+    }
   } finally {
     loading.value = false
   }

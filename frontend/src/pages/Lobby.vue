@@ -1534,50 +1534,65 @@ const copyToClipboard = (text: string) => {
     <TutorialGuide :show="showTutorial" :steps="lobbyTutorialSteps" @close="handleTutorialClose" @complete="handleTutorialComplete" />
 
     <!-- 调查问卷弹窗 (内部) -->
-    <div v-if="showSurveyModal && currentSurvey" class="fixed inset-0 bg-slate-900/40 dark:bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center p-4">
-      <div class="bg-white dark:bg-[#0c0c0e] border border-slate-200 dark:border-white/10 rounded-[2.5rem] p-8 max-w-lg w-full shadow-[0_50px_100px_-20px_rgba(79,70,229,0.3)] animate-in zoom-in relative overflow-hidden group">
-        <div class="absolute top-0 right-0 w-48 h-48 bg-indigo-500/5 blur-[80px] -mr-24 -mt-24 group-hover:bg-indigo-500/10 transition-all opacity-50" />
-        <div class="absolute bottom-0 left-0 w-32 h-32 bg-indigo-500/5 blur-[80px] -ml-16 -mb-16 opacity-50" />
-
-        <div class="relative z-10 text-center">
-          <div class="w-16 h-16 bg-indigo-500/10 text-indigo-500 border border-indigo-500/20 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-indigo-500/5 ring-4 ring-indigo-500/5">
-            <FileText class="w-8 h-8" />
+    <div v-if="showSurveyModal && currentSurvey" class="fixed inset-0 bg-slate-900/40 dark:bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center p-3">
+      <div class="bg-white dark:bg-[#0c0c0e] border border-slate-200 dark:border-white/10 rounded-[2rem] p-5 max-w-sm w-full shadow-[0_50px_100px_-20px_rgba(79,70,229,0.3)] animate-in zoom-in relative overflow-hidden group">
+        <div class="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 blur-[50px] -mr-16 -mt-16 group-hover:bg-indigo-500/10 transition-all opacity-50" />
+        
+        <div class="relative z-10">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 bg-indigo-500/10 text-indigo-500 border border-indigo-500/20 rounded-xl flex items-center justify-center shadow-indigo-500/5 transition-all group-hover:scale-110">
+              <FileText class="w-5 h-5" />
+            </div>
+            <div class="flex-1">
+              <h3 class="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-0.5">研究调查 / Survey</h3>
+              <h4 class="text-sm font-black text-slate-900 dark:text-white uppercase italic tracking-tighter line-clamp-1">{{ currentSurvey.title }}</h4>
+            </div>
           </div>
 
-          <h3 class="text-xl font-black text-slate-900 dark:text-white mb-2 uppercase italic tracking-tighter">研究员专属调研任务</h3>
-          <p class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.3em] mb-6">Internal_Research_Protocol_v2</p>
-
-          <div class="bg-indigo-500/5 border border-indigo-500/10 rounded-2xl p-6 mb-8 text-left transition-all hover:bg-indigo-500/[0.08]">
-             <h4 class="text-sm font-black text-slate-900 dark:text-white mb-2 uppercase italic">{{ currentSurvey.title }}</h4>
-             <p class="text-xs font-bold text-slate-500 dark:text-slate-400 leading-relaxed italic line-clamp-3 mb-4">“{{ currentSurvey.description || '您的意见对我们非常重要，请根据实际体验完成本次问卷。' }}”</p>
+          <div class="bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-2xl p-4 mb-4 transition-all">
+             <p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 leading-relaxed italic line-clamp-2 mb-3">“{{ currentSurvey.description || '您的意见对我们非常重要，请根据实际体验完成本次问卷。' }}”</p>
              
              <!-- Rewards Badge -->
-             <div v-if="currentSurvey.reward_points > 0 || currentSurvey.reward_exp > 0" class="flex items-center gap-2 pt-2 border-t border-indigo-500/10">
-               <div v-if="currentSurvey.reward_points > 0" class="flex items-center gap-1.5 px-2 py-1 bg-amber-500/10 border border-amber-500/20 rounded-lg">
-                 <div class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shadow-[0_0_5px_rgba(245,158,11,0.5)]"></div>
-                 <span class="text-[9px] font-black text-amber-600 dark:text-amber-500 uppercase tracking-tighter">+{{ currentSurvey.reward_points }} PTS</span>
+             <div v-if="currentSurvey.reward_points > 0 || currentSurvey.reward_exp > 0" class="flex items-center gap-2 pt-3 border-t border-slate-200 dark:border-white/5">
+               <div v-if="currentSurvey.reward_points > 0" class="flex items-center gap-1 px-2 py-0.5 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                 <div class="w-1 h-1 rounded-full bg-amber-500 animate-pulse"></div>
+                 <span class="text-[8px] font-black text-amber-600 dark:text-amber-500 uppercase">+{{ currentSurvey.reward_points }} PTS</span>
                </div>
-               <div v-if="currentSurvey.reward_exp > 0" class="flex items-center gap-1.5 px-2 py-1 bg-blue-500/10 border border-blue-500/20 rounded-lg">
-                 <div class="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse shadow-[0_0_5px_rgba(59,130,246,0.5)]"></div>
-                 <span class="text-[9px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-tighter">+{{ currentSurvey.reward_exp }} EXP</span>
+               <div v-if="currentSurvey.reward_exp > 0" class="flex items-center gap-1 px-2 py-0.5 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                 <div class="w-1 h-1 rounded-full bg-blue-500 animate-pulse"></div>
+                 <span class="text-[8px] font-black text-blue-600 dark:text-blue-400 uppercase">+{{ currentSurvey.reward_exp }} EXP</span>
                </div>
              </div>
           </div>
 
-          <div class="space-y-3">
+          <div class="grid grid-cols-1 gap-2">
             <router-link
               :to="'/surveys/' + currentSurvey.id"
               @click="showSurveyModal = false"
-              class="block w-full px-6 py-3.5 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white rounded-2xl font-black uppercase tracking-[0.2em] text-xs transition-all shadow-xl shadow-indigo-500/20 hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-3 border border-white/10"
+              class="w-full px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-black uppercase tracking-[0.15em] text-[10px] transition-all shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2 border border-white/10 active:scale-95"
             >
-              <Play class="w-4 h-4 fill-white text-white" />
-              立即开始任务 / Respond_Now
+              <FileText class="w-3.5 h-3.5" />
+              立即填写 / RESPOND_NOW
             </router-link>
             
-            <button 
-              @click="handleDismissSurvey"
-              class="w-full px-6 py-3 bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 hover:text-red-500 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all border border-slate-200 dark:border-white/5 flex items-center justify-center gap-2"
-            >
+            <div class="grid grid-cols-2 gap-2">
+              <button 
+                @click="showSurveyModal = false"
+                class="px-4 py-2 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-500 dark:text-slate-400 rounded-xl font-black uppercase tracking-widest text-[9px] transition-all border border-slate-200 dark:border-white/5"
+              >
+                稍后再说
+              </button>
+              <button 
+                @click="handleDismissSurvey"
+                class="px-4 py-2 bg-slate-50 dark:bg-white/5 hover:bg-red-500/10 text-slate-400 hover:text-red-500 rounded-xl font-black uppercase tracking-widest text-[9px] transition-all border border-slate-200 dark:border-white/5"
+              >
+                不再提醒
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
               <X class="w-3.5 h-3.5" />
               不再提醒 / Ignore_Permanently
             </button>

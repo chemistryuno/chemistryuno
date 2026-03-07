@@ -58,14 +58,15 @@ const initCropper = () => {
   }
   if (imageToCrop.value) {
     cropper = new Cropper(imageToCrop.value, {
-      aspectRatio: 1,
-      viewMode: 1,
+      aspectRatio: 1, // 锁定方形
+      viewMode: 1,    // 限制裁剪框不能超出图片范围
       dragMode: 'move',
-      autoCropArea: 1,
+      autoCropArea: 0.8, // 初始裁剪区域 80%
       restore: false,
       guides: true,
       center: true,
-      highlight: false,
+      highlight: true,
+      responsive: true,
       cropBoxMovable: true,
       cropBoxResizable: true,
       toggleDragModeOnDblclick: false,
@@ -100,12 +101,20 @@ const handleFileUpload = (event: Event) => {
 
 const handleSave = () => {
   if (cropper && previewImage.value) {
+    // 获取裁剪后的 Canvas
     const canvas = cropper.getCroppedCanvas({
       width: 400,
       height: 400,
+      imageSmoothingEnabled: true,
+      imageSmoothingQuality: 'high',
     })
-    const croppedDataUrl = canvas.toDataURL('image/webp')
-    emit('save', croppedDataUrl)
+    
+    if (canvas) {
+      // 导出为极小体积的 WebP (50% 质量，兼顾清晰度与存储)
+      // 这解决了上传后无法存储的问题，因为过大的 Base64 可能会在传输或中间层被截断
+      const croppedDataUrl = canvas.toDataURL('image/webp', 0.5)
+      emit('save', croppedDataUrl)
+    }
   } else {
     emit('save', selectedAvatar.value)
   }

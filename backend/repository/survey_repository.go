@@ -196,8 +196,9 @@ func (r *SurveyRepository) RepairAnswerQuestionIDs(surveyID uint) (int, error) {
 		return 0, nil
 	}
 
-	// 获取该问卷所有答卷，答案按 id 升序（插入顺序）
+	// 获取该问卷所有答卷，答案按 id 升序（即插入顺序）
 	var responses []database.SurveyResponse
+	// 注意：这里必须保证 Preload 加载的 Answers 顺序是创建时的顺序（ID ASC）
 	if err := database.DB.Preload("Answers", func(db *gorm.DB) *gorm.DB {
 		return db.Order("id ASC")
 	}).Where("survey_id = ?", surveyID).Find(&responses).Error; err != nil {
@@ -205,25 +206,24 @@ func (r *SurveyRepository) RepairAnswerQuestionIDs(surveyID uint) (int, error) {
 	}
 
 	fixedCount := 0
-	return fixedCount, database.DB.Transaction(func(tx *gorm.DB) error {
+	err := database.DB.Transaction(func(tx *gorm.DB) error {
 		for _, res := range responses {
-			// 只处理含有 question_id=0 的答卷
-			hasBroken := false
-			for _, a := range res.Answers {
-				if a.QuestionID == 0 {
-					hasBroken = true
-					break
-				}
-			}
-			if !hasBroken {
-				continue
-			}
-			// 数量不匹配则跳过，无法安全推断
+			// 如果该份答卷的答案总数与题目总数不符，无法安全推断位置关系
 			if len(res.Answers) != len(questions) {
 				continue
 			}
+
 			for i, a := range res.Answers {
-				if a.QuestionID == 0 {
+				// 核心修复：即使 question_id 不等于 0，但如果它不属于该问卷题目列表（老数据残留），也进行重定向
+				belongs := false
+				for _, q := range questions {
+					if a.QuestionID == q.ID {
+						belongs = true
+						break
+					}
+				}
+
+				if a.QuestionID == 0 || !belongs {
 					if err := tx.Model(&database.SurveyAnswer{}).Where("id = ?", a.ID).
 						Update("question_id", questions[i].ID).Error; err != nil {
 						return err
@@ -234,6 +234,7 @@ func (r *SurveyRepository) RepairAnswerQuestionIDs(surveyID uint) (int, error) {
 		}
 		return nil
 	})
+	return fixedCount, err
 }
 func (r *SurveyRepository) GetResponsesBySurveyIDSorted(surveyID uint, sortBy, order string) ([]database.SurveyResponse, error) {
 	var responses []database.SurveyResponse

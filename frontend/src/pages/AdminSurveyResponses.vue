@@ -53,10 +53,22 @@ const toggleSort = (field: string) => {
 
 const getAnswer = (res: any, questionID: number): string => {
   if (!res.answers) return '—'
-  const ans = res.answers.find((a: any) => a.question_id === questionID)
+  // 查找对应 question_id 的答案
+  let ans = res.answers.find((a: any) => a.question_id === questionID)
+  
+  // 核心修复：如果没找到对应 id (question_id=0 的历史遗留数据)，尝试按索引位置匹配
+  if (!ans && survey.value && survey.value.questions) {
+    const qIndex = survey.value.questions.findIndex((q: any) => q.id === questionID)
+    if (qIndex !== -1 && res.answers.length === survey.value.questions.length) {
+      // 只有当答案总数与题目总数完全匹配时，才按索引兜底
+      ans = res.answers[qIndex]
+    }
+  }
+
   if (!ans || !ans.answer) return '—'
-  const raw = ans.answer
-  // Try to parse JSON arrays (checkbox)
+  const raw = String(ans.answer) // 确保是字符串
+  
+  // 处理 JSON 数组 (多选题)
   if (raw.startsWith('[')) {
     try {
       const arr = JSON.parse(raw)
@@ -65,6 +77,16 @@ const getAnswer = (res: any, questionID: number): string => {
       return raw
     }
   }
+  
+  // 处理各种引号包裹的字符串 (可能是后端 Marshal 存入的)
+  if (raw.startsWith('"') && raw.endsWith('"')) {
+    try {
+      return JSON.parse(raw)
+    } catch {
+      return raw.slice(1, -1)
+    }
+  }
+
   return raw
 }
 

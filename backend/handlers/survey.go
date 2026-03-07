@@ -233,6 +233,23 @@ func UpdateSurvey(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "问卷已更新"})
 }
 
+// RepairSurveyAnswers 修复问卷中 question_id=0 的历史答案（按位置推断）
+func RepairSurveyAnswers(c *gin.Context) {
+	idStr := c.Param("id")
+	id, _ := strconv.ParseUint(idStr, 10, 32)
+
+	fixed, err := repository.SurveyRepo.RepairAnswerQuestionIDs(uint(id))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "修复失败: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":     fmt.Sprintf("修复完成，共修复 %d 条答案", fixed),
+		"fixed_count": fixed,
+	})
+}
+
 // ExportSurveyResponses 导出问卷答卷到 Excel
 func ExportSurveyResponses(c *gin.Context) {
 	idStr := c.Param("id")

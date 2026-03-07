@@ -11,6 +11,7 @@ import {
   History,
   Trash2,
   Edit2,
+  Wrench,
   Save,
   ChevronRight,
   ChevronUp,
@@ -531,6 +532,21 @@ const handleToggleSurvey = async (id: number, active: boolean) => {
     loadData()
   } catch (err: any) {
     await showAlert(err.response?.data?.error || '状态切换失败')
+  }
+}
+
+const handleRepairSurvey = async (id: number) => {
+  const confirmed = await showConfirm(
+    '将自动修复该问卷中 question_id=0 的历史答案（按答案插入顺序与题目顺序位置对应）。\n答案数量与题目数量不符的答卷将被跳过。\n继续？',
+    '修复历史答案'
+  )
+  if (!confirmed) return
+  try {
+    const res = await adminAPI.repairSurvey(id)
+    await showAlert(res.data.message, '修复完成')
+    loadData()
+  } catch (err: any) {
+    await showAlert(err.response?.data?.error || '修复失败', '错误')
   }
 }
 
@@ -1496,6 +1512,9 @@ const filteredHistory = computed(() => {
                         </button>
                         <button @click="openEditSurvey(sv)" class="p-2 hover:bg-amber-500/10 text-amber-500 rounded-lg transition-all" title="编辑问卷">
                           <Edit2 class="w-4 h-4" />
+                        </button>
+                        <button @click="handleRepairSurvey(sv.id)" class="p-2 hover:bg-emerald-500/10 text-emerald-500 rounded-lg transition-all" title="修复历史答案（question_id=0）">
+                          <Wrench class="w-4 h-4" />
                         </button>
                         <button @click="handleExportSurvey(sv.id)" class="p-2 hover:bg-indigo-500/10 text-indigo-500 rounded-lg transition-all" title="导出数据 (Excel)">
                           <Layers class="w-4 h-4" />

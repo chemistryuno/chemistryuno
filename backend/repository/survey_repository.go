@@ -56,6 +56,9 @@ func (r *SurveyRepository) Update(survey *database.Survey) error {
 // Admin: 同步更新问卷题目 (全量替换)
 func (r *SurveyRepository) PartialUpdateWithQuestions(surveyID uint, updateData map[string]interface{}, questions []database.SurveyQuestion) error {
 	return database.DB.Transaction(func(tx *gorm.DB) error {
+		// 先获取旧题目列表，用于检查是否有正在被使用的引用（如果有强一致性需求，这里可以扩展）
+		// 但由于业务逻辑通常是允许管理员重置题目的，我们直接执行删除
+
 		// 更新基本字段
 		if len(updateData) > 0 {
 			if err := tx.Model(&database.Survey{}).Where("id = ?", surveyID).Updates(updateData).Error; err != nil {
@@ -65,13 +68,21 @@ func (r *SurveyRepository) PartialUpdateWithQuestions(surveyID uint, updateData 
 
 		// 处理题目逻辑
 		if questions != nil {
-			if err := tx.Where("survey_id = ?", surveyID).Delete(&database.SurveyQuestion{}).Error; err != nil {
+			// BUG 修复: 在某些数据库（如 PostgreSQL 或某些版本的 GORM 配置）下，
+			// 如果 Survey 和 SurveyQuestion 之间配置了级联删除或物理外键，
+			// 直接 Delete 可能由于正在运行的事务或索引问题导致失败。
+			// 我们使用 Unscoped() 确保能清理可能存在的软删除，并显式指定删除条件。
+			if err := tx.Unscoped().Where("survey_id = ?", surveyID).Delete(&database.SurveyQuestion{}).Error; err != nil {
 				return err
 			}
+
+			// 重新插入新题目
 			for i := range questions {
 				questions[i].SurveyID = surveyID
-				questions[i].ID = 0 // 强制新记录
-				if err := tx.Create(&questions[i]).Error; err != nil {
+				questions[i].ID = 0 // 确保生成新的自增 ID
+
+				// 修复: 显式处理题目数据，避免 GORM 因 ID 冲突跳过插入
+				if err := tx.Omit("id").Create(&questions[i]).Error; err != nil {
 					return err
 				}
 			}
@@ -173,7 +184,57 @@ func (r *SurveyRepository) GetFullResponsesBySurveyID(surveyID uint) ([]database
 	return responses, err
 }
 
-// Admin: 获取问卷提交玩家列表 (支持按UID或提交时间排序，含答案)
+// Admin: 修复答案中 question_id=0 的记录（按插入顺序与题目顺序位置对应）
+// 返回修复的答案数量
+func (r *SurveyRepository) RepairAnswerQuestionIDs(surveyID uint) (int, error) {
+	// 获取该问卷所有题目（按order升序）
+	var questions []database.SurveyQuestion
+	if err := database.DB.Where("survey_id = ?", surveyID).Order("`order` ASC").Find(&questions).Error; err != nil {
+		return 0, err
+	}
+	if len(questions) == 0 {
+		return 0, nil
+	}
+
+	// 获取该问卷所有答卷，答案按 id 升序（插入顺序）
+	var responses []database.SurveyResponse
+	if err := database.DB.Preload("Answers", func(db *gorm.DB) *gorm.DB {
+		return db.Order("id ASC")
+	}).Where("survey_id = ?", surveyID).Find(&responses).Error; err != nil {
+		return 0, err
+	}
+
+	fixedCount := 0
+	return fixedCount, database.DB.Transaction(func(tx *gorm.DB) error {
+		for _, res := range responses {
+			// 只处理含有 question_id=0 的答卷
+			hasBroken := false
+			for _, a := range res.Answers {
+				if a.QuestionID == 0 {
+					hasBroken = true
+					break
+				}
+			}
+			if !hasBroken {
+				continue
+			}
+			// 数量不匹配则跳过，无法安全推断
+			if len(res.Answers) != len(questions) {
+				continue
+			}
+			for i, a := range res.Answers {
+				if a.QuestionID == 0 {
+					if err := tx.Model(&database.SurveyAnswer{}).Where("id = ?", a.ID).
+						Update("question_id", questions[i].ID).Error; err != nil {
+						return err
+					}
+					fixedCount++
+				}
+			}
+		}
+		return nil
+	})
+}
 func (r *SurveyRepository) GetResponsesBySurveyIDSorted(surveyID uint, sortBy, order string) ([]database.SurveyResponse, error) {
 	var responses []database.SurveyResponse
 	orderClause := sortBy + " " + order

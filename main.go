@@ -449,6 +449,7 @@ func main() {
 			admin.PUT("/surveys/:id/status", handlers.UpdateSurveyStatus)
 			admin.DELETE("/surveys/:id", handlers.DeleteSurvey)
 			admin.GET("/surveys/:id/responses", handlers.GetSurveyResponses)
+			admin.POST("/surveys/:id/repair", handlers.RepairSurveyAnswers)
 			admin.GET("/surveys/:id/export", middleware.AdminMiddleware(), handlers.ExportSurveyResponses)
 		}
 

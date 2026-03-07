@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { adminAPI } from '../utils/api'
 import {
   ArrowLeft,
   FileText,
   Download,
+  Wrench,
   ChevronUp,
   ChevronDown,
   ChevronsUpDown,
@@ -82,6 +83,24 @@ const handleExport = async () => {
   }
 }
 
+const repairing = ref(false)
+const repairResult = ref('')
+
+const handleRepair = async () => {
+  if (!confirm('将自动修复该问卷中 question_id=0 的历史答案（按插入顺序与题目顺序对应）。\n答案数量与题目数量不符的答卷将被跳过。\n继续？')) return
+  repairing.value = true
+  repairResult.value = ''
+  try {
+    const res = await adminAPI.repairSurvey(surveyID)
+    repairResult.value = res.data.message
+    await loadData()
+  } catch (e: any) {
+    repairResult.value = e.response?.data?.error || '修复失败'
+  } finally {
+    repairing.value = false
+  }
+}
+
 const sortIcon = (field: string) => {
   if (sortBy.value !== field) return null
   return sortOrder.value === 'asc' ? 'up' : 'down'
@@ -116,6 +135,18 @@ onMounted(loadData)
           <Users class="w-3 h-3" />
           {{ responses.length }} 份
         </span>
+        <span v-if="repairResult" class="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-xl text-[9px] font-black border border-emerald-500/20">
+          {{ repairResult }}
+        </span>
+        <button
+          @click="handleRepair"
+          :disabled="repairing"
+          class="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-emerald-500/20 active:scale-95"
+          title="修复历史答案（question_id=0）"
+        >
+          <Wrench class="w-3.5 h-3.5" :class="repairing ? 'animate-spin' : ''" />
+          <span class="hidden sm:inline">{{ repairing ? '修复中...' : '修复数据' }}</span>
+        </button>
         <button
           @click="handleExport"
           class="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-indigo-500/20 active:scale-95"

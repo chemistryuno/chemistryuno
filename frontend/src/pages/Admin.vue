@@ -13,6 +13,8 @@ import {
   Edit2,
   Save,
   ChevronRight,
+  ChevronUp,
+  ChevronDown,
   Terminal,
   Activity,
   Cpu,
@@ -29,7 +31,8 @@ import {
   UserMinus,
   X,
   Puzzle,
-  FileText
+  FileText,
+  Eye
 } from 'lucide-vue-next'
 import { cn } from '../utils/cn'
 
@@ -47,16 +50,103 @@ const newSurvey = ref<any>({
   reward_points: 0,
   reward_exp: 0,
   questions: [
-    { title: '', type: 'radio', options: '', order: 1 }
+    { title: '', type: 'radio', options: '', order: 1, is_required: true }
   ]
 })
+
+// 查看答卷 - 在新标签页打开
+const openSurveyResponses = (sv: any) => {
+  window.open(`/admin/surveys/${sv.id}/responses`, '_blank')
+}
+
+// 编辑问卷
+const showEditSurveyModal = ref(false)
+const editingSurvey = ref<any>(null)
+
+const openEditSurvey = (sv: any) => {
+  editingSurvey.value = {
+    id: sv.id,
+    title: sv.title,
+    description: sv.description || '',
+    reward_points: sv.reward_points || 0,
+    reward_exp: sv.reward_exp || 0,
+    questions: (sv.questions || []).map((q: any) => ({
+      ...q,
+      options: Array.isArray(q.options)
+        ? q.options.join('\n')
+        : (typeof q.options === 'string' && q.options.startsWith('[')
+          ? JSON.parse(q.options).join('\n')
+          : q.options || '')
+    }))
+  }
+  showEditSurveyModal.value = true
+}
+
+const addEditQuestion = () => {
+  editingSurvey.value.questions.push({
+    title: '', type: 'radio', options: '',
+    order: editingSurvey.value.questions.length + 1,
+    is_required: true
+  })
+}
+
+const removeEditQuestion = (index: number) => {
+  editingSurvey.value.questions.splice(index, 1)
+  editingSurvey.value.questions.forEach((q: any, i: number) => q.order = i + 1)
+}
+
+const moveEditQuestion = (index: number, dir: -1 | 1) => {
+  const qs = editingSurvey.value.questions
+  const swapIdx = index + dir
+  if (swapIdx < 0 || swapIdx >= qs.length) return
+  const tmp = qs[index]
+  qs[index] = qs[swapIdx]
+  qs[swapIdx] = tmp
+  qs.forEach((q: any, i: number) => q.order = i + 1)
+}
+
+const handleUpdateSurvey = async () => {
+  const sv = editingSurvey.value
+  if (!sv.title) { showAlert('请输入问卷标题', '验证失败'); return }
+  for (const q of sv.questions) {
+    if (!q.title) { showAlert('所有问题都必须有标题', '验证失败'); return }
+    if ((q.type === 'radio' || q.type === 'checkbox') && !q.options) {
+      showAlert('选择题必须提供选项（每行一个）', '验证失败'); return
+    }
+  }
+  try {
+    const payload = {
+      title: sv.title,
+      description: sv.description,
+      reward_points: sv.reward_points || 0,
+      reward_exp: sv.reward_exp || 0,
+      questions: sv.questions.map((q: any, i: number) => ({
+        title: q.title,
+        description: q.description || '',
+        type: q.type,
+        is_required: q.is_required !== false,
+        order: i + 1,
+        options: (q.type === 'radio' || q.type === 'checkbox')
+          ? JSON.stringify(q.options.split('\n').filter((o: string) => o.trim()))
+          : ''
+      }))
+    }
+    await adminAPI.updateSurvey(sv.id, payload)
+    await showAlert('问卷已更新', '成功')
+    showEditSurveyModal.value = false
+    loadData()
+  } catch (error: any) {
+    showAlert(error.response?.data?.error || '更新失败', '错误')
+  }
+}
 
 const addQuestion = () => {
   newSurvey.value.questions.push({
     title: '',
     type: 'radio',
     options: '',
-    order: newSurvey.value.questions.length + 1
+    order: newSurvey.value.questions.length + 1,
+    is_required: true
   })
 }
 
@@ -124,7 +214,7 @@ const handleCreateSurvey = async () => {
       description: '',
       reward_points: 0,
       reward_exp: 0,
-      questions: [{ title: '', type: 'radio', options: '', order: 1 }]
+      questions: [{ title: '', type: 'radio', options: '', order: 1, is_required: true }]
     }
     loadData()
   } catch (error: any) {
@@ -1400,9 +1490,17 @@ const filteredHistory = computed(() => {
                           <span class="text-sm font-black text-slate-900 dark:text-white">{{ sv.title }}</span>
                         </div>
                       </div>
-                      <button @click="handleExportSurvey(sv.id)" class="p-2 hover:bg-indigo-500/10 text-indigo-500 rounded-lg transition-all" title="导出数据 (Excel)">
-                        <Layers class="w-4 h-4" />
-                      </button>
+                      <div class="flex items-center gap-1">
+                        <button @click="openSurveyResponses(sv)" class="p-2 hover:bg-violet-500/10 text-violet-500 rounded-lg transition-all" title="查看提交玩家">
+                          <Eye class="w-4 h-4" />
+                        </button>
+                        <button @click="openEditSurvey(sv)" class="p-2 hover:bg-amber-500/10 text-amber-500 rounded-lg transition-all" title="编辑问卷">
+                          <Edit2 class="w-4 h-4" />
+                        </button>
+                        <button @click="handleExportSurvey(sv.id)" class="p-2 hover:bg-indigo-500/10 text-indigo-500 rounded-lg transition-all" title="导出数据 (Excel)">
+                          <Layers class="w-4 h-4" />
+                        </button>
+                      </div>
                    </div>
 
                    <p class="text-[11px] leading-relaxed text-slate-500 dark:text-slate-400 font-bold line-clamp-2 relative z-10 min-h-[32px]">
@@ -1886,9 +1984,9 @@ const filteredHistory = computed(() => {
             <div v-for="(q, index) in newSurvey.questions" :key="index" class="p-3 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl space-y-3 relative group/item">
               <div class="flex items-start gap-3">
                 <div class="flex-1">
-                  <input 
+                  <input
                     v-model="q.title"
-                    type="text" 
+                    type="text"
                     placeholder="问题标题..."
                     class="w-full bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-1.5 text-[10px] font-bold text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500/30 transition-all"
                   />
@@ -1899,13 +1997,17 @@ const filteredHistory = computed(() => {
                   <option value="text">简答</option>
                   <option value="textarea">详述</option>
                 </select>
+                <label class="flex items-center gap-1 cursor-pointer shrink-0" title="必填">
+                  <input type="checkbox" v-model="q.is_required" class="accent-indigo-500 w-3 h-3" />
+                  <span class="text-[8px] font-black text-slate-400 uppercase">必填</span>
+                </label>
                 <button @click="removeQuestion(index)" class="p-1.5 text-slate-400 hover:text-red-500 transition-colors">
                   <Trash2 class="w-3.5 h-3.5" />
                 </button>
               </div>
 
               <div v-if="q.type === 'radio' || q.type === 'checkbox'" class="animate-in slide-in-from-top-1 duration-200">
-                <textarea 
+                <textarea
                   v-model="q.options"
                   rows="2"
                   placeholder="选项 (每行一个)..."
@@ -1928,6 +2030,133 @@ const filteredHistory = computed(() => {
             class="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-indigo-500/20 active:scale-95 border border-indigo-500/20"
           >
             Publish
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 编辑问卷模态框 -->
+    <div v-if="showEditSurveyModal && editingSurvey" class="fixed inset-0 bg-slate-900/40 dark:bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+      <div class="bg-white dark:bg-[#0c0c0e] border border-slate-200 dark:border-white/10 rounded-[1.25rem] p-5 max-w-xl w-full max-h-[85vh] overflow-y-auto custom-scrollbar shadow-[0_50px_100px_-20px_rgba(245,158,11,0.15)] animate-in zoom-in relative">
+        <div class="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 blur-[50px] -mr-16 -mt-16" />
+
+        <div class="flex items-center justify-between mb-5 relative z-10">
+          <h3 class="text-base font-black italic uppercase text-slate-900 dark:text-white flex items-center gap-3">
+            <Edit2 class="w-5 h-5 text-amber-500" />
+            编辑问卷 <span class="text-[9px] text-slate-400 font-mono not-italic tracking-normal">/ SURVEY_{{ editingSurvey.id }}</span>
+          </h3>
+          <button @click="showEditSurveyModal = false" class="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors">
+            <X class="w-4 h-4" />
+          </button>
+        </div>
+
+        <div class="space-y-4 relative z-10">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label class="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-2 ml-1">问卷标题</label>
+              <input
+                v-model="editingSurvey.title"
+                type="text"
+                placeholder="TITLE..."
+                class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2 text-[11px] font-bold text-slate-900 dark:text-white focus:outline-none focus:border-amber-500/50 transition-all italic"
+              />
+            </div>
+            <div>
+              <label class="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-2 ml-1">奖励 (积分/经验)</label>
+              <div class="grid grid-cols-2 gap-2">
+                <input
+                  v-model.number="editingSurvey.reward_points"
+                  type="number"
+                  placeholder="POINTS..."
+                  class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2 text-[11px] font-bold text-slate-900 dark:text-white focus:outline-none focus:border-amber-500/50 transition-all italic"
+                />
+                <input
+                  v-model.number="editingSurvey.reward_exp"
+                  type="number"
+                  placeholder="EXP..."
+                  class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2 text-[11px] font-bold text-slate-900 dark:text-white focus:outline-none focus:border-amber-500/50 transition-all italic"
+                />
+              </div>
+            </div>
+          </div>
+          <div>
+            <label class="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-2 ml-1">描述 (可选)</label>
+            <input
+              v-model="editingSurvey.description"
+              type="text"
+              placeholder="DESC..."
+              class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2 text-[11px] font-bold text-slate-900 dark:text-white focus:outline-none focus:border-amber-500/50 transition-all"
+            />
+          </div>
+
+          <!-- 题目列表 -->
+          <div class="space-y-3">
+            <div class="flex items-center justify-between border-b border-slate-100 dark:border-white/5 pb-1.5">
+              <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest">题目列表</span>
+              <button @click="addEditQuestion" class="px-2 py-1 bg-amber-500/10 text-amber-500 hover:bg-amber-500 hover:text-white rounded-lg text-[8px] font-black uppercase tracking-widest transition-all border border-amber-500/20">
+                ADD_Q
+              </button>
+            </div>
+
+            <div v-for="(q, index) in editingSurvey.questions" :key="index" class="p-3 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl space-y-3 relative">
+              <div class="flex items-start gap-2">
+                <!-- 顺序控制 -->
+                <div class="flex flex-col gap-0.5 shrink-0">
+                  <button @click="moveEditQuestion(index, -1)" :disabled="index === 0" class="p-0.5 text-slate-300 dark:text-slate-600 hover:text-amber-500 disabled:opacity-30 transition-colors">
+                    <ChevronUp class="w-3 h-3" />
+                  </button>
+                  <span class="text-[8px] font-black text-slate-400 text-center">{{ index + 1 }}</span>
+                  <button @click="moveEditQuestion(index, 1)" :disabled="index === editingSurvey.questions.length - 1" class="p-0.5 text-slate-300 dark:text-slate-600 hover:text-amber-500 disabled:opacity-30 transition-colors">
+                    <ChevronDown class="w-3 h-3" />
+                  </button>
+                </div>
+                <div class="flex-1">
+                  <input
+                    v-model="q.title"
+                    type="text"
+                    placeholder="问题标题..."
+                    class="w-full bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-1.5 text-[10px] font-bold text-slate-900 dark:text-white focus:outline-none focus:border-amber-500/30 transition-all"
+                  />
+                </div>
+                <select v-model="q.type" class="bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-lg px-2 py-1.5 text-[9px] font-black uppercase text-slate-900 dark:text-white focus:outline-none w-20">
+                  <option value="radio">单选</option>
+                  <option value="checkbox">多选</option>
+                  <option value="text">简答</option>
+                  <option value="textarea">详述</option>
+                </select>
+                <label class="flex items-center gap-1 cursor-pointer shrink-0 pt-1" title="必填">
+                  <input type="checkbox" v-model="q.is_required" class="accent-amber-500 w-3 h-3" />
+                  <span class="text-[8px] font-black text-slate-400 uppercase">必填</span>
+                </label>
+                <button @click="removeEditQuestion(index)" class="p-1.5 text-slate-400 hover:text-red-500 transition-colors shrink-0">
+                  <Trash2 class="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              <div v-if="q.type === 'radio' || q.type === 'checkbox'" class="animate-in slide-in-from-top-1 duration-200 ml-8">
+                <textarea
+                  v-model="q.options"
+                  rows="2"
+                  placeholder="选项 (每行一个)..."
+                  class="w-full bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-1.5 text-[10px] font-bold text-slate-900 dark:text-white focus:outline-none focus:border-amber-500/30 transition-all resize-none"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex gap-3 mt-6 relative z-10 sticky bottom-0 bg-white dark:bg-[#0c0c0e] pt-3 border-t border-slate-50 dark:border-white/5">
+          <button
+            @click="showEditSurveyModal = false"
+            class="flex-1 px-4 py-2 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-500 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all"
+          >
+            Cancel
+          </button>
+          <button
+            @click="handleUpdateSurvey"
+            class="flex-1 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-white rounded-xl font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-amber-500/20 active:scale-95 border border-amber-400/20"
+          >
+            Save
           </button>
         </div>
       </div>

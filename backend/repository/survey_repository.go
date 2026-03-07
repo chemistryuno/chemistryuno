@@ -129,7 +129,7 @@ func (r *SurveyRepository) SubmitResponse(response *database.SurveyResponse) err
 	})
 }
 
-// 获取待进行的活动问卷
+// GetPendingForUser 获取待进行的活动问卷 (排除已完成和已忽略)
 func (r *SurveyRepository) GetPendingForUser(userUID uint) ([]database.Survey, error) {
 	var surveys []database.Survey
 
@@ -138,6 +138,19 @@ func (r *SurveyRepository) GetPendingForUser(userUID uint) ([]database.Survey, e
 
 	err := database.DB.Where("is_active = ?", true).
 		Where("id NOT IN (?)", dismissedIDs).
+		Where("id NOT IN (?)", respondedIDs).
+		Order("created_at DESC").
+		Find(&surveys).Error
+	return surveys, err
+}
+
+// GetAllActiveForUser 获取用户所有激活问卷 (排除已完成的，但包含已忽略的)
+func (r *SurveyRepository) GetAllActiveForUser(userUID uint) ([]database.Survey, error) {
+	var surveys []database.Survey
+
+	respondedIDs := database.DB.Model(&database.SurveyResponse{}).Select("survey_id").Where("user_uid = ?", userUID)
+
+	err := database.DB.Where("is_active = ?", true).
 		Where("id NOT IN (?)", respondedIDs).
 		Order("created_at DESC").
 		Find(&surveys).Error
@@ -157,5 +170,13 @@ func (r *SurveyRepository) Dismiss(userUID, surveyID uint) error {
 func (r *SurveyRepository) GetFullResponsesBySurveyID(surveyID uint) ([]database.SurveyResponse, error) {
 	var responses []database.SurveyResponse
 	err := database.DB.Preload("Answers").Where("survey_id = ?", surveyID).Order("created_at DESC").Find(&responses).Error
+	return responses, err
+}
+
+// Admin: 获取问卷提交玩家列表 (支持按UID或提交时间排序，含答案)
+func (r *SurveyRepository) GetResponsesBySurveyIDSorted(surveyID uint, sortBy, order string) ([]database.SurveyResponse, error) {
+	var responses []database.SurveyResponse
+	orderClause := sortBy + " " + order
+	err := database.DB.Preload("Answers").Where("survey_id = ?", surveyID).Order(orderClause).Find(&responses).Error
 	return responses, err
 }

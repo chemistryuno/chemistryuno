@@ -6,6 +6,7 @@ import GameRoom from './pages/GameRoom.vue'
 import Profile from './pages/Profile.vue'
 import Admin from './pages/Admin.vue'
 import AdminPlugins from './pages/AdminPlugins.vue'
+import AdminSurveyResponses from './pages/AdminSurveyResponses.vue'
 import Plugins from './pages/Plugins.vue'
 import Reactions from './pages/Reactions.vue'
 import Feedbacks from './pages/Feedbacks.vue'
@@ -81,6 +82,12 @@ const routes = [
     name: 'AdminPlugins',
     component: AdminPlugins,
     meta: { requiresAuth: true, adminOnly: true }
+  },
+  {
+    path: '/admin/surveys/:id/responses',
+    name: 'AdminSurveyResponses',
+    component: AdminSurveyResponses,
+    meta: { requiresAuth: true, coWorkerOnly: true }
   },
   {
     path: '/plugins',

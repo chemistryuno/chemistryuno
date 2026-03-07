@@ -445,8 +445,10 @@ func main() {
 
 			admin.GET("/surveys", handlers.GetSurveys)
 			admin.POST("/surveys", handlers.CreateSurvey)
+			admin.PUT("/surveys/:id", handlers.UpdateSurvey)
 			admin.PUT("/surveys/:id/status", handlers.UpdateSurveyStatus)
 			admin.DELETE("/surveys/:id", handlers.DeleteSurvey)
+			admin.GET("/surveys/:id/responses", handlers.GetSurveyResponses)
 			admin.GET("/surveys/:id/export", middleware.AdminMiddleware(), handlers.ExportSurveyResponses)
 		}
 

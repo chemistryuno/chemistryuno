@@ -164,16 +164,73 @@ func DismissSurvey(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "已永久忽略该问卷提醒"})
 }
 
-// GetAllActiveSurveys 获取所有激活问卷 (反馈页面展示，排除已完成的)
+// GetAllActiveSurveys 获取所有激活问卷 (反馈页面展示，排除已完成的，包含已忽略的)
 func GetAllActiveSurveys(c *gin.Context) {
 	uid := c.GetInt("uid")
-	// 使用 GetPendingForUser 逻辑，因为它已经处理了排除逻辑
-	surveys, err := repository.SurveyRepo.GetPendingForUser(uint(uid))
+	surveys, err := repository.SurveyRepo.GetAllActiveForUser(uint(uid))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取问卷失败"})
 		return
 	}
 	c.JSON(http.StatusOK, surveys)
+}
+
+// GetSurveyResponses 管理员查看问卷提交信息 (支持UID和时间排序)
+func GetSurveyResponses(c *gin.Context) {
+	idStr := c.Param("id")
+	id, _ := strconv.ParseUint(idStr, 10, 32)
+
+	sortBy := c.DefaultQuery("sort_by", "created_at") // user_uid or created_at
+	order := c.DefaultQuery("order", "desc")           // asc or desc
+
+	if sortBy != "user_uid" && sortBy != "created_at" {
+		sortBy = "created_at"
+	}
+	if order != "asc" && order != "desc" {
+		order = "desc"
+	}
+
+	responses, err := repository.SurveyRepo.GetResponsesBySurveyIDSorted(uint(id), sortBy, order)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取答卷数据失败"})
+		return
+	}
+
+	c.JSON(http.StatusOK, responses)
+}
+
+// UpdateSurvey 管理员修改问卷（标题、描述、奖励、题目顺序和必填状态）
+func UpdateSurvey(c *gin.Context) {
+	idStr := c.Param("id")
+	id, _ := strconv.ParseUint(idStr, 10, 32)
+
+	var req struct {
+		Title        string                    `json:"title"`
+		Description  string                    `json:"description"`
+		RewardPoints int                       `json:"reward_points"`
+		RewardExp    int                       `json:"reward_exp"`
+		Questions    []database.SurveyQuestion `json:"questions"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数无效"})
+		return
+	}
+
+	updateData := map[string]interface{}{
+		"description":   req.Description,
+		"reward_points": req.RewardPoints,
+		"reward_exp":    req.RewardExp,
+	}
+	if req.Title != "" {
+		updateData["title"] = req.Title
+	}
+
+	if err := repository.SurveyRepo.PartialUpdateWithQuestions(uint(id), updateData, req.Questions); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新问卷失败: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "问卷已更新"})
 }
 
 // ExportSurveyResponses 导出问卷答卷到 Excel

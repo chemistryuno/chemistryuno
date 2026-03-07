@@ -297,8 +297,12 @@ export const adminAPI = {
     api.get('/admin/surveys'),
   createSurvey: (data: any) =>
     api.post('/admin/surveys', data),
+  updateSurvey: (id: number, data: any) =>
+    api.put(`/admin/surveys/${id}`, data),
   updateSurveyStatus: (id: number, isActive: boolean) =>
     api.put(`/admin/surveys/${id}/status`, { is_active: isActive }),
+  getSurveyResponses: (id: number, sortBy: string = 'created_at', order: string = 'desc') =>
+    api.get(`/admin/surveys/${id}/responses`, { params: { sort_by: sortBy, order } }),
   exportSurvey: (id: number) =>
     api.get(`/admin/surveys/${id}/export`, { responseType: 'blob' }),
 }

@@ -268,8 +268,8 @@
                   </td>
                   <td class="px-5 py-3">
                     <div class="flex items-center gap-3">
-                       <div class="relative w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-500/20 border border-blue-200 dark:border-blue-500/30 flex items-center justify-center text-sm overflow-hidden shrink-0">
-                          <template v-if="myRankInfo.avatar && myRankInfo.avatar.startsWith('data:')">
+                       <div class="relative w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-500/20 border border-blue-200 dark:border-blue-500/30 flex items-center justify-center text-sm overflow-hidden shrink-0 shadow-inner">
+                          <template v-if="(myRankInfo.avatar || '').length > 50">
                             <img :src="myRankInfo.avatar" class="w-full h-full object-cover" />
                           </template>
                           <template v-else>
@@ -354,8 +354,13 @@
           
           <div class="p-8 space-y-6 text-center">
              <div class="flex flex-col items-center">
-                <div class="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-center justify-center text-3xl mb-4 relative group">
-                   {{ selectedTarget?.avatar || '🧪' }}
+                <div class="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-center justify-center text-3xl mb-4 relative group overflow-hidden shadow-inner">
+                   <template v-if="(selectedTarget?.avatar || '').length > 50">
+                      <img :src="selectedTarget?.avatar" class="w-full h-full object-cover" />
+                   </template>
+                   <template v-else>
+                      {{ selectedTarget?.avatar || '🧪' }}
+                   </template>
                    <div class="absolute -top-2 -right-2 w-6 h-6 bg-rose-600 rounded-full flex items-center justify-center border-4 border-white dark:border-[#121216]">
                       <Crosshair class="w-3 h-3 text-white" />
                    </div>

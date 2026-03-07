@@ -436,10 +436,15 @@ const formatTime = (date: Date) => {
           >
             <div class="relative shrink-0">
               <div :class="cn(
-                'w-8 h-8 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl flex items-center justify-center text-base sm:text-lg border transition-all duration-300',
+                'w-8 h-8 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl flex items-center justify-center text-base sm:text-lg border transition-all duration-300 overflow-hidden',
                 activeChat?.uid === friend.uid ? 'bg-white/20 border-white/20' : 'bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/10 group-hover:scale-110'
               )">
-                {{ friend.avatar || '🧪' }}
+                <template v-if="(friend.avatar || '').length > 50">
+                  <img :src="friend.avatar" class="w-full h-full object-cover" />
+                </template>
+                <template v-else>
+                  {{ friend.avatar || '🧪' }}
+                </template>
               </div>
               <div v-if="friend.is_online" class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 sm:w-3 sm:h-3 bg-emerald-500 border-2 border-white dark:border-[#0f0f12] rounded-full"></div>
             </div>
@@ -500,8 +505,13 @@ const formatTime = (date: Date) => {
                 <ArrowLeft class="w-3.5 h-3.5" />
               </button>
 
-              <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-blue-600/10 flex items-center justify-center text-sm sm:text-base border border-blue-600/20 shrink-0">
-                {{ activeChat.avatar || '🧪' }}
+              <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-blue-600/10 flex items-center justify-center text-sm sm:text-base border border-blue-600/20 shrink-0 overflow-hidden">
+                <template v-if="(activeChat.avatar || '').length > 50">
+                  <img :src="activeChat.avatar" class="w-full h-full object-cover" />
+                </template>
+                <template v-else>
+                  {{ activeChat.avatar || '🧪' }}
+                </template>
               </div>
               <div class="min-w-0 flex-1">
                 <h2 class="text-[10px] sm:text-xs font-black text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-1 sm:gap-1.5">
@@ -714,9 +724,14 @@ const formatTime = (date: Date) => {
                 class="group p-3 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl flex items-center justify-between hover:border-purple-500/30 transition-all"
               >
                 <div class="flex items-center gap-3">
-                  <div class="relative">
-                    <div class="w-11 h-11 rounded-xl bg-white dark:bg-white/10 flex items-center justify-center text-2xl border border-slate-200 dark:border-white/10 shadow-sm">
-                      {{ result.avatar || '🧪' }}
+                  <div class="relative shrink-0">
+                    <div class="w-11 h-11 rounded-xl bg-white dark:bg-white/10 flex items-center justify-center text-2xl border border-slate-200 dark:border-white/10 shadow-sm overflow-hidden">
+                      <template v-if="(result.avatar || '').length > 50">
+                        <img :src="result.avatar" class="w-full h-full object-cover" />
+                      </template>
+                      <template v-else>
+                        {{ result.avatar || '🧪' }}
+                      </template>
                     </div>
                     <div v-if="result.is_online" class="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-[3px] border-white dark:border-[#0f0f12] rounded-full shadow-md shadow-emerald-500/20"></div>
                   </div>
@@ -790,8 +805,13 @@ const formatTime = (date: Date) => {
               class="p-3.5 bg-amber-500/5 dark:bg-amber-500/[0.02] border border-amber-500/10 rounded-2xl flex items-center justify-between animate-in slide-in-from-bottom-4 transition-all"
             >
               <div class="flex items-center gap-3">
-                <div class="w-11 h-11 rounded-xl bg-amber-500/10 flex items-center justify-center text-2xl border border-amber-500/20">
-                  {{ req.avatar || '🧪' }}
+                <div class="w-11 h-11 rounded-xl bg-amber-500/10 flex items-center justify-center text-2xl border border-amber-500/20 overflow-hidden">
+                  <template v-if="(req.avatar || '').length > 50">
+                    <img :src="req.avatar" class="w-full h-full object-cover" />
+                  </template>
+                  <template v-else>
+                    {{ req.avatar || '🧪' }}
+                  </template>
                 </div>
                 <div>
                   <div class="text-sm font-bold text-slate-700 dark:text-white">{{ req.nickname || req.username }}</div>

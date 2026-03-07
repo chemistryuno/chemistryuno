@@ -1662,7 +1662,7 @@ const filteredHistory = computed(() => {
 
         <div class="p-4 bg-rose-500/5 border border-rose-500/10 rounded-xl mb-6 relative z-10 flex items-center gap-4">
           <div class="w-12 h-12 bg-white dark:bg-black/40 rounded-xl flex items-center justify-center text-lg border border-slate-200 dark:border-white/10 shadow-sm overflow-hidden shrink-0">
-            <template v-if="banTarget.avatar && banTarget.avatar.startsWith('data:')">
+            <template v-if="(banTarget.avatar || '').length > 50">
               <img :src="banTarget.avatar" class="w-full h-full object-cover" />
             </template>
             <template v-else>

@@ -97,7 +97,7 @@ onMounted(fetchUserProfile)
             <div class="shrink-0">
               <div class="w-32 h-32 md:w-40 md:h-40 bg-gradient-to-tr from-blue-500/20 to-purple-500/20 rounded-[2rem] p-1.5 shadow-2xl">
                 <div class="w-full h-full bg-white dark:bg-[#0d0d10] rounded-[1.8rem] flex items-center justify-center text-6xl border border-slate-100 dark:border-white/5 overflow-hidden">
-                  <template v-if="user.avatar && user.avatar.startsWith('data:')">
+                  <template v-if="(user.avatar || '').length > 50">
                     <img :src="user.avatar" class="w-full h-full object-cover" />
                   </template>
                   <template v-else>

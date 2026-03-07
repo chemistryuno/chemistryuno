@@ -25,6 +25,17 @@ const feedbackButtonRef = ref<InstanceType<typeof FeedbackButton> | null>(null)
 const feedbacks = ref<any[]>([])
 const activeSurveys = ref<any[]>([])
 const loading = ref(false)
+const handleSurveyCompleted = () => {
+  // Always re-fetch from backend so visibility follows DB state.
+  load()
+}
+
+const handleFeedbackUpdate = (msg: any) => {
+  // Refresh list when a feedback status update arrives.
+  if (msg && msg.feedback_id) {
+    load()
+  }
+}
 
 const load = async () => {
   loading.value = true
@@ -59,16 +70,13 @@ onMounted(load)
 
 onMounted(() => {
   ws.connect()
-  ws.on('feedback_update', (msg: any) => {
-    // 如果是当前用户的反馈被更新，刷新列表
-    if (msg && msg.feedback_id) {
-      load()
-    }
-  })
+  ws.on('feedback_update', handleFeedbackUpdate)
+  window.addEventListener('survey-completed', handleSurveyCompleted)
 })
 
 onBeforeUnmount(() => {
-  ws.off('feedback_update', () => {})
+  ws.off('feedback_update', handleFeedbackUpdate)
+  window.removeEventListener('survey-completed', handleSurveyCompleted)
 })
 
 const canUrge = (f: any) => {

@@ -4,10 +4,18 @@
 /* 启用基于类的暗色模式切换 (Tailwind 4) */
 @variant dark (&:where(.dark, .dark *));
 
+@layer base {
+  /* Global compact density: shrink rem-based spacing and typography a bit. */
+  html {
+    font-size: 15px;
+  }
+}
+
 /* Base Body Style */
 body {
   @apply bg-slate-50 text-slate-900 dark:bg-[#0a0a0c] dark:text-slate-200 antialiased selection:bg-blue-500/30;
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  line-height: 1.45;
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
@@ -43,7 +51,7 @@ body {
 
   /* 触摸友好的最小目标尺寸 (44x44px标准) */
   .btn-touch {
-    @apply min-h-[44px] min-w-[44px] sm:min-h-[40px] sm:min-w-[40px];
+    @apply min-h-[40px] min-w-[40px] sm:min-h-[38px] sm:min-w-[38px];
   }
 
   .icon-touch {
@@ -52,15 +60,15 @@ body {
 
   /* 响应式Padding - 移动端更大的呼吸空间 */
   .p-mobile {
-    @apply p-5 sm:p-5 md:p-6;
+    @apply p-4 sm:p-4 md:p-5;
   }
 
   .px-mobile {
-    @apply px-5 sm:px-5 md:px-6;
+    @apply px-4 sm:px-4 md:px-5;
   }
 
   .py-mobile {
-    @apply py-4 sm:py-4 md:py-5;
+    @apply py-3.5 sm:py-3.5 md:py-4;
   }
 
   /* 模态框移动端优化 */
@@ -74,11 +82,11 @@ body {
 
   /* 表单控件移动端优化 */
   .input-mobile {
-    @apply h-12 sm:h-11 md:h-10 text-base sm:text-sm;
+    @apply h-11 sm:h-10 md:h-9 text-sm sm:text-sm;
   }
 
   .button-mobile {
-    @apply h-12 sm:h-11 md:h-10 px-5 sm:px-4 text-sm sm:text-sm;
+    @apply h-11 sm:h-10 md:h-9 px-4 sm:px-3.5 text-sm sm:text-xs;
   }
 
   /* 触摸反馈动画 */
@@ -88,12 +96,12 @@ body {
 
   /* 安全触摸间距 - 避免误触 */
   .gap-touch {
-    @apply gap-3 sm:gap-2 md:gap-1.5;
+    @apply gap-2.5 sm:gap-1.5 md:gap-1;
   }
 
   /* 卡片间距优化 */
   .space-y-mobile > * + * {
-    @apply mt-4 sm:mt-3;
+    @apply mt-3 sm:mt-2.5;
   }
 
   /* ========== 原有Card样式 ========== */

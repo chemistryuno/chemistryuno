@@ -443,10 +443,10 @@ func main() {
 			admin.POST("/broadcast", handlers.AdminBroadcast)
 			admin.GET("/rooms/active", handlers.GetActiveRooms)
 
-			// 问卷管理
 			admin.GET("/surveys", handlers.GetSurveys)
 			admin.POST("/surveys", handlers.CreateSurvey)
 			admin.PUT("/surveys/:id/status", handlers.UpdateSurveyStatus)
+			admin.DELETE("/surveys/:id", handlers.DeleteSurvey)
 			admin.GET("/surveys/:id/export", middleware.AdminMiddleware(), handlers.ExportSurveyResponses)
 		}
 

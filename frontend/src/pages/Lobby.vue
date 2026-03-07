@@ -75,27 +75,53 @@ const currentSurvey = ref<any>(null)
 const loadSurveys = async () => {
   try {
     const res = await authAPI.getActiveSurveys()
-    activeSurveys.value = res.data || []
-    if (activeSurveys.value.length > 0) {
-      currentSurvey.value = activeSurveys.value[0]
-      showSurveyModal.value = true
+    const surveys = res.data || []
+    activeSurveys.value = surveys
+    
+    if (surveys.length > 0) {
+      const survey = surveys[0]
+      // 检查是否已经弹出过此问卷（防止大厅定时刷新导致弹窗反复跳出）
+      const dismissedKey = `survey_dismissed_${survey.id || survey.ID}`
+      const isDismissedInSession = sessionStorage.getItem(dismissedKey)
+      
+      if (!isDismissedInSession) {
+        currentSurvey.value = {
+          ...survey,
+          id: survey.id || survey.ID
+        }
+        showSurveyModal.value = true
+      }
     }
   } catch (err) {
     console.error('加载调查问卷失败:', err)
   }
 }
 
+const handleCloseSurveyModal = () => {
+  if (currentSurvey.value) {
+    const sId = currentSurvey.value.id || currentSurvey.value.ID
+    sessionStorage.setItem(`survey_dismissed_${sId}`, 'true')
+  }
+  showSurveyModal.value = false
+}
+
 const handleDismissSurvey = async () => {
   if (!currentSurvey.value) return
   try {
-    await authAPI.dismissSurvey(currentSurvey.value.id)
+    const sId = currentSurvey.value.id || currentSurvey.value.ID
+    await authAPI.dismissSurvey(sId)
+    sessionStorage.setItem(`survey_dismissed_${sId}`, 'true')
     showSurveyModal.value = false
     // 检查是否还有其他问卷
-    const nextSurveys = activeSurveys.value.filter(s => s.id !== currentSurvey.value.id)
+    const nextSurveys = activeSurveys.value.filter(s => (s.id || s.ID) !== sId)
     if (nextSurveys.length > 0) {
       setTimeout(() => {
         activeSurveys.value = nextSurveys
-        currentSurvey.value = nextSurveys[0]
+        const nextS = nextSurveys[0]
+        currentSurvey.value = {
+          ...nextS,
+          id: nextS.id || nextS.ID
+        }
         showSurveyModal.value = true
       }, 500)
     }
@@ -871,13 +897,12 @@ const copyToClipboard = (text: string) => {
           </div>
           
           <div class="flex flex-col gap-3 w-full mt-4">
-            <a 
-              :href="currentSurvey.url" 
-              target="_blank"
+            <button 
+              @click="showSurveyModal = false; router.push('/surveys/' + (currentSurvey?.id || currentSurvey?.ID))"
               class="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-indigo-600/20 transition-all hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-3"
             >
-              立即填写 <ExternalLink class="w-4 h-4" />
-            </a>
+              立即填写 <component :is="ExternalLink" class="w-4 h-4" />
+            </button>
             <div class="grid grid-cols-2 gap-3">
               <button 
                 @click="showSurveyModal = false"
@@ -1566,18 +1591,17 @@ const copyToClipboard = (text: string) => {
           </div>
 
           <div class="grid grid-cols-1 gap-2">
-            <router-link
-              :to="'/surveys/' + currentSurvey.id"
-              @click="showSurveyModal = false"
+            <button
+              @click="handleCloseSurveyModal(); router.push('/surveys/' + currentSurvey.id)"
               class="w-full px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-black uppercase tracking-[0.15em] text-[10px] transition-all shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2 border border-white/10 active:scale-95"
             >
               <FileText class="w-3.5 h-3.5" />
               立即填写 / RESPOND_NOW
-            </router-link>
+            </button>
             
             <div class="grid grid-cols-2 gap-2">
               <button 
-                @click="showSurveyModal = false"
+                @click="handleCloseSurveyModal"
                 class="px-4 py-2 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-500 dark:text-slate-400 rounded-xl font-black uppercase tracking-widest text-[9px] transition-all border border-slate-200 dark:border-white/5"
               >
                 稍后再说
@@ -1589,19 +1613,6 @@ const copyToClipboard = (text: string) => {
                 不再提醒
               </button>
             </div>
-          </div>
-        </div>
-      </div>
-    </div>
-              <X class="w-3.5 h-3.5" />
-              不再提醒 / Ignore_Permanently
-            </button>
-            <button 
-              @click="showSurveyModal = false"
-              class="text-[9px] font-black text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 uppercase tracking-widest transition-all pt-2 block w-full text-center"
-            >
-              稍后再说 / Dismiss_Temporarily
-            </button>
           </div>
         </div>
       </div>

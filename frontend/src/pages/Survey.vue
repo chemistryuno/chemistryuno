@@ -26,6 +26,10 @@ const loading = ref(true)
 const submitting = ref(false)
 const completed = ref(false)
 
+const notifySurveyCompleted = (id: number) => {
+  window.dispatchEvent(new CustomEvent('survey-completed', { detail: { surveyId: id } }))
+}
+
 const loadSurvey = async () => {
   try {
     const res = await authAPI.getSurveyDetail(surveyID)
@@ -68,6 +72,7 @@ const handleSubmit = async () => {
       answer: Array.isArray(a.answer) ? JSON.stringify(a.answer) : a.answer
     }))
     await authAPI.submitSurveyAnswers(surveyID, formattedAnswers)
+    notifySurveyCompleted(surveyID)
     completed.value = true
     await showAlert('感谢您的反馈！您的回答已安全记录。', '提交成功')
   } catch (error: any) {

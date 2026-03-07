@@ -84,6 +84,20 @@ func UpdateSurveyStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "问卷状态已更新"})
 }
 
+// DeleteSurvey 管理员删除问卷
+func DeleteSurvey(c *gin.Context) {
+	idStr := c.Param("id")
+	id, _ := strconv.ParseUint(idStr, 10, 32)
+
+	// 级联删除在 Repository 中处理
+	if err := repository.SurveyRepo.Delete(uint(id)); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "删除问卷失败: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "问卷已永久删除"})
+}
+
 // GetActiveSurveysForUser 获取当前用户需要填写的问卷 (主页弹窗)
 func GetActiveSurveysForUser(c *gin.Context) {
 	uid := c.GetInt("uid")
@@ -150,9 +164,11 @@ func DismissSurvey(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "已永久忽略该问卷提醒"})
 }
 
-// GetAllActiveSurveys 获取所有激活问卷 (反馈页面展示)
+// GetAllActiveSurveys 获取所有激活问卷 (反馈页面展示，排除已完成的)
 func GetAllActiveSurveys(c *gin.Context) {
-	surveys, err := repository.SurveyRepo.GetAll(true)
+	uid := c.GetInt("uid")
+	// 使用 GetPendingForUser 逻辑，因为它已经处理了排除逻辑
+	surveys, err := repository.SurveyRepo.GetPendingForUser(uint(uid))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取问卷失败"})
 		return

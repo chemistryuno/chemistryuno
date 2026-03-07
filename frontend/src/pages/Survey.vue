@@ -36,7 +36,7 @@ const loadSurvey = async () => {
     survey.value = res.data
     // 初始化答案数组
     answers.value = survey.value.questions.map((q: any) => ({
-      question_id: q.ID,
+      question_id: q.id,
       answer: q.type === 'checkbox' ? [] : ''
     }))
   } catch (error: any) {
@@ -48,9 +48,11 @@ const loadSurvey = async () => {
 }
 
 const handleSubmit = async () => {
-  // 验证必填 (目前逻辑上简单认为题目都需要回答，可以根据需求调整)
+  // 验证必填题
   for (let i = 0; i < answers.value.length; i++) {
     const a = answers.value[i]
+    const q = survey.value.questions[i]
+    if (!q.is_required) continue
     if (Array.isArray(a.answer)) {
       if (a.answer.length === 0) {
         showAlert(`请完成第 ${i + 1} 题`, '验证失败')
@@ -161,7 +163,7 @@ const parseOptions = (optionsStr: string) => {
 
         <!-- Questions -->
         <div class="space-y-4">
-          <div v-for="(q, idx) in (survey.questions as any[])" :key="q.ID" class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 p-6 rounded-[1.5rem] shadow-sm hover:border-indigo-500/20 transition-all group">
+          <div v-for="(q, idx) in (survey.questions as any[])" :key="q.id" class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 p-6 rounded-[1.5rem] shadow-sm hover:border-indigo-500/20 transition-all group">
             <div class="flex items-start gap-4">
               <div class="w-8 h-8 rounded-lg bg-slate-100 dark:bg-white/5 flex items-center justify-center text-slate-400 dark:text-slate-500 font-mono font-black shrink-0 border border-slate-200 dark:border-white/5 text-[10px]">
                 {{ String(idx + 1).padStart(2, '0') }}
@@ -177,10 +179,10 @@ const parseOptions = (optionsStr: string) => {
                     class="flex items-center gap-3 p-3 rounded-xl border border-slate-100 dark:border-white/5 hover:bg-slate-50 dark:hover:bg-white/[0.02] cursor-pointer transition-all active:scale-[0.98]"
                     :class="answers[idx].answer === opt ? 'bg-indigo-500/5 border-indigo-500/20 ring-1 ring-indigo-500/10' : ''"
                   >
-                    <input 
-                      type="radio" 
-                      :name="'q' + q.ID" 
-                      :value="opt" 
+                    <input
+                      type="radio"
+                      :name="'q' + q.id"
+                      :value="opt"
                       v-model="answers[idx].answer"
                       class="w-4 h-4 border-2 border-slate-300 dark:border-white/10 bg-transparent text-indigo-600 focus:ring-indigo-500"
                     />

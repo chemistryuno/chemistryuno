@@ -295,7 +295,7 @@ type Survey struct {
 	ID           uint             `gorm:"primaryKey;autoIncrement" json:"id"`
 	Title        string           `gorm:"not null;size:255" json:"title"`
 	Description  string           `gorm:"type:text" json:"description"`
-	IsActive     bool             `gorm:"default:true;index" json:"is_active"`
+	IsActive     bool             `gorm:"not null;index" json:"is_active"`
 	RewardPoints int              `gorm:"default:0" json:"reward_points"`
 	RewardExp    int              `gorm:"default:0" json:"reward_exp"`
 	Questions    []SurveyQuestion `gorm:"foreignKey:SurveyID;constraint:OnDelete:CASCADE" json:"questions,omitempty"`
@@ -316,7 +316,7 @@ type SurveyQuestion struct {
 	Description string    `gorm:"type:text" json:"description"`
 	Type        string    `gorm:"not null;size:20" json:"type"` // radio, checkbox, text, textarea
 	Options     JSON      `gorm:"type:text" json:"options"`     // 选项数组 ["Option 1", "Option 2"]
-	IsRequired  bool      `gorm:"default:true" json:"is_required"`
+	IsRequired  bool      `gorm:"not null" json:"is_required"`
 	Order       int       `gorm:"default:0" json:"order"`
 	CreatedAt   time.Time `gorm:"autoCreateTime" json:"created_at"`
 }

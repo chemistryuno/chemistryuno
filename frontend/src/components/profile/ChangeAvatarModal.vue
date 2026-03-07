@@ -284,9 +284,6 @@ const getPresetIcon = (id: string) => {
     </div>
   </div>
 </template>
-    </div>
-  </div>
-</template>
 
 <style scoped>
 /* 确保裁剪区域容器样式正确 */

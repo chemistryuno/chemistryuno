@@ -57,7 +57,7 @@ type User struct {
 	Email              string         `gorm:"unique;size:100;index;default:null" json:"email"`
 	Nickname           string         `gorm:"not null;size:50;default:''" json:"nickname"`
 	Password           string         `gorm:"not null;default:''" json:"-"`
-	Avatar             string         `gorm:"type:text" json:"avatar"`
+	Avatar             string         `gorm:"type:longtext" json:"avatar"`
 	IsAdmin            bool           `gorm:"default:false" json:"is_admin"`
 	Role               string         `gorm:"default:user;size:20" json:"role"`
 	TwoFactorEnabled   bool           `gorm:"default:false" json:"two_factor_enabled"`

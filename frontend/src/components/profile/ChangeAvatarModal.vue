@@ -23,6 +23,17 @@ const handleFileUpload = (event: Event) => {
   const file = target.files?.[0]
   if (!file) return
 
+  // 10MB limit (10 * 1024 * 1024)
+  if (file.size > 10 * 1024 * 1024) {
+    alert('文件大小超过 10MB 限制 / File too large (Max 10MB)')
+    return
+  }
+  
+  if (file.size === 0) {
+    alert('文件内容不能为空 / File is empty')
+    return
+  }
+
   const reader = new FileReader()
   reader.onload = (e) => {
     selectedAvatar.value = e.target?.result as string
@@ -85,7 +96,7 @@ const handleFileUpload = (event: Event) => {
             <Upload class="w-4 h-4" />
           </div>
           <div class="flex flex-col">
-            <span class="text-xs font-bold text-slate-900 dark:text-white">本地图像上传协议 (MAX 2MB)</span>
+            <span class="text-xs font-bold text-slate-900 dark:text-white">本地图像上传协议 (MAX 10MB)</span>
             <span class="text-[10px] text-slate-500">支持 JPG, PNG, WEBP 等格式</span>
           </div>
         </div>

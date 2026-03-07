@@ -172,6 +172,13 @@ func main() {
 	// 创建Gin引擎（不使用默认中间件）
 	r := gin.New()
 
+	// 设置最大请求体限制 (15MB，以容纳 10MB 的 base64 头像 + JSON 额外开销)
+	r.MaxMultipartMemory = 15 << 20 // 15 MiB
+	r.Use(func(c *gin.Context) {
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 15<<20)
+		c.Next()
+	})
+
 	// 添加自定义中间件
 	r.Use(gin.Logger())                // 日志中间件
 	r.Use(gin.Recovery())              // Panic恢复中间件

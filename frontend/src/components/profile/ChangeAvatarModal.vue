@@ -19,7 +19,6 @@ import {
 } from 'lucide-vue-next'
 import { cn } from '../../utils/cn'
 import Cropper from 'cropperjs'
-import 'cropperjs/dist/cropper.css'
 
 const props = defineProps<{
   show: boolean

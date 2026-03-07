@@ -3,6 +3,7 @@ package handlers
 import (
 	"chemistryuno/backend/database"
 	"chemistryuno/backend/repository"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -204,12 +205,20 @@ func UpdateSurvey(c *gin.Context) {
 	idStr := c.Param("id")
 	id, _ := strconv.ParseUint(idStr, 10, 32)
 
+	type questionReq struct {
+		Title       string `json:"title"`
+		Description string `json:"description"`
+		Type        string `json:"type"`
+		Options     string `json:"options"` // 前端传来的 JSON 字符串，如 "[\"A\",\"B\"]"
+		IsRequired  bool   `json:"is_required"`
+		Order       int    `json:"order"`
+	}
 	var req struct {
-		Title        string                    `json:"title"`
-		Description  string                    `json:"description"`
-		RewardPoints int                       `json:"reward_points"`
-		RewardExp    int                       `json:"reward_exp"`
-		Questions    []database.SurveyQuestion `json:"questions"`
+		Title        string        `json:"title"`
+		Description  string        `json:"description"`
+		RewardPoints int           `json:"reward_points"`
+		RewardExp    int           `json:"reward_exp"`
+		Questions    []questionReq `json:"questions"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数无效"})
@@ -225,7 +234,27 @@ func UpdateSurvey(c *gin.Context) {
 		updateData["title"] = req.Title
 	}
 
-	if err := repository.SurveyRepo.PartialUpdateWithQuestions(uint(id), updateData, req.Questions); err != nil {
+	questions := make([]database.SurveyQuestion, 0, len(req.Questions))
+	for _, q := range req.Questions {
+		sq := database.SurveyQuestion{
+			Title:       q.Title,
+			Description: q.Description,
+			Type:        q.Type,
+			IsRequired:  q.IsRequired,
+			Order:       q.Order,
+		}
+		// Options 是前端传来的 JSON 字符串（如 `["A","B"]`），
+		// 需要重新编码为 JSON 字符串值（加外层引号），与 CreateSurvey 的存储格式保持一致
+		if q.Options != "" {
+			encoded, err := json.Marshal(q.Options)
+			if err == nil {
+				sq.Options = database.JSON(encoded)
+			}
+		}
+		questions = append(questions, sq)
+	}
+
+	if err := repository.SurveyRepo.PartialUpdateWithQuestions(uint(id), updateData, questions); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新问卷失败: " + err.Error()})
 		return
 	}

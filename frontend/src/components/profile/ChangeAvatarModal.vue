@@ -15,10 +15,12 @@ import {
   Brain, 
   Bot, 
   Ghost,
-  Crop
+  Crop,
+  Check
 } from 'lucide-vue-next'
 import { cn } from '../../utils/cn'
 import Cropper from 'cropperjs'
+import 'cropperjs/dist/cropper.css'
 
 const props = defineProps<{
   show: boolean
@@ -59,19 +61,25 @@ const initCropper = () => {
   }
   if (imageToCrop.value) {
     cropper = new Cropper(imageToCrop.value, {
-      aspectRatio: 1, // 锁定方形
-      viewMode: 1,    // 限制裁剪框不能超出图片范围
-      dragMode: 'move',
-      autoCropArea: 0.8, // 初始裁剪区域 80%
+      aspectRatio: 1,      // 锁定 1:1 正方形
+      viewMode: 1,         // 限制裁剪框不能移出图片范围
+      dragMode: 'move',    // 允许拖动图片
+      autoCropArea: 1,     // 初始裁剪区域 100% (铺满)
       restore: false,
-      guides: true,
+      guides: false,       
       center: true,
-      highlight: true,
+      highlight: false,
       responsive: true,
-      cropBoxMovable: true,
-      cropBoxResizable: true,
+      modal: true, 
+      movable: true,       
+      zoomable: true,      
+      scalable: true,
+      rotatable: true,     // 允许旋转以适应某些手机拍摄
+      cropBoxMovable: false, // 禁止移动裁剪框，让玩家通过移动图片来调整
+      cropBoxResizable: false, // 禁止缩放裁剪框，固定为正方形
       toggleDragModeOnDblclick: false,
-    })
+      checkOrientation: true,
+    } as any)
   }
 }
 
@@ -103,7 +111,7 @@ const handleFileUpload = (event: Event) => {
 
 const confirmCrop = () => {
   if (cropper && previewImage.value) {
-    const canvas = cropper.getCroppedCanvas({
+    const canvas = (cropper as any).getCroppedCanvas({
       width: 400,
       height: 400,
       imageSmoothingEnabled: true,
@@ -258,26 +266,37 @@ const getPresetIcon = (id: string) => {
     </div>
 
     <!-- 独立裁剪弹窗 -->
-    <div v-if="showCropperModal" class="fixed inset-0 z-[110] flex items-center justify-center p-4 backdrop-blur-3xl bg-black/90 animate-in fade-in duration-300">
-      <div class="bg-white dark:bg-[#111114] border border-white/10 rounded-[3rem] p-8 max-w-xl w-full shadow-2xl relative">
-        <h4 class="text-xl font-black mb-6 text-center text-slate-900 dark:text-white uppercase italic">裁切头像区域 / Crop Image</h4>
+    <div v-if="showCropperModal" class="fixed inset-0 z-[110] flex items-center justify-center p-2 sm:p-4 backdrop-blur-3xl bg-black/95 animate-in fade-in duration-300">
+      <div class="bg-white dark:bg-[#111114] border border-white/10 rounded-[2rem] sm:rounded-[3rem] p-4 sm:p-8 max-w-xl w-full shadow-2xl relative flex flex-col h-full max-h-[85vh] sm:h-auto">
+        <h4 class="text-lg sm:text-xl font-black mb-4 sm:mb-6 text-center text-slate-900 dark:text-white uppercase italic flex items-center justify-center gap-2">
+          <Crop class="w-5 h-5 text-blue-500" />
+          裁切头像 / CROP
+        </h4>
         
-        <div class="aspect-square bg-black/20 rounded-[2rem] overflow-hidden mb-8 border border-white/5">
+        <div class="flex-1 min-h-0 bg-black/40 rounded-[1.5rem] sm:rounded-[2rem] overflow-hidden mb-4 sm:mb-8 border border-white/5 relative shadow-inner">
+          <div class="absolute inset-0 flex items-center justify-center pointer-events-none z-10 opacity-30">
+            <div class="border-2 border-dashed border-white/20 w-[80%] aspect-square rounded-full"></div>
+          </div>
           <img ref="imageToCrop" :src="previewImage!" class="max-w-full block" />
         </div>
 
-        <div class="flex gap-4">
+        <div class="text-[10px] text-center text-slate-500 dark:text-slate-400 mb-4 italic opacity-60">
+          支持手势旋转缩放 · 自动锁定正方形区域
+        </div>
+
+        <div class="flex gap-3 sm:gap-4 mt-auto">
           <button 
             @click="clearCrop"
-            class="flex-1 py-4 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 rounded-2xl font-bold transition-all text-slate-500 dark:text-slate-400"
+            class="flex-1 py-3 sm:py-4 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 rounded-xl sm:rounded-2xl font-bold transition-all text-slate-500 dark:text-slate-400 active:scale-95"
           >
             取消
           </button>
           <button 
             @click="confirmCrop"
-            class="flex-1 py-4 bg-blue-600 hover:bg-blue-500 rounded-2xl font-black text-white shadow-xl shadow-blue-500/20 transition-all active:scale-95"
+            class="flex-1 py-3 sm:py-4 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 rounded-xl sm:rounded-2xl font-black text-white shadow-xl shadow-blue-500/20 transition-all active:scale-95 flex items-center justify-center gap-2"
           >
-            确认裁切
+            <Check class="w-5 h-5" />
+            裁切并保存
           </button>
         </div>
       </div>
@@ -289,5 +308,51 @@ const getPresetIcon = (id: string) => {
 /* 确保裁剪区域容器样式正确 */
 img {
   max-width: 100%;
+}
+
+/* 深度选择器修改 Cropper.js 样式 */
+:deep(.cropper-view-box) {
+  outline: 4px solid #3b82f6;
+  outline-color: rgba(59, 130, 246, 0.8);
+  border-radius: 4px; /* 稍微圆角配合整体 UI */
+}
+
+:deep(.cropper-line) {
+  background-color: #3b82f6;
+  height: 2px;
+  opacity: 0.5;
+}
+
+:deep(.cropper-point) {
+  background-color: #3b82f6;
+  width: 12px !important;
+  height: 12px !important;
+  opacity: 1;
+  border: 2px solid white;
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+}
+
+/* 针对四个角 (Corners) 进行特别加粗处理 */
+:deep(.cropper-point.point-se),
+:deep(.cropper-point.point-sw),
+:deep(.cropper-point.point-ne),
+:deep(.cropper-point.point-nw) {
+  width: 24px !important;
+  height: 24px !important;
+  border-radius: 6px;
+  background-color: #2563eb;
+}
+
+/* 隐藏不必要的中间控制点，让四个角最显眼 */
+:deep(.cropper-point.point-n),
+:deep(.cropper-point.point-w),
+:deep(.cropper-point.point-s),
+:deep(.cropper-point.point-e) {
+  display: none !important;
+}
+
+:deep(.cropper-face) {
+  background-color: transparent;
+  opacity: 0;
 }
 </style>

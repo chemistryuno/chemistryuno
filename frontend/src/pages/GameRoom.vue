@@ -159,12 +159,7 @@ const isReady = computed(() => {
 })
 
 const handleToggleReady = async () => {
-  console.log('handleToggleReady called')
-  console.log('roomInfo:', roomInfo.value)
-  console.log('user.uid:', user.value?.uid)
-
   if (!roomInfo.value || !user.value.uid) {
-    console.error('Cannot toggle ready - missing roomInfo or user.uid')
     if (!roomInfo.value) {
       showToast('房间信息未加载，请刷新页面', '错误', 'error')
     } else if (!user.value.uid) {
@@ -177,21 +172,14 @@ const handleToggleReady = async () => {
   const uidNum = Number(user.value.uid)
   const isCurrentlyReady = roomInfo.value.ready_uids.includes(uidNum)
 
-  console.log('uidNum:', uidNum)
-  console.log('isCurrentlyReady:', isCurrentlyReady)
-  console.log('ready_uids before:', roomInfo.value.ready_uids)
-
   if (isCurrentlyReady) {
     roomInfo.value.ready_uids = roomInfo.value.ready_uids.filter((id: number) => id !== uidNum)
   } else {
     roomInfo.value.ready_uids = [...roomInfo.value.ready_uids, uidNum]
   }
 
-  console.log('ready_uids after:', roomInfo.value.ready_uids)
-
   try {
-    const response = await gameAPI.ready(id)
-    console.log('Ready API response:', response)
+    await gameAPI.ready(id)
     // 状态也会通过 WebSocket 更新，但手动标记一下提高体验
     await loadGameState(true)
     feedback.success()
@@ -582,7 +570,6 @@ const loadSubstanceNames = async () => {
   try {
     const response = await substanceAPI.getSubstanceNames()
     substanceNames.value = response.data || {}
-    console.log('[GameRoom] Loaded substance names:', Object.keys(substanceNames.value).length)
   } catch (error) {
     console.error('[GameRoom] Failed to load substance names:', error)
     // 使用默认映射作为后备
@@ -815,10 +802,9 @@ const handleGameUpdate = (message: any) => {
   // 只有在手动结算且游戏尚未结束时才跳过更新
   // 如果游戏已经结束（有points_changes），即使isManualSettlement也要更新以显示排名
   if (isManualSettlement.value && !message.data?.points_changes) return
-  console.log('[GameRoom] handleGameUpdate called, message:', message)
+
   // 如果收到的是完整的游戏状态对象
   if (message.data && typeof message.data === 'object') {
-    console.log('[GameRoom] Received full game state object')
     gameState.value = message.data
     syncTutorialStateFromGameState()
     if (isMyTurn.value) {
@@ -828,10 +814,8 @@ const handleGameUpdate = (message: any) => {
       }
     }
   } else {
-    console.log('[GameRoom] Received game_update event, reloading state')
     // 如果收到的是房间ID字符串，则重新拉取完整状态
     loadGameState(true).then(() => {
-      console.log('[GameRoom] State reloaded after game_update')
       if (isMyTurn.value) {
         fetchTurnSubstances()
       }

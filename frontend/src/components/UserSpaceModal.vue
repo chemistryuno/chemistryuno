@@ -98,12 +98,12 @@ const handleStartChat = () => {
             <!-- Avatar -->
             <div class="shrink-0 relative z-10">
               <div class="w-28 h-28 md:w-32 md:h-32 bg-gradient-to-tr from-blue-500/20 to-purple-500/20 rounded-[1.8rem] p-1 shadow-xl">
-                <div class="w-full h-full bg-white dark:bg-[#0d0d10] rounded-[1.6rem] flex items-center justify-center text-5xl border border-slate-100 dark:border-white/5 overflow-hidden">
-                  <template v-if="user.avatar && user.avatar.startsWith('data:')">
+                <div class="w-full h-full bg-white dark:bg-[#0d0d10] rounded-[1.6rem] flex items-center justify-center text-5xl border border-slate-100 dark:border-white/5 overflow-hidden shadow-inner">
+                  <template v-if="user.avatar && user.avatar.length > 50">
                     <img :src="user.avatar" class="w-full h-full object-cover" />
                   </template>
                   <template v-else>
-                    <span>{{ user.avatar || '🧪' }}</span>
+                    <span class="scale-110">{{ user.avatar || '🧪' }}</span>
                   </template>
                 </div>
               </div>

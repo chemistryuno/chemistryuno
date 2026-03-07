@@ -158,13 +158,13 @@
                     <div class="flex items-center gap-3">
                        <div 
                          @click="showResearcherProfile(player.uid)"
-                         class="relative w-8 h-8 rounded-lg bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-center justify-center text-sm overflow-hidden shrink-0 cursor-pointer hover:ring-2 hover:ring-blue-500/50 transition-all"
+                         class="relative w-8 h-8 rounded-lg bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-center justify-center text-sm overflow-hidden shrink-0 cursor-pointer hover:ring-2 hover:ring-blue-500/50 transition-all shadow-inner"
                        >
-                          <template v-if="player.avatar && player.avatar.startsWith('data:')">
+                          <template v-if="player.avatar && player.avatar.length > 50">
                             <img :src="player.avatar" class="w-full h-full object-cover" />
                           </template>
                           <template v-else>
-                            {{ player.avatar || '🧪' }}
+                            <span class="scale-110">{{ player.avatar || '🧪' }}</span>
                           </template>
                           <div v-if="player.is_online" class="absolute bottom-0 right-0 w-2 h-2 bg-emerald-500 border-2 border-white dark:border-[#121216] rounded-full"></div>
                        </div>

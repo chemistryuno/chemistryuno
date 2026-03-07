@@ -249,13 +249,13 @@ const formatTime = (date: Date) => {
         <div class="shrink-0 mt-1">
           <div 
             @click="router.push(`/user/${msg.uid}`)"
-            class="w-8 h-8 sm:w-7 sm:h-7 rounded-lg bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-center justify-center text-xs sm:text-[10px] overflow-hidden shadow-sm cursor-pointer hover:ring-2 hover:ring-blue-500/50 transition-all"
+            class="w-8 h-8 sm:w-7 sm:h-7 rounded-lg bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-center justify-center text-xs sm:text-[10px] overflow-hidden shadow-inner cursor-pointer hover:ring-2 hover:ring-blue-500/50 transition-all"
           >
-            <template v-if="msg.avatar && msg.avatar.startsWith('data:')">
+            <template v-if="msg.avatar && msg.avatar.length > 50">
               <img :src="msg.avatar" class="w-full h-full object-cover" />
             </template>
             <template v-else>
-              {{ msg.avatar || '🧪' }}
+              <span class="scale-110">{{ msg.avatar || '🧪' }}</span>
             </template>
           </div>
         </div>

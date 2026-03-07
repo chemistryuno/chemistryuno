@@ -929,12 +929,12 @@ const filteredHistory = computed(() => {
                   <tbody class="divide-y divide-slate-100 dark:divide-white/5 font-mono">
                     <tr v-for="u in filteredUsers" :key="u.uid" class="hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors group">
                       <td class="px-4 py-2.5 text-xs font-bold text-slate-900 dark:text-white flex items-center gap-4">
-                        <div class="w-10 h-10 bg-white dark:bg-black/40 rounded-xl flex items-center justify-center text-lg group-hover:scale-105 transition-transform overflow-hidden border border-slate-200 dark:border-white/10 shadow-sm">
-                          <template v-if="u.avatar && u.avatar.startsWith('data:')">
+                        <div class="w-10 h-10 bg-white dark:bg-black/40 rounded-xl flex items-center justify-center text-lg group-hover:scale-105 transition-transform overflow-hidden border border-slate-200 dark:border-white/10 shadow-inner">
+                          <template v-if="u.avatar && u.avatar.length > 50">
                             <img :src="u.avatar" class="w-full h-full object-cover" />
                           </template>
                           <template v-else>
-                            {{ u.avatar || '🧪' }}
+                            <span class="scale-110">{{ u.avatar || '🧪' }}</span>
                           </template>
                         </div>
                         <div class="flex flex-col">

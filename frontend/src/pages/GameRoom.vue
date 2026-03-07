@@ -2654,11 +2654,15 @@ watch(() => gameState.value?.current_player, () => {
           >
             <div class="relative w-8 h-8 shrink-0">
               <div :class="cn(
-                'w-full h-full rounded-lg flex items-center justify-center text-sm border overflow-hidden relative',
+                'w-full h-full rounded-lg flex items-center justify-center text-sm border overflow-hidden relative shadow-inner',
                 gameState?.current_player === index ? 'bg-white text-blue-600 border-white/20' : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-white/10'
               )">
-                <img v-if="player.avatar && player.avatar.startsWith('data:')" :src="player.avatar" class="w-full h-full object-cover" />
-                <span v-else>{{ player.avatar || '🧪' }}</span>
+                <template v-if="player.avatar && player.avatar.length > 50">
+                  <img :src="player.avatar" class="w-full h-full object-cover" />
+                </template>
+                <template v-else>
+                  <span class="scale-110">{{ player.avatar || '🧪' }}</span>
+                </template>
 
                 <!-- Offline Overlay -->
                 <div v-if="player.is_offline" class="absolute inset-0 bg-red-500/40 flex items-center justify-center backdrop-blur-[1px]">

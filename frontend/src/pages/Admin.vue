@@ -172,6 +172,47 @@ const handleExportSurvey = async (id: number) => {
   }
 }
 
+const handleExportSurveyConfig = async (id: number) => {
+  try {
+    const res = await adminAPI.getSurveyConfig(id)
+    const dataStr = JSON.stringify(res.data, null, 2)
+    const blob = new Blob([dataStr], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `survey_${id}_config.json`
+    link.click()
+    URL.revokeObjectURL(url)
+  } catch (e: any) {
+    showAlert('导出配置失败: ' + (e.response?.data?.error || e.message), '错误')
+  }
+}
+
+const fileInputRef = ref<HTMLInputElement | null>(null)
+const triggerImportSurvey = () => {
+  fileInputRef.value?.click()
+}
+
+const handleImportSurvey = async (e: Event) => {
+  const file = (e.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  
+  const reader = new FileReader()
+  reader.onload = async (event) => {
+    try {
+      const config = JSON.parse(event.target?.result as string)
+      await adminAPI.importSurveyConfig(config)
+      showAlert('问卷配置导入成功', '成功')
+      loadData()
+    } catch (err: any) {
+      showAlert('导入失败: ' + (err.response?.data?.error || '无效的 JSON 文件'), '错误')
+    } finally {
+      if (fileInputRef.value) fileInputRef.value.value = ''
+    }
+  }
+  reader.readAsText(file)
+}
+
 const handleCreateSurvey = async () => {
   if (!newSurvey.value.title) {
     showAlert('请输入问卷标题', '验证失败')
@@ -1487,9 +1528,15 @@ const filteredHistory = computed(() => {
                   <FileText class="w-5 h-5 text-indigo-500" />
                   内部问卷调查系统 <span class="text-slate-400 dark:text-slate-600 font-mono not-italic text-[10px] tracking-normal">/ INTERNAL_SURVEYS --REGISTRY</span>
                 </h3>
-                <button @click="showCreateSurveyModal = true" class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-[10px] font-black uppercase tracking-[0.2em] shadow-xl shadow-indigo-500/20 transition-all hover:scale-[1.02] active:scale-95 flex items-center gap-2">
-                  <Plus class="w-4 h-4" /> 发布新问卷
-                </button>
+                <div class="flex items-center gap-3">
+                  <input type="file" ref="fileInputRef" class="hidden" accept=".json" @change="handleImportSurvey" />
+                  <button @click="triggerImportSurvey" class="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all flex items-center gap-2 border border-slate-700">
+                    <Layers class="w-4 h-4" /> 导入配置
+                  </button>
+                  <button @click="showCreateSurveyModal = true" class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-[10px] font-black uppercase tracking-[0.2em] shadow-xl shadow-indigo-500/20 transition-all hover:scale-[1.02] active:scale-95 flex items-center gap-2">
+                    <Plus class="w-4 h-4" /> 发布新问卷
+                  </button>
+                </div>
               </div>
 
               <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -1518,6 +1565,9 @@ const filteredHistory = computed(() => {
                         </button>
                         <button @click="handleExportSurvey(sv.id)" class="p-2 hover:bg-indigo-500/10 text-indigo-500 rounded-lg transition-all" title="导出数据 (Excel)">
                           <Layers class="w-4 h-4" />
+                        </button>
+                        <button @click="handleExportSurveyConfig(sv.id)" class="p-2 hover:bg-slate-500/10 text-slate-400 rounded-lg transition-all" title="导出问卷配置 (JSON)">
+                          <Database class="w-4 h-4" />
                         </button>
                       </div>
                    </div>

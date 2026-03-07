@@ -181,7 +181,7 @@ func GetSurveyResponses(c *gin.Context) {
 	id, _ := strconv.ParseUint(idStr, 10, 32)
 
 	sortBy := c.DefaultQuery("sort_by", "created_at") // user_uid or created_at
-	order := c.DefaultQuery("order", "desc")           // asc or desc
+	order := c.DefaultQuery("order", "desc")          // asc or desc
 
 	if sortBy != "user_uid" && sortBy != "created_at" {
 		sortBy = "created_at"
@@ -248,6 +248,46 @@ func RepairSurveyAnswers(c *gin.Context) {
 		"message":     fmt.Sprintf("修复完成，共修复 %d 条答案", fixed),
 		"fixed_count": fixed,
 	})
+}
+
+// GetSurveyConfig 获取问卷的完整配置 (用于导出 JSON)
+func GetSurveyConfig(c *gin.Context) {
+	idStr := c.Param("id")
+	id, _ := strconv.ParseUint(idStr, 10, 32)
+
+	survey, err := repository.SurveyRepo.GetByID(uint(id))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "问卷不存在"})
+		return
+	}
+
+	c.JSON(http.StatusOK, survey)
+}
+
+// ImportSurveyConfig 导入问卷配置 (通过 JSON)
+func ImportSurveyConfig(c *gin.Context) {
+	var req database.Survey
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "JSON 格式无效"})
+		return
+	}
+
+	uid := c.GetInt("uid")
+	req.CreatedBy = uint(uid)
+	req.ID = 0 // 确保是创建新问卷
+
+	// 清理题目 ID 以便重新创建
+	for i := range req.Questions {
+		req.Questions[i].ID = 0
+		req.Questions[i].SurveyID = 0
+	}
+
+	if err := repository.SurveyRepo.CreateWithQuestions(&req); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "导入失败: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"message": "问卷导入成功", "id": req.ID})
 }
 
 // ExportSurveyResponses 导出问卷答卷到 Excel

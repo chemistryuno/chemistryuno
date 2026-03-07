@@ -307,6 +307,10 @@ export const adminAPI = {
     api.post(`/admin/surveys/${id}/repair`),
   exportSurvey: (id: number) =>
     api.get(`/admin/surveys/${id}/export`, { responseType: 'blob' }),
+  getSurveyConfig: (id: number) =>
+    api.get(`/admin/surveys/${id}/config`),
+  importSurveyConfig: (data: any) =>
+    api.post('/admin/surveys/import', data),
 }
 
 export const commonAPI = {

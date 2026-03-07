@@ -451,6 +451,8 @@ func main() {
 			admin.GET("/surveys/:id/responses", handlers.GetSurveyResponses)
 			admin.POST("/surveys/:id/repair", handlers.RepairSurveyAnswers)
 			admin.GET("/surveys/:id/export", middleware.AdminMiddleware(), handlers.ExportSurveyResponses)
+			admin.GET("/surveys/:id/config", handlers.GetSurveyConfig) // 导出配置
+			admin.POST("/surveys/import", handlers.ImportSurveyConfig) // 导入配置
 		}
 
 		// 积分和悬赏

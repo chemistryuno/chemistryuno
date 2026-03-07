@@ -33,6 +33,7 @@ const emit = defineEmits<{
 
 const selectedAvatar = ref(props.currentAvatar)
 const previewImage = ref<string | null>(null)
+const showCropperModal = ref(false)
 const imageToCrop = ref<HTMLImageElement | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
 let cropper: Cropper | null = null
@@ -93,15 +94,15 @@ const handleFileUpload = (event: Event) => {
   const reader = new FileReader()
   reader.onload = async (e) => {
     previewImage.value = e.target?.result as string
+    showCropperModal.value = true
     await nextTick()
     initCropper()
   }
   reader.readAsDataURL(file)
 }
 
-const handleSave = () => {
+const confirmCrop = () => {
   if (cropper && previewImage.value) {
-    // 获取裁剪后的 Canvas
     const canvas = cropper.getCroppedCanvas({
       width: 400,
       height: 400,
@@ -110,18 +111,24 @@ const handleSave = () => {
     })
     
     if (canvas) {
-      // 导出为极小体积的 WebP (50% 质量，兼顾清晰度与存储)
-      // 这解决了上传后无法存储的问题，因为过大的 Base64 可能会在传输或中间层被截断
-      const croppedDataUrl = canvas.toDataURL('image/webp', 0.5)
-      emit('save', croppedDataUrl)
+      selectedAvatar.value = canvas.toDataURL('image/webp', 0.5)
+      showCropperModal.value = false
+      previewImage.value = null
+      if (cropper) {
+        cropper.destroy()
+        cropper = null
+      }
     }
-  } else {
-    emit('save', selectedAvatar.value)
   }
+}
+
+const handleSave = () => {
+  emit('save', selectedAvatar.value)
 }
 
 const clearCrop = () => {
   previewImage.value = null
+  showCropperModal.value = false
   if (cropper) {
     cropper.destroy()
     cropper = null
@@ -163,16 +170,12 @@ const getPresetIcon = (id: string) => {
       <h3 class="text-2xl font-black mb-8 italic uppercase text-center text-slate-900 dark:text-white">选择新的身份标识 / Select Avatar</h3>
       
       <div class="flex flex-col items-center gap-8 mb-10">
-        <!-- 预览与裁剪区 -->
+        <!-- 预览区 -->
         <div class="relative group/preview w-full flex justify-center">
           <div :class="cn(
-            'w-48 h-48 bg-slate-50 dark:bg-[#1a1c1e] rounded-[2.5rem] border-2 border-dashed border-slate-200 dark:border-white/10 flex items-center justify-center overflow-hidden transition-all',
-            previewImage ? 'w-full h-64' : 'group-hover/preview:border-blue-500/50'
+            'w-48 h-48 bg-slate-50 dark:bg-[#1a1c1e] rounded-[2.5rem] border-2 border-dashed border-slate-200 dark:border-white/10 flex items-center justify-center overflow-hidden transition-all group-hover/preview:border-blue-500/50'
           )">
-             <template v-if="previewImage">
-                <img ref="imageToCrop" :src="previewImage" class="max-w-full block" />
-             </template>
-             <template v-else-if="selectedAvatar && selectedAvatar.startsWith('data:')">
+             <template v-if="selectedAvatar && selectedAvatar.startsWith('data:')">
                 <img :src="selectedAvatar" class="w-full h-full object-cover" />
              </template>
              <template v-else-if="isPreset(selectedAvatar)">
@@ -184,23 +187,13 @@ const getPresetIcon = (id: string) => {
              </template>
           </div>
           
-          <div class="absolute -bottom-2 right-1/2 translate-x-24 flex gap-2">
-            <button 
-              v-if="previewImage"
-              @click="clearCrop"
-              class="bg-red-500 p-2 rounded-xl text-white shadow-lg shadow-red-500/20 hover:scale-110 transition-transform"
-              title="取消裁剪"
-            >
-              <Ghost class="w-4 h-4" />
-            </button>
-            <button 
-              @click="fileInput?.click()"
-              class="bg-blue-600 p-2 rounded-xl text-white shadow-lg shadow-blue-500/20 hover:scale-110 transition-transform"
-              title="上传图片"
-            >
-              <Upload class="w-4 h-4" />
-            </button>
-          </div>
+          <button 
+            @click="fileInput?.click()"
+            class="absolute -bottom-2 right-1/2 translate-x-24 bg-blue-600 p-2 rounded-xl text-white shadow-lg shadow-blue-500/20 hover:scale-110 transition-transform"
+            title="上传图片"
+          >
+            <Upload class="w-4 h-4" />
+          </button>
 
           <input 
             type="file" 
@@ -221,7 +214,7 @@ const getPresetIcon = (id: string) => {
               @click="selectPreset(option.id)"
               :class="cn(
                 'w-16 h-16 flex items-center justify-center rounded-[1.5rem] transition-all duration-300 border-2',
-                selectedAvatar === option.id && !previewImage
+                selectedAvatar === option.id
                   ? 'bg-blue-600 border-blue-400 scale-110 shadow-[0_0_20px_rgba(59,130,246,0.5)] text-white' 
                   : 'bg-slate-50 dark:bg-white/5 border-slate-100 dark:border-transparent hover:border-blue-300 dark:hover:border-white/20 hover:scale-105 text-slate-600 dark:text-slate-400'
               )"
@@ -231,7 +224,7 @@ const getPresetIcon = (id: string) => {
           </div>
         </div>
         
-        <!-- 上传协议/按钮 -->
+        <!-- 上传按钮 -->
         <button 
           @click="fileInput?.click()"
           class="bg-blue-500/5 hover:bg-blue-500/10 border border-blue-500/10 rounded-2xl p-4 w-full flex items-center gap-4 transition-colors group/upload"
@@ -241,7 +234,7 @@ const getPresetIcon = (id: string) => {
           </div>
           <div class="flex flex-col text-left">
             <span class="text-xs font-bold text-slate-900 dark:text-white">本地图像上传协议 (MAX 10MB)</span>
-            <span class="text-[10px] text-slate-500">自动进入裁剪模式，支持 JPG, PNG, WEBP</span>
+            <span class="text-[10px] text-slate-500">上传后进入独立裁剪窗口，支持 JPG, PNG, WEBP</span>
           </div>
         </button>
       </div>
@@ -259,9 +252,38 @@ const getPresetIcon = (id: string) => {
           class="flex-1 py-4 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 rounded-2xl font-black text-white shadow-xl shadow-blue-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
         >
           <Loader2 v-if="loading" class="w-5 h-5 animate-spin" />
-          {{ previewImage ? '裁剪并同步' : '同步身份更改' }}
+          同步身份更改
         </button>
       </div>
+    </div>
+
+    <!-- 独立裁剪弹窗 -->
+    <div v-if="showCropperModal" class="fixed inset-0 z-[110] flex items-center justify-center p-4 backdrop-blur-3xl bg-black/90 animate-in fade-in duration-300">
+      <div class="bg-white dark:bg-[#111114] border border-white/10 rounded-[3rem] p-8 max-w-xl w-full shadow-2xl relative">
+        <h4 class="text-xl font-black mb-6 text-center text-slate-900 dark:text-white uppercase italic">裁切头像区域 / Crop Image</h4>
+        
+        <div class="aspect-square bg-black/20 rounded-[2rem] overflow-hidden mb-8 border border-white/5">
+          <img ref="imageToCrop" :src="previewImage!" class="max-w-full block" />
+        </div>
+
+        <div class="flex gap-4">
+          <button 
+            @click="clearCrop"
+            class="flex-1 py-4 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 rounded-2xl font-bold transition-all text-slate-500 dark:text-slate-400"
+          >
+            取消
+          </button>
+          <button 
+            @click="confirmCrop"
+            class="flex-1 py-4 bg-blue-600 hover:bg-blue-500 rounded-2xl font-black text-white shadow-xl shadow-blue-500/20 transition-all active:scale-95"
+          >
+            确认裁切
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
     </div>
   </div>
 </template>

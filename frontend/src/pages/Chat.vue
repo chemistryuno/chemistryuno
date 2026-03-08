@@ -837,21 +837,4 @@ const formatTime = (date: Date) => {
   </div>
 </template>
 
-<style scoped>
-.custom-scrollbar::-webkit-scrollbar {
-  width: 5px;
-}
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(100, 116, 139, 0.1);
-  border-radius: 10px;
-}
-.dark .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.03);
-}
-.custom-scrollbar-hidden::-webkit-scrollbar {
-  display: none;
-}
-</style>
+<style scoped></style>

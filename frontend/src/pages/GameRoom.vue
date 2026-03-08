@@ -2859,29 +2859,4 @@ watch(() => gameState.value?.current_player, () => {
   <FeedbackSettings v-if="roomInfo?.status === 'waiting'" />
 </template>
 
-<style scoped>
-/* 反应方程式滑动动画 */
-.reaction-slide-enter-active,
-.reaction-slide-leave-active {
-  transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.reaction-slide-enter-from {
-  opacity: 0;
-  transform: translateY(-20px) scale(0.9);
-}
-
-.reaction-slide-leave-to {
-  opacity: 0;
-  transform: translateY(10px) scale(0.95);
-}
-
-/* 游戏内特定滚动条隐藏 */
-:deep(.custom-scrollbar-hidden::-webkit-scrollbar) {
-  display: none;
-}
-:deep(.custom-scrollbar-hidden) {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-</style>
+<style scoped src="./GameRoom.css"></style>

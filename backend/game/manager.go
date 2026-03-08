@@ -55,7 +55,7 @@ func (gr *GameRoom) shouldTerminateRoom() bool {
 		return false
 	}
 
-	// 统计人类玩家数量
+	// 统计人类玩家数量（场上的）
 	numHumans := 0
 	for _, pid := range gr.Room.Players {
 		if pid >= 0 {
@@ -63,21 +63,26 @@ func (gr *GameRoom) shouldTerminateRoom() bool {
 		}
 	}
 
+	// 即使场上没有人类玩家，只要有观战者，就不关闭房间
+	// 这样允许人们观战 AI 之间的对局
+	numSpectators := len(gr.Room.Spectators)
+
 	if gr.Room.IsPvE {
-		// 人机模式：只要没有人类玩家了，就关闭
-		return numHumans == 0
+		// 人机模式：场上没有人类且没有观战者，才关闭
+		return numHumans == 0 && numSpectators == 0
 	}
 
 	// 多人模式：
-	// 1. 如果完全没人类了，关闭
-	// 2. 如果人类离开了（中途退出），导致只剩1个或更少人（含AI），且没有任何人完成比赛，关闭
-	// 注意：只要有人完成比赛，就说明游戏进入了结算流程或正在观战，应允许继续
-	if numHumans == 0 {
+	// 1. 如果完全没人类（场上+观战），关闭
+	// 2. 如果人类离开了（中途退出），导致场上只剩1个或更少人（含AI），且没有任何人完成比赛，
+	//    且没有观战者，关闭
+	if numHumans == 0 && numSpectators == 0 {
 		return true
 	}
 
 	// 如果人类玩家少于2个，且没有任何人（人类或AI）已经完成比赛
-	if numHumans < 2 {
+	// 且没有观战者正在观看
+	if numHumans < 2 && numSpectators == 0 {
 		if gr.GameState == nil || len(gr.GameState.FinishedPlayers) == 0 {
 			return true
 		}
@@ -1401,6 +1406,11 @@ func JoinRoomWithKey(roomID string, uid int, accessKey string) error {
 
 	// 游戏已开始或房间已满，自动进入观战模式
 	if gameRoom.Room.Status == "playing" || len(gameRoom.Room.Players) >= gameRoom.Room.MaxPlayers {
+		// 如果是公开房间，无需密钥即可观战
+		if !gameRoom.Room.IsPrivate {
+			accessKey = ""
+		}
+
 		// 如果是私密房间，非房间成员需要密钥才能观战
 		if gameRoom.Room.IsPrivate && gameRoom.Room.AccessKey != "" {
 			isCreator := len(gameRoom.Room.Players) > 0 && gameRoom.Room.Players[0] == uid

@@ -477,8 +477,15 @@ const currentPlayerObj = computed(() => {
   return gameState.value.players?.[gameState.value.current_player]
 })
 const isSpectator = computed(() => {
-  if (!gameState.value?.finished_players || !user.value?.uid) return false
-  return gameState.value.finished_players.includes(user.value.uid)
+  if (!gameState.value || !user.value?.uid) return false
+  // 已完成比赛的玩家
+  const isFinished = gameState.value.finished_players?.includes(user.value.uid)
+  // 直接加入的观战者
+  const inSpectatorsList = gameState.value.spectators?.includes(user.value.uid)
+  // 不在选手列表中的玩家也是观战者
+  const isNotPlayer = !gameState.value.players?.some((p: any) => Number(p.uid) === Number(user.value?.uid))
+  
+  return isFinished || inSpectatorsList || isNotPlayer
 })
 
 const isMyTurn = computed(() => {

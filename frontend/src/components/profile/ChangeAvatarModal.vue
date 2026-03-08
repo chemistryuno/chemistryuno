@@ -1,26 +1,10 @@
 <script setup lang="ts">
 import { ref, watch, onUnmounted, nextTick } from 'vue'
-import { 
-  Upload, 
-  Loader2, 
-  FlaskConical, 
-  Dna, 
-  TestTube2, 
-  Microscope, 
-  Satellite, 
-  Rocket, 
-  Orbit, 
-  Atom, 
-  Radio, 
-  Brain, 
-  Bot, 
-  Ghost,
-  Crop,
-  Check
-} from 'lucide-vue-next'
+import { Upload, Loader2, Crop, Check } from 'lucide-vue-next'
 import { cn } from '../../utils/cn'
 import Cropper from 'cropperjs'
 import 'cropperjs/dist/cropper.css'
+import { AVATAR_PRESETS, isPresetAvatar } from '../../utils/avatarPresets'
 
 const props = defineProps<{
   show: boolean
@@ -40,20 +24,7 @@ const imageToCrop = ref<HTMLImageElement | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
 let cropper: Cropper | null = null
 
-const avatarOptions = [
-  { id: 'flask', icon: FlaskConical },
-  { id: 'dna', icon: Dna },
-  { id: 'tube', icon: TestTube2 },
-  { id: 'micro', icon: Microscope },
-  { id: 'sat', icon: Satellite },
-  { id: 'rocket', icon: Rocket },
-  { id: 'orbit', icon: Orbit },
-  { id: 'atom', icon: Atom },
-  { id: 'radio', icon: Radio },
-  { id: 'brain', icon: Brain },
-  { id: 'bot', icon: Bot },
-  { id: 'ghost', icon: Ghost }
-]
+const avatarOptions = Object.entries(AVATAR_PRESETS).map(([id, icon]) => ({ id, icon }))
 
 const initCropper = () => {
   if (cropper) {
@@ -79,7 +50,7 @@ const initCropper = () => {
       cropBoxResizable: false, // 禁止缩放裁剪框，固定为正方形
       toggleDragModeOnDblclick: false,
       checkOrientation: true,
-    } as any)
+    })
   }
 }
 
@@ -111,7 +82,7 @@ const handleFileUpload = (event: Event) => {
 
 const confirmCrop = () => {
   if (cropper && previewImage.value) {
-    const canvas = (cropper as any).getCroppedCanvas({
+    const canvas = cropper.getCroppedCanvas({
       width: 400,
       height: 400,
       imageSmoothingEnabled: true,
@@ -161,14 +132,10 @@ watch(() => props.show, (newVal) => {
 })
 
 // 判断是否为内置图标 ID
-const isPreset = (val: string) => {
-  return avatarOptions.some(opt => opt.id === val)
-}
+const isPreset = isPresetAvatar
 
 // 获取内置图标组件
-const getPresetIcon = (id: string) => {
-  return avatarOptions.find(opt => opt.id === id)?.icon || FlaskConical
-}
+const getPresetIcon = (id: string) => AVATAR_PRESETS[id] ?? avatarOptions[0].icon
 
 </script>
 

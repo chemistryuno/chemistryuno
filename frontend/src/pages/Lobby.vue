@@ -3,6 +3,7 @@ import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { gameAPI, authAPI, commonAPI, friendAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
+import UserAvatar from '../components/UserAvatar.vue'
 import websocket from '../utils/websocket'
 import { Beaker, Plus, Shield, LogOut, Settings, Play, X, Loader2, Database, MessageCircle, Trophy, Megaphone, Menu, Puzzle, FileText, ChevronRight, ExternalLink } from 'lucide-vue-next'
 import { cn } from '../utils/cn'
@@ -524,15 +525,7 @@ const copyToClipboard = (text: string) => {
             <!-- User Identity Chip -->
             <div data-tutorial="user-chip" @click="router.push('/profile')" class="flex items-center gap-2 sm:gap-2.5 pl-1.5 pr-2 sm:pr-3 py-1 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl hover:bg-slate-200 dark:hover:bg-white/10 transition-all cursor-pointer group touch-feedback">
                <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-800 flex items-center justify-center text-base shadow-inner group-hover:scale-105 transition-transform overflow-hidden border border-slate-200 dark:border-white/5">
-                 <template v-if="user.avatar && user.avatar.length > 50">
-                    <img :src="user.avatar" class="w-full h-full object-cover" />
-                 </template>
-                 <template v-else-if="user.avatar && user.avatar.length > 0">
-                    <span class="scale-110">{{ user.avatar }}</span>
-                 </template>
-                 <template v-else>
-                    <span class="scale-110">🧪</span>
-                 </template>
+                 <UserAvatar :avatar="user.avatar" />
                </div>
                <div class="hidden sm:flex flex-col">
                  <span class="text-xs-mobile font-black text-slate-900 dark:text-white">{{ user.nickname || user.username }}</span>

@@ -98,6 +98,31 @@ func GetAllUsers(c *gin.Context) {
 	c.JSON(http.StatusOK, users)
 }
 
+// GetAdminStats 返回管理员面板所需的汇总统计数据
+func GetAdminStats(c *gin.Context) {
+	userCount, _ := userRepo.GetUserCount()
+
+	var historyCount int64
+	database.DB.Model(&database.GameHistory{}).Count(&historyCount)
+
+	deckCardTypes := 0
+	if deck, err := deckRepo.FindGlobalDeck(); err == nil && deck != nil {
+		var cards map[string]int
+		if err := json.Unmarshal(deck.Cards, &cards); err == nil {
+			deckCardTypes = len(cards)
+		}
+	}
+
+	activeRooms := len(game.GetAllRoomsAdmin())
+
+	c.JSON(http.StatusOK, gin.H{
+		"user_count":      userCount,
+		"history_count":   historyCount,
+		"deck_card_types": deckCardTypes,
+		"active_rooms":    activeRooms,
+	})
+}
+
 // 管理员踢出玩家（服务器级别，直接断开连接）
 func KickPlayer(c *gin.Context) {
 	var req struct {

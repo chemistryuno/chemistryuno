@@ -3,6 +3,7 @@ import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { Send, MessageSquare, User, X, FlaskConical, Users, Trophy } from 'lucide-vue-next'
 import websocket from '../utils/websocket'
+import UserAvatar from './UserAvatar.vue'
 import { authAPI, gameAPI } from '../utils/api'
 import { cn } from '../utils/cn'
 
@@ -251,12 +252,7 @@ const formatTime = (date: Date) => {
             @click="router.push(`/user/${msg.uid}`)"
             class="w-8 h-8 sm:w-7 sm:h-7 rounded-lg bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-center justify-center text-xs sm:text-[10px] overflow-hidden shadow-inner cursor-pointer hover:ring-2 hover:ring-blue-500/50 transition-all"
           >
-            <template v-if="msg.avatar && msg.avatar.length > 50">
-              <img :src="msg.avatar" class="w-full h-full object-cover" />
-            </template>
-            <template v-else>
-              <span class="scale-110">{{ msg.avatar || '🧪' }}</span>
-            </template>
+            <UserAvatar :avatar="msg.avatar" />
           </div>
         </div>
 

@@ -392,6 +392,7 @@ func main() {
 		admin := api.Group("/admin")
 		admin.Use(middleware.AuthMiddleware(), middleware.CoWorkerMiddleware())
 		{
+			admin.GET("/stats", handlers.GetAdminStats)
 			admin.GET("/users", handlers.GetAllUsers)
 			admin.POST("/users", middleware.AdminMiddleware(), handlers.CreateUser)
 			admin.DELETE("/users/:uid", middleware.AdminMiddleware(), handlers.DeleteUser)

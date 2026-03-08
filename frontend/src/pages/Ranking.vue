@@ -160,12 +160,7 @@
                          @click="showResearcherProfile(player.uid)"
                          class="relative w-8 h-8 rounded-lg bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-center justify-center text-sm overflow-hidden shrink-0 cursor-pointer hover:ring-2 hover:ring-blue-500/50 transition-all shadow-inner"
                        >
-                          <template v-if="player.avatar && player.avatar.length > 50">
-                            <img :src="player.avatar" class="w-full h-full object-cover" />
-                          </template>
-                          <template v-else>
-                            <span class="scale-110">{{ player.avatar || '🧪' }}</span>
-                          </template>
+                          <UserAvatar :avatar="player.avatar" />
                           <div v-if="player.is_online" class="absolute bottom-0 right-0 w-2 h-2 bg-emerald-500 border-2 border-white dark:border-[#121216] rounded-full"></div>
                        </div>
                        <div class="flex flex-col">
@@ -450,6 +445,7 @@ import ChatBox from '../components/ChatBox.vue'
 import LevelBadge from '../components/LevelBadge.vue'
 import websocket from '../utils/websocket'
 import UserSpaceModal from '../components/UserSpaceModal.vue'
+import UserAvatar from '../components/UserAvatar.vue'
 
 const router = useRouter()
 const { showAlert, showPrompt } = useDialog()

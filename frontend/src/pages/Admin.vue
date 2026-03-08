@@ -3,6 +3,7 @@ import { ref, onMounted, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { adminAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
+import UserAvatar from '../components/UserAvatar.vue'
 import {
   Shield,
   ArrowLeft,
@@ -279,6 +280,8 @@ const initialCardsEdit = ref(10)
 const activeTab = ref('users')
 const loading = ref(false)
 
+const stats = ref({ user_count: 0, history_count: 0, deck_card_types: 0, active_rooms: 0 })
+
 const tabs = computed(() => {
   const allTabs = [
     { id: 'users', label: '研究员', icon: Users },
@@ -350,7 +353,10 @@ const loadData = async () => {
   }
 }
 
-onMounted(loadData)
+onMounted(() => {
+  loadData()
+  adminAPI.getStats().then(r => { stats.value = r.data }).catch(() => {})
+})
 
 watch(activeTab, () => {
   loadData()
@@ -810,7 +816,7 @@ const filteredHistory = computed(() => {
             </div>
             <div class="text-[9px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-[0.2em] group-hover:text-cyan-600 transition-colors">STAFF_INDEX</div>
           </div>
-          <div class="text-xl font-black text-slate-900 dark:text-white italic tracking-tighter">{{ users.length }}</div>
+          <div class="text-xl font-black text-slate-900 dark:text-white italic tracking-tighter">{{ stats.user_count }}</div>
           <div class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mt-1 tracking-wider">在册研究员总数</div>
         </div>
 
@@ -821,7 +827,7 @@ const filteredHistory = computed(() => {
             </div>
             <div class="text-[9px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-[0.2em] group-hover:text-violet-600 transition-colors">CORE_DRIVE</div>
           </div>
-          <div class="text-xl font-black text-slate-900 dark:text-white italic tracking-tighter">{{ deckConfig ? Object.keys(deckConfig.cards).length : 0 }}</div>
+          <div class="text-xl font-black text-slate-900 dark:text-white italic tracking-tighter">{{ stats.deck_card_types }}</div>
           <div class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mt-1 tracking-wider">核定反应元基数</div>
         </div>
 
@@ -832,7 +838,7 @@ const filteredHistory = computed(() => {
             </div>
             <div class="text-[9px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-[0.2em] group-hover:text-orange-600 transition-colors">LOG_BUFFER</div>
           </div>
-          <div class="text-xl font-black text-slate-900 dark:text-white italic tracking-tighter">{{ gameHistory.length }}</div>
+          <div class="text-xl font-black text-slate-900 dark:text-white italic tracking-tighter">{{ stats.history_count }}</div>
           <div class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mt-1 tracking-wider">全域实验活动记录</div>
         </div>
 
@@ -841,10 +847,10 @@ const filteredHistory = computed(() => {
             <div class="p-2 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
               <Database class="w-5 h-5" />
             </div>
-            <div class="text-[9px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-[0.2em] group-hover:text-emerald-600 transition-colors">SYSCAL_LOAD</div>
+            <div class="text-[9px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-[0.2em] group-hover:text-emerald-600 transition-colors">ACTIVE_ROOMS</div>
           </div>
-          <div class="text-xl font-black text-slate-900 dark:text-white italic tracking-tighter">0.02%</div>
-          <div class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mt-1 tracking-wider">服务器负载指数</div>
+          <div class="text-xl font-black text-slate-900 dark:text-white italic tracking-tighter">{{ stats.active_rooms }}</div>
+          <div class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mt-1 tracking-wider">当前活跃实验室</div>
         </div>
       </section>
 
@@ -930,12 +936,7 @@ const filteredHistory = computed(() => {
                     <tr v-for="u in filteredUsers" :key="u.uid" class="hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors group">
                       <td class="px-4 py-2.5 text-xs font-bold text-slate-900 dark:text-white flex items-center gap-4">
                         <div class="w-10 h-10 bg-white dark:bg-black/40 rounded-xl flex items-center justify-center text-lg group-hover:scale-105 transition-transform overflow-hidden border border-slate-200 dark:border-white/10 shadow-inner">
-                          <template v-if="u.avatar && u.avatar.length > 50">
-                            <img :src="u.avatar" class="w-full h-full object-cover" />
-                          </template>
-                          <template v-else>
-                            <span class="scale-110">{{ u.avatar || '🧪' }}</span>
-                          </template>
+                          <UserAvatar :avatar="u.avatar" />
                         </div>
                         <div class="flex flex-col">
                           <span class="group-hover:text-cyan-600 transition-colors uppercase tracking-tight text-[10px] font-black flex items-center gap-1.5">
@@ -1662,12 +1663,7 @@ const filteredHistory = computed(() => {
 
         <div class="p-4 bg-rose-500/5 border border-rose-500/10 rounded-xl mb-6 relative z-10 flex items-center gap-4">
           <div class="w-12 h-12 bg-white dark:bg-black/40 rounded-xl flex items-center justify-center text-lg border border-slate-200 dark:border-white/10 shadow-sm overflow-hidden shrink-0">
-            <template v-if="(banTarget.avatar || '').length > 50">
-              <img :src="banTarget.avatar" class="w-full h-full object-cover" />
-            </template>
-            <template v-else>
-              {{ banTarget.avatar || '🧪' }}
-            </template>
+            <UserAvatar :avatar="banTarget.avatar" />
           </div>
           <div>
             <p class="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight">{{ banTarget.nickname || banTarget.username }}</p>

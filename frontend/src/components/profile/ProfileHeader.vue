@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { Shield, Fingerprint, Calendar, Award, User as UserIcon, RefreshCw, Zap, Edit2 } from 'lucide-vue-next'
 import LevelBadge from '../LevelBadge.vue'
+import UserAvatar from '../UserAvatar.vue'
 import { levelAPI } from '../../utils/api'
 
 defineProps<{
@@ -39,12 +40,7 @@ onMounted(() => {
         <div class="w-24 h-24 bg-gradient-to-tr from-slate-200 to-slate-100 dark:from-[#1a1c1e] dark:to-[#2d3035] rounded-2xl p-1 shadow-xl transition-transform duration-500 group-hover/avatar:scale-105">
           <div class="w-full h-full bg-white dark:bg-[#111114] rounded-[1.2rem] flex items-center justify-center text-4xl relative overflow-hidden group/inner transition-all border border-slate-200 dark:border-white/5 shadow-inner">
             <div class="absolute inset-0 bg-blue-500/5 opacity-0 group-hover/inner:opacity-100 transition-opacity" />
-            <template v-if="user.avatar && user.avatar.length > 50">
-               <img :src="user.avatar" class="w-full h-full object-cover relative z-10" />
-            </template>
-            <template v-else>
-               <span class="relative z-10 scale-110 drop-shadow-[0_0_10px_rgba(0,0,0,0.1)] dark:drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">{{ user.avatar || '🧪' }}</span>
-            </template>
+               <UserAvatar :avatar="user.avatar" />
           </div>
         </div>
         <button 

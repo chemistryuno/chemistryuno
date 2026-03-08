@@ -13,6 +13,7 @@ import GameToast from '../components/GameToast.vue'
 import ChemicalKeyboard from '../components/ChemicalKeyboard.vue'
 import FeedbackSettings from '../components/FeedbackSettings.vue'
 import PingDisplay from '../components/PingDisplay.vue'
+import UserAvatar from '../components/UserAvatar.vue'
 import { getTutorialStep, TUTORIAL_TOTAL_STEPS } from '../utils/tutorialScript'
 import '../styles/mobile-game.css'
 
@@ -825,7 +826,6 @@ const handleGameUpdate = (message: any) => {
 
 // 处理升级事件
 const handleLevelUp = (data: any) => {
-  console.log('[LevelUp] 收到升级通知:', data)
   const levelData = data.data || data
   if (levelUpAnimationRef.value) {
     levelUpAnimationRef.value.show(levelData)
@@ -864,17 +864,11 @@ const handleChatNotify = () => {
 
 // 为 WebSocket 事件创建包装函数，确保类型匹配
 const handlePlayerJoined = () => {
-  console.log('[GameRoom] Player joined event received, reloading game state')
-  loadGameState(true).then(() => {
-    console.log('[GameRoom] Game state reloaded after player joined, players:', playersInfo.value.length)
-  })
+  loadGameState(true)
 }
 
 const handlePlayerLeft = () => {
-  console.log('[GameRoom] Player left event received, reloading game state')
-  loadGameState(true).then(() => {
-    console.log('[GameRoom] Game state reloaded after player left, players:', playersInfo.value.length)
-  })
+  loadGameState(true)
 }
 
 const syncTutorialStateFromGameState = () => {
@@ -943,15 +937,12 @@ const loadGameState = async (silent = false) => {
       // 首次加载时加载物质名称映射
       await loadSubstanceNames()
     }
-    console.log('[GameRoom] Loading game state for room:', id)
-
-    // 只在首次加载时尝试加入房间（silent=false），避免重复调用
+    // 只在首次加载时尝试加入房间
     if (!silent) {
       try {
         // 从 URL 查询参数中获取访问密钥
         const accessKey = route.query.key as string | undefined
         await gameAPI.joinRoom(id, accessKey)
-        console.log('[GameRoom] Successfully joined/rejoined room')
       } catch (joinError: any) {
         // 如果加入失败（例如房间已满、被封禁等），显示错误并返回
         console.error('[GameRoom] Failed to join room:', joinError)
@@ -966,13 +957,6 @@ const loadGameState = async (silent = false) => {
 
     const response = await gameAPI.getRoomState(id)
     const data = response.data
-    console.log('[GameRoom] Game state loaded:', {
-      status: data.status,
-      players: data.players,
-      players_info: data.players_info,
-      ready_uids: data.ready_uids,
-      has_game_state: !!data.game_state
-    })
 
     roomInfo.value = {
       id: data.id,
@@ -989,26 +973,18 @@ const loadGameState = async (silent = false) => {
       is_pve: data.is_pve
     }
 
-    console.log('[GameRoom] roomInfo updated, status:', roomInfo.value.status)
-
     playersInfo.value = data.players_info || []
 
     if (data.game_state) {
       gameState.value = data.game_state
       syncTutorialStateFromGameState()
-      console.log('[GameRoom] Game state updated:', {
-        current_player: gameState.value.current_player,
-        players_count: gameState.value.players?.length,
-        status: gameState.value.status,
-        deck_count: gameState.value.deck_count
-      })
 
       // 教学模式提示生成
       if (isTutorialMode.value && isMyTurn.value) {
         generateTutorialHint()
       }
     } else {
-      console.log('[GameRoom] No game_state in response, room status:', data.status)
+      // no game_state yet, room is in waiting status
     }
     
     loading.value = false
@@ -1048,7 +1024,6 @@ onMounted(() => {
   if (tutorialMode === 'true') {
     isTutorialMode.value = true
     tutorialScriptMode.value = true  // 启用脚本化教学
-    console.log('[GameRoom] Tutorial mode activated (Scripted)')
   }
 
   // 设置浮窗提示组件引用
@@ -1072,7 +1047,6 @@ onMounted(() => {
   friendAPI.getFriends()
     .then(res => {
       friendsList.value = res.data || []
-      console.log('[GameRoom] Friends list loaded:', friendsList.value.length, 'friends')
     })
     .catch(err => {
       console.error('Failed to load friends list:', err)
@@ -1146,7 +1120,6 @@ onUnmounted(() => {
     if (gameState.value?.status === 'finished') {
       localStorage.setItem('chemistry-uno-tutorial-completed', 'true')
     }
-    console.log('[GameRoom] Tutorial mode completed and cleared')
   }
 
   if (timerInterval) clearInterval(timerInterval)
@@ -2657,12 +2630,7 @@ watch(() => gameState.value?.current_player, () => {
                 'w-full h-full rounded-lg flex items-center justify-center text-sm border overflow-hidden relative shadow-inner',
                 gameState?.current_player === index ? 'bg-white text-blue-600 border-white/20' : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-white/10'
               )">
-                <template v-if="player.avatar && player.avatar.length > 50">
-                  <img :src="player.avatar" class="w-full h-full object-cover" />
-                </template>
-                <template v-else>
-                  <span class="scale-110">{{ player.avatar || '🧪' }}</span>
-                </template>
+                <UserAvatar :avatar="player.avatar" />
 
                 <!-- Offline Overlay -->
                 <div v-if="player.is_offline" class="absolute inset-0 bg-red-500/40 flex items-center justify-center backdrop-blur-[1px]">

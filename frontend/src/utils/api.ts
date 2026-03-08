@@ -213,6 +213,8 @@ export const pointsAPI = {
 
 // 管理员API
 export const adminAPI = {
+  getStats: () =>
+    api.get('/admin/stats'),
   getAllUsers: () =>
     api.get('/admin/users'),
   createUser: (username: string, password: string) =>

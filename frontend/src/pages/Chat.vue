@@ -76,9 +76,11 @@ watch(showRequestsModal, (val) => {
 // 过滤后的好友列表
 const filteredFriends = computed(() => {
   if (!searchTerm.value) return friends.value
-  return friends.value.filter(f => 
-    f.username.toLowerCase().includes(searchTerm.value.toLowerCase()) ||
-    String(f.uid).includes(searchTerm.value)
+  const q = searchTerm.value.toLowerCase()
+  return friends.value.filter(f =>
+    f.username.toLowerCase().includes(q) ||
+    (f.nickname && f.nickname.toLowerCase().includes(q)) ||
+    String(f.uid).includes(q)
   )
 })
 

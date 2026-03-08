@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -547,14 +548,15 @@ func (r *UserRepository) SearchUsers(query string) ([]database.User, error) {
 		isNumeric = true
 	}
 
+	q := strings.ToLower(query)
 	if isNumeric && uid > 0 {
 		// 如果是数字且大于0，则优先精准匹配 UID，同时模糊匹配用户名和昵称
-		err = dbQuery.Where("uid = ? OR username LIKE ? OR nickname LIKE ?", uid, "%"+query+"%", "%"+query+"%").
+		err = dbQuery.Where("uid = ? OR LOWER(username) LIKE ? OR LOWER(nickname) LIKE ?", uid, "%"+q+"%", "%"+q+"%").
 			Order(fmt.Sprintf("CASE WHEN uid = %d THEN 0 ELSE 1 END", uid)).
 			Limit(20).Find(&users).Error
 	} else {
-		// 否则模糊搜索用户名和昵称
-		err = dbQuery.Where("username LIKE ? OR nickname LIKE ?", "%"+query+"%", "%"+query+"%").Limit(20).Find(&users).Error
+		// 否则模糊搜索用户名和昵称（不区分大小写）
+		err = dbQuery.Where("LOWER(username) LIKE ? OR LOWER(nickname) LIKE ?", "%"+q+"%", "%"+q+"%").Limit(20).Find(&users).Error
 	}
 
 	return users, err

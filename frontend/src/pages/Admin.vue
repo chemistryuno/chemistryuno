@@ -715,10 +715,11 @@ const isBanned = (u: any) => {
 }
 
 const filteredUsers = computed(() => {
+  const q = searchTerm.value.toLowerCase()
   return users.value.filter(u =>
-    (u.nickname && u.nickname.includes(searchTerm.value)) ||
-    (u.username && u.username.includes(searchTerm.value)) ||
-    (u.uid && u.uid.toString().includes(searchTerm.value))
+    (u.nickname && u.nickname.toLowerCase().includes(q)) ||
+    (u.username && u.username.toLowerCase().includes(q)) ||
+    (u.uid && u.uid.toString().includes(q))
   )
 })
 

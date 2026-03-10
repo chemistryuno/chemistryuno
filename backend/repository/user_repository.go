@@ -611,3 +611,17 @@ func (r *UserRepository) UpdateSecurityQuestion(uid uint, question, hashedAnswer
 func (r *UserRepository) UpdateEmail(uid uint, email string) error {
 	return r.db.Model(&database.User{}).Where("uid = ?", uid).Update("email", email).Error
 }
+
+// ExistsByNickname 检查昵称是否已被使用（case-insensitive，excludeUID 为 0 时不排除任何用户）
+func (r *UserRepository) ExistsByNickname(nickname string, excludeUID uint) (bool, error) {
+	if nickname == "" {
+		return false, nil
+	}
+	var count int64
+	query := r.db.Model(&database.User{}).Where("LOWER(nickname) = LOWER(?)", nickname)
+	if excludeUID > 0 {
+		query = query.Where("uid != ?", excludeUID)
+	}
+	err := query.Count(&count).Error
+	return count > 0, err
+}

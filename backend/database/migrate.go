@@ -7,6 +7,8 @@ import (
 	"os"
 	"regexp"
 	"strings"
+
+	"gorm.io/gorm"
 )
 
 // autoMigrate 自动迁移所有表结构
@@ -71,6 +73,11 @@ func autoMigrate() error {
 		log.Printf("⚠️  Email约束迁移失败: %v", err)
 	}
 
+	// 迁移Nickname唯一约束：昵称不可重复
+	if err := migrateNicknameConstraint(); err != nil {
+		log.Printf("⚠️  Nickname约束迁移失败: %v", err)
+	}
+
 	// 修复可能存在的 R1/R2 顺序问题
 	if err := fixReactionOrdering(); err != nil {
 		log.Printf("⚠️  修复反应顺序失败: %v", err)
@@ -81,12 +88,44 @@ func autoMigrate() error {
 		log.Printf("⚠️  等级系统迁移失败: %v", err)
 	}
 
+	// 迁移 system_configs.value 列到 LONGTEXT
+	if err := MigrateSystemConfigValueToLongText(DB); err != nil {
+		log.Printf("⚠️  SystemConfig 迁移失败: %v", err)
+	}
+
 	// 确保教学关卡所需反应存在
 	if err := ensureTutorialReactions(); err != nil {
 		log.Printf("⚠️  教学反应数据检查失败: %v", err)
 	}
 
 	log.Println("✅ 数据库迁移完成")
+	return nil
+}
+
+// MigrateSystemConfigValueToLongText 将 system_configs 表的 value 列迁移到 LONGTEXT
+func MigrateSystemConfigValueToLongText(db *gorm.DB) error {
+	log.Println("🔄 正在将 system_configs.value 列迁移到 LONGTEXT...")
+
+	dialectorName := db.Dialector.Name()
+
+	switch dialectorName {
+	case "mysql":
+		// MySQL: 使用 ALTER TABLE 修改列类型为 LONGTEXT
+		err := db.Exec("ALTER TABLE `system_configs` MODIFY COLUMN `value` LONGTEXT NOT NULL").Error
+		if err != nil {
+			return err
+		}
+	case "postgres":
+		// PostgreSQL: TEXT 类型在 Postgres 中没有长度限制（最高 1GB），不需要修改
+		log.Println("ℹ️  PostgreSQL 检测到，TEXT 已经足够大，跳过该迁移。")
+	case "sqlite":
+		// SQLite: TEXT 类型也没有长度限制（最高 1GB 或配置限制），不需要修改
+		log.Println("ℹ️  SQLite 检测到，TEXT 已经足够大，跳过该迁移。")
+	default:
+		log.Printf("⚠️  未知的数据库驱动 %s，尝试通用兼容性操作...", dialectorName)
+	}
+
+	log.Println("✅ system_configs.value 迁移完成")
 	return nil
 }
 
@@ -168,7 +207,23 @@ func fixReactionOrdering() error {
 	return nil
 }
 
-// migrateEmailConstraint 将Email列从唯一约束迁移为允许空值的普通索引
+// migrateNicknameConstraint 为昵称添加唯一约束（允许空值），防止重复昵称
+func migrateNicknameConstraint() error {
+	dialectName := DB.Dialector.Name()
+
+	switch dialectName {
+	case "sqlite":
+		DB.Exec("DROP INDEX IF EXISTS `uni_users_nickname`")
+		DB.Exec("DROP INDEX IF EXISTS `idx_users_nickname`")
+		DB.Exec("CREATE UNIQUE INDEX IF NOT EXISTS `idx_users_nickname_notempty` ON `users`(`nickname`) WHERE `nickname` != ''")
+	case "mysql":
+		DB.Exec("ALTER TABLE `users` DROP INDEX `uni_users_nickname`")
+		DB.Exec("ALTER TABLE `users` DROP INDEX `idx_users_nickname`")
+		DB.Exec("CREATE UNIQUE INDEX `idx_users_nickname` ON `users`(`nickname`(50)) USING BTREE")
+	}
+	return nil
+}
+
 // 支持用户名注册（无需邮箱），邮箱唯一性由应用层保证
 func migrateEmailConstraint() error {
 	dialectName := DB.Dialector.Name()

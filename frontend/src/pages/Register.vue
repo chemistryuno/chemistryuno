@@ -194,6 +194,8 @@ const handleSubmit = async () => {
 
     if (backendError.includes('username already taken')) {
       error.value = '该用户名已被占用，请换一个'
+    } else if (backendError.includes('nickname already taken')) {
+      error.value = '该昵称已被占用，请换一个'
     } else if (backendError.includes('email already registered')) {
       error.value = '该邮箱已被注册'
     } else if (backendError.includes('verification code invalid')) {

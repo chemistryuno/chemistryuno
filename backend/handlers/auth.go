@@ -79,17 +79,6 @@ func Register(c *gin.Context) {
 		return
 	}
 
-	// 检查昵称唯一性
-	nicknameExists, err := userRepo.ExistsByNickname(req.Nickname, 0)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
-		return
-	}
-	if nicknameExists {
-		c.JSON(http.StatusConflict, gin.H{"error": "nickname already taken"})
-		return
-	}
-
 	// 处理可选邮箱
 	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
 	if req.Email != "" {
@@ -492,18 +481,7 @@ func UpdateProfile(c *gin.Context) {
 
 	userRepo := repository.NewUserRepository()
 
-	// 检查昵称唯一性（排除当前用户自身）
-	nicknameExists, err := userRepo.ExistsByNickname(req.Nickname, uint(uid))
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
-		return
-	}
-	if nicknameExists {
-		c.JSON(http.StatusConflict, gin.H{"error": "nickname already taken"})
-		return
-	}
-
-	err = userRepo.UpdateProfile(uint(uid), &req)
+	err := userRepo.UpdateProfile(uint(uid), &req)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新资料失败"})
 		return

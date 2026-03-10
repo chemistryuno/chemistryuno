@@ -73,11 +73,6 @@ func autoMigrate() error {
 		log.Printf("⚠️  Email约束迁移失败: %v", err)
 	}
 
-	// 迁移Nickname唯一约束：昵称不可重复
-	if err := migrateNicknameConstraint(); err != nil {
-		log.Printf("⚠️  Nickname约束迁移失败: %v", err)
-	}
-
 	// 修复可能存在的 R1/R2 顺序问题
 	if err := fixReactionOrdering(); err != nil {
 		log.Printf("⚠️  修复反应顺序失败: %v", err)
@@ -204,23 +199,6 @@ func fixReactionOrdering() error {
 	}
 
 	log.Println("反应顺序修复完成")
-	return nil
-}
-
-// migrateNicknameConstraint 为昵称添加唯一约束（允许空值），防止重复昵称
-func migrateNicknameConstraint() error {
-	dialectName := DB.Dialector.Name()
-
-	switch dialectName {
-	case "sqlite":
-		DB.Exec("DROP INDEX IF EXISTS `uni_users_nickname`")
-		DB.Exec("DROP INDEX IF EXISTS `idx_users_nickname`")
-		DB.Exec("CREATE UNIQUE INDEX IF NOT EXISTS `idx_users_nickname_notempty` ON `users`(`nickname`) WHERE `nickname` != ''")
-	case "mysql":
-		DB.Exec("ALTER TABLE `users` DROP INDEX `uni_users_nickname`")
-		DB.Exec("ALTER TABLE `users` DROP INDEX `idx_users_nickname`")
-		DB.Exec("CREATE UNIQUE INDEX `idx_users_nickname` ON `users`(`nickname`(50)) USING BTREE")
-	}
 	return nil
 }
 

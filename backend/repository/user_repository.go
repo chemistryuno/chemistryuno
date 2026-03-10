@@ -598,3 +598,16 @@ func (r *UserRepository) GetMaxUID() (uint, error) {
 	err := r.db.Model(&database.User{}).Select("MAX(uid)").Scan(&maxUID).Error
 	return maxUID, err
 }
+
+// UpdateSecurityQuestion 更新密保问题和哈希答案
+func (r *UserRepository) UpdateSecurityQuestion(uid uint, question, hashedAnswer string) error {
+	return r.db.Model(&database.User{}).Where("uid = ?", uid).Updates(map[string]interface{}{
+		"security_question": question,
+		"security_answer":   hashedAnswer,
+	}).Error
+}
+
+// UpdateEmail 设置或更新邮箱地址
+func (r *UserRepository) UpdateEmail(uid uint, email string) error {
+	return r.db.Model(&database.User{}).Where("uid = ?", uid).Update("email", email).Error
+}

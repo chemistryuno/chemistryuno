@@ -1,17 +1,20 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { authAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
-import { Lock, FlaskConical, ShieldCheck, Zap, Loader2, Key, Mail, Send } from 'lucide-vue-next'
+import { Lock, FlaskConical, ShieldCheck, Loader2, Mail, User, HelpCircle } from 'lucide-vue-next'
 import OAuthLogos from '../components/icons/OAuthLogos.vue'
 import websocket from '../utils/websocket'
 
+const username = ref('')
 const email = ref('')
 const nickname = ref('')
 const password = ref('')
 const confirmPassword = ref('')
 const code = ref('')
+const securityQuestion = ref('')
+const securityAnswer = ref('')
 const error = ref('')
 const loading = ref(false)
 const codeLoading = ref(false)
@@ -25,6 +28,9 @@ const router = useRouter()
 const dialog = useDialog()
 const { showAlert } = dialog
 
+// 用户名只允许英文字母、数字、下划线
+const usernameRegex = /^[a-zA-Z0-9_]+$/
+
 onMounted(async () => {
   try {
     const res = await authAPI.getAuthConfig()
@@ -33,7 +39,6 @@ onMounted(async () => {
     msEnabled.value = res.data.ms_enabled
     googleEnabled.value = res.data.google_enabled
     appleEnabled.value = res.data.apple_enabled
-
   } catch (err) {
     console.error('获取配置失败', err)
   }
@@ -50,15 +55,15 @@ const handleLoginSuccess = (token: string, user: any) => {
 const handleOAuthLogin = (provider: 'github' | 'ms' | 'google' | 'apple') => {
   loading.value = true
   error.value = ''
-  
+
   const width = 600
   const height = 700
   const left = window.screen.width / 2 - width / 2
   const top = window.screen.height / 2 - height / 2
-  
+
   const url = `${import.meta.env.VITE_API_BASE_URL || '/api'}/auth/${provider}/login`
   const popup = window.open(url, 'OAuth Login', `width=${width},height=${height},left=${left},top=${top}`)
-  
+
   if (!popup) {
     loading.value = false
     showAlert('弹出窗口被拦截，请允许弹出窗口后重试。', '拦截提示')
@@ -85,15 +90,15 @@ const handleOAuthLogin = (provider: 'github' | 'ms' | 'google' | 'apple') => {
       oauthFinished = true
       cleanup()
       if (event.data.error === 'NEED_EMAIL') {
-        error.value = '第三方账号未公开邮箱，请先手动填写邮箱、昵称和验证码进行常规注册，稍后再个人设置中绑定。'
-        showAlert('您的第三方账号未设置或未公开邮箱地址。请先完成常规注册。', '需要补充邮箱')
+        error.value = '第三方账号未公开邮箱，请先手动填写用户名、昵称和密码进行常规注册，稍后在个人设置中绑定。'
+        showAlert('您的第三方账号未设置或未公开邮箱地址。请先完成常规注册。', '需要补充信息')
       } else {
         error.value = event.data.error || '授权失败'
       }
       loading.value = false
     }
   }
-  
+
   window.addEventListener('message', messageHandler)
 
   const timer = setInterval(() => {
@@ -119,8 +124,6 @@ const handleSendCode = async () => {
   try {
     await authAPI.sendCode(email.value, 'register')
     showAlert('验证码已发送至您的邮箱，请查收。', '发送成功')
-    
-    // 倒计时
     countdown.value = 60
     const timer = setInterval(() => {
       countdown.value--
@@ -136,8 +139,13 @@ const handleSendCode = async () => {
 const handleSubmit = async () => {
   error.value = ''
 
-  if (!email.value || !email.value.includes('@')) {
-    error.value = '请输入有效的邮箱地址'
+  // 验证用户名
+  if (!username.value || username.value.length < 3) {
+    error.value = '用户名至少需要3个字符'
+    return
+  }
+  if (!usernameRegex.test(username.value)) {
+    error.value = '用户名只能包含英文字母、数字和下划线'
     return
   }
 
@@ -151,8 +159,19 @@ const handleSubmit = async () => {
     return
   }
 
-  if (smtpEnabled.value && !code.value) {
-    error.value = '请输入邮箱验证码'
+  if (!securityQuestion.value.trim()) {
+    error.value = '请设置密保问题'
+    return
+  }
+
+  if (!securityAnswer.value.trim()) {
+    error.value = '请设置密保答案'
+    return
+  }
+
+  // 如果填写了邮箱且SMTP开启，需要验证码
+  if (email.value && smtpEnabled.value && !code.value) {
+    error.value = '请输入邮箱验证码（或清空邮箱以跳过）'
     return
   }
 
@@ -160,21 +179,27 @@ const handleSubmit = async () => {
 
   try {
     await authAPI.register({
-      email: email.value,
-      code: smtpEnabled.value ? code.value : undefined,
-      nickname: nickname.value,
+      username: username.value,
+      email: email.value || undefined,
+      code: (email.value && smtpEnabled.value) ? code.value : undefined,
+      nickname: nickname.value || username.value,
       password: password.value,
+      security_question: securityQuestion.value,
+      security_answer: securityAnswer.value,
     })
-    await showAlert('注册成功，请使用新凭据登录。', '研究员注册成功')
+    await showAlert('注册成功，请使用用户名登录。', '研究员注册成功')
     router.push('/login')
   } catch (err: any) {
     const backendError = err.response?.data?.error || ''
-    
-    // 映射后端错误信息为更友好的中文提示
-    if (backendError.includes('email already registered')) {
-      error.value = '该邮箱已被注册，请尝试直接登录'
+
+    if (backendError.includes('username already taken')) {
+      error.value = '该用户名已被占用，请换一个'
+    } else if (backendError.includes('email already registered')) {
+      error.value = '该邮箱已被注册'
     } else if (backendError.includes('verification code invalid')) {
       error.value = '验证码错误或已过期，请重新获取'
+    } else if (backendError.includes('只能包含英文字母')) {
+      error.value = '用户名只能包含英文字母、数字和下划线'
     } else if (backendError.includes('failed to create user')) {
       error.value = '档案创建失败，请联系管理员'
     } else if (backendError) {
@@ -211,6 +236,35 @@ const handleSubmit = async () => {
               {{ error }}
             </div>
 
+            <!-- 用户名 -->
+            <div class="relative group">
+              <div class="absolute left-0 pl-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-cyan-500 transition-colors pointer-events-none">
+                <User class="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              </div>
+              <input
+                v-model="username"
+                type="text"
+                required
+                autocomplete="username"
+                class="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-slate-100 pl-9 pr-2.5 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none transition-all placeholder:text-slate-500/50 text-xs sm:text-sm font-bold"
+                placeholder="用户名 (字母/数字/下划线，登录用)"
+              />
+            </div>
+
+            <!-- 昵称 -->
+            <div class="relative group">
+              <div class="absolute left-0 pl-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-cyan-500 transition-colors pointer-events-none">
+                <FlaskConical class="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              </div>
+              <input
+                v-model="nickname"
+                type="text"
+                class="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-slate-100 pl-9 pr-2.5 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none transition-all placeholder:text-slate-500/50 text-xs sm:text-sm font-bold"
+                :placeholder="`显示昵称（可选，默认使用用户名）`"
+              />
+            </div>
+
+            <!-- 邮箱（可选） -->
             <div class="space-y-2.5 sm:space-y-3">
               <div class="relative group">
                 <div class="absolute left-0 pl-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-cyan-500 transition-colors pointer-events-none">
@@ -219,13 +273,13 @@ const handleSubmit = async () => {
                 <input
                   v-model="email"
                   type="email"
-                  required
+                  autocomplete="email"
                   class="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-slate-100 pl-9 pr-2.5 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none transition-all placeholder:text-slate-500/50 text-xs sm:text-sm font-bold"
-                  placeholder="实验室联系邮箱 (Email)"
+                  placeholder="联系邮箱（可选，可在注册后绑定）"
                 />
               </div>
 
-              <div v-if="smtpEnabled" class="relative group flex gap-2">
+              <div v-if="email && smtpEnabled" class="relative group flex gap-2">
                 <div class="relative flex-1 group">
                   <div class="absolute left-0 pl-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-cyan-500 transition-colors pointer-events-none">
                     <ShieldCheck class="w-3.5 h-3.5 sm:w-4 sm:h-4" />
@@ -233,9 +287,8 @@ const handleSubmit = async () => {
                   <input
                     v-model="code"
                     type="text"
-                    required
                     class="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-slate-100 pl-9 pr-2.5 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none transition-all placeholder:text-slate-500/50 text-xs sm:text-sm font-bold"
-                    placeholder="通讯校验码"
+                    placeholder="邮箱验证码"
                   />
                 </div>
                 <button
@@ -249,19 +302,7 @@ const handleSubmit = async () => {
               </div>
             </div>
 
-            <div class="relative group">
-              <div class="absolute left-0 pl-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-cyan-500 transition-colors pointer-events-none">
-                <FlaskConical class="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              </div>
-              <input
-                v-model="nickname"
-                type="text"
-                required
-                class="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-slate-100 pl-9 pr-2.5 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none transition-all placeholder:text-slate-500/50 text-xs sm:text-sm font-bold"
-                placeholder="显示昵称 (Researcher Name)"
-              />
-            </div>
-
+            <!-- 密码 -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5 sm:gap-3">
               <div class="relative group">
                 <div class="absolute left-0 pl-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-blue-500 transition-colors pointer-events-none">
@@ -271,6 +312,7 @@ const handleSubmit = async () => {
                   v-model="password"
                   type="password"
                   required
+                  autocomplete="new-password"
                   class="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-slate-100 pl-9 pr-2.5 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all placeholder:text-slate-500/50 text-xs sm:text-sm font-bold"
                   placeholder="入职密钥"
                 />
@@ -284,8 +326,37 @@ const handleSubmit = async () => {
                   v-model="confirmPassword"
                   type="password"
                   required
+                  autocomplete="new-password"
                   class="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-slate-100 pl-9 pr-2.5 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all placeholder:text-slate-500/50 text-xs sm:text-sm font-bold"
                   placeholder="确认密钥"
+                />
+              </div>
+            </div>
+
+            <!-- 密保设置 -->
+            <div class="border border-amber-200/50 dark:border-amber-500/20 rounded-xl sm:rounded-2xl p-2.5 sm:p-3 space-y-2 bg-amber-50/50 dark:bg-amber-500/5">
+              <p class="text-[10px] sm:text-xs font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest flex items-center gap-1.5">
+                <HelpCircle class="w-3.5 h-3.5" />
+                密保问题（用于无邮箱时验证身份）
+              </p>
+              <div class="relative group">
+                <input
+                  v-model="securityQuestion"
+                  type="text"
+                  required
+                  maxlength="200"
+                  class="w-full bg-white dark:bg-black/20 border border-amber-200 dark:border-amber-500/30 text-slate-900 dark:text-slate-100 px-2.5 py-2 sm:py-2.5 rounded-xl focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none transition-all placeholder:text-slate-500/50 text-xs sm:text-sm font-bold"
+                  placeholder="自定义密保问题（如：我的第一只宠物叫什么？）"
+                />
+              </div>
+              <div class="relative group">
+                <input
+                  v-model="securityAnswer"
+                  type="text"
+                  required
+                  maxlength="100"
+                  class="w-full bg-white dark:bg-black/20 border border-amber-200 dark:border-amber-500/30 text-slate-900 dark:text-slate-100 px-2.5 py-2 sm:py-2.5 rounded-xl focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none transition-all placeholder:text-slate-500/50 text-xs sm:text-sm font-bold"
+                  placeholder="密保答案"
                 />
               </div>
             </div>

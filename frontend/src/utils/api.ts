@@ -96,6 +96,16 @@ export const authAPI = {
     api.get(`/user/profile/${uid}`),
   changeEmail: (data: { old_code: string, new_email: string, new_code: string }) =>
     api.post('/user/change-email', data),
+  setEmail: (data: { new_email: string, new_code: string, security_answer?: string }) =>
+    api.post('/user/set-email', data),
+  getMySecurityQuestion: () =>
+    api.get('/user/security-question'),
+  updateSecurityQuestion: (data: { security_question: string, security_answer: string, current_password: string }) =>
+    api.put('/user/security-question', data),
+  getSecurityQuestion: (username: string) =>
+    api.get(`/auth/security-question?username=${encodeURIComponent(username)}`),
+  resetPasswordBySecurityQuestion: (data: { username: string, security_answer: string, new_password: string }) =>
+    api.post('/auth/security-question/reset-password', data),
   deleteAccount: (code: string) =>
     api.delete('/user/account', { data: { code } }),
   searchUsers: (query: string) =>

@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { Lock, Shield, UserX, Loader2, Cpu, Smartphone, Mail, Github, Globe, Chrome, Apple } from 'lucide-vue-next'
+import { Lock, Shield, UserX, Loader2, Cpu, Smartphone, Mail, Github, Globe, Chrome, Apple, HelpCircle } from 'lucide-vue-next'
 
 defineProps<{
   twoFactorEnabled: boolean
   twoFactorLoading: boolean
   smtpEnabled: boolean
+  hasEmail: boolean
   githubId?: string
   microsoftId?: string
   googleId?: string
@@ -14,6 +15,7 @@ defineProps<{
 defineEmits<{
   (e: 'changePassword'): void
   (e: 'changeEmail'): void
+  (e: 'setEmail'): void
   (e: 'setup2fa'): void
   (e: 'disable2fa'): void
   (e: 'manageHardwareKeys'): void
@@ -56,8 +58,8 @@ defineEmits<{
         </div>
       </button>
 
-      <button 
-        v-if="smtpEnabled"
+      <button
+        v-if="smtpEnabled && hasEmail"
         @click="$emit('changeEmail')"
         class="group relative flex items-center gap-3.5 p-3.5 bg-slate-50 dark:bg-white/5 hover:bg-orange-50 dark:hover:bg-orange-500/10 border border-slate-200 dark:border-white/5 hover:border-orange-300 dark:hover:border-orange-500/30 rounded-xl transition-all text-left"
       >
@@ -67,6 +69,20 @@ defineEmits<{
         <div>
           <span class="text-xs font-black text-slate-800 dark:text-white block uppercase tracking-tight">重置通讯邮箱</span>
           <span class="text-slate-400 text-[9px] uppercase font-mono">SMTP_RESET</span>
+        </div>
+      </button>
+
+      <button
+        v-if="!hasEmail"
+        @click="$emit('setEmail')"
+        class="group relative flex items-center gap-3.5 p-3.5 bg-slate-50 dark:bg-white/5 hover:bg-cyan-50 dark:hover:bg-cyan-500/10 border border-slate-200 dark:border-white/5 hover:border-cyan-300 dark:hover:border-cyan-500/30 rounded-xl transition-all text-left"
+      >
+        <div class="bg-cyan-500/10 dark:bg-cyan-500/20 p-2 rounded-lg group-hover:rotate-12 transition-transform shrink-0 outline outline-1 outline-cyan-500/10">
+          <Mail class="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
+        </div>
+        <div>
+          <span class="text-xs font-black text-slate-800 dark:text-white block uppercase tracking-tight">绑定通讯邮箱</span>
+          <span class="text-slate-400 text-[9px] uppercase font-mono">BIND_EMAIL</span>
         </div>
       </button>
 

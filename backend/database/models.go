@@ -53,8 +53,8 @@ func (j *JSON) UnmarshalJSON(b []byte) error {
 // User GORM模型 - 用户表
 type User struct {
 	UID                uint           `gorm:"primaryKey;autoIncrement" json:"uid"`
-	Username           string         `gorm:"size:50;index;default:''" json:"username"` // 旧系统保留字段，邮箱模式下可为空
-	Email              string         `gorm:"unique;size:100;index;default:null" json:"email"`
+	Username           string         `gorm:"size:50;uniqueIndex;not null;default:''" json:"username"` // 主要登录标识符，唯一
+	Email              string         `gorm:"size:100;index;default:''" json:"email"`                  // 可选，允许空值（多用户无邮箱）
 	Nickname           string         `gorm:"not null;size:50;default:''" json:"nickname"`
 	Password           string         `gorm:"not null;default:''" json:"-"`
 	Avatar             string         `gorm:"type:longtext" json:"avatar"`
@@ -93,6 +93,8 @@ type User struct {
 	VibrationEnabled   bool           `gorm:"default:true" json:"vibration_enabled"`
 	EnableElementInput bool           `gorm:"default:true" json:"enable_element_input"`
 	CustomContact      string         `gorm:"size:255;default:''" json:"custom_contact"`
+	SecurityQuestion   string         `gorm:"size:500;default:''" json:"security_question"`
+	SecurityAnswer     string         `gorm:"size:255;default:''" json:"-"` // 存储bcrypt哈希
 	CreatedAt          time.Time      `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt          time.Time      `gorm:"autoUpdateTime" json:"updated_at"`
 	DeletedAt          gorm.DeletedAt `gorm:"index" json:"-"`

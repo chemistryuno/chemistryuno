@@ -87,15 +87,18 @@ type UserCredential struct {
 }
 
 type RegisterRequest struct {
-	Email    string `json:"email" binding:"required,email"`
-	Nickname string `json:"nickname" binding:"required,min=1,max=20"`
-	Password string `json:"password" binding:"required,min=6"`
-	Code     string `json:"code"`
+	Username         string `json:"username" binding:"required,min=3,max=30"`
+	Email            string `json:"email"`   // 可选
+	Nickname         string `json:"nickname" binding:"required,min=1,max=20"`
+	Password         string `json:"password" binding:"required,min=6"`
+	Code             string `json:"code"`    // 邮箱验证码（仅当提供邮箱且SMTP开启时需要）
+	SecurityQuestion string `json:"security_question" binding:"required,min=1,max=200"`
+	SecurityAnswer   string `json:"security_answer" binding:"required,min=1,max=100"`
 }
 
 type LoginRequest struct {
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required"`
+	Identifier string `json:"identifier" binding:"required"` // 用户名或邮箱
+	Password   string `json:"password" binding:"required"`
 }
 
 type SendCodeRequest struct {
@@ -183,6 +186,32 @@ type ChangeEmailRequest struct {
 	OldCode  string `json:"old_code" binding:"required"`
 	NewEmail string `json:"new_email" binding:"required,email"`
 	NewCode  string `json:"new_code" binding:"required"`
+}
+
+// SetEmailRequest 无邮箱用户设置首个邮箱
+type SetEmailRequest struct {
+	NewEmail         string `json:"new_email" binding:"required,email"`
+	NewCode          string `json:"new_code" binding:"required"` // 新邮箱验证码
+	SecurityAnswer   string `json:"security_answer"`              // 密保验证（无2FA时需要）
+}
+
+// VerifySecurityAnswerRequest 验证密保答案（用于敏感操作）
+type VerifySecurityAnswerRequest struct {
+	SecurityAnswer string `json:"security_answer" binding:"required"`
+}
+
+// ResetPasswordBySecurityQuestionRequest 通过密保问题重置密码（忘记密码且无邮箱）
+type ResetPasswordBySecurityQuestionRequest struct {
+	Username         string `json:"username" binding:"required"`
+	SecurityAnswer   string `json:"security_answer" binding:"required"`
+	NewPassword      string `json:"new_password" binding:"required,min=6"`
+}
+
+// UpdateSecurityQuestionRequest 更新密保问题和答案
+type UpdateSecurityQuestionRequest struct {
+	SecurityQuestion string `json:"security_question" binding:"required,min=1,max=200"`
+	SecurityAnswer   string `json:"security_answer" binding:"required,min=1,max=100"`
+	CurrentPassword  string `json:"current_password"` // 用于验证身份
 }
 
 // LevelInfo 等级信息

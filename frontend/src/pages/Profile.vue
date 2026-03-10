@@ -25,6 +25,7 @@ import TwoFactorSetupModal from '../components/profile/TwoFactorSetupModal.vue'
 import HardwareKeyModal from '../components/profile/HardwareKeyModal.vue'
 import DeviceManagementModal from '../components/profile/DeviceManagementModal.vue'
 import ChangeEmailModal from '../components/profile/ChangeEmailModal.vue'
+import SetEmailModal from '../components/profile/SetEmailModal.vue'
 import LevelProgress from '../components/LevelProgress.vue'
 import { LayoutDashboard, ShieldCheck, FlaskConical, History, Sliders, Menu, X as CloseIcon, LogOut, User as UserIcon } from 'lucide-vue-next'
 
@@ -73,6 +74,7 @@ const qrCode = ref('')
 const showHardwareKeys = ref(false)
 const showDeviceManagement = ref(false)
 const showChangeEmail = ref(false)
+const showSetEmail = ref(false)
 const smtpEnabled = ref(false)
 
 const fetchLatestUserInfo = async () => {
@@ -387,16 +389,18 @@ const handleOAuthUnbind = async (provider: 'github' | 'ms' | 'google' | 'apple')
           </div>
 
           <div v-if="currentCategory === 'security'" class="space-y-6">
-            <SecurityPanel 
+            <SecurityPanel
               :two-factor-enabled="user.two_factor_enabled"
               :two-factor-loading="twoFactorLoading"
               :smtp-enabled="smtpEnabled"
+              :has-email="!!user.email"
               :github-id="user.github_id"
               :microsoft-id="user.microsoft_id"
               :google-id="user.google_id"
               :apple-id="user.apple_id"
               @change-password="showChangePassword = true"
               @change-email="showChangeEmail = true"
+              @set-email="showSetEmail = true"
               @setup2fa="handleSetup2FA"
               @disable2fa="handleDisable2FA"
               @manage-hardware-keys="showHardwareKeys = true"
@@ -494,6 +498,11 @@ const handleOAuthUnbind = async (provider: 'github' | 'ms' | 'google' | 'apple')
       :current-email="user.email"
       @close="showChangeEmail = false"
       @success="(newEmail) => { user.email = newEmail }"
+    />
+    <SetEmailModal
+      :show="showSetEmail"
+      @close="showSetEmail = false"
+      @success="(newEmail) => { user.email = newEmail; fetchLatestUserInfo() }"
     />
   </div>
 </template>

@@ -11,6 +11,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -48,6 +49,9 @@ func consumeVerificationCode(email, code, codeType string) (bool, error) {
 	return consumed, nil
 }
 
+// usernameRegex 用户名只允许英文字母、数字和下划线
+var usernameRegex = regexp.MustCompile(`^[a-zA-Z0-9_]+$`)
+
 // 用户注册
 func Register(c *gin.Context) {
 	var req models.RegisterRequest
@@ -56,42 +60,71 @@ func Register(c *gin.Context) {
 		return
 	}
 
-	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
-	if req.Email == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "email is required"})
+	// 验证用户名格式
+	if !usernameRegex.MatchString(req.Username) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "用户名只能包含英文字母、数字和下划线"})
 		return
 	}
 
 	userRepo := repository.NewUserRepository()
-	exists, err := userRepo.ExistsByEmail(req.Email)
+
+	// 检查用户名是否已存在
+	exists, err := userRepo.ExistsByUsername(req.Username)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
 		return
 	}
 	if exists {
-		c.JSON(http.StatusConflict, gin.H{"error": "email already registered"})
+		c.JSON(http.StatusConflict, gin.H{"error": "username already taken"})
 		return
 	}
 
-	if utils.IsSMTPConfigured() {
-		if req.Code == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "verification code is required"})
+	// 处理可选邮箱
+	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
+	if req.Email != "" {
+		// 验证邮箱格式
+		if !strings.Contains(req.Email, "@") {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid email format"})
 			return
 		}
-		consumed, err := consumeVerificationCode(req.Email, req.Code, "register")
+		// 检查邮箱唯一性
+		emailExists, err := userRepo.ExistsByEmail(req.Email)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
 			return
 		}
-		if !consumed {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "verification code invalid or expired"})
+		if emailExists {
+			c.JSON(http.StatusConflict, gin.H{"error": "email already registered"})
 			return
+		}
+		// 如果启用SMTP且提供了邮箱，验证邮箱验证码
+		if utils.IsSMTPConfigured() {
+			if req.Code == "" {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "email verification code is required when email is provided"})
+				return
+			}
+			consumed, err := consumeVerificationCode(req.Email, req.Code, "register")
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+				return
+			}
+			if !consumed {
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "verification code invalid or expired"})
+				return
+			}
 		}
 	}
 
 	hashedPassword, err := utils.HashPassword(req.Password)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to hash password"})
+		return
+	}
+
+	// 哈希密保答案
+	hashedAnswer, err := utils.HashPassword(req.SecurityAnswer)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to process security answer"})
 		return
 	}
 
@@ -103,34 +136,22 @@ func Register(c *gin.Context) {
 	}
 	newUID := maxUID + 1
 	if newUID < 100000000 {
-		newUID = 100000000 // 建议起始 UID
-	}
-
-	baseUsername := strings.Split(req.Email, "@")[0]
-	if baseUsername == "" {
-		baseUsername = "researcher"
-	}
-	finalUsername := baseUsername
-	// 确保用户名唯一，避免同名前缀冲突
-	for i := 1; ; i++ {
-		exists, _ := userRepo.ExistsByUsername(finalUsername)
-		if !exists {
-			break
-		}
-		finalUsername = fmt.Sprintf("%s_%d", baseUsername, i)
+		newUID = 100000000
 	}
 
 	user := &database.User{
-		UID:           newUID,
-		Username:      finalUsername,
-		Email:         req.Email,
-		Nickname:      req.Nickname,
-		Password:      hashedPassword,
-		Avatar:        "\U0001F9EA",
-		Role:          "user",
-		Points:        1000,
-		MonthlyPoints: 1000,
-		Level:         1,
+		UID:              newUID,
+		Username:         req.Username,
+		Email:            req.Email,
+		Nickname:         req.Nickname,
+		Password:         hashedPassword,
+		Avatar:           "\U0001F9EA",
+		Role:             "user",
+		Points:           1000,
+		MonthlyPoints:    1000,
+		Level:            1,
+		SecurityQuestion: req.SecurityQuestion,
+		SecurityAnswer:   hashedAnswer,
 	}
 
 	if err := userRepo.Create(user); err != nil {
@@ -151,13 +172,22 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	email := strings.ToLower(strings.TrimSpace(req.Email))
-	fmt.Printf("login attempt - email: %s, ip: %s\n", email, c.ClientIP())
+	identifier := strings.TrimSpace(req.Identifier)
+	fmt.Printf("login attempt - identifier: %s, ip: %s\n", identifier, c.ClientIP())
 
 	userRepo := repository.NewUserRepository()
-	dbUser, err := userRepo.FindByEmail(email)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid email or password"})
+
+	// 自动判断是邮箱还是用户名
+	var dbUser *database.User
+	var findErr error
+	if strings.Contains(identifier, "@") {
+		email := strings.ToLower(identifier)
+		dbUser, findErr = userRepo.FindByEmail(email)
+	} else {
+		dbUser, findErr = userRepo.FindByUsername(identifier)
+	}
+	if findErr != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid username or password"})
 		return
 	}
 
@@ -198,7 +228,7 @@ func Login(c *gin.Context) {
 	}
 
 	if !utils.CheckPassword(req.Password, user.PasswordHash) {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid email or password"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid username or password"})
 		return
 	}
 
@@ -253,7 +283,7 @@ func Login(c *gin.Context) {
 		})
 	}
 
-	fmt.Printf("login success - email: %s (UID=%d), SID: %s, IP: %s\n", user.Email, user.UID, sid, c.ClientIP())
+	fmt.Printf("login success - username: %s (UID=%d), SID: %s, IP: %s\n", user.Username, user.UID, sid, c.ClientIP())
 
 	c.JSON(http.StatusOK, gin.H{
 		"token": token,
@@ -277,10 +307,11 @@ func ChangePassword(c *gin.Context) {
 	uid := c.GetInt("uid")
 
 	var req struct {
-		Code        string `json:"code"`         // 2FA 或 邮箱验证码
-		OldPassword string `json:"old_password"` // 旧密码 (当没配置2FA且没使用邮箱验证时使用，作为备选)
-		NewPassword string `json:"new_password" binding:"required,min=6"`
-		UseEmail    bool   `json:"use_email"` // 是否使用邮箱验证模式
+		Code           string `json:"code"`           // 2FA 或 邮箱验证码
+		OldPassword    string `json:"old_password"`   // 旧密码
+		NewPassword    string `json:"new_password" binding:"required,min=6"`
+		UseEmail       bool   `json:"use_email"`      // 是否使用邮箱验证模式
+		SecurityAnswer string `json:"security_answer"` // 密保答案（无2FA且无邮箱时）
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -296,24 +327,9 @@ func ChangePassword(c *gin.Context) {
 		return
 	}
 
-	// 验证逻辑优先顺序: 邮箱验证码 > 2FA > 旧密码
-	if req.UseEmail {
-		if req.Code == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "请提供邮箱验证码"})
-			return
-		}
-		// 验证邮箱码
-		consumed, err := consumeVerificationCode(user.Email, req.Code, "change_password")
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
-			return
-		}
-		if !consumed {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "verification code invalid or expired"})
-			return
-		}
-	} else if user.TwoFactorEnabled {
-		// 如果开启了2FA且没选择邮箱验证，强制使用2FA
+	// 验证逻辑优先顺序: 2FA > 邮箱验证码 > 密保问题 > 旧密码
+	if user.TwoFactorEnabled {
+		// 开启了2FA，强制使用2FA
 		if req.Code == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "请提供 2FA 验证码以授权密码修改"})
 			return
@@ -327,10 +343,39 @@ func ChangePassword(c *gin.Context) {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "2FA 验证码无效"})
 			return
 		}
+	} else if req.UseEmail && user.Email != "" {
+		// 使用邮箱验证码
+		if req.Code == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "请提供邮箱验证码"})
+			return
+		}
+		consumed, err := consumeVerificationCode(user.Email, req.Code, "change_password")
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+			return
+		}
+		if !consumed {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "verification code invalid or expired"})
+			return
+		}
+	} else if user.Email == "" && user.SecurityQuestion != "" {
+		// 无邮箱时，使用密保问题验证
+		if req.SecurityAnswer == "" {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":             "请提供密保答案以授权密码修改",
+				"require_security_question": true,
+				"security_question": user.SecurityQuestion,
+			})
+			return
+		}
+		if !utils.CheckPassword(req.SecurityAnswer, user.SecurityAnswer) {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "密保答案错误"})
+			return
+		}
 	} else {
 		// 传统模式：要求旧密码
 		if req.OldPassword == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "请提供当前密码或选择邮箱验证"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "请提供当前密码"})
 			return
 		}
 		if !utils.CheckPassword(req.OldPassword, user.Password) {
@@ -773,12 +818,13 @@ func ChangeEmail(c *gin.Context) {
 func DeleteAccount(c *gin.Context) {
 	uid := c.GetInt("uid")
 
-	// 注销账号需要邮箱验证
+	// 注销账号需要验证
 	var req struct {
-		Code string `json:"code" binding:"required"`
+		Code           string `json:"code"`            // 邮箱验证码
+		SecurityAnswer string `json:"security_answer"` // 密保答案（无邮箱时）
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "请提供验证码进行验证"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请提供验证信息"})
 		return
 	}
 
@@ -789,8 +835,12 @@ func DeleteAccount(c *gin.Context) {
 		return
 	}
 
-	if utils.IsSMTPConfigured() {
-		// 验证码校验
+	if utils.IsSMTPConfigured() && user.Email != "" {
+		// 有邮箱时使用邮箱验证码
+		if req.Code == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "请提供邮箱验证码"})
+			return
+		}
 		consumed, err := consumeVerificationCode(user.Email, req.Code, "delete_account")
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
@@ -798,6 +848,20 @@ func DeleteAccount(c *gin.Context) {
 		}
 		if !consumed {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "verification code invalid or expired"})
+			return
+		}
+	} else if user.Email == "" && user.SecurityQuestion != "" {
+		// 无邮箱时使用密保问题
+		if req.SecurityAnswer == "" {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":             "请提供密保答案以确认注销",
+				"require_security_question": true,
+				"security_question": user.SecurityQuestion,
+			})
+			return
+		}
+		if !utils.CheckPassword(req.SecurityAnswer, user.SecurityAnswer) {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "密保答案错误"})
 			return
 		}
 	}
@@ -1034,4 +1098,205 @@ func SearchUsers(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, result)
+}
+
+// GetSecurityQuestion 获取指定用户的密保问题（用于忘记密码流程，不需要登录）
+func GetSecurityQuestion(c *gin.Context) {
+	username := strings.TrimSpace(c.Query("username"))
+	if username == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "username is required"})
+		return
+	}
+
+	userRepo := repository.NewUserRepository()
+	var dbUser *database.User
+	var err error
+	if strings.Contains(username, "@") {
+		dbUser, err = userRepo.FindByEmail(strings.ToLower(username))
+	} else {
+		dbUser, err = userRepo.FindByUsername(username)
+	}
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"has_security_question": false})
+		return
+	}
+
+	if dbUser.SecurityQuestion == "" {
+		c.JSON(http.StatusOK, gin.H{"has_security_question": false})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"has_security_question": true,
+		"security_question":     dbUser.SecurityQuestion,
+	})
+}
+
+// ResetPasswordBySecurityQuestion 通过密保问题重置密码（无邮箱忘记密码时使用）
+func ResetPasswordBySecurityQuestion(c *gin.Context) {
+	var req models.ResetPasswordBySecurityQuestionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid params"})
+		return
+	}
+
+	userRepo := repository.NewUserRepository()
+	dbUser, err := userRepo.FindByUsername(req.Username)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "account verification failed"})
+		return
+	}
+
+	if dbUser.SecurityQuestion == "" || dbUser.SecurityAnswer == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "this account has no security question set"})
+		return
+	}
+
+	if !utils.CheckPassword(req.SecurityAnswer, dbUser.SecurityAnswer) {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "incorrect security answer"})
+		return
+	}
+
+	hashedPassword, err := utils.HashPassword(req.NewPassword)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to process password"})
+		return
+	}
+
+	if err := userRepo.UpdatePassword(dbUser.UID, hashedPassword); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update password"})
+		return
+	}
+
+	sessionRepo := repository.NewSessionRepository()
+	_ = sessionRepo.DeleteByUserUID(dbUser.UID)
+
+	c.JSON(http.StatusOK, gin.H{"message": "password reset success, please login again"})
+}
+
+// GetMySecurityQuestion 获取当前已登录用户的密保问题及账户安全状态
+func GetMySecurityQuestion(c *gin.Context) {
+	uid := c.GetInt("uid")
+
+	userRepo := repository.NewUserRepository()
+	user, err := userRepo.FindByUID(uint(uid))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"security_question":     user.SecurityQuestion,
+		"has_security_question": user.SecurityQuestion != "",
+		"has_email":             user.Email != "",
+	})
+}
+
+// UpdateSecurityQuestion 更新当前用户的密保问题和答案
+func UpdateSecurityQuestion(c *gin.Context) {
+	uid := c.GetInt("uid")
+
+	var req models.UpdateSecurityQuestionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	userRepo := repository.NewUserRepository()
+	user, err := userRepo.FindByUID(uint(uid))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		return
+	}
+
+	if req.CurrentPassword == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "current password is required to update security question"})
+		return
+	}
+	if !utils.CheckPassword(req.CurrentPassword, user.Password) {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "incorrect current password"})
+		return
+	}
+
+	hashedAnswer, err := utils.HashPassword(req.SecurityAnswer)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to process security answer"})
+		return
+	}
+
+	if err := userRepo.UpdateSecurityQuestion(uint(uid), req.SecurityQuestion, hashedAnswer); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update security question"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "security question updated successfully"})
+}
+
+// SetEmail 为无邮箱用户设置首个邮箱地址
+func SetEmail(c *gin.Context) {
+	uid := c.GetInt("uid")
+
+	var req models.SetEmailRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	req.NewEmail = strings.ToLower(strings.TrimSpace(req.NewEmail))
+
+	userRepo := repository.NewUserRepository()
+	user, err := userRepo.FindByUID(uint(uid))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		return
+	}
+
+	if user.Email != "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "account already has an email, use change-email instead"})
+		return
+	}
+
+	// 无2FA时，若有密保问题则需验证
+	if !user.TwoFactorEnabled && user.SecurityQuestion != "" {
+		if req.SecurityAnswer == "" {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":             "security answer required",
+				"security_question": user.SecurityQuestion,
+			})
+			return
+		}
+		if !utils.CheckPassword(req.SecurityAnswer, user.SecurityAnswer) {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "incorrect security answer"})
+			return
+		}
+	}
+
+	emailExists, err := userRepo.ExistsByEmail(req.NewEmail)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		return
+	}
+	if emailExists {
+		c.JSON(http.StatusConflict, gin.H{"error": "email already registered by another account"})
+		return
+	}
+
+	if utils.IsSMTPConfigured() {
+		consumed, err := consumeVerificationCode(req.NewEmail, req.NewCode, "change_email_new")
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+			return
+		}
+		if !consumed {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "verification code invalid or expired"})
+			return
+		}
+	}
+
+	if err := userRepo.UpdateEmail(uint(uid), req.NewEmail); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to set email"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "email set successfully", "email": req.NewEmail})
 }

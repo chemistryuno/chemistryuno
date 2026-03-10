@@ -243,6 +243,9 @@ func main() {
 			authGroup.POST("/reset_password", handlers.ResetPasswordByEmail) // 别名兼容
 			authGroup.POST("/2fa/reset-password", handlers.ResetPasswordBy2FA)
 			authGroup.POST("/2fa/verify", handlers.Verify2FALogin)
+			// 密保问题相关（公开，用于忘记密码）
+			authGroup.GET("/security-question", handlers.GetSecurityQuestion)
+			authGroup.POST("/security-question/reset-password", handlers.ResetPasswordBySecurityQuestion)
 
 			// WebAuthn 登录 (公开)
 			authGroup.GET("/webauthn/login/begin", handlers.BeginLogin)
@@ -281,6 +284,9 @@ func main() {
 			// 用户相关
 			auth.GET("/user/info", handlers.GetUserInfo)
 			auth.POST("/user/change-email", handlers.ChangeEmail)
+			auth.POST("/user/set-email", handlers.SetEmail)
+			auth.GET("/user/security-question", handlers.GetMySecurityQuestion)
+			auth.PUT("/user/security-question", handlers.UpdateSecurityQuestion)
 			auth.GET("/user/game-history", handlers.GetMyGameHistory)
 			auth.PUT("/user/password", handlers.ChangePassword)
 			auth.PUT("/user/avatar", handlers.UpdateAvatar)

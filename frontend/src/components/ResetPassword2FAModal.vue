@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { Lock, Fingerprint, Loader2, Eye, EyeOff, Mail, Shield, AlertTriangle } from 'lucide-vue-next'
+import { ref, onMounted, watch } from 'vue'
+import { Lock, Fingerprint, Loader2, Eye, EyeOff, Mail, Shield, AlertTriangle, HelpCircle } from 'lucide-vue-next'
 import { authAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
 
@@ -16,15 +16,20 @@ const emit = defineEmits<{
 
 const dialog = useDialog()
 const smtpEnabled = ref(false)
-const email = ref('')
+const identifier = ref('')
 
 const code = ref('')
 const newPassword = ref('')
 const confirmPassword = ref('')
 const showPassword = ref(false)
-const recoveryMode = ref<'2fa' | 'email'>('2fa')
+const recoveryMode = ref<'2fa' | 'email' | 'security_question'>('email')
 const emailLoading = ref(false)
 const countdown = ref(0)
+
+// 密保问题相关
+const securityQuestion = ref('')
+const securityAnswer = ref('')
+const loadingQuestion = ref(false)
 
 onMounted(async () => {
   try {
@@ -32,22 +37,41 @@ onMounted(async () => {
     smtpEnabled.value = res.data.smtp_enabled
     if (smtpEnabled.value) {
       recoveryMode.value = 'email'
+    } else {
+      recoveryMode.value = 'security_question'
     }
-
   } catch (err) {
     console.error('获取配置失败', err)
   }
 })
 
+// 当标识符变化时，若在密保问题模式，尝试获取密保问题
+watch([identifier, recoveryMode], async () => {
+  if (recoveryMode.value === 'security_question' && identifier.value.length >= 3) {
+    loadingQuestion.value = true
+    securityQuestion.value = ''
+    try {
+      const res = await authAPI.getSecurityQuestion(identifier.value)
+      if (res.data.has_security_question) {
+        securityQuestion.value = res.data.security_question
+      }
+    } catch {
+      // ignore
+    } finally {
+      loadingQuestion.value = false
+    }
+  }
+})
+
 const handleSendCode = async () => {
-  if (!email.value) {
+  if (!identifier.value) {
     alert('请输入您的注册邮箱')
     return
   }
 
   emailLoading.value = true
   try {
-    await authAPI.sendCode(email.value, 'reset')
+    await authAPI.sendCode(identifier.value, 'reset')
     dialog.showAlert('验证码已发送至您的电子邮箱，请在10分钟内完成重置。', '发送成功')
     countdown.value = 60
     const timer = setInterval(() => {
@@ -71,7 +95,7 @@ const handleReset = async () => {
     emailLoading.value = true
     try {
       await authAPI.resetPasswordByEmail({
-        email: email.value,
+        email: identifier.value,
         code: code.value,
         new_password: newPassword.value
       })
@@ -84,8 +108,30 @@ const handleReset = async () => {
     }
     return
   }
-  
-  emit('submit', email.value, code.value, newPassword.value)
+
+  if (recoveryMode.value === 'security_question') {
+    if (!securityAnswer.value) {
+      alert('请输入密保答案')
+      return
+    }
+    emailLoading.value = true
+    try {
+      await authAPI.resetPasswordBySecurityQuestion({
+        username: identifier.value,
+        security_answer: securityAnswer.value,
+        new_password: newPassword.value
+      })
+      emit('close')
+      dialog.showAlert('访问凭证已重置，请使用新密码重新登录。', '协议同步成功')
+    } catch (err: any) {
+      alert(err.response?.data?.error || '重置失败，请检查密保答案')
+    } finally {
+      emailLoading.value = false
+    }
+    return
+  }
+
+  emit('submit', identifier.value, code.value, newPassword.value)
 }
 </script>
 
@@ -97,11 +143,12 @@ const handleReset = async () => {
           <div class="absolute -inset-2 bg-cyan-500/20 rounded-full blur animate-pulse"></div>
           <div class="relative w-12 h-12 bg-gradient-to-tr from-cyan-600 to-blue-700 rounded-xl flex items-center justify-center mb-3 shadow-xl">
             <Mail v-if="recoveryMode === 'email'" class="w-6 h-6 text-white" />
+            <HelpCircle v-else-if="recoveryMode === 'security_question'" class="w-6 h-6 text-white" />
             <Fingerprint v-else class="w-6 h-6 text-white" />
           </div>
         </div>
         <h3 class="text-2xl font-black text-slate-900 dark:text-white tracking-tight text-center">
-          {{ recoveryMode === 'email' ? '凭证回收' : '协议重授' }}
+          {{ recoveryMode === 'email' ? '凭证回收' : recoveryMode === 'security_question' ? '密保验证' : '协议重授' }}
         </h3>
         <p class="text-[9px] font-black mt-1.5 uppercase tracking-[0.3em] font-mono text-cyan-600 dark:text-cyan-400">AUTHORIZED RECOVERY PROTOCOL</p>
       </div>
@@ -116,7 +163,7 @@ const handleReset = async () => {
       </div>
 
       <!-- Mode Selector -->
-      <div class="flex bg-slate-100 dark:bg-white/5 p-1 rounded-xl mb-6 border border-slate-200 dark:border-white/10">
+      <div class="flex bg-slate-100 dark:bg-white/5 p-1 rounded-xl mb-6 border border-slate-200 dark:border-white/10 gap-1">
         <button
           v-if="smtpEnabled"
           @click="recoveryMode = 'email'"
@@ -125,7 +172,16 @@ const handleReset = async () => {
             recoveryMode === 'email' ? 'bg-gradient-to-r from-cyan-600 to-blue-700 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'
           ]"
         >
-          邮箱验证
+          邮箱
+        </button>
+        <button
+          @click="recoveryMode = 'security_question'"
+          :class="[
+            'flex-1 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all',
+            recoveryMode === 'security_question' ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'
+          ]"
+        >
+          密保
         </button>
         <button
           @click="recoveryMode = '2fa'"
@@ -134,7 +190,7 @@ const handleReset = async () => {
             recoveryMode === '2fa' ? 'bg-gradient-to-r from-cyan-600 to-blue-700 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'
           ]"
         >
-          2FA 指令
+          2FA
         </button>
       </div>
 
@@ -143,14 +199,15 @@ const handleReset = async () => {
           <div class="relative group">
             <Mail class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500 group-focus-within:text-cyan-500 transition-colors" />
             <input
-              v-model="email"
+              v-model="identifier"
               type="text"
-              :placeholder="recoveryMode === 'email' ? '实验室注册邮箱' : '研究员登录名'"
+              :placeholder="recoveryMode === 'email' ? '注册邮箱' : '用户名'"
               class="w-full bg-slate-50/50 dark:bg-black/40 border border-slate-200 dark:border-white/10 focus:border-cyan-500/50 rounded-xl py-4 pl-12 pr-5 outline-none transition-all text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 font-bold text-sm"
               required
             />
           </div>
 
+          <!-- 邮箱模式：发送验证码 -->
           <div v-if="recoveryMode === 'email'" class="relative group flex gap-2.5">
             <div class="relative flex-1">
               <Shield class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500 group-focus-within:text-cyan-500 transition-colors" />
@@ -171,6 +228,30 @@ const handleReset = async () => {
             >
               {{ countdown > 0 ? `${countdown}S` : (emailLoading ? '...' : '发送') }}
             </button>
+          </div>
+
+          <!-- 密保模式 -->
+          <div v-if="recoveryMode === 'security_question'" class="space-y-3">
+            <div v-if="loadingQuestion" class="text-center text-xs text-slate-400 py-2">
+              <Loader2 class="w-4 h-4 animate-spin inline mr-1" />查询密保问题中...
+            </div>
+            <div v-else-if="securityQuestion" class="p-3 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl">
+              <p class="text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest mb-1">密保问题</p>
+              <p class="text-sm font-bold text-slate-800 dark:text-slate-200">{{ securityQuestion }}</p>
+            </div>
+            <div v-else-if="identifier.length >= 3" class="text-center text-xs text-slate-400 py-1">
+              该用户未设置密保问题，请使用其他方式
+            </div>
+            <div v-if="securityQuestion" class="relative group">
+              <HelpCircle class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500 group-focus-within:text-amber-500 transition-colors" />
+              <input
+                v-model="securityAnswer"
+                type="text"
+                placeholder="密保答案"
+                class="w-full bg-slate-50/50 dark:bg-black/40 border border-slate-200 dark:border-white/10 focus:border-amber-500/50 rounded-xl py-4 pl-12 pr-5 outline-none transition-all text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 font-bold text-sm"
+                required
+              />
+            </div>
           </div>
 
           <div class="relative group">
@@ -232,7 +313,7 @@ const handleReset = async () => {
             class="flex-[2] py-3.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 rounded-xl font-black transition-all text-white shadow-lg shadow-blue-500/20 active:scale-95 flex items-center justify-center gap-2 uppercase text-[10px] tracking-widest"
           >
             <Loader2 v-if="loading || emailLoading" class="w-3 h-3 animate-spin" />
-            {{ recoveryMode === 'email' ? '确认同步新密码' : '验证 2FA 并重置' }}
+            {{ recoveryMode === 'email' ? '确认同步新密码' : recoveryMode === 'security_question' ? '密保验证并重置' : '验证 2FA 并重置' }}
           </button>
         </div>
       </form>

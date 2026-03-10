@@ -67,12 +67,12 @@ const handleSubmit = async () => {
 
   loading.value = true
   
-  // 保存最后一次输入的邮箱
+  // 保存最后一次输入的标识符
   localStorage.setItem('last_email', identifier.value)
 
   try {
     const response = await authAPI.login({
-      email: identifier.value,
+      identifier: identifier.value,
       password: password.value,
     })
     
@@ -173,7 +173,7 @@ const handleLoginSuccess = (token: string, user: any, announcements: any[] = [],
 const handleWebAuthnLogin = async () => {
   // 验证是否输入了用户名/邮箱
   if (!identifier.value || identifier.value.trim() === '') {
-    error.value = '请先输入您的邮箱地址'
+    error.value = '请先输入您的用户名或邮箱'
     return
   }
 
@@ -313,7 +313,7 @@ const handleOAuthLogin = (provider: 'github' | 'ms' | 'google' | 'apple') => {
             <form @submit.prevent="handleSubmit" class="space-y-2 sm:space-y-2.5">
               <div class="space-y-0.5">
                   <label class="text-[10px] sm:text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">
-                    电子邮箱
+                    用户名 / 邮箱
                   </label>
                   <div class="relative group">
                     <div class="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-400 dark:text-slate-500 group-focus-within:text-blue-500 transition-colors">
@@ -323,8 +323,9 @@ const handleOAuthLogin = (provider: 'github' | 'ms' | 'google' | 'apple') => {
                       v-model="identifier"
                       type="text"
                       required
+                      autocomplete="username"
                       class="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-slate-100 pl-9 pr-2.5 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all placeholder:text-slate-500/50 text-xs sm:text-sm font-bold"
-                      placeholder="请输入邮箱"
+                      placeholder="请输入用户名或邮箱"
                     />
                   </div>
               </div>

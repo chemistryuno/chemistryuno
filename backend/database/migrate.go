@@ -66,6 +66,11 @@ func autoMigrate() error {
 		log.Printf("⚠️  Friendship pair key migration failed: %v", err)
 	}
 
+	// 迁移Email唯一约束：允许空邮箱（多用户无邮箱注册）
+	if err := migrateEmailConstraint(); err != nil {
+		log.Printf("⚠️  Email约束迁移失败: %v", err)
+	}
+
 	// 修复可能存在的 R1/R2 顺序问题
 	if err := fixReactionOrdering(); err != nil {
 		log.Printf("⚠️  修复反应顺序失败: %v", err)
@@ -160,6 +165,28 @@ func fixReactionOrdering() error {
 	}
 
 	log.Println("反应顺序修复完成")
+	return nil
+}
+
+// migrateEmailConstraint 将Email列从唯一约束迁移为允许空值的普通索引
+// 支持用户名注册（无需邮箱），邮箱唯一性由应用层保证
+func migrateEmailConstraint() error {
+	dialectName := DB.Dialector.Name()
+
+	switch dialectName {
+	case "sqlite":
+		// 删除旧的唯一索引（可能有多种命名）
+		DB.Exec("DROP INDEX IF EXISTS `uni_users_email`")
+		DB.Exec("DROP INDEX IF EXISTS `idx_users_email`")
+		// 添加允许空值的部分唯一索引（email != '' 时才强制唯一）
+		DB.Exec("CREATE UNIQUE INDEX IF NOT EXISTS `idx_users_email_notempty` ON `users`(`email`) WHERE `email` != ''")
+	case "mysql":
+		// 尝试删除旧唯一索引（忽略错误，可能已不存在）
+		DB.Exec("ALTER TABLE `users` DROP INDEX `uni_users_email`")
+		DB.Exec("ALTER TABLE `users` DROP INDEX `idx_users_email`")
+		// MySQL不支持部分索引，由应用层保证邮箱唯一性，仅添加普通索引
+		DB.Exec("CREATE INDEX `idx_users_email` ON `users`(`email`(100)) USING BTREE")
+	}
 	return nil
 }
 

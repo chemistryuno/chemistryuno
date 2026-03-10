@@ -199,9 +199,12 @@ func validatePluginSettingValue(field pluginConfigField, value string) error {
 		return fmt.Errorf("%s 长度不能小于 %d", field.Key, field.MinLength)
 	}
 	if strings.TrimSpace(field.Pattern) != "" && strings.TrimSpace(value) != "" {
-		re, _ := regexp.Compile(strings.TrimSpace(field.Pattern))
+		re, err := regexp.Compile(strings.TrimSpace(field.Pattern))
+		if err != nil {
+			return fmt.Errorf("%s pattern 非法: %v", field.Key, err)
+		}
 		if !re.MatchString(value) {
-			return fmt.Errorf("%s 格式不符合 pattern", field.Key)
+			return fmt.Errorf("%s 格式不符合要求", field.Key)
 		}
 	}
 	if field.MaxSizeKB > 0 && len(value) > field.MaxSizeKB*1024*2 {

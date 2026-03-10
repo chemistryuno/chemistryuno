@@ -475,11 +475,20 @@ func GetGameHistory(c *gin.Context) {
 			players = []int{}
 		}
 
+		winnerName := "AI"
+		if h.WinnerUID != nil {
+			if h.WinnerName != "" {
+				winnerName = h.WinnerName
+			} else {
+				winnerName = "未知用户"
+			}
+		}
+
 		history = append(history, map[string]interface{}{
 			"id":                    h.ID,
 			"room_id":               h.RoomID,
 			"winner_uid":            h.WinnerUID,
-			"winner_name":           h.WinnerName,
+			"winner_name":           winnerName,
 			"players":               players,
 			"original_player_count": h.OriginalPlayerCount,
 			"quitted_count":         h.QuittedCount,

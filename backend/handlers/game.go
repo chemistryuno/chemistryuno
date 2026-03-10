@@ -5,6 +5,7 @@ import (
 	"chemistryuno/backend/models"
 	"chemistryuno/backend/repository"
 	"chemistryuno/backend/websocket"
+	"encoding/json"
 	"fmt"
 	"log"
 	"math/rand"
@@ -177,10 +178,62 @@ func GetMyGameHistory(c *gin.Context) {
 		return
 	}
 
-	history, err := repository.GameRepo.FindByUserUID(uint(uid))
+	historyList, err := repository.GameRepo.FindByUserUID(uint(uid))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误: " + err.Error()})
 		return
+	}
+
+	// 收集所有涉及到的 WinnerUID
+	winnerUIDs := make([]uint, 0)
+	for _, h := range historyList {
+		if h.WinnerUID != nil {
+			winnerUIDs = append(winnerUIDs, *h.WinnerUID)
+		}
+	}
+
+	// 获取胜者名称映射
+	winnerNames := make(map[uint]string)
+	if len(winnerUIDs) > 0 {
+		users, _ := repository.UserRepo.FindByUIDs(winnerUIDs)
+		for uid, user := range users {
+			if user.Nickname != "" {
+				winnerNames[uid] = user.Nickname
+			} else {
+				winnerNames[uid] = user.Username
+			}
+		}
+	}
+
+	var history []map[string]interface{}
+	for _, h := range historyList {
+		// 解析玩家列表 JSON
+		var players []int
+		if err := json.Unmarshal([]byte(h.Players), &players); err != nil {
+			players = []int{}
+		}
+
+		winnerName := "AI"
+		if h.WinnerUID != nil {
+			if name, ok := winnerNames[*h.WinnerUID]; ok {
+				winnerName = name
+			} else {
+				winnerName = "未知用户"
+			}
+		}
+
+		history = append(history, map[string]interface{}{
+			"id":                    h.ID,
+			"room_id":               h.RoomID,
+			"winner_uid":            h.WinnerUID,
+			"winner_name":           winnerName,
+			"players":               players,
+			"original_player_count": h.OriginalPlayerCount,
+			"quitted_count":         h.QuittedCount,
+			"started_at":            h.StartedAt,
+			"finished_at":           h.FinishedAt,
+			"created_at":            h.CreatedAt,
+		})
 	}
 
 	c.JSON(http.StatusOK, history)

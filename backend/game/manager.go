@@ -1737,17 +1737,6 @@ func StartGame(roomID string, uid int) error {
 	}
 	log.Printf("[初始手牌] 🎴 牌堆组成：%v", cardTypeCount)
 
-	// 准备 AI 昵称列表
-	aiNames := []string{
-		"安托万-洛朗·拉瓦锡", "德米特里·伊万诺维奇·门捷列夫", "玛丽·斯克沃多夫斯卡-居里",
-		"约翰·道尔顿", "莱纳斯·卡尔·鲍林", "雅各布斯·亨里克斯·范托夫",
-		"卡尔·威廉·舍勒", "弗里德里希·维勒", "侯德榜", "唐敖庆",
-	}
-	rand.Shuffle(len(aiNames), func(i, j int) {
-		aiNames[i], aiNames[j] = aiNames[j], aiNames[i]
-	})
-	aiNameIdx := 0
-
 	// 批量预加载所有人类玩家信息，避免 N+1 查询
 	humanUIDs := make([]uint, 0)
 	for _, pid := range shuffledPlayers {
@@ -1769,12 +1758,7 @@ func StartGame(roomID string, uid int) error {
 		if pid < 0 {
 			// AI 玩家
 			username = fmt.Sprintf("AI_%d", -pid)
-			if aiNameIdx < len(aiNames) {
-				nickname = aiNames[aiNameIdx]
-				aiNameIdx++
-			} else {
-				nickname = fmt.Sprintf("AI研究员_%d", -pid)
-			}
+			nickname = "AI"
 			avatar = "🤖"
 		} else {
 			user := userMap[uint(pid)]
@@ -1989,7 +1973,7 @@ func initTutorialGame(gameRoom *GameRoom, roomID string) error {
 	}
 
 	// 准备AI昵称
-	aiNames := []string{"门捷列夫", "拉瓦锡", "居里夫人", "道尔顿"}
+	aiNames := []string{"AI"}
 	aiName := aiNames[rand.Intn(len(aiNames))]
 
 	// 创建人类玩家状态

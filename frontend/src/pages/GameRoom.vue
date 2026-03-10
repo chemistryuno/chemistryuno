@@ -207,6 +207,9 @@ const isFriend = (uid: number) => {
 const getPlayerDisplayName = (player: any) => {
   if (!player) return '研究员'
 
+  // 如果是 AI 玩家，直接返回 AI
+  if (player.uid < 0 || player.is_ai) return 'AI'
+
   // 查找好友备注
   const friend = friendsList.value?.find(f => Number(f.uid) === Number(player.uid))
   if (friend?.remark) {

@@ -149,7 +149,7 @@ func (c *Client) handleMessage(msg *Message) {
 		c.hub.BroadcastToRoom(msg.RoomID, Message{
 			Type:    "player_joined",
 			UID:     c.uid,
-			Message: displayName + " 加入了房间",
+			Message: "安全门开启：研究员 " + displayName + " 已进入实验室。",
 		})
 		log.Printf("[WebSocket] Broadcasted player_joined for user %d to room %s", c.uid, msg.RoomID)
 
@@ -164,7 +164,7 @@ func (c *Client) handleMessage(msg *Message) {
 		c.hub.BroadcastToRoom(roomID, Message{
 			Type:    "player_left",
 			UID:     c.uid,
-			Message: displayName + " 离开了房间",
+			Message: "安全门关闭：研究员 " + displayName + " 已撤离实验室。",
 		})
 		log.Printf("[WebSocket] Broadcasted player_left for user %d from room %s", c.uid, roomID)
 

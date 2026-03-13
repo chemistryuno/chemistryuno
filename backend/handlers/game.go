@@ -214,11 +214,11 @@ func GetMyGameHistory(c *gin.Context) {
 		}
 
 		winnerName := "AI"
-		if h.WinnerUID != nil {
+		if h.WinnerUID != nil && int(*h.WinnerUID) > 0 {
 			if name, ok := winnerNames[*h.WinnerUID]; ok {
 				winnerName = name
 			} else {
-				winnerName = "未知用户"
+				winnerName = "未知用户/AI"
 			}
 		}
 

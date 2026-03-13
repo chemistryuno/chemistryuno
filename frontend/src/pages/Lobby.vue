@@ -5,11 +5,12 @@ import { gameAPI, authAPI, commonAPI, friendAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
 import UserAvatar from '../components/UserAvatar.vue'
 import websocket from '../utils/websocket'
-import { Beaker, Plus, Shield, LogOut, Settings, Play, X, Loader2, Database, MessageCircle, Trophy, Megaphone, Menu, Puzzle, FileText, ChevronRight, ExternalLink } from 'lucide-vue-next'
+import { Beaker, Plus, Shield, LogOut, Settings, Play, X, Loader2, Database, MessageCircle, Trophy, Megaphone, Menu, Puzzle, FileText, ExternalLink } from 'lucide-vue-next'
 import { cn } from '../utils/cn'
 import ChatBox from '../components/ChatBox.vue'
 import TutorialGuide from '../components/TutorialGuide.vue'
 import PingDisplay from '../components/PingDisplay.vue'
+import '../styles/lobby.css'
 
 const props = defineProps<{
   // user props can be added if we pass from App.vue
@@ -481,26 +482,26 @@ const copyToClipboard = (text: string) => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-slate-50 dark:bg-[#0a0a0c] text-slate-900 dark:text-slate-200 font-sans selection:bg-blue-500/30 overflow-x-hidden">
+  <div class="lobby-page">
     <!-- Background Decor -->
-    <div class="fixed inset-0 pointer-events-none overflow-hidden">
-      <div class="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] bg-blue-600/5 rounded-full blur-[150px]"></div>
-      <div class="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-purple-600/5 rounded-full blur-[150px]"></div>
-      <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20"></div>
+    <div class="lobby-bg-decor">
+      <div class="lobby-bg-decor-blob-1"></div>
+      <div class="lobby-bg-decor-blob-2"></div>
+      <div class="lobby-bg-decor-pattern"></div>
     </div>
 
     <!-- Main Layout Layer -->
     <div class="relative z-10 flex flex-col xl:h-screen min-h-screen xl:overflow-hidden">
       
       <!-- Top Command Bar - 移动端优化 -->
-      <header class="h-14 sm:h-16 border-b border-slate-200 dark:border-white/5 bg-white/60 dark:bg-black/40 backdrop-blur-xl sticky top-0 z-50 shrink-0">
-        <div class="max-w-[1400px] mx-auto h-full px-4 sm:px-6 flex items-center justify-between">
+      <header class="lobby-header">
+        <div class="lobby-header-container">
           <div class="flex items-center gap-3 sm:gap-4">
-            <div class="flex items-center gap-2 sm:gap-2.5 group px-2.5 sm:px-3 py-1.5 bg-gradient-to-br from-blue-500/10 to-blue-600/5 border border-blue-500/20 rounded-xl">
+            <div class="lobby-logo-bundle">
               <Beaker class="w-5 h-5 sm:w-6 sm:h-6 text-blue-500 group-hover:rotate-12 transition-transform" />
               <div>
-                 <h1 class="text-sm sm:text-base font-black tracking-tighter text-slate-900 dark:text-white leading-none">CHEMISTRY <span class="text-blue-500">UNO</span></h1>
-                 <p class="text-xs-mobile text-blue-500/50 font-mono tracking-widest leading-none mt-0.5 sm:mt-1 uppercase">{{ appVersion }}</p>
+                 <h1 class="lobby-logo-title">CHEMISTRY <span class="text-blue-500">UNO</span></h1>
+                 <p class="lobby-logo-subtitle">{{ appVersion }}</p>
               </div>
             </div>
 
@@ -523,7 +524,7 @@ const copyToClipboard = (text: string) => {
 
           <div class="flex items-center gap-2 sm:gap-3">
             <!-- User Identity Chip -->
-            <div data-tutorial="user-chip" @click="router.push('/profile')" class="flex items-center gap-2 sm:gap-2.5 pl-1.5 pr-2 sm:pr-3 py-1 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl hover:bg-slate-200 dark:hover:bg-white/10 transition-all cursor-pointer group touch-feedback">
+            <div data-tutorial="user-chip" @click="router.push('/profile')" class="user-identity-chip">
                <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-800 flex items-center justify-center text-base shadow-inner group-hover:scale-105 transition-transform overflow-hidden border border-slate-200 dark:border-white/5">
                  <UserAvatar :avatar="user.avatar" />
                </div>
@@ -539,32 +540,32 @@ const copyToClipboard = (text: string) => {
             <div data-tutorial="desktop-nav" class="hidden lg:flex items-center gap-0.5">
               <router-link
                 to="/ranking"
-                class="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 hover:bg-amber-500/10 rounded-xl transition-all text-amber-500/70 hover:text-amber-400 group touch-feedback"
+                class="lobby-nav-link lobby-nav-link-amber flex items-center gap-1.5"
                 title="积分排行榜"
               >
                 <Trophy class="w-4 h-4 group-hover:scale-110 transition-transform" />
                 <span class="text-xs-mobile font-black uppercase tracking-widest hidden md:block">排位</span>
               </router-link>
-              <router-link to="/feedbacks" class="p-2 hover:bg-amber-500/10 rounded-xl transition-all text-amber-500/70 hover:text-amber-400 touch-feedback" title="反馈与公告">
+              <router-link to="/feedbacks" class="lobby-nav-link lobby-nav-link-amber" title="反馈与公告">
                 <Megaphone class="w-4 h-4" />
               </router-link>
-              <router-link to="/profile" class="p-2 hover:bg-white/5 rounded-xl transition-all text-slate-400 hover:text-white touch-feedback" title="个人主页">
+              <router-link to="/profile" class="lobby-nav-link" title="个人主页">
                 <Settings class="w-4 h-4" />
               </router-link>
-              <router-link to="/data" class="p-2 hover:bg-blue-500/10 rounded-xl transition-all text-blue-500/70 hover:text-blue-400 touch-feedback" title="数据库">
+              <router-link to="/data" class="lobby-nav-link lobby-nav-link-blue" title="数据库">
                 <Database class="w-4 h-4" />
               </router-link>
-              <router-link to="/chat" class="p-2 hover:bg-indigo-500/10 rounded-xl transition-all text-indigo-500/70 hover:text-indigo-400 touch-feedback" title="公共频道">
+              <router-link to="/chat" class="lobby-nav-link lobby-nav-link-indigo" title="公共频道">
                 <MessageCircle class="w-4 h-4" />
               </router-link>
-              <router-link to="/plugins" class="p-2 hover:bg-purple-500/10 rounded-xl transition-all text-purple-500/70 hover:text-purple-400 touch-feedback" title="插件市场">
+              <router-link to="/plugins" class="lobby-nav-link lobby-nav-link-purple" title="插件市场">
                 <Puzzle class="w-4 h-4" />
               </router-link>
-              <router-link v-if="user.is_admin || user.role === 'co-worker'" to="/admin" class="p-2 hover:bg-yellow-500/10 rounded-xl transition-all text-yellow-500/70 hover:text-yellow-400 touch-feedback" title="管理面板">
-                <Shield class="w-4 h-4" />
+              <router-link v-if="user.is_admin || user.role === 'co-worker'" to="/admin" class="lobby-nav-link lobby-nav-link-amber" title="管理面板">
+                <Shield class="w-4 h-4 text-yellow-500" />
               </router-link>
               <div class="w-px h-5 bg-white/10 mx-1"></div>
-              <button @click="handleLogout" class="p-2 hover:bg-red-500/10 rounded-xl transition-all text-red-500/70 hover:text-red-400 touch-feedback" title="退出登录">
+              <button @click="handleLogout" class="lobby-nav-link lobby-nav-link-red" title="退出登录">
                 <LogOut class="w-4 h-4" />
               </button>
             </div>
@@ -637,15 +638,13 @@ const copyToClipboard = (text: string) => {
 
       <main class="flex-1 max-w-[1400px] mx-auto w-full px-4 sm:px-5 py-4 flex flex-col min-h-0">
         <!-- Welcome & Global Actions -->
-        <div class="flex flex-col lg:flex-row lg:items-end justify-between mb-4 gap-4 shrink-0">
-          <div class="space-y-1.5 font-bold">
-            <div class="inline-flex items-center gap-1.5 px-2 py-0.5 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+        <div class="hub-header-section">
+          <div class="hub-title-group">
+            <div class="hub-status-badge">
               <span class="w-1 h-1 bg-blue-500 rounded-full animate-ping"></span>
               <span class="text-[8px] font-black text-blue-500 uppercase tracking-widest">Research_Lobby</span>
             </div>
-            <h2 class="text-xl font-black text-slate-800 dark:text-white tracking-tighter leading-none">
-              试验场枢纽
-            </h2>
+            <h2 class="hub-title">试验场枢纽</h2>
             <p class="text-[10px] text-slate-500 font-medium max-w-md leading-none">当前有 <span class="text-blue-500 font-black">{{ onlineCount }}</span> 名研究员在线进行博弈。</p>
           </div>
 
@@ -665,7 +664,7 @@ const copyToClipboard = (text: string) => {
             <button
               @click="showCreateModal = true"
               data-tutorial="create-room"
-              class="group relative flex items-center gap-2 bg-blue-600 hover:bg-blue-500 px-4 py-2.5 rounded-xl font-black text-white shadow-lg shadow-blue-500/10 transition-all active:scale-95 overflow-hidden"
+              class="btn-action-primary"
             >
               <Plus class="w-3.5 h-3.5 group-hover:rotate-90 transition-transform duration-500" />
               <span class="uppercase tracking-widest text-[9px]">开启实验</span>
@@ -674,7 +673,7 @@ const copyToClipboard = (text: string) => {
             <button
               @click="showAIArenaModal = true; isPointsMode = true; isPrivate = true"
               data-tutorial="ai-arena"
-              class="group relative flex items-center gap-2 bg-purple-600 hover:bg-purple-500 px-4 py-2.5 rounded-xl font-black text-white shadow-lg shadow-purple-500/10 transition-all active:scale-95 overflow-hidden ml-2"
+              class="btn-action-secondary ml-2"
             >
               <div class="relative">
                 <Beaker class="w-3.5 h-3.5" />
@@ -686,9 +685,9 @@ const copyToClipboard = (text: string) => {
         </div>
 
         <!-- Main Layout Grid -->
-        <div class="grid grid-cols-1 xl:grid-cols-12 gap-6 items-stretch flex-1 min-h-0">
+        <div class="lobby-main-grid">
           <!-- Left Column: Notifications & Room List -->
-          <div class="xl:col-span-9 space-y-6 xl:overflow-y-auto xl:pr-3 custom-scrollbar min-h-0">
+          <div class="lobby-content-pane">
             <!-- Persistent Announcements -->
             <div v-if="persistentAnnouncements.length > 0" class="space-y-3 animate-in fade-in duration-700">
                <div v-for="ann in persistentAnnouncements" :key="ann.id" 
@@ -726,7 +725,7 @@ const copyToClipboard = (text: string) => {
             </div>
 
             <!-- Rejoin Banner -->
-            <div v-if="activeRoom" class="p-5 bg-blue-600 rounded-2xl shadow-xl shadow-blue-500/20 flex items-center justify-between group overflow-hidden relative animate-in slide-in-from-top-4 duration-500">
+            <div v-if="activeRoom" class="rejoin-banner">
                <div class="flex items-center gap-5">
                   <div class="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center animate-[pulse_2s_infinite]">
                      <Beaker class="w-6 h-6 text-white" />
@@ -747,115 +746,116 @@ const copyToClipboard = (text: string) => {
                     结束
                   </button>
                   <button 
-                    @click="router.push(`/room/${activeRoom.id}`)"
-                    class="px-6 py-3 bg-white text-blue-600 rounded-xl text-[11px] font-black uppercase tracking-widest hover:scale-105 hover:bg-blue-50 transition-all shadow-lg active:scale-95 flex items-center gap-2"
+                    @click="handleJoinRoom(activeRoom.id)"
+                    class="px-8 py-3 bg-white text-blue-600 rounded-xl text-[11px] font-black uppercase tracking-[0.2em] shadow-lg transition-all hover:scale-105 active:scale-95 flex items-center gap-2"
                   >
-                    <Play class="w-4 h-4 fill-current" />
+                    <Play class="w-4 h-4" />
                     重连
                   </button>
                </div>
             </div>
 
-            <!-- Experimental Nodes (Room List Table) -->
-            <div data-tutorial="room-list" class="bg-white/80 dark:bg-[#121216]/60 backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-2xl overflow-hidden">
-          <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse">
-              <thead>
-                <tr class="border-b border-slate-200 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.02]">
-                  <th class="px-5 py-3 text-[8px] font-black text-slate-500 uppercase tracking-widest">Status</th>
-                  <th class="px-5 py-3 text-[8px] font-black text-slate-500 uppercase tracking-widest">Identifier</th>
-                  <th class="px-5 py-3 text-[8px] font-black text-slate-500 uppercase tracking-widest">Config</th>
-                  <th class="px-5 py-3 text-[8px] font-black text-slate-500 uppercase tracking-widest">Players</th>
-                  <th class="px-5 py-3 text-[8px] font-black text-slate-500 uppercase tracking-widest text-right">Access</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-if="rooms.length === 0">
-                  <td colspan="5" class="py-16 text-center text-slate-400 dark:text-slate-600">
-                    <div class="flex flex-col items-center justify-center">
-                      <p class="text-sm font-black tracking-tight uppercase">No_Active_Nodes</p>
-                      <p class="text-[8px] font-mono mt-1 opacity-50 uppercase tracking-widest">Waiting_for_Core...</p>
+            <!-- Experimental Nodes (Room List Cards) -->
+            <div data-tutorial="room-list" class="room-grid">
+              <!-- Empty State -->
+              <div v-if="rooms.length === 0" class="lobby-empty-state bg-white/60 dark:bg-white/[0.02] border border-dashed border-slate-300 dark:border-white/10 rounded-3xl">
+                <div class="empty-icon-wrap">
+                  <Database class="w-8 h-8" />
+                </div>
+                <p class="empty-text-primary">No Active Nodes Detected</p>
+                <p class="empty-text-secondary">Waiting for researchers to initialize core nodes...</p>
+              </div>
+
+              <!-- Room Cards -->
+              <div 
+                v-for="room in rooms" 
+                :key="room.id"
+                class="room-card"
+              >
+                <!-- Card Header -->
+                <div class="room-card-header">
+                  <div class="status-indicator">
+                    <div :class="cn(
+                      'status-dot',
+                      room.status === 'waiting' ? (room.countdown > 0 ? 'starting' : 'waiting') : 
+                      room.status === 'playing' ? 'playing' : ''
+                    )"></div>
+                    <span class="status-label">
+                      {{ room.status === 'waiting' ? (room.countdown > 0 ? room.countdown + 'S' : 'Ready') : room.status === 'playing' ? 'Active' : 'Closed' }}
+                    </span>
+                  </div>
+                  
+                  <div class="room-type-badges">
+                    <div v-if="room.is_points_mode" class="mode-badge mode-ranked">
+                      Ranked
                     </div>
-                  </td>
-                </tr>
-                <tr 
-                  v-for="room in rooms" 
-                  :key="room.id"
-                  class="group border-b border-slate-200 dark:border-white/5 hover:bg-blue-500/[0.02] transition-colors"
-                >
-                  <td class="px-5 py-3">
-                    <div class="flex items-center gap-2">
-                      <div :class="cn(
-                        'w-1.5 h-1.5 rounded-full',
-                        room.status === 'waiting' ? (room.countdown > 0 ? 'bg-blue-500 animate-ping' : 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]') : 
-                        room.status === 'playing' ? 'bg-amber-500 shadow-[0_0_6px_rgba(245,158,11,0.5)] animate-pulse' : 
-                        'bg-slate-500'
-                      )"></div>
-                      <span :class="cn(
-                        'text-[9px] font-black uppercase tracking-widest',
-                        room.status === 'waiting' ? (room.countdown > 0 ? 'text-blue-500' : 'text-emerald-500') : 
-                        room.status === 'playing' ? 'text-amber-500' : 
-                        'text-slate-500'
-                      )">
-                        {{ room.status === 'waiting' ? (room.countdown > 0 ? room.countdown + 'S' : 'Ready') : room.status === 'playing' ? 'Active' : 'Closed' }}
-                      </span>
+                  </div>
+                </div>
+
+                <!-- Card Body -->
+                <div class="room-card-body">
+                  <div class="room-main-info">
+                    <h3 class="room-display-name">{{ room.name }}</h3>
+                    <span class="room-sub-id">NODE_ID: {{ room.id }}</span>
+                  </div>
+
+                  <div class="room-meta-container">
+                    <!-- Config / Deck -->
+                    <div v-if="room.deck_config" class="meta-item">
+                      <span class="meta-label">Protocol</span>
+                      <button 
+                        @click.stop="handleViewDeckConfig(room.deck_config)"
+                        class="deck-trigger"
+                      >
+                        <Beaker class="w-3 h-3" />
+                        {{ room.deck_config.name }}
+                      </button>
                     </div>
-                  </td>
-                  <td class="px-5 py-3">
-                    <div class="flex flex-col">
-                      <span class="text-xs font-black text-slate-900 dark:text-white group-hover:text-blue-500 transition-colors">
-                        {{ room.name }}
-                      </span>
-                      <span class="text-[8px] font-mono text-slate-400 dark:text-slate-600 uppercase tracking-tighter">
-                        ID: {{ room.id }}
-                      </span>
-                    </div>
-                  </td>
-                  <td class="px-5 py-3">
-                    <div class="flex flex-col gap-1">
-                      <div class="flex items-center gap-1.5">
-                        <div v-if="room.is_points_mode" class="px-1.5 py-0.5 bg-amber-500/10 border border-amber-500/20 rounded text-amber-500 text-[8px] font-black uppercase">
-                          Ranked
-                        </div>
-                        <div v-if="room.deck_config"
-                          @click.stop="handleViewDeckConfig(room.deck_config)"
-                          class="px-1.5 py-0.5 bg-blue-500/10 border border-blue-500/20 rounded text-blue-500 text-[8px] font-black uppercase cursor-pointer hover:bg-blue-500/20 transition-colors"
-                          title="点击查看牌组详情"
-                        >
-                          {{ room.deck_config.name }}
+
+                    <!-- Players Occupancy -->
+                    <div class="occupancy-section">
+                      <div class="occupancy-header">
+                        <span class="meta-label">Researcher Occupancy</span>
+                        <div class="occupancy-count">
+                          {{ room.players?.length || 0 }}<span class="occupancy-max">/{{ room.max_players }}</span>
                         </div>
                       </div>
+                      <div class="progress-track">
+                        <div 
+                          class="progress-bar-fill" 
+                          :style="{ width: `${((room.players?.length || 0) / room.max_players) * 100}%` }"
+                        ></div>
+                      </div>
                     </div>
-                  </td>
-                  <td class="px-5 py-3">
-                    <span class="text-[10px] font-black text-slate-900 dark:text-white font-mono">
-                      {{ room.players?.length || 0 }}<span class="text-slate-400">/{{ room.max_players }}</span>
-                    </span>
-                  </td>
-                  <td class="px-5 py-3 text-right">
-                    <button 
-                      @click="handleJoinRoom(room.id)"
-                      class="px-4 py-1.5 border border-slate-200 dark:border-white/10 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all hover:bg-blue-600 hover:text-white"
-                    >
-                       {{ room.status === 'playing' ? 'Spectate' : 'Enter' }}
-                    </button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
+                  </div>
+                </div>
 
-      <!-- Right Column: World Chat -->
-      <div class="xl:col-span-3 h-full min-h-0 bg-white/40 dark:bg-black/20 rounded-2xl overflow-hidden border border-slate-200 dark:border-white/5">
-         <ChatBox title="全域通信频率" placeholder="发送..." maxHeight="100%" class="h-full" />
-      </div>
-    </div>
-  </main>
+                <!-- Card Footer Action -->
+                <div class="room-card-footer">
+                  <button 
+                    @click="handleJoinRoom(room.id)"
+                    :class="cn(
+                      'btn-room-action',
+                      room.status === 'playing' ? 'btn-spectate' : 'btn-enter'
+                    )"
+                  >
+                    <component :is="room.status === 'playing' ? Shield : Play" class="w-3.5 h-3.5" :class="room.status !== 'playing' ? 'fill-current' : ''" />
+                    {{ room.status === 'playing' ? 'Spectate Node' : 'Initialize Entry' }}
+                  </button>
+                </div>
+              </div>
+                </div> <!-- room-grid end -->
+            </div> <!-- lobby-content-pane end -->
+            
+            <!-- Right Column: World Chat -->
+            <div class="lobby-sidebar-pane bg-white/40 dark:bg-black/20 rounded-2xl overflow-hidden border border-slate-200 dark:border-white/5">
+                <ChatBox title="全域通信频率" placeholder="发送..." maxHeight="100%" class="h-full" />
+            </div>
+        </div> <!-- lobby-main-grid end -->
+      </main>
 
       <!-- Global Footer Terminal -->
-      <footer class="mt-auto border-t border-white/5 bg-black/40 backdrop-blur-md p-4 shrink-0">
+      <footer class="lobby-footer bg-black/40 backdrop-blur-md p-4 shrink-0">
         <div class="max-w-[1400px] mx-auto flex flex-col md:flex-row justify-between items-center text-[10px] font-mono text-slate-500 uppercase tracking-[0.2em] gap-4">
           <div class="flex items-center gap-4">
             <span>System_Core_Ready</span>
@@ -871,56 +871,6 @@ const copyToClipboard = (text: string) => {
       </footer>
     </div>
 
-    <!-- 问卷调查提醒弹窗 -->
-    <div v-if="showSurveyModal && currentSurvey" class="fixed inset-0 z-[110] flex items-center justify-center p-4 sm:p-6">
-      <div class="absolute inset-0 bg-slate-900/40 dark:bg-black/80 backdrop-blur-xl animate-in fade-in" />
-      <div class="relative w-full max-w-md bg-white dark:bg-[#0c0c0e] border border-slate-200 dark:border-indigo-500/30 rounded-[2.5rem] shadow-[0_50px_100px_-20px_rgba(79,70,229,0.3)] overflow-hidden flex flex-col p-8 sm:p-10 animate-in zoom-in slide-in-from-bottom-10 duration-500">
-        <div class="absolute top-0 right-0 w-48 h-48 bg-indigo-500/10 blur-[80px] -mr-24 -mt-24" />
-        
-        <div class="flex flex-col items-center text-center gap-6 relative z-10">
-          <div class="w-16 h-16 sm:w-20 sm:h-20 bg-indigo-600/10 border border-indigo-500/20 rounded-3xl flex items-center justify-center text-indigo-600 dark:text-indigo-400 shadow-inner">
-            <FileText class="w-8 h-8 sm:w-10 sm:h-10" />
-          </div>
-          
-          <div class="space-y-2">
-            <h2 class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight italic uppercase">协助研究调查</h2>
-            <p class="text-[10px] font-black text-slate-400 dark:text-slate-500 font-mono uppercase tracking-[0.3em]">Research_Collaboration_Protocol</p>
-          </div>
-          
-          <div class="bg-indigo-500/5 dark:bg-black/40 border border-indigo-500/10 rounded-2xl p-6 w-full">
-            <h3 class="text-base font-black text-slate-800 dark:text-white mb-2">{{ currentSurvey.title }}</h3>
-            <p class="text-xs font-bold text-slate-500 dark:text-slate-400 leading-relaxed">{{ currentSurvey.description || '请参与我们的最新研究调查，您的反馈对项目的改进至关重要。' }}</p>
-          </div>
-          
-          <div class="flex flex-col gap-3 w-full mt-4">
-            <button 
-              @click="showSurveyModal = false; router.push('/surveys/' + (currentSurvey?.id || currentSurvey?.ID))"
-              class="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-indigo-600/20 transition-all hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-3"
-            >
-              立即填写 <component :is="ExternalLink" class="w-4 h-4" />
-            </button>
-            <div class="grid grid-cols-2 gap-3">
-              <button 
-                @click="showSurveyModal = false"
-                class="bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-500 dark:text-slate-400 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all"
-              >
-                稍后再说
-              </button>
-              <button 
-                @click="handleDismissSurvey"
-                class="bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all border border-rose-500/10"
-              >
-                不再提醒
-              </button>
-            </div>
-          </div>
-          
-          <p class="text-[8px] font-mono text-slate-400 border-t border-slate-100 dark:border-white/5 pt-4 w-full mt-2 uppercase tracking-tight">
-            ID: {{ currentSurvey.id }} // REF_DATE: {{ new Date(currentSurvey.created_at).toLocaleDateString() }}
-          </p>
-        </div>
-      </div>
-    </div>
 
     <!-- Modern Create Modal -->
     <div v-if="showCreateModal" class="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4">

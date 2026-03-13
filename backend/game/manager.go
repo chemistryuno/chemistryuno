@@ -42,6 +42,20 @@ type GameRoom struct {
 	StartTimer *time.Timer       // 游戏开始倒计时器
 }
 
+// BroadcastSystemMessage 广播一条系统级信息到房间聊天室
+func (gr *GameRoom) BroadcastSystemMessage(msg string) {
+	websocket.GlobalHub.BroadcastToRoom(gr.Room.ID, websocket.Message{
+		Type:    "chat",
+		UID:     0, // 0 表示系统
+		Message: msg,
+		Data: map[string]string{
+			"username": "系统",
+			"nickname": "量子记录仪",
+			"avatar":   "🤖",
+		},
+	})
+}
+
 func (gr *GameRoom) cancelStartTimer() {
 	if gr.StartTimer != nil {
 		gr.StartTimer.Stop()
@@ -169,6 +183,7 @@ func (gr *GameRoom) checkAutoStart() {
 				// 执行踢出
 				for _, uid := range playersToKick {
 					log.Printf("[自动开始] 踢出未准备玩家：%d", uid)
+					gr.BroadcastSystemMessage(fmt.Sprintf("研究员 %d 因未及时佩戴防护装备（未准备）被自动请出实验室。", uid))
 					gr.kickPlayer(uid, "由于未准备，您已被移出游戏")
 				}
 
@@ -1134,6 +1149,8 @@ func (gr *GameRoom) kickPlayer(uid int, reason string) {
 		})
 	}
 
+	gr.BroadcastSystemMessage(fmt.Sprintf("警报：研究员 %d 因违反实验室安全准则被强制带离。", uid))
+
 	// 记录消极游戏行为并处理封禁（仅在游戏开始后计入）
 	if reason == "由于消极游戏，您已被踢出" && gr.Room.Status == "playing" {
 		count, _ := repository.UserRepo.GetNegativePlayCount(uint(uid))
@@ -1235,6 +1252,15 @@ func (gr *GameRoom) kickPlayer(uid int, reason string) {
 
 func (gr *GameRoom) terminateRoom(reason string) {
 	roomID := gr.Room.ID
+
+	// 确保状态更新，防止 AI 继续行动
+	gr.mutex.Lock()
+	if gr.GameState != nil {
+		gr.GameState.Status = "terminated"
+	}
+	gr.Room.Status = "terminated"
+	gr.mutex.Unlock()
+
 	emitRoomClosed(roomID, reason, "terminate_room", len(gr.Room.Players))
 	roomMutex.Lock()
 	delete(rooms, roomID)
@@ -1604,6 +1630,8 @@ func StartGame(roomID string, uid int) error {
 	gameRoom.mutex.Lock()
 	defer gameRoom.mutex.Unlock()
 
+	gameRoom.BroadcastSystemMessage("正在校准对撞机... 游戏即将开始！")
+
 	if gameRoom.Room.Status != "waiting" {
 		return errors.New("游戏已在进行中")
 	}
@@ -1659,6 +1687,7 @@ func StartGame(roomID string, uid int) error {
 
 	// 脚本化教学模式：使用固定配置
 	if gameRoom.Room.TutorialScript {
+		gameRoom.BroadcastSystemMessage("实验脚本已加载。正在按照教学规程引导研究员进行初次反应。")
 		log.Printf("[教学脚本] 启用脚本化教学模式，使用固定手牌和初始配置")
 		if err := initTutorialGame(gameRoom, roomID); err != nil {
 			return err
@@ -1667,6 +1696,8 @@ func StartGame(roomID string, uid int) error {
 		emitTurnChanged(roomID, gameRoom.GameState, -1, "game_start")
 		return nil
 	}
+
+	gameRoom.BroadcastSystemMessage("对撞机已启动！实验开始。")
 
 	// 创建牌堆
 	for cardType, count := range gameRoom.Room.DeckConfig.Cards {
@@ -1729,6 +1760,7 @@ func StartGame(roomID string, uid int) error {
 
 	log.Printf("[初始手牌] 📊 牌堆统计：总计 %d 张，将为 %d 位玩家每人发 %d 张",
 		len(gameRoom.GameState.DrawPile), numPlayers, initialCardsCount)
+	gameRoom.BroadcastSystemMessage(fmt.Sprintf("正在分发实验素材... 每位研究员已领取 %d 份基础试剂。", initialCardsCount))
 
 	// 统计牌堆中的卡牌类型分布（用于日志）
 	cardTypeCount := make(map[string]int)
@@ -1887,6 +1919,7 @@ func StartGame(roomID string, uid int) error {
 		}
 		gameRoom.GameState.DiscardPile = append(gameRoom.GameState.DiscardPile, playedCard)
 		gameRoom.GameState.LastCard = &gameRoom.GameState.DiscardPile[0]
+		gameRoom.BroadcastSystemMessage(fmt.Sprintf("对撞机底座已安装完成，观测到初始物质：[ %s ]。", initialSubstance))
 		log.Printf("[场上初始物质] 🎴 场上初始卡牌已设置: 卡牌类型=%s, 展示物质=%s",
 			initialCard.Type, initialSubstance)
 	} else {
@@ -2473,6 +2506,8 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 	}
 	// nobleGases 作为换向牌
 
+	gameRoom.BroadcastSystemMessage(fmt.Sprintf("反应成功！%s 合成了物质：[ %s ]。", currentPlayer.Nickname, substance))
+
 	// 检查选中的卡牌中是否有带效果的
 	activeEffect := ""
 	if specialTypes[card.Type] {
@@ -2536,6 +2571,13 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 		Substance: substance, // 使用元素符号保存
 		PlayerUID: uid,
 	}
+
+	displayName := currentPlayer.Nickname
+	if displayName == "" {
+		displayName = currentPlayer.Username
+	}
+	gameRoom.BroadcastSystemMessage(fmt.Sprintf("%s 成功合成了 %s。", displayName, substance))
+
 	// 1. 更新场面状态
 	// 转向牌、跳过牌、Au、+2、+4、插件卡 不更新场上的物质（不更新 LastCard），使下家仍需与之前的物质反应
 	// 其中 Au 会在后续逻辑中显式清空 LastCard
@@ -2970,6 +3012,17 @@ func DrawCard(roomID string, uid int, count int) error {
 	}
 
 	drawCardsForPlayer(gameRoom, gameRoom.GameState.CurrentPlayer, actualCount)
+
+	displayName := currentPlayer.Nickname
+	if displayName == "" {
+		displayName = currentPlayer.Username
+	}
+
+	if penaltyResolved {
+		gameRoom.BroadcastSystemMessage(fmt.Sprintf("反应失控！%s 已被强制送往洗眼台（处理了 %d 张累计罚牌）。", displayName, actualCount))
+	} else {
+		gameRoom.BroadcastSystemMessage(fmt.Sprintf("%s 进入库房寻找灵感（摸了 %d 张牌）。", displayName, actualCount))
+	}
 
 	// 行动进度更新
 	currentPlayer.ActionProgress++
@@ -3604,6 +3657,8 @@ func finalizeGame(gr *GameRoom) {
 		handleXPCalculation(gr)
 	}
 
+	gr.BroadcastSystemMessage("实验完成！反应已达平衡，正在生成结果报告。")
+
 	log.Printf("[游戏结束] 房间 %s 已正式结算，冠军 UID: %d", gr.Room.ID, winnerUID)
 }
 
@@ -3629,6 +3684,7 @@ func processRoomTimeout(roomID string) {
 		currentPlayer := gameRoom.GameState.Players[gameRoom.GameState.CurrentPlayer]
 		if !currentPlayer.IsAI {
 			log.Printf("[Game] ⚡ 玩家 %s (%d) 超时，自动摸牌并跳过本回合", currentPlayer.Nickname, currentPlayer.UID)
+			gameRoom.BroadcastSystemMessage(fmt.Sprintf("研究员 %s 操作超时。出于实验室安全考虑（因为你太慢了），已自动摸牌并跳过回合。", currentPlayer.Nickname))
 		}
 
 		drawCount := 2

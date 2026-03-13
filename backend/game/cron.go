@@ -101,6 +101,9 @@ func ProcessScheduledAnnouncements() {
 		}
 
 		if shouldBroadcast {
+			// 更新最后广播时间
+			_ = repository.AnnouncementRepo.UpdateLastBroadcast(announcement.ID, now)
+
 			msg := websocket.Message{
 				Type: "system_announcement",
 				Data: map[string]interface{}{
@@ -116,9 +119,6 @@ func ProcessScheduledAnnouncements() {
 				msg.Data.(map[string]interface{})["title"] = announcement.Title
 			}
 			websocket.GlobalHub.BroadcastToAll(msg)
-
-			// 更新最后广播时间
-			repository.AnnouncementRepo.UpdateLastBroadcast(announcement.ID, now)
 		}
 	}
 }

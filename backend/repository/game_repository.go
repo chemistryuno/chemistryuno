@@ -2,6 +2,7 @@ package repository
 
 import (
 	"chemistryuno/backend/database"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -33,26 +34,38 @@ func (r *GameRepository) FindByRoomID(roomID string) ([]database.GameHistory, er
 // FindByUserUID 查找用户的游戏历史
 func (r *GameRepository) FindByUserUID(uid uint) ([]database.GameHistory, error) {
 	var histories []database.GameHistory
-	query := r.db.Order("created_at DESC").Limit(50)
+	idStr := fmt.Sprintf("%d", uid)
 
-	// 跨数据库兼容的 JSON 查询
-	if r.db.Dialector.Name() == "mysql" {
-		query = query.Where("JSON_CONTAINS(players, ?)", uid)
-	} else {
-		// SQLite：精确边界匹配，避免 UID=12 误命中 UID=123
-		// players 存储格式为 JSON 数组，如 [1,2,12,123]
-		id := fmt.Sprintf("%d", uid)
-		query = query.Where(
-			"players = ? OR players LIKE ? OR players LIKE ? OR players LIKE ?",
-			"["+id+"]",          // 唯一元素 [12]
-			"["+id+",%",         // 首元素   [12,...
-			"%,"+id+"]",         // 末元素   ...,12]
-			"%,"+id+",%",        // 中间元素  ...,12,...
-		)
-	}
+	// 无论数据库环境，先通过 LIKE 进行初步筛选以利用索引（如果存在）
+	// 同时使用四重边界锁定确保初步筛选的覆盖度
+	query := r.db.Order("created_at DESC").Limit(50).Where(
+		"players LIKE ? OR players LIKE ? OR players LIKE ? OR players LIKE ?",
+		"["+idStr+"]",   // 唯一元素
+		"["+idStr+",%",  // 数组开头
+		"%,"+idStr+"]",  // 数组结尾
+		"%,"+idStr+",%", // 数组中间
+	)
 
 	err := query.Find(&histories).Error
-	return histories, err
+	if err != nil {
+		return nil, err
+	}
+
+	// 在内存中进行二次严格逻辑校验，确保 100% 精确
+	var result []database.GameHistory
+	for _, h := range histories {
+		var players []int
+		if err := json.Unmarshal([]byte(h.Players), &players); err == nil {
+			for _, pid := range players {
+				if pid == int(uid) {
+					result = append(result, h)
+					break
+				}
+			}
+		}
+	}
+
+	return result, nil
 }
 
 // FindAll 查找所有游戏历史（管理员）

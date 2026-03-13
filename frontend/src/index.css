@@ -21,9 +21,9 @@ body {
 
 @layer utilities {
 
-  /* ========== 移动端优化工具类 ========== */
+  /* ========== 绉诲姩绔紭鍖栧伐鍏风被 ========== */
 
-  /* 响应式字体系统 - 移动端最小12px保证可读性 */
+  /* 鍝嶅簲寮忓瓧浣撶郴缁?- 绉诲姩绔渶灏?2px淇濊瘉鍙鎬?*/
   .text-tiny-mobile {
     @apply text-[12px] sm:text-[10px] md:text-[9px];
   }
@@ -40,7 +40,7 @@ body {
     @apply text-base sm:text-base;
   }
 
-  /* 标签和辅助文字 - 移动端加大 */
+  /* 鏍囩鍜岃緟鍔╂枃瀛?- 绉诲姩绔姞澶?*/
   .text-label-mobile {
     @apply text-[11px] sm:text-[10px] md:text-[9px];
   }
@@ -49,7 +49,7 @@ body {
     @apply text-[10px] sm:text-[9px] md:text-[8px];
   }
 
-  /* 触摸友好的最小目标尺寸 (44x44px标准) */
+  /* 瑙︽懜鍙嬪ソ鐨勬渶灏忕洰鏍囧昂瀵?(44x44px鏍囧噯) */
   .btn-touch {
     @apply min-h-[40px] min-w-[40px] sm:min-h-[38px] sm:min-w-[38px];
   }
@@ -58,7 +58,7 @@ body {
     @apply w-6 h-6 sm:w-5 sm:h-5 md:w-4 md:h-4;
   }
 
-  /* 响应式Padding - 移动端更大的呼吸空间 */
+  /* 鍝嶅簲寮廝adding - 绉诲姩绔洿澶х殑鍛煎惛绌洪棿 */
   .p-mobile {
     @apply p-4 sm:p-4 md:p-5;
   }
@@ -71,7 +71,7 @@ body {
     @apply py-3.5 sm:py-3.5 md:py-4;
   }
 
-  /* 模态框移动端优化 */
+  /* 妯℃€佹绉诲姩绔紭鍖?*/
   .modal-mobile {
     @apply max-h-[85vh] sm:max-h-[90vh];
   }
@@ -80,7 +80,7 @@ body {
     @apply p-5 sm:p-6;
   }
 
-  /* 表单控件移动端优化 */
+  /* 琛ㄥ崟鎺т欢绉诲姩绔紭鍖?*/
   .input-mobile {
     @apply h-11 sm:h-10 md:h-9 text-sm sm:text-sm;
   }
@@ -89,22 +89,22 @@ body {
     @apply h-11 sm:h-10 md:h-9 px-4 sm:px-3.5 text-sm sm:text-xs;
   }
 
-  /* 触摸反馈动画 */
+  /* 瑙︽懜鍙嶉鍔ㄧ敾 */
   .touch-feedback {
     @apply active:scale-95 transition-transform duration-150;
   }
 
-  /* 安全触摸间距 - 避免误触 */
+  /* 瀹夊叏瑙︽懜闂磋窛 - 閬垮厤璇Е */
   .gap-touch {
     @apply gap-2.5 sm:gap-1.5 md:gap-1;
   }
 
-  /* 卡片间距优化 */
+  /* 鍗＄墖闂磋窛浼樺寲 */
   .space-y-mobile > * + * {
     @apply mt-3 sm:mt-2.5;
   }
 
-  /* ========== 原有Card样式 ========== */
+  /* ========== 鍘熸湁Card鏍峰紡 ========== */
 
   /* Generic Card Styles */
   .uno-card {

@@ -43,6 +43,7 @@ func (gr *GameRoom) TriggerAITurn() {
 	}
 
 	log.Printf("[AI] 🤖 AI %d 立即行动...", currentPlayer.UID)
+	gr.BroadcastSystemMessage(fmt.Sprintf("%s 正在实验台前审视战局...", currentPlayer.Nickname))
 
 	// 教学脚本模式：按照脚本执行固定操作
 	if gr.GameState.TutorialScriptMode {
@@ -111,6 +112,7 @@ func (gr *GameRoom) TriggerAITurn() {
 
 	// 摸牌逻辑 (摸2张并过牌)
 	log.Printf("[AI] 🛑 AI %s (%d) 摸牌", currentPlayer.Nickname, currentPlayer.UID)
+	gr.BroadcastSystemMessage(fmt.Sprintf("%s 暂时无法合成目标，决定进入库房寻找灵感（摸 2 张牌）。", currentPlayer.Nickname))
 	gr.aiDrawCard(currentPlayer.UID)
 	// aiDrawCard 已经释放锁
 }
@@ -249,6 +251,7 @@ func (gr *GameRoom) aiTryDoublePlay(player *models.PlayerState) bool {
 			if err == nil && canReact {
 				// 发动双联！
 				log.Printf("[AI] ⚡ AI %d 发动双联反应: %s + %s", player.UID, s1, s2)
+				gr.BroadcastSystemMessage(fmt.Sprintf("%s 正在进行极端实验：联联动双向合成（%s + %s）！", player.Nickname, s1, s2))
 
 				// 解锁，调用 DoublePlay（DoublePlay 会自己管理锁）
 				gr.mutex.Unlock()
@@ -638,6 +641,17 @@ func (gr *GameRoom) aiExecutePlay(uid int, card models.Card, substance string) {
 		// aiDrawCard 会释放锁
 	} else {
 		log.Printf("[AI] ✅ AI %d 成功出牌: %s (物质: %s)", uid, cardName, substance)
+		// 发送广播
+		nickname := "AI"
+		gr.mutex.RLock()
+		for _, p := range gr.GameState.Players {
+			if p.UID == uid {
+				nickname = p.Nickname
+				break
+			}
+		}
+		gr.mutex.RUnlock()
+		gr.BroadcastSystemMessage(fmt.Sprintf("%s 熟练地在反应皿中投入了 %s (%s)。", nickname, cardName, substance))
 		// PlayCard 内部已经调用了 CheckNextTurnAI，不需要重新获取锁
 	}
 }

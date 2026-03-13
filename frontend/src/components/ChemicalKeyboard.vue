@@ -1,6 +1,6 @@
 <template>
   <div
-    class="chemical-keyboard fixed inset-x-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border-t border-slate-200 dark:border-white/10 z-50 pb-safe shadow-[0_-8px_30px_rgba(0,0,0,0.1)] dark:shadow-[0_-8px_30px_rgba(0,0,0,0.5)] flex flex-col transition-transform duration-300"
+    class="chemical-keyboard fixed inset-x-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border-t border-slate-200 dark:border-white/10 z-[10000] pb-safe shadow-[0_-8px_30px_rgba(0,0,0,0.1)] dark:shadow-[0_-8px_30px_rgba(0,0,0,0.5)] flex flex-col transition-transform duration-300"
     :style="{
       transform: isDragging ? `translateY(${dragOffset}px)` : 'translateY(0)',
       bottom: '144px'
@@ -64,12 +64,13 @@
             <button
               v-for="element in availableElements"
               :key="element"
-              @click="handleInput(element)"
+              @click="heldElements.has(element) && handleInput(element)"
               :class="cn(
-                'group relative h-12 w-14 xs:w-16 flex flex-col items-center justify-center rounded-xl border transition-all touch-feedback active:scale-90 snap-start',
+                'group relative h-12 w-14 xs:w-16 flex flex-col items-center justify-center rounded-xl border transition-all snap-start',
+                heldElements.has(element) ? 'touch-feedback active:scale-90' : 'opacity-75 cursor-not-allowed grayscale',
                 element.length === 2 
-                  ? 'bg-blue-50 dark:bg-blue-600/10 border-blue-200 dark:border-blue-500/20 hover:border-blue-400 dark:hover:border-blue-500/40' 
-                  : 'bg-indigo-50 dark:bg-indigo-600/10 border-indigo-200 dark:border-indigo-500/20 hover:border-indigo-400 dark:hover:border-indigo-500/40'
+                  ? 'bg-blue-50 dark:bg-blue-600/10 border-blue-200 dark:border-blue-500/20 ' + (heldElements.has(element) ? 'hover:border-blue-400 dark:hover:border-blue-500/40' : '')
+                  : 'bg-indigo-50 dark:bg-indigo-600/10 border-indigo-200 dark:border-indigo-500/20 ' + (heldElements.has(element) ? 'hover:border-indigo-400 dark:hover:border-indigo-500/40' : '')
               )"
             >
                <div class="absolute inset-x-0 bottom-0 h-0.5 bg-blue-500/20 scale-x-0 group-hover:scale-x-100 transition-transform"></div>
@@ -131,11 +132,24 @@ import feedback from '../utils/feedback'
 interface Props {
   modelValue: string
   deckCards?: Record<string, number>
+  myHand?: any[]
 }
 
 const props = withDefaults(defineProps<Props>(), {
   modelValue: '',
-  deckCards: () => ({})
+  deckCards: () => ({}),
+  myHand: () => []
+})
+
+const heldElements = computed(() => {
+  const elements = new Set<string>()
+  props.myHand.forEach(card => {
+    if (card && card.type) {
+      const matches = card.type.match(/[A-Z][a-z]?/g)
+      if (matches) matches.forEach((el: string) => elements.add(el))
+    }
+  })
+  return elements
 })
 
 const emit = defineEmits<{
@@ -182,7 +196,9 @@ const getElementName = (symbol: string) => ELEMENT_NAMES[symbol] || ''
 const availableElements = computed(() => {
   const elements = new Set<string>()
   if (props.deckCards && Object.keys(props.deckCards).length > 0) {
+    const SPECIAL_CARDS = ['Au', 'He', 'Ne', 'Ar', 'Kr', '+2', '+4']
     Object.keys(props.deckCards).forEach(formula => {
+      if (SPECIAL_CARDS.includes(formula)) return
       const matches = formula.match(/[A-Z][a-z]?/g)
       if (matches) matches.forEach(el => elements.add(el))
     })

@@ -108,6 +108,8 @@ export const authAPI = {
     api.post('/auth/security-question/reset-password', data),
   deleteAccount: (code: string) =>
     api.delete('/user/account', { data: { code } }),
+  deleteAccountWithSecurityAnswer: (securityAnswer: string) =>
+    api.delete('/user/account', { data: { security_answer: securityAnswer } }),
   searchUsers: (query: string) =>
     api.get(`/users/search?q=${encodeURIComponent(query)}`),
   submitFeedback: (content: string, type: string) =>

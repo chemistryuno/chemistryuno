@@ -1857,7 +1857,7 @@ watch(() => gameState.value?.current_player, () => {
               <!-- 强制出牌提示 -->
               <div
                 v-if="isMyTurn && gameState?.pending_forced_plays > 0"
-                class="flex items-center gap-1 px-2 py-1 rounded-lg bg-orange-500/80 border border-orange-400/50 animate-pulse"
+                class="flex items-center gap-1 px-2 py-1 rounded-lg bg-orange-500/80 border border-orange-400/50 animate-pulse pointer-events-none"
               >
                 <Zap class="w-3 h-3 fill-current text-white" />
                 <span class="text-[10px] font-black uppercase tracking-widest text-white whitespace-nowrap">强制出牌 ×{{ gameState.pending_forced_plays }}</span>
@@ -1924,10 +1924,12 @@ watch(() => gameState.value?.current_player, () => {
              transform: 'translateY(-100px)'
            }">
           <!-- Left Sidebar: Hint & Status -->
-          <div :class="cn(
-            'fixed left-0 top-0 bottom-0 w-full lg:w-80 z-[100] bg-white/95 dark:bg-slate-900/60 backdrop-blur-3xl border-r lg:border border-slate-200 dark:border-white/10 lg:rounded-[40px] lg:top-6 lg:bottom-52 lg:left-6 shadow-3xl transition-all duration-500 flex flex-col overflow-hidden',
-            showHints ? 'translate-x-0 opacity-100' : '-translate-x-full opacity-0 pointer-events-none'
-          )">
+          <Teleport to="body" :disabled="!!roomInfo?.is_points_mode">
+             <div v-if="!roomInfo?.is_points_mode && showHints" class="fixed inset-0 bg-white/10 dark:bg-black/20 backdrop-blur-[2px] z-[95] lg:hidden clickable" @click="showHints = false"></div>
+             <div :class="cn(
+               'fixed left-0 top-0 bottom-0 w-full lg:w-80 z-[100] bg-white/95 dark:bg-slate-900/60 backdrop-blur-3xl border-r lg:border border-slate-200 dark:border-white/10 lg:rounded-[40px] lg:top-6 lg:bottom-52 lg:left-6 shadow-3xl transition-all duration-500 flex flex-col overflow-hidden',
+               showHints ? 'translate-x-0 opacity-100' : '-translate-x-full opacity-0 pointer-events-none'
+             )">
              <div class="p-4 py-3 border-b border-slate-200 dark:border-white/10 flex items-center justify-between bg-slate-50/50 dark:bg-white/[0.02]">
                 <div class="flex items-center gap-2">
                    <div class="w-6 h-6 rounded-lg bg-blue-500/10 flex items-center justify-center">
@@ -2043,7 +2045,8 @@ watch(() => gameState.value?.current_player, () => {
                    </div>
                 </div>
              </div>
-          </div>
+           </div>
+          </Teleport>
 
           <!-- Latest Reaction Display -->
           <div v-if="gameState?.last_card"
@@ -2239,8 +2242,8 @@ watch(() => gameState.value?.current_player, () => {
       <!-- Hand / Deck Area -->
       <div class="fixed bottom-0 left-0 right-0 z-[70] bg-white/70 dark:bg-black/60 backdrop-blur-2xl border-t border-slate-200 dark:border-white/5 flex flex-col items-center">
         <!-- 教学模式提示 - 手牌栏上方，紧凑样式 -->
-        <div v-if="isTutorialMode && tutorialHintText && isMyTurn" class="absolute bottom-full mb-4 left-0 right-0 flex justify-center px-4 animate-in slide-in-from-bottom-4 z-50">
-          <div class="bg-gradient-to-br from-amber-500 to-orange-500 backdrop-blur-xl border border-amber-300 rounded-xl shadow-lg px-4 py-2 max-w-md mx-auto relative overflow-hidden">
+        <div v-if="isTutorialMode && tutorialHintText && isMyTurn" class="absolute bottom-full mb-4 left-0 right-0 flex justify-center px-4 animate-in slide-in-from-bottom-4 z-50 pointer-events-none">
+          <div class="bg-gradient-to-br from-amber-500 to-orange-500 backdrop-blur-xl border border-amber-300 rounded-xl shadow-lg px-4 py-2 max-w-md mx-auto relative overflow-hidden pointer-events-none">
             <!-- 背景装饰 -->
             <div class="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(255,255,255,0.15),transparent_50%)]"></div>
 
@@ -2758,6 +2761,7 @@ watch(() => gameState.value?.current_player, () => {
       v-if="showChemicalKeyboard"
       v-model="substanceInput"
       :deckCards="roomInfo?.deck_config?.cards || {}"
+      :myHand="myData?.hand_cards || []"
       @confirm="handleKeyboardConfirm"
       @close="showChemicalKeyboard = false"
     />

@@ -52,6 +52,9 @@ func consumeVerificationCode(email, code, codeType string) (bool, error) {
 // usernameRegex 用户名只允许英文字母、数字和下划线
 var usernameRegex = regexp.MustCompile(`^[a-zA-Z0-9_]+$`)
 
+// nicknameRegex 昵称只允许中英文字母、数字和下划线
+var nicknameRegex = regexp.MustCompile(`^[a-zA-Z0-9_\x{4e00}-\x{9fa5}]+$`)
+
 // 用户注册
 func Register(c *gin.Context) {
 	var req models.RegisterRequest
@@ -64,6 +67,18 @@ func Register(c *gin.Context) {
 	if !usernameRegex.MatchString(req.Username) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "用户名只能包含英文字母、数字和下划线"})
 		return
+	}
+
+	// 验证昵称格式和长度
+	if req.Nickname != "" {
+		if len([]rune(req.Nickname)) > 20 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "昵称不能超过20个字符"})
+			return
+		}
+		if !nicknameRegex.MatchString(req.Nickname) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "昵称只能包含中英文字母、数字和下划线"})
+			return
+		}
 	}
 
 	userRepo := repository.NewUserRepository()
@@ -121,11 +136,19 @@ func Register(c *gin.Context) {
 		return
 	}
 
-	// 哈希密保答案
-	hashedAnswer, err := utils.HashPassword(req.SecurityAnswer)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to process security answer"})
-		return
+	// 邮箱注册无需密保
+	hashedAnswer := ""
+	if req.Email == "" {
+		if req.SecurityQuestion == "" || req.SecurityAnswer == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "security question and answer are required for username registration"})
+			return
+		}
+		// 哈希密保答案
+		hashedAnswer, err = utils.HashPassword(req.SecurityAnswer)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to process security answer"})
+			return
+		}
 	}
 
 	// 获取最大 UID 并计算新 UID
@@ -307,10 +330,10 @@ func ChangePassword(c *gin.Context) {
 	uid := c.GetInt("uid")
 
 	var req struct {
-		Code           string `json:"code"`           // 2FA 或 邮箱验证码
-		OldPassword    string `json:"old_password"`   // 旧密码
+		Code           string `json:"code"`         // 2FA 或 邮箱验证码
+		OldPassword    string `json:"old_password"` // 旧密码
 		NewPassword    string `json:"new_password" binding:"required,min=6"`
-		UseEmail       bool   `json:"use_email"`      // 是否使用邮箱验证模式
+		UseEmail       bool   `json:"use_email"`       // 是否使用邮箱验证模式
 		SecurityAnswer string `json:"security_answer"` // 密保答案（无2FA且无邮箱时）
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -362,9 +385,9 @@ func ChangePassword(c *gin.Context) {
 		// 无邮箱时，使用密保问题验证
 		if req.SecurityAnswer == "" {
 			c.JSON(http.StatusBadRequest, gin.H{
-				"error":             "请提供密保答案以授权密码修改",
+				"error":                     "请提供密保答案以授权密码修改",
 				"require_security_question": true,
-				"security_question": user.SecurityQuestion,
+				"security_question":         user.SecurityQuestion,
 			})
 			return
 		}
@@ -477,6 +500,18 @@ func UpdateProfile(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
+	}
+
+	// 验证昵称格式和长度
+	if req.Nickname != "" {
+		if len([]rune(req.Nickname)) > 20 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "昵称不能超过20个字符"})
+			return
+		}
+		if !nicknameRegex.MatchString(req.Nickname) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "昵称仅允许中英文字母、数字和下划线"})
+			return
+		}
 	}
 
 	userRepo := repository.NewUserRepository()
@@ -855,9 +890,9 @@ func DeleteAccount(c *gin.Context) {
 		// 无邮箱时使用密保问题
 		if req.SecurityAnswer == "" {
 			c.JSON(http.StatusBadRequest, gin.H{
-				"error":             "请提供密保答案以确认注销",
+				"error":                     "请提供密保答案以确认注销",
 				"require_security_question": true,
-				"security_question": user.SecurityQuestion,
+				"security_question":         user.SecurityQuestion,
 			})
 			return
 		}

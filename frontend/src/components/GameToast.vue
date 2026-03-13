@@ -124,8 +124,7 @@ defineExpose({
   backdrop-filter: blur(24px) saturate(180%);
   border: 1.5px solid rgba(255, 255, 255, 0.2);
   overflow: hidden;
-  pointer-events: auto;
-  cursor: pointer;
+  pointer-events: none;
   animation: toast-slide-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
   transition: transform 0.2s ease;
 }

@@ -87,6 +87,8 @@ const fetchLatestUserInfo = async () => {
   }
 }
 
+const nicknameRegex = /^[a-zA-Z0-9_\u4e00-\u9fa5]+$/
+
 onMounted(async () => {
   fetchLatestUserInfo()
   try {
@@ -100,6 +102,18 @@ onMounted(async () => {
 const handleUpdateNickname = async () => {
   const newNickname = await showPrompt('请输入新的研究员昵称:', user.value.nickname, '修改昵称')
   if (newNickname === null || newNickname === user.value.nickname) return
+  
+  // 长度校验
+  if (newNickname.length > 20) {
+    showAlert('研究员昵称不能超过 20 位。', '格式错误')
+    return
+  }
+  
+  // 特殊字符校验
+  if (!nicknameRegex.test(newNickname)) {
+    showAlert('昵称只能包含中英文字母、数字和下划线。', '格式错误')
+    return
+  }
 
   try {
     await authAPI.updateProfile({ nickname: newNickname })
@@ -197,12 +211,27 @@ const handleDeleteAccount = async () => {
   if (!confirm2) return
 
   try {
-    // 发送注销验证码
-    await authAPI.sendCode(user.value.email, 'delete_account')
-    const code = await showPrompt('验证码已发送至您的通讯邮箱，请输入以授权注销操作', '档案注销授权', '安全验证')
-    if (!code) return
+    if (user.value.email && smtpEnabled.value) {
+      // 有邮箱且SMTP开启：使用邮箱验证码
+      await authAPI.sendCode(user.value.email, 'delete_account')
+      const code = await showPrompt('验证码已发送至您的通讯邮箱，请输入以授权注销操作', '档案注销授权', '安全验证')
+      if (!code) return
+      await authAPI.deleteAccount(code)
+    } else if (user.value.security_question) {
+      // 无邮箱或SMTP未启用：使用密保问题验证
+      const answer = await showPrompt(
+        `请回答密保问题以确认注销：\n\n【${user.value.security_question}】`,
+        '请输入密保答案',
+        '密保验证'
+      )
+      if (!answer) return
+      await authAPI.deleteAccountWithSecurityAnswer(answer)
+    } else {
+      // 既无邮箱也无密保问题，提示无法注销
+      await showAlert('无法注销账号：您的账号未设置邮箱或密保问题，请先前往安全设置补充验证信息。', '操作受阻')
+      return
+    }
 
-    await authAPI.deleteAccount(code)
     await showAlert('您的研究员档案已被彻底移除。', '注销成功')
     handleLogout()
   } catch (error: any) {

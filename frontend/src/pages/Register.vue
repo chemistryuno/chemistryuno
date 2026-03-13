@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { authAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
-import { Lock, FlaskConical, ShieldCheck, Loader2, Mail, User, HelpCircle } from 'lucide-vue-next'
+import { Lock, FlaskConical, ShieldCheck, Loader2, Mail, User, HelpCircle, AtSign } from 'lucide-vue-next'
 import OAuthLogos from '../components/icons/OAuthLogos.vue'
 import websocket from '../utils/websocket'
+
+// 注册模式: 'username' | 'email'
+const registerMode = ref<'username' | 'email'>('username')
 
 const username = ref('')
 const email = ref('')
@@ -30,6 +33,10 @@ const { showAlert } = dialog
 
 // 用户名只允许英文字母、数字、下划线
 const usernameRegex = /^[a-zA-Z0-9_]+$/
+// 昵称只允许中英文字母、数字和下划线
+const nicknameRegex = /^[a-zA-Z0-9_\u4e00-\u9fa5]+$/
+
+const hasOAuth = computed(() => githubEnabled.value || msEnabled.value || googleEnabled.value || appleEnabled.value)
 
 onMounted(async () => {
   try {
@@ -39,6 +46,10 @@ onMounted(async () => {
     msEnabled.value = res.data.ms_enabled
     googleEnabled.value = res.data.google_enabled
     appleEnabled.value = res.data.apple_enabled
+    // 如果SMTP未开启，强制使用用户名注册
+    if (!res.data.smtp_enabled) {
+      registerMode.value = 'username'
+    }
   } catch (err) {
     console.error('获取配置失败', err)
   }
@@ -149,6 +160,18 @@ const handleSubmit = async () => {
     return
   }
 
+  // 验证昵称
+  if (nickname.value) {
+    if (nickname.value.length > 20) {
+      error.value = '昵称最大长度为 20 个字符'
+      return
+    }
+    if (!nicknameRegex.test(nickname.value)) {
+      error.value = '昵称只能包含中英文字母、数字和下划线'
+      return
+    }
+  }
+
   if (password.value !== confirmPassword.value) {
     error.value = '两次输入的密码不一致'
     return
@@ -159,20 +182,29 @@ const handleSubmit = async () => {
     return
   }
 
-  if (!securityQuestion.value.trim()) {
-    error.value = '请设置密保问题'
-    return
+  // 只有用户名注册模式下必须设置密保
+  if (registerMode.value === 'username') {
+    if (!securityQuestion.value.trim()) {
+      error.value = '请设置密保问题'
+      return
+    }
+
+    if (!securityAnswer.value.trim()) {
+      error.value = '请设置密保答案'
+      return
+    }
   }
 
-  if (!securityAnswer.value.trim()) {
-    error.value = '请设置密保答案'
-    return
-  }
-
-  // 如果填写了邮箱且SMTP开启，需要验证码
-  if (email.value && smtpEnabled.value && !code.value) {
-    error.value = '请输入邮箱验证码（或清空邮箱以跳过）'
-    return
+  // 邮箱注册模式：邮箱必填，验证码必填
+  if (registerMode.value === 'email') {
+    if (!email.value || !email.value.includes('@')) {
+      error.value = '请输入有效的邮箱地址'
+      return
+    }
+    if (!code.value) {
+      error.value = '请输入邮箱验证码'
+      return
+    }
   }
 
   loading.value = true
@@ -180,8 +212,8 @@ const handleSubmit = async () => {
   try {
     await authAPI.register({
       username: username.value,
-      email: email.value || undefined,
-      code: (email.value && smtpEnabled.value) ? code.value : undefined,
+      email: registerMode.value === 'email' ? email.value : undefined,
+      code: registerMode.value === 'email' ? code.value : undefined,
       nickname: nickname.value || username.value,
       password: password.value,
       security_question: securityQuestion.value,
@@ -231,6 +263,50 @@ const handleSubmit = async () => {
             <p class="text-slate-400 dark:text-slate-500 text-[10px] sm:text-xs font-black uppercase tracking-[0.2em] mt-0.5 font-mono">CREATE ACCESS CREDENTIAL</p>
           </div>
 
+          <!-- 注册模式切换（仅 SMTP 开启时显示） -->
+          <div v-if="smtpEnabled" class="flex gap-1 p-1 bg-slate-100 dark:bg-white/5 rounded-xl mb-3">
+            <button
+              type="button"
+              @click="registerMode = 'username'"
+              :class="[
+                'flex-1 flex flex-col items-center justify-center gap-1 py-2.5 rounded-lg text-[10px] font-black tracking-widest transition-all duration-300',
+                registerMode === 'username'
+                  ? 'bg-white dark:bg-white/10 text-blue-600 shadow-sm'
+                  : 'text-slate-400 hover:text-slate-600 dark:hover:text-white'
+              ]"
+            >
+              <User class="w-4 h-4" />
+              <span>仅用户名</span>
+            </button>
+            <button
+              type="button"
+              @click="registerMode = 'email'"
+              :class="[
+                'flex-1 flex flex-col items-center justify-center gap-1 py-2.5 rounded-lg text-[10px] font-black tracking-widest transition-all duration-300',
+                registerMode === 'email'
+                  ? 'bg-white dark:bg-white/10 text-cyan-600 shadow-sm'
+                  : 'text-slate-400 hover:text-slate-600 dark:hover:text-white'
+              ]"
+            >
+              <AtSign class="w-4 h-4" />
+              <span>绑定邮箱</span>
+            </button>
+          </div>
+
+          <!-- 模式提示 -->
+          <div class="mb-5 px-3">
+            <div 
+              class="flex items-center gap-2 p-2.5 rounded-xl text-[10px] font-bold transition-all duration-300"
+              :class="registerMode === 'username' ? 'bg-amber-500/5 text-amber-600 border border-amber-200/20' : 'bg-cyan-500/5 text-cyan-600 border border-cyan-200/20'"
+            >
+              <HelpCircle v-if="registerMode === 'username'" class="w-3.5 h-3.5" />
+              <ShieldCheck v-else class="w-3.5 h-3.5" />
+              <span>
+                {{ registerMode === 'username' ? '仅通过用户名注册，建议后续在“安全中心”补全联系方式以防遗忘。' : '绑定邮箱可用于找回密码与接收科研通知。' }}
+              </span>
+            </div>
+          </div>
+
           <form @submit.prevent="handleSubmit" class="space-y-2.5 sm:space-y-3">
             <div v-if="error" class="bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 text-red-500 px-2.5 py-2 rounded-xl mb-2.5 sm:mb-3 text-center text-xs font-bold animate-shake">
               {{ error }}
@@ -264,30 +340,33 @@ const handleSubmit = async () => {
               />
             </div>
 
-            <!-- 邮箱（可选） -->
-            <div class="space-y-2.5 sm:space-y-3">
+            <!-- 邮箱模式：邮箱+验证码（必填） -->
+            <div v-if="registerMode === 'email'" class="space-y-3 p-3 bg-cyan-500/5 dark:bg-cyan-500/10 rounded-2xl border border-cyan-500/20 group-focus-within:border-cyan-500/50 transition-all duration-300">
               <div class="relative group">
-                <div class="absolute left-0 pl-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-cyan-500 transition-colors pointer-events-none">
-                  <Mail class="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                <div class="absolute left-0 pl-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-cyan-500 transition-colors pointer-events-none">
+                  <Mail class="w-4 h-4" />
                 </div>
                 <input
                   v-model="email"
                   type="email"
+                  required
                   autocomplete="email"
-                  class="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-slate-100 pl-9 pr-2.5 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none transition-all placeholder:text-slate-500/50 text-xs sm:text-sm font-bold"
-                  placeholder="联系邮箱（可选，可在注册后绑定）"
+                  class="w-full bg-white/50 dark:bg-black/40 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-slate-100 pl-10 pr-3 py-2.5 sm:py-3 rounded-xl focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none transition-all placeholder:text-slate-500/50 text-xs sm:text-sm font-bold"
+                  placeholder="注册邮箱（必填）"
                 />
               </div>
 
-              <div v-if="email && smtpEnabled" class="relative group flex gap-2">
+              <!-- 验证码（邮箱模式必填） -->
+              <div class="relative group flex gap-2">
                 <div class="relative flex-1 group">
-                  <div class="absolute left-0 pl-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-cyan-500 transition-colors pointer-events-none">
-                    <ShieldCheck class="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  <div class="absolute left-0 pl-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-cyan-500 transition-colors pointer-events-none">
+                    <ShieldCheck class="w-4 h-4" />
                   </div>
                   <input
                     v-model="code"
                     type="text"
-                    class="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-slate-100 pl-9 pr-2.5 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none transition-all placeholder:text-slate-500/50 text-xs sm:text-sm font-bold"
+                    required
+                    class="w-full bg-white/50 dark:bg-black/40 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-slate-100 pl-10 pr-3 py-2.5 sm:py-3 rounded-xl focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none transition-all placeholder:text-slate-500/50 text-xs sm:text-sm font-bold"
                     placeholder="邮箱验证码"
                   />
                 </div>
@@ -295,46 +374,46 @@ const handleSubmit = async () => {
                   type="button"
                   @click="handleSendCode"
                   :disabled="codeLoading || countdown > 0"
-                  class="px-3 sm:px-4 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 hover:bg-cyan-500/20 disabled:opacity-50 border border-cyan-500/20 min-w-[70px]"
+                  class="px-5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all bg-cyan-600 text-white hover:bg-cyan-700 disabled:opacity-50 disabled:bg-slate-400 shadow-md shadow-cyan-500/20 min-w-[90px]"
                 >
-                  {{ countdown > 0 ? `${countdown}S` : '发送' }}
+                  {{ countdown > 0 ? `${countdown}S` : (codeLoading ? '...' : '获取') }}
                 </button>
               </div>
             </div>
 
             <!-- 密码 -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5 sm:gap-3">
+            <div class="space-y-3">
               <div class="relative group">
-                <div class="absolute left-0 pl-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-blue-500 transition-colors pointer-events-none">
-                  <Lock class="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                <div class="absolute left-0 pl-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors pointer-events-none">
+                  <Lock class="w-4 h-4" />
                 </div>
                 <input
                   v-model="password"
                   type="password"
                   required
                   autocomplete="new-password"
-                  class="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-slate-100 pl-9 pr-2.5 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all placeholder:text-slate-500/50 text-xs sm:text-sm font-bold"
+                  class="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-slate-100 pl-10 pr-3 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all placeholder:text-slate-500/50 text-xs sm:text-sm font-bold"
                   placeholder="入职密钥"
                 />
               </div>
 
               <div class="relative group">
-                <div class="absolute left-0 pl-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-blue-500 transition-colors pointer-events-none">
-                  <ShieldCheck class="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                <div class="absolute left-0 pl-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors pointer-events-none">
+                  <ShieldCheck class="w-4 h-4" />
                 </div>
                 <input
                   v-model="confirmPassword"
                   type="password"
                   required
                   autocomplete="new-password"
-                  class="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-slate-100 pl-9 pr-2.5 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all placeholder:text-slate-500/50 text-xs sm:text-sm font-bold"
+                  class="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-slate-100 pl-10 pr-3 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all placeholder:text-slate-500/50 text-xs sm:text-sm font-bold"
                   placeholder="确认密钥"
                 />
               </div>
             </div>
 
             <!-- 密保设置 -->
-            <div class="border border-amber-200/50 dark:border-amber-500/20 rounded-xl sm:rounded-2xl p-2.5 sm:p-3 space-y-2 bg-amber-50/50 dark:bg-amber-500/5">
+            <div v-if="registerMode === 'username'" class="border border-amber-200/50 dark:border-amber-500/20 rounded-xl sm:rounded-2xl p-2.5 sm:p-3 space-y-2 bg-amber-50/50 dark:bg-amber-500/5">
               <p class="text-[10px] sm:text-xs font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest flex items-center gap-1.5">
                 <HelpCircle class="w-3.5 h-3.5" />
                 密保问题（用于无邮箱时验证身份）
@@ -343,7 +422,7 @@ const handleSubmit = async () => {
                 <input
                   v-model="securityQuestion"
                   type="text"
-                  required
+                  :required="registerMode === 'username'"
                   maxlength="200"
                   class="w-full bg-white dark:bg-black/20 border border-amber-200 dark:border-amber-500/30 text-slate-900 dark:text-slate-100 px-2.5 py-2 sm:py-2.5 rounded-xl focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none transition-all placeholder:text-slate-500/50 text-xs sm:text-sm font-bold"
                   placeholder="自定义密保问题（如：我的第一只宠物叫什么？）"
@@ -353,7 +432,7 @@ const handleSubmit = async () => {
                 <input
                   v-model="securityAnswer"
                   type="text"
-                  required
+                  :required="registerMode === 'username'"
                   maxlength="100"
                   class="w-full bg-white dark:bg-black/20 border border-amber-200 dark:border-amber-500/30 text-slate-900 dark:text-slate-100 px-2.5 py-2 sm:py-2.5 rounded-xl focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none transition-all placeholder:text-slate-500/50 text-xs sm:text-sm font-bold"
                   placeholder="密保答案"
@@ -375,53 +454,55 @@ const handleSubmit = async () => {
               </template>
             </button>
 
-            <div class="relative flex items-center py-1">
-              <div class="flex-grow border-t border-slate-100 dark:border-white/5"></div>
-              <span class="flex-shrink mx-2.5 text-[10px] sm:text-xs font-black text-slate-400 dark:text-slate-600 uppercase tracking-widest">OR</span>
-              <div class="flex-grow border-t border-slate-100 dark:border-white/5"></div>
-            </div>
+            <div v-if="hasOAuth">
+              <div class="relative flex items-center py-1">
+                <div class="flex-grow border-t border-slate-100 dark:border-white/5"></div>
+                <span class="flex-shrink mx-2.5 text-[10px] sm:text-xs font-black text-slate-400 dark:text-slate-600 uppercase tracking-widest">OR</span>
+                <div class="flex-grow border-t border-slate-100 dark:border-white/5"></div>
+              </div>
 
-            <div class="grid grid-cols-2 gap-2">
-              <button
-                v-if="githubEnabled"
-                type="button"
-                @click="handleOAuthLogin('github')"
-                :disabled="loading"
-                class="h-9 sm:h-10 bg-slate-50 dark:bg-black/40 hover:bg-white dark:hover:bg-black/60 text-slate-600 dark:text-slate-400 font-bold rounded-lg sm:rounded-xl touch-feedback transition-all text-[10px] sm:text-xs uppercase tracking-widest flex items-center justify-center gap-1.5 border border-slate-200 dark:border-white/5 hover:border-cyan-500/50"
-              >
-                <OAuthLogos provider="github" :size="14" class="text-slate-800 dark:text-white" />
-                GitHub
-              </button>
-              <button
-                v-if="msEnabled"
-                type="button"
-                @click="handleOAuthLogin('ms')"
-                :disabled="loading"
-                class="h-9 sm:h-10 bg-slate-50 dark:bg-black/40 hover:bg-white dark:hover:bg-black/60 text-slate-600 dark:text-slate-400 font-bold rounded-lg sm:rounded-xl touch-feedback transition-all text-[10px] sm:text-xs uppercase tracking-widest flex items-center justify-center gap-1.5 border border-slate-200 dark:border-white/5 hover:border-blue-500/50"
-              >
-                <OAuthLogos provider="microsoft" :size="14" />
-                Microsoft
-              </button>
-              <button
-                v-if="googleEnabled"
-                type="button"
-                @click="handleOAuthLogin('google')"
-                :disabled="loading"
-                class="h-9 sm:h-10 bg-slate-50 dark:bg-black/40 hover:bg-white dark:hover:bg-black/60 text-slate-600 dark:text-slate-400 font-bold rounded-lg sm:rounded-xl touch-feedback transition-all text-[10px] sm:text-xs uppercase tracking-widest flex items-center justify-center gap-1.5 border border-slate-200 dark:border-white/5 hover:border-red-500/50"
-              >
-                <OAuthLogos provider="google" :size="14" />
-                Google
-              </button>
-              <button
-                v-if="appleEnabled"
-                type="button"
-                @click="handleOAuthLogin('apple')"
-                :disabled="loading"
-                class="h-9 sm:h-10 bg-slate-50 dark:bg-black/40 hover:bg-white dark:hover:bg-black/60 text-slate-600 dark:text-slate-400 font-bold rounded-lg sm:rounded-xl touch-feedback transition-all text-[10px] sm:text-xs uppercase tracking-widest flex items-center justify-center gap-1.5 border border-slate-200 dark:border-white/5 hover:border-slate-600/50"
-              >
-                <OAuthLogos provider="apple" :size="14" class="text-slate-800 dark:text-white" />
-                Apple ID
-              </button>
+              <div class="grid grid-cols-2 gap-2">
+                <button
+                  v-if="githubEnabled"
+                  type="button"
+                  @click="handleOAuthLogin('github')"
+                  :disabled="loading"
+                  class="h-9 sm:h-10 bg-slate-50 dark:bg-black/40 hover:bg-white dark:hover:bg-black/60 text-slate-600 dark:text-slate-400 font-bold rounded-lg sm:rounded-xl touch-feedback transition-all text-[10px] sm:text-xs uppercase tracking-widest flex items-center justify-center gap-1.5 border border-slate-200 dark:border-white/5 hover:border-cyan-500/50"
+                >
+                  <OAuthLogos provider="github" :size="14" class="text-slate-800 dark:text-white" />
+                  GitHub
+                </button>
+                <button
+                  v-if="msEnabled"
+                  type="button"
+                  @click="handleOAuthLogin('ms')"
+                  :disabled="loading"
+                  class="h-9 sm:h-10 bg-slate-50 dark:bg-black/40 hover:bg-white dark:hover:bg-black/60 text-slate-600 dark:text-slate-400 font-bold rounded-lg sm:rounded-xl touch-feedback transition-all text-[10px] sm:text-xs uppercase tracking-widest flex items-center justify-center gap-1.5 border border-slate-200 dark:border-white/5 hover:border-blue-500/50"
+                >
+                  <OAuthLogos provider="microsoft" :size="14" />
+                  Microsoft
+                </button>
+                <button
+                  v-if="googleEnabled"
+                  type="button"
+                  @click="handleOAuthLogin('google')"
+                  :disabled="loading"
+                  class="h-9 sm:h-10 bg-slate-50 dark:bg-black/40 hover:bg-white dark:hover:bg-black/60 text-slate-600 dark:text-slate-400 font-bold rounded-lg sm:rounded-xl touch-feedback transition-all text-[10px] sm:text-xs uppercase tracking-widest flex items-center justify-center gap-1.5 border border-slate-200 dark:border-white/5 hover:border-red-500/50"
+                >
+                  <OAuthLogos provider="google" :size="14" />
+                  Google
+                </button>
+                <button
+                  v-if="appleEnabled"
+                  type="button"
+                  @click="handleOAuthLogin('apple')"
+                  :disabled="loading"
+                  class="h-9 sm:h-10 bg-slate-50 dark:bg-black/40 hover:bg-white dark:hover:bg-black/60 text-slate-600 dark:text-slate-400 font-bold rounded-lg sm:rounded-xl touch-feedback transition-all text-[10px] sm:text-xs uppercase tracking-widest flex items-center justify-center gap-1.5 border border-slate-200 dark:border-white/5 hover:border-slate-600/50"
+                >
+                  <OAuthLogos provider="apple" :size="14" class="text-slate-800 dark:text-white" />
+                  Apple ID
+                </button>
+              </div>
             </div>
           </form>
 

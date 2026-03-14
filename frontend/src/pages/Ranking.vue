@@ -7,170 +7,281 @@
 
     <div class="relative z-10 flex flex-col min-h-screen">
       <!-- Top Navigation -->
-      <header class="px-6 py-4 border-b border-slate-200 dark:border-white/5 backdrop-blur-md bg-white/70 dark:bg-black/20 sticky top-0 z-50">
+      <header class="px-4 py-3 sm:px-6 sm:py-4 border-b border-slate-200 dark:border-white/5 backdrop-blur-md bg-white/70 dark:bg-black/20 sticky top-0 z-50">
         <div class="max-w-[1400px] mx-auto flex justify-between items-center">
-          <div class="flex items-center gap-4">
+          <div class="flex items-center gap-3">
             <button @click="router.push('/')" class="p-2 hover:bg-slate-200 dark:hover:bg-white/5 rounded-xl transition-all text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-white group">
               <ArrowLeft class="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
             </button>
             <div>
-              <h1 class="text-xl font-black text-slate-900 dark:text-white tracking-tighter flex items-center gap-2">
-                <Trophy class="w-5 h-5 text-amber-500" />
-                全球科研积分榜
+              <h1 class="text-base sm:text-xl font-black text-slate-900 dark:text-white tracking-tighter flex items-center gap-2">
+                <Trophy class="w-4 h-4 sm:w-5 sm:h-5 text-amber-500" />
+                全球积分排行榜
               </h1>
-              <p class="text-[9px] text-slate-500 font-mono uppercase tracking-[0.2em] mt-0.5">Global_Research_Leaderboard</p>
+              <p class="text-[8px] text-slate-500 font-mono uppercase tracking-[0.15em] mt-0.5 hidden sm:block">全球科研积分实时榜单</p>
             </div>
           </div>
         </div>
       </header>
 
-      <main class="flex-1 max-w-[1100px] mx-auto w-full px-4 sm:px-6 py-6">
+      <main class="flex-1 max-w-[1100px] mx-auto w-full px-3 sm:px-6 py-4 sm:py-6">
         <!-- Top Section: Mode Switch & Stats -->
-        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-          <!-- Mode Switch Tabs -->
-          <div class="flex items-center gap-1.5 bg-slate-200/50 dark:bg-white/5 p-1 rounded-2xl border border-slate-200 dark:border-white/5 w-fit">
-            <button 
-              @click="rankingMode = 'total'"
-              :class="cn(
-                'px-4 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all',
-                rankingMode === 'total' 
-                  ? 'bg-blue-600/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 shadow-sm' 
-                  : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-              )"
-            >
-              全量积分
-            </button>
+        <div class="flex flex-col gap-3 mb-4 sm:mb-6">
+          <!-- Row 1: Mode Switch + Search -->
+          <div class="flex items-center gap-2 sm:gap-3">
+            <!-- Mode Switch Tabs -->
+            <div class="flex items-center gap-1 bg-slate-200/50 dark:bg-white/5 p-1 rounded-xl border border-slate-200 dark:border-white/5 shrink-0">
+              <button
+                @click="rankingMode = 'total'"
+                :class="cn(
+                  'px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all',
+                  rankingMode === 'total'
+                    ? 'bg-blue-600/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                )"
+              >全量积分</button>
+              <button
+                @click="rankingMode = 'monthly'"
+                :class="cn(
+                  'px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all',
+                  rankingMode === 'monthly'
+                    ? 'bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                )"
+              >本月活跃</button>
+            </div>
 
-            <button 
-              @click="rankingMode = 'monthly'"
-              :class="cn(
-                'px-4 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all',
-                rankingMode === 'monthly' 
-                  ? 'bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 shadow-sm' 
-                  : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-              )"
-            >
-              本月活跃
-            </button>
-          </div>
-
-          <!-- Search Bar -->
-          <div class="flex-1 max-w-sm md:ml-2">
-             <div class="relative group">
-                <div class="absolute inset-0 bg-blue-500/5 rounded-xl blur group-focus-within:bg-blue-500/10 transition-all"></div>
-                <Search class="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
-                <input 
-                  v-model="searchTerm"
-                  placeholder="搜索 UID 或称号..."
-                  class="relative w-full h-10 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl pl-10 pr-4 text-[11px] text-slate-700 dark:text-white focus:outline-none focus:border-blue-500/50 transition-all font-medium"
-                />
-                <div v-if="isSearching" class="absolute right-3 top-1/2 -translate-y-1/2">
-                  <Loader2 class="w-3.5 h-3.5 text-blue-500 animate-spin" />
-                </div>
-             </div>
-          </div>
-
-          <!-- Compact Stats Overview -->
-          <div class="flex flex-wrap items-center gap-2">
-            <div class="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl px-3 py-2 flex items-center gap-2 shadow-sm group hover:border-amber-500/30 transition-colors">
-              <div class="w-7 h-7 bg-amber-500/10 border border-amber-500/20 rounded-lg flex items-center justify-center text-amber-500 shrink-0">
-                <Target class="w-3.5 h-3.5" />
-              </div>
-              <div class="flex flex-col">
-                <span class="text-[7px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none mb-0.5">Decay</span>
-                <p class="text-[10px] font-bold text-slate-600 dark:text-slate-300 leading-tight">前10%每周衰减2%</p>
+            <!-- Search Bar -->
+            <div class="flex-1 relative group">
+              <div class="absolute inset-0 bg-blue-500/5 rounded-xl blur group-focus-within:bg-blue-500/10 transition-all"></div>
+              <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
+              <input
+                v-model="searchTerm"
+                placeholder="搜索玩家..."
+                class="relative w-full h-9 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl pl-9 pr-4 text-[11px] text-slate-700 dark:text-white focus:outline-none focus:border-blue-500/50 transition-all font-medium"
+              />
+              <div v-if="isSearching" class="absolute right-3 top-1/2 -translate-y-1/2">
+                <Loader2 class="w-3.5 h-3.5 text-blue-500 animate-spin" />
               </div>
             </div>
-            <div class="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl px-3 py-2 flex items-center gap-2 shadow-sm group hover:border-blue-500/30 transition-colors">
-              <div class="w-7 h-7 bg-blue-500/10 border border-blue-500/20 rounded-lg flex items-center justify-center text-blue-500 shrink-0">
-                <RefreshCw class="w-3.5 h-3.5" />
+          </div>
+
+          <!-- Row 2: Stats chips -->
+          <div class="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap sm:gap-2">
+            <div class="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl px-2.5 py-2 flex items-center gap-1.5 shadow-sm">
+              <div class="w-6 h-6 bg-amber-500/10 border border-amber-500/20 rounded-lg flex items-center justify-center text-amber-500 shrink-0">
+                <Target class="w-3 h-3" />
               </div>
-              <div class="flex flex-col">
-                <span class="text-[7px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none mb-0.5">Status</span>
-                <p class="text-[10px] font-bold text-slate-600 dark:text-slate-300 leading-tight">赛季活跃中</p>
+              <div class="flex flex-col min-w-0">
+                <span class="text-[7px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none mb-0.5">衰减</span>
+                <p class="text-[9px] font-bold text-slate-600 dark:text-slate-300 leading-tight truncate">前10%每周-2%</p>
               </div>
             </div>
-            <div class="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl px-3 py-2 flex items-center gap-2 shadow-sm group hover:border-purple-500/30 transition-colors">
-              <div class="w-7 h-7 bg-purple-500/10 border border-purple-500/20 rounded-lg flex items-center justify-center text-purple-500 shrink-0">
-                <ShieldCheck class="w-3.5 h-3.5" />
+            <div class="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl px-2.5 py-2 flex items-center gap-1.5 shadow-sm">
+              <div class="w-6 h-6 bg-blue-500/10 border border-blue-500/20 rounded-lg flex items-center justify-center text-blue-500 shrink-0">
+                <RefreshCw class="w-3 h-3" />
               </div>
-              <div class="flex flex-col">
-                <span class="text-[7px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none mb-0.5">Total</span>
-                <p class="text-[10px] font-bold text-slate-600 dark:text-slate-300 leading-tight">{{ leaderboard.length }} 名研究员</p>
+              <div class="flex flex-col min-w-0">
+                <span class="text-[7px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none mb-0.5">赛季</span>
+                <p class="text-[9px] font-bold text-slate-600 dark:text-slate-300 leading-tight">活跃中</p>
+              </div>
+            </div>
+            <div class="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl px-2.5 py-2 flex items-center gap-1.5 shadow-sm">
+              <div class="w-6 h-6 bg-purple-500/10 border border-purple-500/20 rounded-lg flex items-center justify-center text-purple-500 shrink-0">
+                <ShieldCheck class="w-3 h-3" />
+              </div>
+              <div class="flex flex-col min-w-0">
+                <span class="text-[7px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none mb-0.5">总数</span>
+                <p class="text-[9px] font-bold text-slate-600 dark:text-slate-300 leading-tight">{{ leaderboard.length }}人</p>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Leaderboard Table -->
-        <div class="bg-white/80 dark:bg-[#121216]/60 backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-[24px] overflow-hidden shadow-2xl dark:shadow-none">
+        <!-- Leaderboard Container -->
+        <div class="bg-white/80 dark:bg-[#121216]/60 backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-[20px] sm:rounded-[24px] overflow-hidden shadow-2xl dark:shadow-none">
           <div v-if="loading" class="py-20 flex flex-col items-center justify-center">
             <Loader2 class="w-8 h-8 animate-spin text-blue-500 mb-3" />
-            <p class="text-[9px] font-black uppercase tracking-widest text-slate-500">Accessing_Database</p>
+            <p class="text-[9px] font-black uppercase tracking-widest text-slate-500">加载排行榜...</p>
           </div>
-          <div v-else class="overflow-x-auto">
-            <table class="w-full border-collapse">
-              <thead>
-                <tr class="bg-slate-50/50 dark:bg-white/[0.02] border-b border-slate-100 dark:border-white/5 text-left">
-                  <th class="px-6 py-4 text-[9px] font-black text-slate-500 uppercase tracking-widest">{{ searchTerm ? 'Match' : 'Rank' }}</th>
-                  <th class="px-5 py-4 text-[9px] font-black text-slate-500 uppercase tracking-widest">Researcher</th>
-                  <th class="px-5 py-4 text-[9px] font-black text-slate-500 uppercase tracking-widest">Points</th>
-                  <th class="px-5 py-4 text-[9px] font-black text-slate-500 uppercase tracking-widest">Bonus</th>
-                  <th class="px-6 py-4 text-[9px] font-black text-slate-500 uppercase tracking-widest text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-slate-100 dark:divide-white/5">
-                <tr 
-                  v-for="(player, idx) in (searchTerm ? searchResults : leaderboard)" 
-                  :key="player.uid"
-                  :class="cn(
-                    'group transition-colors',
-                    Number(player.uid) === Number(user.uid) ? 'bg-blue-50/70 dark:bg-blue-500/[0.03]' : 'hover:bg-slate-50/50 dark:hover:bg-white/[0.02]'
-                  )"
+          <div v-else>
+            <!-- ===== Mobile Card List (hidden on sm+) ===== -->
+            <div class="sm:hidden divide-y divide-slate-100 dark:divide-white/5">
+              <div
+                v-for="(player, idx) in (searchTerm ? searchResults : leaderboard)"
+                :key="player.uid"
+                :class="cn(
+                  'flex items-center gap-2.5 px-3 py-3 transition-colors',
+                  Number(player.uid) === Number(user.uid) ? 'bg-blue-50/70 dark:bg-blue-500/[0.04]' : 'active:bg-slate-50 dark:active:bg-white/[0.02]'
+                )"
+              >
+                <!-- Rank badge -->
+                <span :class="cn(
+                  'w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-black italic shadow shrink-0',
+                  (!searchTerm ? idx : (rankingMode === 'monthly' ? player.monthly_rank : player.rank) - 1) === 0 ? 'bg-amber-500 text-amber-950' :
+                  (!searchTerm ? idx : (rankingMode === 'monthly' ? player.monthly_rank : player.rank) - 1) === 1 ? 'bg-slate-300 text-slate-900' :
+                  (!searchTerm ? idx : (rankingMode === 'monthly' ? player.monthly_rank : player.rank) - 1) === 2 ? 'bg-amber-700 text-white' :
+                  'bg-slate-100 dark:bg-white/5 text-slate-500'
+                )">
+                  {{ searchTerm ? (rankingMode === 'monthly' ? player.monthly_rank : player.rank) : idx + 1 }}
+                </span>
+
+                <!-- Avatar -->
+                <div
+                  @click="showResearcherProfile(player.uid)"
+                  class="relative w-10 h-10 rounded-xl bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-center justify-center overflow-hidden shrink-0 cursor-pointer active:scale-95 transition-transform shadow-inner"
                 >
-                  <td class="px-6 py-2">
-                    <div class="flex items-center gap-3">
-                      <template v-if="!searchTerm">
-                        <span :class="cn(
-                          'w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black italic shadow-lg',
-                          idx === 0 ? 'bg-amber-500 text-amber-950 dark:text-black' :
-                          idx === 1 ? 'bg-slate-300 text-slate-900 dark:text-black' :
-                          idx === 2 ? 'bg-amber-700 text-white' :
-                          'bg-slate-100 dark:bg-white/5 text-slate-500'
-                        )">
-                          {{ idx + 1 }}
-                        </span>
-                      </template>
-                      <template v-else>
-                        <span :class="cn(
-                          'w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black italic shadow-lg',
-                          (rankingMode === 'monthly' ? player.monthly_rank : player.rank) === 1 ? 'bg-amber-500 text-amber-950 dark:text-black' :
-                          (rankingMode === 'monthly' ? player.monthly_rank : player.rank) === 2 ? 'bg-slate-300 text-slate-900 dark:text-black' :
-                          (rankingMode === 'monthly' ? player.monthly_rank : player.rank) === 3 ? 'bg-amber-700 text-white' :
-                          'bg-slate-100 dark:bg-white/5 text-slate-500'
-                        )">
-                          {{ rankingMode === 'monthly' ? player.monthly_rank : player.rank }}
-                        </span>
-                      </template>
+                  <UserAvatar :avatar="player.avatar" />
+                  <div v-if="player.is_online" class="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-white dark:border-[#121216] rounded-full"></div>
+                </div>
+
+                <!-- Name + meta -->
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-1 flex-wrap">
+                    <span
+                      @click="showResearcherProfile(player.uid)"
+                      class="text-xs font-black text-slate-900 dark:text-white truncate cursor-pointer hover:text-blue-500 transition-colors max-w-[120px]"
+                    >{{ player.nickname || player.username }}</span>
+                    <span v-if="Number(player.uid) === Number(user.uid)" class="text-[7px] bg-blue-600 px-1 py-0.5 rounded font-black text-white shrink-0">我</span>
+                    <span v-if="player.is_banned" class="text-[7px] bg-red-600 px-1 py-0.5 rounded font-black text-white animate-pulse shrink-0">作弊</span>
+                  </div>
+                  <div class="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                    <div class="flex items-center gap-0.5 bg-slate-100 dark:bg-white/5 px-1.5 py-0.5 rounded border border-slate-200 dark:border-white/5">
+                      <LevelBadge :level="player.level || 1" :tier="player.tier" :tier-name="player.tier_name" size="xs" :show-level="false" />
+                      <span class="text-[7px] font-black text-slate-500 dark:text-slate-400">Lv.{{ player.level || 1 }}</span>
                     </div>
-                  </td>
-                  <td class="px-5 py-2">
-                    <div class="flex items-center gap-3">
-                       <div 
-                         @click="showResearcherProfile(player.uid)"
-                         class="relative w-8 h-8 rounded-lg bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-center justify-center text-sm overflow-hidden shrink-0 cursor-pointer hover:ring-2 hover:ring-blue-500/50 transition-all shadow-inner"
-                       >
+                    <span v-if="player.total_games > 0" class="text-[7px] text-slate-400">胜率 {{ Math.round((player.win_count / player.total_games) * 100) }}%</span>
+                    <span :class="['text-[7px] font-bold', player.is_online ? 'text-emerald-500' : 'text-slate-400/70']">
+                      {{ player.is_online ? '在线' : formatLastOfflineText(player.last_offline_at) }}
+                    </span>
+                    <span v-if="player.bounty > 0" class="flex items-center gap-0.5 text-rose-500">
+                      <Flame class="w-2.5 h-2.5" />
+                      <span class="text-[7px] font-black">{{ player.bounty }}</span>
+                    </span>
+                  </div>
+                </div>
+
+                <!-- Points + action buttons -->
+                <div class="flex flex-col items-end gap-1.5 shrink-0">
+                  <span class="text-sm font-black text-slate-900 dark:text-white font-mono leading-none">
+                    {{ Math.floor(rankingMode === 'monthly' ? player.monthly_points : player.points) }}
+                  </span>
+                  <div v-if="Number(player.uid) !== Number(user.uid)" class="flex items-center gap-1">
+                    <button v-if="player.is_online" @click="handleDuel(player)" title="单挑"
+                      class="p-1.5 bg-blue-600/10 hover:bg-blue-600 text-blue-600 hover:text-white border border-blue-500/20 rounded-lg transition-all active:scale-95">
+                      <Swords class="w-3 h-3" />
+                    </button>
+                    <button @click="openBountyModal(player)" title="悬赏"
+                      class="p-1.5 bg-rose-600/10 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-500/20 rounded-lg transition-all active:scale-95">
+                      <Crosshair class="w-3 h-3" />
+                    </button>
+                    <button v-if="!isFriend(player.uid)" @click="handleAddFriend(player)" title="加好友"
+                      class="p-1.5 bg-amber-600/10 hover:bg-amber-600 text-amber-600 hover:text-white border border-amber-500/20 rounded-lg transition-all active:scale-95">
+                      <UserPlus class="w-3 h-3" />
+                    </button>
+                    <button v-else @click="startPrivateChat(player)" title="私信"
+                      class="p-1.5 bg-emerald-600/10 hover:bg-emerald-600 text-emerald-600 hover:text-white border border-emerald-500/20 rounded-lg transition-all active:scale-95">
+                      <MessageCircle class="w-3 h-3" />
+                    </button>
+                  </div>
+                  <span v-else class="text-[7px] font-black text-blue-600 dark:text-blue-500 uppercase tracking-wider italic">本人</span>
+                </div>
+              </div>
+
+              <!-- 自我排名 (Mobile) -->
+              <div
+                v-if="!searchTerm && myRankInfo && !leaderboard.find(p => Number(p.uid) === Number(user.uid))"
+                class="flex items-center gap-2.5 px-3 py-3 bg-blue-50/50 dark:bg-blue-500/[0.05] border-t-2 border-dashed border-blue-200 dark:border-blue-500/20"
+              >
+                <span class="w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-black italic bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 shrink-0">
+                  {{ myRankInfo.rank }}
+                </span>
+                <div class="relative w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-500/20 border border-blue-200 dark:border-blue-500/30 flex items-center justify-center overflow-hidden shrink-0 shadow-inner">
+                  <UserAvatar :avatar="myRankInfo.avatar" />
+                  <div v-if="myRankInfo.is_online" class="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-white dark:border-[#121216] rounded-full"></div>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-1">
+                    <span class="text-xs font-black text-blue-600 dark:text-blue-400 truncate max-w-[120px]">{{ myRankInfo.nickname || myRankInfo.username }}</span>
+                    <span class="text-[7px] bg-blue-600 px-1 py-0.5 rounded font-black text-white shrink-0">我</span>
+                  </div>
+                  <div class="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                    <div class="flex items-center gap-0.5 bg-blue-500/10 dark:bg-blue-500/5 px-1.5 py-0.5 rounded border border-blue-500/20">
+                      <LevelBadge :level="myRankInfo.level || 1" :tier="myRankInfo.tier" :tier-name="myRankInfo.tier_name" size="xs" :show-level="false" />
+                      <span class="text-[7px] font-black text-blue-600 dark:text-blue-400">Lv.{{ myRankInfo.level || 1 }}</span>
+                    </div>
+                    <span class="text-[7px] text-blue-400/60">百名开外</span>
+                  </div>
+                </div>
+                <div class="flex flex-col items-end shrink-0">
+                  <span class="text-sm font-black text-blue-600 dark:text-blue-400 font-mono">
+                    {{ Math.floor(rankingMode === 'monthly' ? myRankInfo.monthly_points : myRankInfo.points) }}
+                  </span>
+                  <span class="text-[7px] font-black text-blue-600 dark:text-blue-500 uppercase tracking-wider italic mt-0.5">已认证</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- ===== Desktop Table (hidden below sm) ===== -->
+            <div class="hidden sm:block overflow-x-auto">
+              <table class="w-full border-collapse">
+                <thead>
+                  <tr class="bg-slate-50/50 dark:bg-white/[0.02] border-b border-slate-100 dark:border-white/5 text-left">
+                    <th class="px-6 py-4 text-[9px] font-black text-slate-500 uppercase tracking-widest">{{ searchTerm ? '搜索' : '排名' }}</th>
+                    <th class="px-5 py-4 text-[9px] font-black text-slate-500 uppercase tracking-widest">玩家</th>
+                    <th class="px-5 py-4 text-[9px] font-black text-slate-500 uppercase tracking-widest">积分</th>
+                    <th class="px-5 py-4 text-[9px] font-black text-slate-500 uppercase tracking-widest">悬赏</th>
+                    <th class="px-6 py-4 text-[9px] font-black text-slate-500 uppercase tracking-widest text-right">操作</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 dark:divide-white/5">
+                  <tr
+                    v-for="(player, idx) in (searchTerm ? searchResults : leaderboard)"
+                    :key="player.uid"
+                    :class="cn(
+                      'group transition-colors',
+                      Number(player.uid) === Number(user.uid) ? 'bg-blue-50/70 dark:bg-blue-500/[0.03]' : 'hover:bg-slate-50/50 dark:hover:bg-white/[0.02]'
+                    )"
+                  >
+                    <td class="px-6 py-2">
+                      <div class="flex items-center gap-3">
+                        <template v-if="!searchTerm">
+                          <span :class="cn(
+                            'w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black italic shadow-lg',
+                            idx === 0 ? 'bg-amber-500 text-amber-950 dark:text-black' :
+                            idx === 1 ? 'bg-slate-300 text-slate-900 dark:text-black' :
+                            idx === 2 ? 'bg-amber-700 text-white' :
+                            'bg-slate-100 dark:bg-white/5 text-slate-500'
+                          )">{{ idx + 1 }}</span>
+                        </template>
+                        <template v-else>
+                          <span :class="cn(
+                            'w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black italic shadow-lg',
+                            (rankingMode === 'monthly' ? player.monthly_rank : player.rank) === 1 ? 'bg-amber-500 text-amber-950 dark:text-black' :
+                            (rankingMode === 'monthly' ? player.monthly_rank : player.rank) === 2 ? 'bg-slate-300 text-slate-900 dark:text-black' :
+                            (rankingMode === 'monthly' ? player.monthly_rank : player.rank) === 3 ? 'bg-amber-700 text-white' :
+                            'bg-slate-100 dark:bg-white/5 text-slate-500'
+                          )">{{ rankingMode === 'monthly' ? player.monthly_rank : player.rank }}</span>
+                        </template>
+                      </div>
+                    </td>
+                    <td class="px-5 py-2">
+                      <div class="flex items-center gap-3">
+                        <div
+                          @click="showResearcherProfile(player.uid)"
+                          class="relative w-8 h-8 rounded-lg bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-center justify-center text-sm overflow-hidden shrink-0 cursor-pointer hover:ring-2 hover:ring-blue-500/50 transition-all shadow-inner"
+                        >
                           <UserAvatar :avatar="player.avatar" />
                           <div v-if="player.is_online" class="absolute bottom-0 right-0 w-2 h-2 bg-emerald-500 border-2 border-white dark:border-[#121216] rounded-full"></div>
-                       </div>
-                       <div class="flex flex-col">
-                          <span 
+                        </div>
+                        <div class="flex flex-col">
+                          <span
                             @click="showResearcherProfile(player.uid)"
                             class="text-xs font-black text-slate-900 dark:text-white group-hover:text-blue-500 transition-colors flex items-center gap-1.5 flex-wrap cursor-pointer"
                           >
                             {{ player.nickname || player.username }}
-                            <span v-if="Number(player.uid) === Number(user.uid)" class="text-[7px] bg-blue-600 px-1 py-0.5 rounded uppercase font-black tracking-widest text-white">You</span>
-                            <span v-if="player.is_banned" class="text-[7px] bg-red-600 px-1 py-0.5 rounded uppercase font-black tracking-widest text-white animate-pulse">CHEATER</span>
+                            <span v-if="Number(player.uid) === Number(user.uid)" class="text-[7px] bg-blue-600 px-1 py-0.5 rounded uppercase font-black tracking-widest text-white">我</span>
+                            <span v-if="player.is_banned" class="text-[7px] bg-red-600 px-1 py-0.5 rounded uppercase font-black tracking-widest text-white animate-pulse">作弊</span>
                           </span>
                           <div class="flex items-center gap-2 mt-0.5 flex-wrap">
                             <span class="text-[7px] font-mono text-slate-400 dark:text-slate-500 uppercase tracking-tighter">UID: {{ player.uid }}</span>
@@ -178,104 +289,71 @@
                               <LevelBadge :level="player.level || 1" :tier="player.tier" :tier-name="player.tier_name" size="xs" :show-level="false" />
                               <span class="text-[7px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Lv.{{ player.level || 1 }} {{ player.tier_name || '实习研究员' }}</span>
                             </div>
-                            <span v-if="player.total_games > 0" class="text-[6px] font-bold text-slate-400/80 uppercase tracking-widest hidden sm:inline-block">
-                              Win Rate: {{ Math.round((player.win_count / player.total_games) * 100) }}% ({{ player.total_games }} Sessions)
+                            <span v-if="player.total_games > 0" class="text-[6px] font-bold text-slate-400/80 uppercase tracking-widest">
+                              胜率: {{ Math.round((player.win_count / player.total_games) * 100) }}% ({{ player.total_games }}场)
                             </span>
-                            <span
-                              class="text-[6px] font-bold uppercase tracking-widest"
-                              :class="player.is_online ? 'text-emerald-500' : 'text-slate-400/80'"
-                            >
+                            <span :class="['text-[6px] font-bold uppercase tracking-widest', player.is_online ? 'text-emerald-500' : 'text-slate-400/80']">
                               {{ player.is_online ? '在线' : '上次下线 · ' + formatLastOfflineText(player.last_offline_at) }}
                             </span>
                           </div>
-                       </div>
-                    </div>
-                  </td>
-                  <td class="px-5 py-2">
-                    <div class="flex flex-col">
-                       <span class="text-sm font-black text-slate-900 dark:text-white font-mono tracking-tighter">
-                         {{ Math.floor(rankingMode === 'monthly' ? player.monthly_points : player.points) }}
-                       </span>
-                    </div>
-                  </td>
-                  <td class="px-5 py-2">
-                    <div v-if="player.bounty > 0" class="flex flex-col">
-                       <div class="flex items-center gap-1 text-rose-500">
-                          <Flame class="w-2.5 h-2.5" />
-                          <span class="text-xs font-black font-mono tracking-tighter">{{ player.bounty }}</span>
-                       </div>
-                    </div>
-                    <div v-else class="text-[7px] font-bold text-slate-400 dark:text-slate-600 uppercase italic opacity-40 leading-none">
-                      Std
-                    </div>
-                  </td>
-                  <td class="px-6 py-2 text-right">
-                    <div v-if="Number(player.uid) !== Number(user.uid)" class="flex items-center justify-end gap-1.5">
-                      <button 
-                        v-if="player.is_online"
-                        @click="handleDuel(player)"
-                        title="Duel Protocol"
-                        class="p-2 bg-blue-600/10 hover:bg-blue-600 text-blue-600 hover:text-white border border-blue-500/20 rounded-lg transition-all active:scale-95 shadow-sm"
-                      >
-                        <Swords class="w-3 h-3" />
-                      </button>
-                      <button 
-                        @click="openBountyModal(player)"
-                        title="Issue Bounty"
-                        class="p-2 bg-rose-600/10 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-500/20 rounded-lg transition-all active:scale-95 shadow-sm"
-                      >
-                        <Crosshair class="w-3 h-3" />
-                      </button>
-                      <button 
-                        v-if="!isFriend(player.uid)"
-                        @click="handleAddFriend(player)"
-                        title="Add Friend"
-                        class="p-2 bg-amber-600/10 hover:bg-amber-600 text-amber-600 hover:text-white border border-amber-500/20 rounded-lg transition-all active:scale-95 shadow-sm"
-                      >
-                        <UserPlus class="w-3 h-3" />
-                      </button>
-                      <button 
-                        v-else
-                        @click="startPrivateChat(player)"
-                        title="Private Message"
-                        class="p-2 bg-emerald-600/10 hover:bg-emerald-600 text-emerald-600 hover:text-white border border-emerald-500/20 rounded-lg transition-all active:scale-95 shadow-sm"
-                      >
-                        <MessageCircle class="w-3 h-3" />
-                      </button>
-                    </div>
-                    <div v-else class="text-[8px] font-black text-blue-600 dark:text-blue-500 uppercase tracking-widest italic pr-1">
-                      Master
-                    </div>
-                  </td>
-                </tr>
+                        </div>
+                      </div>
+                    </td>
+                    <td class="px-5 py-2">
+                      <span class="text-sm font-black text-slate-900 dark:text-white font-mono tracking-tighter">
+                        {{ Math.floor(rankingMode === 'monthly' ? player.monthly_points : player.points) }}
+                      </span>
+                    </td>
+                    <td class="px-5 py-2">
+                      <div v-if="player.bounty > 0" class="flex items-center gap-1 text-rose-500">
+                        <Flame class="w-2.5 h-2.5" />
+                        <span class="text-xs font-black font-mono tracking-tighter">{{ player.bounty }}</span>
+                      </div>
+                      <div v-else class="text-[7px] font-bold text-slate-400 dark:text-slate-600 uppercase italic opacity-40 leading-none">—</div>
+                    </td>
+                    <td class="px-6 py-2 text-right">
+                      <div v-if="Number(player.uid) !== Number(user.uid)" class="flex items-center justify-end gap-1.5">
+                        <button v-if="player.is_online" @click="handleDuel(player)" title="单挑"
+                          class="p-2 bg-blue-600/10 hover:bg-blue-600 text-blue-600 hover:text-white border border-blue-500/20 rounded-lg transition-all active:scale-95 shadow-sm">
+                          <Swords class="w-3 h-3" />
+                        </button>
+                        <button @click="openBountyModal(player)" title="发布悬赏"
+                          class="p-2 bg-rose-600/10 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-500/20 rounded-lg transition-all active:scale-95 shadow-sm">
+                          <Crosshair class="w-3 h-3" />
+                        </button>
+                        <button v-if="!isFriend(player.uid)" @click="handleAddFriend(player)" title="加好友"
+                          class="p-2 bg-amber-600/10 hover:bg-amber-600 text-amber-600 hover:text-white border border-amber-500/20 rounded-lg transition-all active:scale-95 shadow-sm">
+                          <UserPlus class="w-3 h-3" />
+                        </button>
+                        <button v-else @click="startPrivateChat(player)" title="私信"
+                          class="p-2 bg-emerald-600/10 hover:bg-emerald-600 text-emerald-600 hover:text-white border border-emerald-500/20 rounded-lg transition-all active:scale-95 shadow-sm">
+                          <MessageCircle class="w-3 h-3" />
+                        </button>
+                      </div>
+                      <div v-else class="text-[8px] font-black text-blue-600 dark:text-blue-500 uppercase tracking-widest italic pr-1">本人</div>
+                    </td>
+                  </tr>
 
-                <!-- 自我排名展示 (当不在前100名且未搜索时) -->
-                <tr 
-                  v-if="!searchTerm && myRankInfo && !leaderboard.find(p => Number(p.uid) === Number(user.uid))"
-                  class="bg-blue-50/50 dark:bg-blue-500/[0.05] border-t-2 border-dashed border-slate-200 dark:border-white/10"
-                >
-                  <td class="px-6 py-3">
-                    <div class="flex items-center gap-3">
-                        <span class="w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black italic bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400">
-                          {{ myRankInfo.rank }}
-                        </span>
-                    </div>
-                  </td>
-                  <td class="px-5 py-3">
-                    <div class="flex items-center gap-3">
-                       <div class="relative w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-500/20 border border-blue-200 dark:border-blue-500/30 flex items-center justify-center text-sm overflow-hidden shrink-0 shadow-inner">
-                          <template v-if="(myRankInfo.avatar || '').length > 50">
-                            <img :src="myRankInfo.avatar" class="w-full h-full object-cover" />
-                          </template>
-                          <template v-else>
-                            {{ myRankInfo.avatar || '🧪' }}
-                          </template>
+                  <!-- 自我排名展示 (Desktop, 当不在前100名且未搜索时) -->
+                  <tr
+                    v-if="!searchTerm && myRankInfo && !leaderboard.find(p => Number(p.uid) === Number(user.uid))"
+                    class="bg-blue-50/50 dark:bg-blue-500/[0.05] border-t-2 border-dashed border-slate-200 dark:border-white/10"
+                  >
+                    <td class="px-6 py-3">
+                      <span class="w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black italic bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400">
+                        {{ myRankInfo.rank }}
+                      </span>
+                    </td>
+                    <td class="px-5 py-3">
+                      <div class="flex items-center gap-3">
+                        <div class="relative w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-500/20 border border-blue-200 dark:border-blue-500/30 flex items-center justify-center text-sm overflow-hidden shrink-0 shadow-inner">
+                          <UserAvatar :avatar="myRankInfo.avatar" />
                           <div v-if="myRankInfo.is_online" class="absolute bottom-0 right-0 w-2 h-2 bg-emerald-500 border-2 border-white dark:border-[#121216] rounded-full"></div>
-                       </div>
-                       <div class="flex flex-col">
+                        </div>
+                        <div class="flex flex-col">
                           <span class="text-xs font-black text-blue-600 dark:text-blue-400 flex items-center gap-1.5 flex-wrap">
                             {{ myRankInfo.nickname || myRankInfo.username }}
-                            <span class="text-[7px] bg-blue-600 px-1 py-0.5 rounded uppercase font-black tracking-widest text-white">You</span>
+                            <span class="text-[7px] bg-blue-600 px-1 py-0.5 rounded uppercase font-black tracking-widest text-white">我</span>
                           </span>
                           <div class="flex items-center gap-2 mt-0.5 flex-wrap">
                             <span class="text-[7px] font-mono text-blue-400/60 uppercase tracking-tighter">UID: {{ myRankInfo.uid }}</span>
@@ -283,46 +361,33 @@
                               <LevelBadge :level="myRankInfo.level || 1" :tier="myRankInfo.tier" :tier-name="myRankInfo.tier_name" size="xs" :show-level="false" />
                               <span class="text-[7px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest">Lv.{{ myRankInfo.level || 1 }} {{ myRankInfo.tier_name || '实习研究员' }}</span>
                             </div>
-                            <span v-if="myRankInfo.total_games > 0" class="text-[6px] font-bold text-blue-400/60 uppercase tracking-widest hidden sm:inline-block">
-                              Win Rate: {{ Math.round((myRankInfo.win_count / myRankInfo.total_games) * 100) }}% ({{ myRankInfo.total_games }} Sessions)
-                            </span>
-                            <span
-                              class="text-[6px] font-bold uppercase tracking-widest"
-                              :class="myRankInfo.is_online ? 'text-emerald-500' : 'text-blue-400/60'"
-                            >
-                              {{ myRankInfo.is_online ? '在线' : '上次下线 · ' + formatLastOfflineText(myRankInfo.last_offline_at) }}
+                            <span v-if="myRankInfo.total_games > 0" class="text-[6px] font-bold text-blue-400/60 uppercase tracking-widest">
+                              胜率: {{ Math.round((myRankInfo.win_count / myRankInfo.total_games) * 100) }}% ({{ myRankInfo.total_games }}场)
                             </span>
                           </div>
-                          <span class="text-[6px] font-bold text-blue-400/40 uppercase tracking-widest mt-0.5 ml-0.5">(Outside Top 100)</span>
-                       </div>
-                    </div>
-                  </td>
-                  <td class="px-5 py-3">
-                    <div class="flex flex-col">
-                       <span class="text-sm font-black text-blue-600 dark:text-blue-400 font-mono tracking-tighter">
-                         {{ Math.floor(rankingMode === 'monthly' ? myRankInfo.monthly_points : myRankInfo.points) }}
-                       </span>
-                    </div>
-                  </td>
-                  <td class="px-5 py-3">
-                    <div v-if="myRankInfo.bounty > 0" class="flex flex-col">
-                       <div class="flex items-center gap-1 text-rose-500">
-                          <Flame class="w-2.5 h-2.5" />
-                          <span class="text-xs font-black font-mono tracking-tighter">{{ myRankInfo.bounty }}</span>
-                       </div>
-                    </div>
-                    <div v-else class="text-[7px] font-bold text-slate-400 dark:text-slate-600 uppercase italic opacity-40 leading-none">
-                      Std
-                    </div>
-                  </td>
-                  <td class="px-6 py-3 text-right">
-                    <span class="text-[8px] font-black text-blue-600 dark:text-blue-500 uppercase tracking-widest italic pr-1">
-                      Identity_Linked
-                    </span>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+                          <span class="text-[6px] font-bold text-blue-400/40 uppercase tracking-widest mt-0.5 ml-0.5">百名开外</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td class="px-5 py-3">
+                      <span class="text-sm font-black text-blue-600 dark:text-blue-400 font-mono tracking-tighter">
+                        {{ Math.floor(rankingMode === 'monthly' ? myRankInfo.monthly_points : myRankInfo.points) }}
+                      </span>
+                    </td>
+                    <td class="px-5 py-3">
+                      <div v-if="myRankInfo.bounty > 0" class="flex items-center gap-1 text-rose-500">
+                        <Flame class="w-2.5 h-2.5" />
+                        <span class="text-xs font-black font-mono tracking-tighter">{{ myRankInfo.bounty }}</span>
+                      </div>
+                      <div v-else class="text-[7px] font-bold text-slate-400 dark:text-slate-600 uppercase italic opacity-40 leading-none">—</div>
+                    </td>
+                    <td class="px-6 py-3 text-right">
+                      <span class="text-[8px] font-black text-blue-600 dark:text-blue-500 uppercase tracking-widest italic pr-1">已认证</span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </main>

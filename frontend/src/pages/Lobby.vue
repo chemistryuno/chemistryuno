@@ -132,7 +132,24 @@ const handleDismissSurvey = async () => {
   }
 }
 const currentTime = ref(new Date())
+const roomsFetchedAt = ref(Date.now())
 const onlineCount = ref(0)
+
+const getRoomLiveCountdown = (room: any): number => {
+  if (!room.countdown || room.countdown <= 0) return 0
+  const elapsed = Math.floor((currentTime.value.getTime() - roomsFetchedAt.value) / 1000)
+  return Math.max(0, room.countdown - elapsed)
+}
+
+const isRoomFull = (room: any): boolean => {
+  return (room.players?.length || 0) >= room.max_players
+}
+
+const annTypeMap: Record<string, string> = {
+  emergency: '紧急',
+  maintenance: '维护',
+  info: '公告'
+}
 const isMobileMenuOpen = ref(false)
 const appVersion = ref('V1.2.1 Mendeleef')
 
@@ -321,6 +338,7 @@ const loadRooms = async () => {
   try {
     const response = await gameAPI.getRooms()
     rooms.value = response.data || []
+    roomsFetchedAt.value = Date.now()
   } catch (error) {
     console.error('加载房间列表失败:', error)
   }
@@ -512,10 +530,10 @@ const copyToClipboard = (text: string) => {
             <div class="hidden lg:flex items-center gap-4 text-xs-mobile font-mono tracking-widest text-slate-500 border-l border-slate-200 dark:border-white/10 pl-6 uppercase">
               <div class="flex items-center gap-2">
                 <div class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
-                STABLE
+                稳定运行
               </div>
               <div class="flex items-center gap-2">
-                 UP_TIME: {{ currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}
+                 运行时间: {{ currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}
               </div>
               <!-- Ping显示 -->
               <PingDisplay />
@@ -649,14 +667,14 @@ const copyToClipboard = (text: string) => {
           </div>
 
           <div class="flex items-center gap-3">
-             <div class="hidden xl:flex items-center gap-3 px-3 py-2 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-xl">
+              <div class="hidden xl:flex items-center gap-3 px-3 py-2 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-xl">
                <div class="text-center min-w-[60px]">
-                 <p class="text-[7px] text-slate-400 uppercase font-black tracking-widest mb-0.5">Online_Staff</p>
+                 <p class="text-[7px] text-slate-400 uppercase font-black tracking-widest mb-0.5">在线人数</p>
                  <p class="text-sm font-black text-slate-900 dark:text-white font-mono leading-none">{{ onlineCount }}</p>
                </div>
                <div class="w-px h-4 bg-slate-200 dark:bg-white/5"></div>
                <div class="text-center min-w-[60px]">
-                 <p class="text-[7px] text-slate-400 uppercase font-black tracking-widest mb-0.5">Core_Nodes</p>
+                 <p class="text-[7px] text-slate-400 uppercase font-black tracking-widest mb-0.5">活跃房间</p>
                  <p class="text-sm font-black text-blue-600 dark:text-blue-400 font-mono leading-none">{{ activeNodesCount }}</p>
                </div>
              </div>
@@ -714,7 +732,7 @@ const copyToClipboard = (text: string) => {
                             ann.type === 'maintenance' ? 'text-amber-500' : 
                             'text-blue-500'
                           )">
-                            {{ ann.type }}
+                          {{ annTypeMap[ann.type] || ann.type }}
                           </span>
                        </div>
                        <h3 class="text-base font-black text-slate-900 dark:text-white mb-1" v-if="ann.title">{{ ann.title }}</h3>
@@ -762,8 +780,8 @@ const copyToClipboard = (text: string) => {
                 <div class="empty-icon-wrap">
                   <Database class="w-8 h-8" />
                 </div>
-                <p class="empty-text-primary">No Active Nodes Detected</p>
-                <p class="empty-text-secondary">Waiting for researchers to initialize core nodes...</p>
+                <p class="empty-text-primary">暂无开放的房间</p>
+                <p class="empty-text-secondary">等待玩家创建房间开始游戏...</p>
               </div>
 
               <!-- Room Cards -->
@@ -777,17 +795,20 @@ const copyToClipboard = (text: string) => {
                   <div class="status-indicator">
                     <div :class="cn(
                       'status-dot',
-                      room.status === 'waiting' ? (room.countdown > 0 ? 'starting' : 'waiting') : 
+                      room.status === 'waiting' ? (getRoomLiveCountdown(room) > 0 ? 'starting' : 'waiting') :
                       room.status === 'playing' ? 'playing' : ''
                     )"></div>
                     <span class="status-label">
-                      {{ room.status === 'waiting' ? (room.countdown > 0 ? room.countdown + 'S' : 'Ready') : room.status === 'playing' ? 'Active' : 'Closed' }}
+                      {{ room.status === 'waiting' ? (getRoomLiveCountdown(room) > 0 ? getRoomLiveCountdown(room) + '秒' : '就绪') : room.status === 'playing' ? '进行中' : '已关闭' }}
                     </span>
                   </div>
-                  
+
                   <div class="room-type-badges">
+                    <div v-if="isRoomFull(room) && room.status === 'waiting'" class="mode-badge" style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);color:#ef4444;">
+                      满员
+                    </div>
                     <div v-if="room.is_points_mode" class="mode-badge mode-ranked">
-                      Ranked
+                      排位
                     </div>
                   </div>
                 </div>
@@ -796,13 +817,13 @@ const copyToClipboard = (text: string) => {
                 <div class="room-card-body">
                   <div class="room-main-info">
                     <h3 class="room-display-name">{{ room.name }}</h3>
-                    <span class="room-sub-id">NODE_ID: {{ room.id }}</span>
+                    <span class="room-sub-id">房间号: {{ room.id }}</span>
                   </div>
 
                   <div class="room-meta-container">
                     <!-- Config / Deck -->
                     <div v-if="room.deck_config" class="meta-item">
-                      <span class="meta-label">Protocol</span>
+                      <span class="meta-label">牌组</span>
                       <button 
                         @click.stop="handleViewDeckConfig(room.deck_config)"
                         class="deck-trigger"
@@ -815,15 +836,15 @@ const copyToClipboard = (text: string) => {
                     <!-- Players Occupancy -->
                     <div class="occupancy-section">
                       <div class="occupancy-header">
-                        <span class="meta-label">Researcher Occupancy</span>
+                        <span class="meta-label">玩家人数</span>
                         <div class="occupancy-count">
                           {{ room.players?.length || 0 }}<span class="occupancy-max">/{{ room.max_players }}</span>
                         </div>
                       </div>
                       <div class="progress-track">
-                        <div 
-                          class="progress-bar-fill" 
-                          :style="{ width: `${((room.players?.length || 0) / room.max_players) * 100}%` }"
+                        <div
+                          class="progress-bar-fill"
+                          :style="{ width: `${((room.players?.length || 0) / room.max_players) * 100}%`, background: isRoomFull(room) ? 'linear-gradient(to right, #ef4444, #dc2626)' : undefined }"
                         ></div>
                       </div>
                     </div>
@@ -832,15 +853,15 @@ const copyToClipboard = (text: string) => {
 
                 <!-- Card Footer Action -->
                 <div class="room-card-footer">
-                  <button 
+                  <button
                     @click="handleJoinRoom(room.id)"
                     :class="cn(
                       'btn-room-action',
-                      room.status === 'playing' ? 'btn-spectate' : 'btn-enter'
+                      room.status === 'playing' || isRoomFull(room) ? 'btn-spectate' : 'btn-enter'
                     )"
                   >
-                    <component :is="room.status === 'playing' ? Shield : Play" class="w-3.5 h-3.5" :class="room.status !== 'playing' ? 'fill-current' : ''" />
-                    {{ room.status === 'playing' ? 'Spectate Node' : 'Initialize Entry' }}
+                    <component :is="room.status === 'playing' || isRoomFull(room) ? Shield : Play" class="w-3.5 h-3.5" :class="room.status !== 'playing' && !isRoomFull(room) ? 'fill-current' : ''" />
+                    {{ room.status === 'playing' || isRoomFull(room) ? '旁观' : '加入' }}
                   </button>
                 </div>
               </div>
@@ -858,11 +879,11 @@ const copyToClipboard = (text: string) => {
       <footer class="lobby-footer bg-black/40 backdrop-blur-md p-4 shrink-0">
         <div class="max-w-[1400px] mx-auto flex flex-col md:flex-row justify-between items-center text-[10px] font-mono text-slate-500 uppercase tracking-[0.2em] gap-4">
           <div class="flex items-center gap-4">
-            <span>System_Core_Ready</span>
+            <span>系统核心就绪</span>
             <span class="h-3 w-px bg-white/10"></span>
-            <span class="text-blue-500">Secure_WebSocket_Active</span>
+            <span class="text-blue-500">安全WebSocket连接中</span>
             <span class="h-3 w-px bg-white/10"></span>
-            <span class="hidden sm:inline">AES_ENCRYPTION_ENABLED</span>
+            <span class="hidden sm:inline">数据加密已启用</span>
           </div>
           <div>
             &copy; 2026 MENDELEEF PROTCOL (PRODUCTION). ALL RIGHTS RESERVED.

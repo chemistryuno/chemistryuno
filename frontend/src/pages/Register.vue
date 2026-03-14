@@ -3,7 +3,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { authAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
-import { Lock, FlaskConical, ShieldCheck, Loader2, Mail, User, HelpCircle, AtSign } from 'lucide-vue-next'
+import { Lock, FlaskConical, ShieldCheck, Loader2, Mail, User, HelpCircle, AtSign, FileText } from 'lucide-vue-next'
 import OAuthLogos from '../components/icons/OAuthLogos.vue'
 import websocket from '../utils/websocket'
 
@@ -18,6 +18,7 @@ const confirmPassword = ref('')
 const code = ref('')
 const securityQuestion = ref('')
 const securityAnswer = ref('')
+const agreementAccepted = ref(false) // 是否同意协议
 const error = ref('')
 const loading = ref(false)
 const codeLoading = ref(false)
@@ -30,6 +31,15 @@ const countdown = ref(0)
 const router = useRouter()
 const dialog = useDialog()
 const { showAlert } = dialog
+
+// 协议查看模态框
+const showAgreementModal = ref(false)
+const agreementType = ref<'user' | 'privacy'>('user')
+
+const openAgreement = (type: 'user' | 'privacy') => {
+  agreementType.value = type
+  showAgreementModal.value = true
+}
 
 // 用户名只允许英文字母、数字、下划线
 const usernameRegex = /^[a-zA-Z0-9_]+$/
@@ -149,6 +159,11 @@ const handleSendCode = async () => {
 
 const handleSubmit = async () => {
   error.value = ''
+
+  if (!agreementAccepted.value) {
+    error.value = '请先阅读并同意用户协议及隐私政策。'
+    return
+  }
 
   // 验证用户名
   if (!username.value || username.value.length < 3) {
@@ -440,6 +455,28 @@ const handleSubmit = async () => {
               </div>
             </div>
 
+            <!-- 同意协议 -->
+            <div class="flex items-start gap-2.5 px-2 transition-all">
+              <label class="relative flex items-center cursor-pointer group/check">
+                <input
+                  type="checkbox"
+                  v-model="agreementAccepted"
+                  class="sr-only peer"
+                />
+                <div class="w-4 h-4 rounded border-2 border-slate-200 dark:border-white/10 peer-checked:bg-blue-600 peer-checked:border-blue-600 transition-all flex items-center justify-center">
+                  <div class="w-2.5 h-2.5 opacity-0 peer-checked:opacity-100 transition-opacity">
+                    <ShieldCheck class="w-full h-full text-white" />
+                  </div>
+                </div>
+              </label>
+              <div class="text-[10px] sm:text-xs font-medium text-slate-500 dark:text-slate-400 leading-tight">
+                我已阅读、理解并完全同意
+                <button type="button" @click="openAgreement('user')" class="text-blue-600 hover:underline">《用户协议》</button>
+                与
+                <button type="button" @click="openAgreement('privacy')" class="text-blue-600 hover:underline">《隐私政策》</button>
+              </div>
+            </div>
+
             <button
               type="submit"
               :disabled="loading"
@@ -447,10 +484,10 @@ const handleSubmit = async () => {
             >
               <template v-if="loading">
                 <Loader2 class="w-4 h-4 animate-spin" />
-                协议签署中...
+                正在签署...
               </template>
               <template v-else>
-                签署入职协议
+                同意协议并注册
               </template>
             </button>
 
@@ -515,5 +552,47 @@ const handleSubmit = async () => {
         </div>
       </div>
     </div>
+
+    <!-- 协议模态框 -->
+    <transition name="fade">
+      <div v-if="showAgreementModal" class="fixed inset-0 z-[200] flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md" @click="showAgreementModal = false"></div>
+        <div class="relative w-full max-w-2xl bg-white dark:bg-[#121216] border border-slate-200 dark:border-white/10 rounded-[32px] shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in duration-300">
+           <div class="px-6 py-5 border-b border-slate-100 dark:border-white/5 flex items-center justify-between sticky top-0 bg-white dark:bg-[#121216] z-10">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center justify-center text-blue-500">
+                  <FileText class="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 class="text-lg font-black text-slate-900 dark:text-white tracking-tight leading-none">
+                    {{ agreementType === 'user' ? '研究员合规协议' : '实验室隐私保护准则' }}
+                  </h2>
+                  <p class="text-[9px] text-slate-400 dark:text-slate-500 font-mono uppercase tracking-widest mt-1.5">Legal_Documentation_System</p>
+                </div>
+              </div>
+              <button @click="showAgreementModal = false" class="p-2.5 hover:bg-slate-100 dark:hover:bg-white/5 rounded-2xl transition-all text-slate-400 hover:text-slate-900 dark:hover:text-white active:scale-90">
+                <X class="w-5 h-5" />
+              </button>
+           </div>
+           
+           <div class="flex-1 overflow-y-auto p-6 sm:p-8 custom-scrollbar">
+              <iframe 
+                :src="agreementType === 'user' ? '/USER_AGREEMENT.md' : '/PRIVACY_POLICY.md'"
+                class="w-full h-[60vh] border-none dark:invert dark:opacity-80"
+                frameborder="0"
+              ></iframe>
+           </div>
+
+           <div class="px-6 py-5 border-t border-slate-100 dark:border-white/5 flex justify-end gap-3 bg-slate-50/50 dark:bg-white/[0.02]">
+              <button 
+                @click="showAgreementModal = false" 
+                class="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-2xl transition-all uppercase tracking-widest text-[10px] shadow-lg shadow-blue-500/20 active:scale-95"
+              >
+                已充分理解并确认
+              </button>
+           </div>
+        </div>
+      </div>
+    </transition>
   </div>
 </template>

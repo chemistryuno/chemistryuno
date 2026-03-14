@@ -15,10 +15,10 @@
             </button>
             <div>
               <h1 class="text-base sm:text-xl font-black text-slate-900 dark:text-white tracking-tighter flex items-center gap-2">
-                <Trophy class="w-4 h-4 sm:w-5 sm:h-5 text-amber-500" />
-                全球积分排行榜
+                <PhlogistonIcon :size="20" color="#f59e0b" class="shrink-0" />
+                实验室储备燃素排行榜
               </h1>
-              <p class="text-[8px] text-slate-500 font-mono uppercase tracking-[0.15em] mt-0.5 hidden sm:block">全球科研积分实时榜单</p>
+              <p class="text-[8px] text-slate-500 font-mono uppercase tracking-[0.15em] mt-0.5 hidden sm:block">全球科研储备燃素实时榜单</p>
             </div>
           </div>
         </div>
@@ -39,7 +39,7 @@
                     ? 'bg-blue-600/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 shadow-sm'
                     : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
                 )"
-              >全量积分</button>
+              >全量存储</button>
               <button
                 @click="rankingMode = 'monthly'"
                 :class="cn(
@@ -161,11 +161,14 @@
                   </div>
                 </div>
 
-                <!-- Points + action buttons -->
+                <!-- Phlogiston + action buttons -->
                 <div class="flex flex-col items-end gap-1.5 shrink-0">
-                  <span class="text-sm font-black text-slate-900 dark:text-white font-mono leading-none">
-                    {{ Math.floor(rankingMode === 'monthly' ? player.monthly_points : player.points) }}
-                  </span>
+                  <div class="flex items-center gap-1">
+                    <span class="text-sm font-black text-amber-600 dark:text-amber-500 font-mono leading-none">
+                      {{ Math.floor(rankingMode === 'monthly' ? player.monthly_points : player.points) }}
+                    </span>
+                    <PhlogistonIcon :size="12" color="#f59e0b" />
+                  </div>
                   <div v-if="Number(player.uid) !== Number(user.uid)" class="flex items-center gap-1">
                     <button v-if="player.is_online" @click="handleDuel(player)" title="单挑"
                       class="p-1.5 bg-blue-600/10 hover:bg-blue-600 text-blue-600 hover:text-white border border-blue-500/20 rounded-lg transition-all active:scale-95">
@@ -214,9 +217,12 @@
                   </div>
                 </div>
                 <div class="flex flex-col items-end shrink-0">
-                  <span class="text-sm font-black text-blue-600 dark:text-blue-400 font-mono">
-                    {{ Math.floor(rankingMode === 'monthly' ? myRankInfo.monthly_points : myRankInfo.points) }}
-                  </span>
+                  <div class="flex items-center gap-1">
+                    <span class="text-sm font-black text-blue-600 dark:text-blue-400 font-mono">
+                      {{ Math.floor(rankingMode === 'monthly' ? myRankInfo.monthly_points : myRankInfo.points) }}
+                    </span>
+                    <PhlogistonIcon :size="12" color="#2563eb" />
+                  </div>
                   <span class="text-[7px] font-black text-blue-600 dark:text-blue-500 uppercase tracking-wider italic mt-0.5">已认证</span>
                 </div>
               </div>
@@ -229,7 +235,7 @@
                   <tr class="bg-slate-50/50 dark:bg-white/[0.02] border-b border-slate-100 dark:border-white/5 text-left">
                     <th class="px-6 py-4 text-[9px] font-black text-slate-500 uppercase tracking-widest">{{ searchTerm ? '搜索' : '排名' }}</th>
                     <th class="px-5 py-4 text-[9px] font-black text-slate-500 uppercase tracking-widest">玩家</th>
-                    <th class="px-5 py-4 text-[9px] font-black text-slate-500 uppercase tracking-widest">积分</th>
+                    <th class="px-5 py-4 text-[9px] font-black text-slate-500 uppercase tracking-widest">储备燃素</th>
                     <th class="px-5 py-4 text-[9px] font-black text-slate-500 uppercase tracking-widest">悬赏</th>
                     <th class="px-6 py-4 text-[9px] font-black text-slate-500 uppercase tracking-widest text-right">操作</th>
                   </tr>
@@ -300,9 +306,12 @@
                       </div>
                     </td>
                     <td class="px-5 py-2">
-                      <span class="text-sm font-black text-slate-900 dark:text-white font-mono tracking-tighter">
-                        {{ Math.floor(rankingMode === 'monthly' ? player.monthly_points : player.points) }}
-                      </span>
+                      <div class="flex items-center gap-1.5">
+                        <span class="text-sm font-black text-amber-600 dark:text-amber-500 font-mono tracking-tighter">
+                          {{ Math.floor(rankingMode === 'monthly' ? player.monthly_points : player.points) }}
+                        </span>
+                        <PhlogistonIcon :size="12" color="#f59e0b" />
+                      </div>
                     </td>
                     <td class="px-5 py-2">
                       <div v-if="player.bounty > 0" class="flex items-center gap-1 text-rose-500">
@@ -370,9 +379,12 @@
                       </div>
                     </td>
                     <td class="px-5 py-3">
-                      <span class="text-sm font-black text-blue-600 dark:text-blue-400 font-mono tracking-tighter">
-                        {{ Math.floor(rankingMode === 'monthly' ? myRankInfo.monthly_points : myRankInfo.points) }}
-                      </span>
+                      <div class="flex items-center gap-1.5">
+                        <span class="text-sm font-black text-blue-600 dark:text-blue-400 font-mono tracking-tighter">
+                          {{ Math.floor(rankingMode === 'monthly' ? myRankInfo.monthly_points : myRankInfo.points) }}
+                        </span>
+                        <PhlogistonIcon :size="12" color="#2563eb" />
+                      </div>
                     </td>
                     <td class="px-5 py-3">
                       <div v-if="myRankInfo.bounty > 0" class="flex items-center gap-1 text-rose-500">
@@ -431,19 +443,19 @@
 
              <div class="space-y-3">
                 <div class="flex justify-between items-center px-1">
-                   <label class="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">投入科研积分</label>
-                   <span class="text-[9px] text-rose-600 dark:text-rose-500 font-mono font-bold">{{ userPoints }} AVAILABLE</span>
+                   <label class="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">投入科研燃素</label>
+                   <span class="text-[9px] text-rose-600 dark:text-rose-500 font-mono font-bold">{{ userPoints }} 存储可用</span>
                 </div>
                 <div class="relative">
                    <input 
                       v-model="bountyAmount" 
                       type="number" 
-                      placeholder="输入积分数值..."
+                      placeholder="输入燃素数值..."
                       class="w-full h-12 bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white px-4 py-3 rounded-xl focus:ring-1 focus:ring-rose-500 outline-none transition-all font-mono text-base"
                    />
                 </div>
                 <p class="text-[8px] text-slate-500 leading-relaxed text-left px-1">
-                  悬赏积分将立刻扣除。任何人获胜均可平分，不可撤回。
+                  悬赏燃素将立刻扣除。任何人获胜均可平分，不可撤回。
                 </p>
              </div>
 
@@ -504,6 +516,7 @@ import { useRouter } from 'vue-router'
 import { pointsAPI, gameAPI, friendAPI, authAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
 import { Trophy, ArrowLeft, Loader2, Target, RefreshCw, ShieldCheck, Crosshair, Flame, X, Swords, MessageCircle, UserPlus, Search } from 'lucide-vue-next'
+import PhlogistonIcon from '../components/icons/PhlogistonIcon.vue'
 import { cn } from '../utils/cn'
 import { formatLastOfflineForRanking } from '../utils/timeFormat'
 import ChatBox from '../components/ChatBox.vue'
@@ -660,7 +673,7 @@ const openBountyModal = (player: any) => {
 const handleCreateBounty = async () => {
   if (!selectedTarget.value || !bountyAmount.value) return
   if (bountyAmount.value > userPoints.value) {
-    showAlert('科研积分余额不足，无法发起此项悬赏', '核心功率受限')
+    showAlert('科研燃素余额不足，无法发起此项悬赏', '核心功率受限')
     return
   }
 

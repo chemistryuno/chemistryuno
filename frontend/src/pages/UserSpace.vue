@@ -120,7 +120,7 @@ onMounted(fetchUserProfile)
 
               <div class="flex flex-wrap items-center justify-center md:justify-start gap-6 pt-2">
                 <div class="flex flex-col">
-                  <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest">积分 / Points</span>
+                  <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest">燃素 / Phlogiston</span>
                   <span class="text-lg font-black text-slate-800 dark:text-white font-mono">{{ Math.floor(user.points) }}</span>
                 </div>
                 <div class="w-px h-8 bg-slate-100 dark:bg-white/5" />

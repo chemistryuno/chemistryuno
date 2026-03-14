@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import PhlogistonIcon from '../components/icons/PhlogistonIcon.vue'
 import { gameAPI, authAPI, commonAPI, friendAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
 import UserAvatar from '../components/UserAvatar.vue'
 import websocket from '../utils/websocket'
-import { Beaker, Plus, Shield, LogOut, Settings, Play, X, Loader2, Database, MessageCircle, Trophy, Megaphone, Menu, Puzzle, FileText, ExternalLink } from 'lucide-vue-next'
+import { Beaker, Plus, Shield, LogOut, Settings, Play, X, Loader2, Database, MessageCircle, Trophy, Megaphone, Menu, Puzzle, FileText, ExternalLink, ShieldCheck, ChevronRight } from 'lucide-vue-next'
 import { cn } from '../utils/cn'
 import ChatBox from '../components/ChatBox.vue'
 import TutorialGuide from '../components/TutorialGuide.vue'
@@ -73,6 +74,31 @@ const loading = ref(false)
 const activeSurveys = ref<any[]>([])
 const showSurveyModal = ref(false)
 const currentSurvey = ref<any>(null)
+const showLegalModal = ref(false)
+const legalModalTitle = ref('')
+const legalModalContent = ref('')
+
+const openUserAgreement = async () => {
+  try {
+    const res = await fetch('/USER_AGREEMENT.md')
+    legalModalContent.value = await res.text()
+  } catch (e) {
+    legalModalContent.value = '无法加载协议内容，请检查实验室连接。'
+  }
+  legalModalTitle.value = '用户协议 / User Agreement'
+  showLegalModal.value = true
+}
+
+const openPrivacyPolicy = async () => {
+  try {
+    const res = await fetch('/PRIVACY_POLICY.md')
+    legalModalContent.value = await res.text()
+  } catch (e) {
+    legalModalContent.value = '无法加载政策内容，请检查实验室连接。'
+  }
+  legalModalTitle.value = '隐私政策 / Privacy Policy'
+  showLegalModal.value = true
+}
 
 const loadSurveys = async () => {
   try {
@@ -166,7 +192,7 @@ const lobbyTutorialSteps = computed(() => [
   { id: 'create-room', titlePlaceholder: '创建你的实验室', contentPlaceholder: '点击这里可以新建游戏房间，设置房间名称、对战人数和游戏模式。还可以开启「AI补位」，让AI填满空位，随时开始对战，不用等人！', targetSelector: '[data-tutorial="create-room"]', position: 'bottom' as const },
   { id: 'room-list', titlePlaceholder: '寻找对战房间', contentPlaceholder: '这里列出了当前所有开放的游戏房间。找到感兴趣的房间直接点击加入，与来自各地的化学玩家展开激烈对决！', targetSelector: '[data-tutorial="room-list"]', position: 'top' as const },
   { id: 'navigation', titlePlaceholder: '快捷导航', contentPlaceholder: '通过导航栏可以快速切换到排行榜、好友列表等页面。随时掌握自己的全球排名，查看对战战绩，探索更多功能！', targetSelector: navigationSelector, position: 'bottom' as const },
-  { id: 'user-profile', titlePlaceholder: '你的化学家档案', contentPlaceholder: '点击这里进入个人主页，查看你的等级、积分、历史战绩和成就勋章。努力提升实力，向化学大师的称号冲击！', targetSelector: '[data-tutorial="user-chip"]', position: 'bottom' as const },
+  { id: 'user-profile', titlePlaceholder: '你的化学家档案', contentPlaceholder: '点击这里进入个人主页，查看你的等级、燃素、历史战绩和成就勋章。努力提升实力，向化学大师的称号冲击！', targetSelector: '[data-tutorial="user-chip"]', position: 'bottom' as const },
   { id: 'ai-arena', titlePlaceholder: 'AI竞技场', contentPlaceholder: '想练习牌技或享受单人挑战？在AI竞技场中与不同难度的AI对战，从初级到专家逐步进阶，随时磨练你的化学牌技！', targetSelector: '[data-tutorial="ai-arena"]', position: 'bottom' as const },
   { id: 'complete-lobby', titlePlaceholder: '开始你的化学之旅！', contentPlaceholder: '你已经了解了大厅的全部功能！现在就创建或加入一个房间，与其他玩家一较高下吧。愿化学元素的力量与你同在，旗开得胜！', position: 'center' as const }
 ])
@@ -555,15 +581,16 @@ const copyToClipboard = (text: string) => {
             </div>
 
             <!-- Desktop Navigation -->
-            <div data-tutorial="desktop-nav" class="hidden lg:flex items-center gap-0.5">
+            <div data-tutorial="desktop-nav" class="hidden lg:flex items-center gap-1.5">
               <router-link
                 to="/ranking"
-                class="lobby-nav-link lobby-nav-link-amber flex items-center gap-1.5"
-                title="积分排行榜"
+                class="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/5 hover:bg-amber-500/10 border border-amber-500/20 hover:border-amber-500/40 rounded-xl transition-all group/phlogiston"
+                title="燃素排行榜"
               >
-                <Trophy class="w-4 h-4 group-hover:scale-110 transition-transform" />
-                <span class="text-xs-mobile font-black uppercase tracking-widest hidden md:block">排位</span>
+                <PhlogistonIcon :size="16" class="!text-amber-500 group-hover/phlogiston:scale-110 transition-transform shrink-0" />
+                <span class="text-[10px] font-black uppercase tracking-widest hidden md:block text-amber-600/80 group-hover/phlogiston:text-amber-500 transition-colors house-style">排位</span>
               </router-link>
+              <div class="w-px h-4 bg-slate-200 dark:bg-white/10 mx-0.5"></div>
               <router-link to="/feedbacks" class="lobby-nav-link lobby-nav-link-amber" title="反馈与公告">
                 <Megaphone class="w-4 h-4" />
               </router-link>
@@ -610,46 +637,93 @@ const copyToClipboard = (text: string) => {
         leave-from-class="opacity-100 translate-y-0"
         leave-to-class="opacity-0 -translate-y-4"
       >
-        <div v-if="isMobileMenuOpen" class="lg:hidden fixed inset-0 z-[45] pt-16 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl">
-          <div class="p-6 space-y-4">
+        <div v-if="isMobileMenuOpen" class="lg:hidden fixed inset-0 z-[45] pt-20 bg-white/98 dark:bg-slate-900/98 backdrop-blur-2xl">
+          <div class="px-6 py-4 space-y-6 max-h-[calc(100vh-80px)] overflow-y-auto">
+            <!-- 顶部装饰与统计 -->
+            <div class="flex items-center justify-between p-5 bg-blue-500/5 dark:bg-white/5 rounded-[32px] border border-blue-500/10 dark:border-white/10">
+               <div class="flex items-center gap-3">
+                  <div class="w-12 h-12 rounded-2xl bg-white dark:bg-slate-800 shadow-xl flex items-center justify-center border border-slate-100 dark:border-white/5">
+                     <UserAvatar :avatar="user.avatar" class="w-10 h-10" />
+                  </div>
+                  <div>
+                     <h4 class="text-sm font-black text-slate-800 dark:text-white leading-none uppercase">{{ user.nickname || user.username }}</h4>
+                     <p class="text-[9px] font-mono text-slate-400 mt-1.5 uppercase tracking-widest">Researcher_ID: {{ user.uid }}</p>
+                  </div>
+               </div>
+               <div class="text-right">
+                  <div class="flex items-center justify-end gap-1.5 text-amber-500">
+                     <PhlogistonIcon :size="14" color="#f59e0b" />
+                     <span class="text-xs font-black font-mono">{{ Math.floor(user.points || 0) }}</span>
+                  </div>
+                  <p class="text-[8px] font-bold text-slate-400 uppercase mt-1">Phlogiston</p>
+               </div>
+            </div>
+
             <div class="grid grid-cols-2 gap-3">
-              <router-link @click="isMobileMenuOpen = false" to="/ranking" class="flex flex-col items-center justify-center p-4 bg-slate-100 dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/10">
-                <Trophy class="w-6 h-6 text-amber-500 mb-2" />
-                <span class="text-xs font-black uppercase tracking-widest">排位榜单</span>
+              <router-link @click="isMobileMenuOpen = false" to="/ranking" class="flex flex-col items-center justify-center p-5 bg-white dark:bg-white/5 rounded-3xl border border-slate-200 dark:border-white/10 shadow-sm active:scale-95 transition-all">
+                <div class="w-12 h-12 bg-amber-500/10 rounded-2xl flex items-center justify-center mb-3 text-amber-500">
+                  <PhlogistonIcon :size="28" color="#f59e0b" />
+                </div>
+                <span class="text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300 text-center">排位榜单</span>
               </router-link>
-              <router-link @click="isMobileMenuOpen = false" to="/profile" class="flex flex-col items-center justify-center p-4 bg-slate-100 dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/10">
-                <Settings class="w-6 h-6 text-slate-500 mb-2" />
-                <span class="text-xs font-black uppercase tracking-widest">个人主页</span>
+
+              <router-link @click="isMobileMenuOpen = false" to="/profile" class="flex flex-col items-center justify-center p-5 bg-white dark:bg-white/5 rounded-3xl border border-slate-200 dark:border-white/10 shadow-sm active:scale-95 transition-all">
+                <div class="w-12 h-12 bg-blue-500/10 rounded-2xl flex items-center justify-center mb-3 text-blue-500">
+                  <Settings class="w-6 h-6" />
+                </div>
+                <span class="text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300 text-center">个人中心</span>
               </router-link>
-              <router-link @click="isMobileMenuOpen = false" to="/data" class="flex flex-col items-center justify-center p-4 bg-slate-100 dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/10">
-                <Database class="w-6 h-6 text-blue-500 mb-2" />
-                <span class="text-xs font-black uppercase tracking-widest">物质百科</span>
+
+              <router-link @click="isMobileMenuOpen = false" to="/data" class="flex flex-col items-center justify-center p-5 bg-white dark:bg-white/5 rounded-3xl border border-slate-200 dark:border-white/10 shadow-sm active:scale-95 transition-all">
+                <div class="w-12 h-12 bg-cyan-500/10 rounded-2xl flex items-center justify-center mb-3 text-cyan-500">
+                  <Database class="w-6 h-6" />
+                </div>
+                <span class="text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300 text-center">物质百科</span>
               </router-link>
-              <router-link @click="isMobileMenuOpen = false" to="/chat" class="flex flex-col items-center justify-center p-4 bg-slate-100 dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/10">
-                <MessageCircle class="w-6 h-6 text-indigo-500 mb-2" />
-                <span class="text-xs font-black uppercase tracking-widest">公共频道</span>
+
+              <router-link @click="isMobileMenuOpen = false" to="/chat" class="flex flex-col items-center justify-center p-5 bg-white dark:bg-white/5 rounded-3xl border border-slate-200 dark:border-white/10 shadow-sm active:scale-95 transition-all">
+                <div class="w-12 h-12 bg-indigo-500/10 rounded-2xl flex items-center justify-center mb-3 text-indigo-500">
+                  <MessageCircle class="w-6 h-6" />
+                </div>
+                <span class="text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300 text-center">公共频道</span>
               </router-link>
-              <router-link @click="isMobileMenuOpen = false" to="/feedbacks" class="flex flex-col items-center justify-center p-4 bg-slate-100 dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/10">
-                <Megaphone class="w-6 h-6 text-emerald-500 mb-2" />
-                <span class="text-xs font-black uppercase tracking-widest">反馈中心</span>
+
+              <router-link @click="isMobileMenuOpen = false" to="/feedbacks" class="flex flex-col items-center justify-center p-5 bg-white dark:bg-white/5 rounded-3xl border border-slate-200 dark:border-white/10 shadow-sm active:scale-95 transition-all">
+                <div class="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center mb-3 text-emerald-500">
+                  <Megaphone class="w-6 h-6" />
+                </div>
+                <span class="text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300 text-center">反馈公告</span>
               </router-link>
-              <router-link @click="isMobileMenuOpen = false" to="/plugins" class="flex flex-col items-center justify-center p-4 bg-slate-100 dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/10">
-                <Puzzle class="w-6 h-6 text-purple-500 mb-2" />
-                <span class="text-xs font-black uppercase tracking-widest">插件市场</span>
+
+              <router-link @click="isMobileMenuOpen = false" to="/plugins" class="flex flex-col items-center justify-center p-5 bg-white dark:bg-white/5 rounded-[2.5rem] border border-slate-200 dark:border-white/10 shadow-sm active:scale-95 transition-all group">
+                <div class="w-12 h-12 bg-blue-600/10 rounded-2xl flex items-center justify-center mb-3 text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-all">
+                  <Puzzle class="w-6 h-6" />
+                </div>
+                <span class="text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300 text-center">插件扩展市场</span>
               </router-link>
-              <router-link v-if="user.is_admin || user.role === 'co-worker'" @click="isMobileMenuOpen = false" to="/admin" class="flex flex-col items-center justify-center p-4 bg-slate-100 dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/10">
-                <Shield class="w-6 h-6 text-yellow-500 mb-2" />
-                <span class="text-xs font-black uppercase tracking-widest">管理面板</span>
+
+              <router-link v-if="user.is_admin || user.role === 'co-worker'" @click="isMobileMenuOpen = false" to="/admin" class="flex flex-col items-center justify-center p-5 bg-white dark:bg-white/5 rounded-3xl border border-slate-200 dark:border-white/10 shadow-sm active:scale-95 transition-all col-span-2">
+                <div class="flex items-center gap-4">
+                  <div class="w-10 h-10 bg-rose-500/10 rounded-2xl flex items-center justify-center text-rose-500 shrink-0">
+                    <Shield class="w-5 h-5" />
+                  </div>
+                  <span class="text-[10px] font-black uppercase tracking-[0.2em] text-slate-600 dark:text-slate-300">系统核心管理面板</span>
+                </div>
               </router-link>
             </div>
             
-            <button 
-              @click="handleLogout" 
-              class="w-full flex items-center justify-center gap-3 py-4 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-2xl border border-red-500/20 transition-all font-black uppercase tracking-[0.2em] text-sm"
-            >
-              <LogOut class="w-5 h-5" />
-              中止实验并注销
-            </button>
+            <div class="pt-4">
+               <button 
+                 @click="handleLogout" 
+                 class="w-full flex items-center justify-between px-6 py-4 bg-slate-100 dark:bg-white/5 hover:bg-red-500/10 text-slate-400 hover:text-red-500 rounded-[28px] border border-slate-200 dark:border-white/10 transition-all font-black uppercase tracking-widest text-[10px] group"
+               >
+                 <div class="flex items-center gap-3">
+                    <LogOut class="w-4 h-4" />
+                    停止实验并离线
+                 </div>
+                 <ChevronRight class="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+               </button>
+            </div>
           </div>
         </div>
       </transition>
@@ -877,16 +951,18 @@ const copyToClipboard = (text: string) => {
 
       <!-- Global Footer Terminal -->
       <footer class="lobby-footer bg-black/40 backdrop-blur-md p-4 shrink-0">
-        <div class="max-w-[1400px] mx-auto flex flex-col md:flex-row justify-between items-center text-[10px] font-mono text-slate-500 uppercase tracking-[0.2em] gap-4">
-          <div class="flex items-center gap-4">
-            <span>系统核心就绪</span>
-            <span class="h-3 w-px bg-white/10"></span>
-            <span class="text-blue-500">安全WebSocket连接中</span>
-            <span class="h-3 w-px bg-white/10"></span>
-            <span class="hidden sm:inline">数据加密已启用</span>
+        <div class="max-w-[1400px] mx-auto flex flex-col md:flex-row justify-between items-center text-[10px] font-mono text-slate-500 uppercase tracking-[0.15em] gap-4">
+          <div class="flex items-center gap-4 order-2 md:order-1">
+             <span class="hidden lg:inline text-emerald-500/60 uppercase">System_Healthy</span>
+             <span class="hidden lg:inline h-3 w-px bg-white/10"></span>
+             <button @click="openUserAgreement" class="hover:text-blue-400 transition-colors uppercase cursor-pointer">服务协议</button>
+             <span class="h-3 w-px bg-white/10"></span>
+             <button @click="openPrivacyPolicy" class="hover:text-blue-400 transition-colors uppercase cursor-pointer">隐私政策</button>
+             <span class="h-3 w-px bg-white/10"></span>
+             <span class="text-blue-500/50">v{{ appVersion }}</span>
           </div>
-          <div>
-            &copy; 2026 MENDELEEF PROTCOL (PRODUCTION). ALL RIGHTS RESERVED.
+          <div class="text-center md:text-right order-1 md:order-2 opacity-40 hover:opacity-100 transition-opacity">
+            &copy; 2026 MENDELEEF PROTCOL. ALL RIGHTS RESERVED.
           </div>
         </div>
       </footer>
@@ -973,7 +1049,7 @@ const copyToClipboard = (text: string) => {
               </div>
               <div class="flex flex-col">
                 <span :class="cn('text-xs sm:text-[9px] font-black uppercase tracking-wider', isPointsMode ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-400')">
-                  积分竞技模式
+                  燃素竞技模式
                 </span>
                 <span class="text-caption-mobile text-slate-400 dark:text-slate-500 mt-0.5 leading-tight">
                   胜负将影响全球排名
@@ -1087,7 +1163,7 @@ const copyToClipboard = (text: string) => {
               </div>
             </div>
             <p class="text-caption-mobile text-purple-600 dark:text-purple-500 px-1 leading-relaxed">
-              🤖 <span class="font-bold">提示：</span>AI难度越高，决策越优秀。建议积分模式下使用60+难度
+              🤖 <span class="font-bold">提示：</span>AI难度越高，决策越优秀。建议燃素模式下使用60+难度
             </p>
           </div>
 
@@ -1312,13 +1388,13 @@ const copyToClipboard = (text: string) => {
               </div>
               <div class="flex flex-col">
                 <span :class="cn('text-[10px] font-black uppercase tracking-wider', isPointsMode ? 'text-purple-600 dark:text-purple-400' : 'text-slate-400 dark:text-slate-400')">
-                  积分结算
+                  燃素结算
                 </span>
                 <span v-if="pveUsingCustomDeck" class="text-[9px] text-amber-500/80 dark:text-amber-400/70 mt-0.5 leading-tight">
-                  自定义牌组不支持积分模式
+                  自定义牌组不支持燃素模式
                 </span>
                 <span v-else class="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5 leading-tight">
-                  难度 >= 50% 时可获得积分奖励，否则仅供练习
+                  难度 >= 50% 时可获得燃素奖励，否则仅供练习
                 </span>
               </div>
             </div>
@@ -1526,6 +1602,50 @@ const copyToClipboard = (text: string) => {
     <TutorialGuide :show="showTutorial" :steps="lobbyTutorialSteps" @close="handleTutorialClose" @complete="handleTutorialComplete" />
 
     <!-- 调查问卷弹窗 (内部) -->
+    <div v-if="showSurveyModal && currentSurvey" class="fixed inset-0 bg-slate-900/40 dark:bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center p-3">
+      <!-- ... existing survey modal code ... -->
+    </div>
+
+    <!-- Legal Document Modal -->
+    <div v-if="showLegalModal" class="fixed inset-0 bg-slate-900/90 dark:bg-black/95 backdrop-blur-2xl z-[200] flex items-center justify-center p-5 overflow-y-auto">
+      <div class="relative w-full max-w-2xl bg-white dark:bg-[#0c0c0e] border border-slate-200 dark:border-white/10 rounded-[2.5rem] shadow-4xl flex flex-col max-h-[85vh] animate-in zoom-in duration-300">
+        <div class="px-8 py-6 border-b border-slate-100 dark:border-white/5 flex items-center justify-between sticky top-0 bg-inherit z-10">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center justify-center text-blue-500">
+              <FileText class="w-5 h-5" />
+            </div>
+            <div>
+              <h3 class="text-sm font-black text-slate-800 dark:text-white uppercase tracking-widest">{{ legalModalTitle }}</h3>
+              <p class="text-[9px] font-mono text-slate-400 mt-1 uppercase tracking-widest">Protocol_Legal_Archive</p>
+            </div>
+          </div>
+          <button @click="showLegalModal = false" class="p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-full transition-colors text-slate-400">
+            <X class="w-6 h-6" />
+          </button>
+        </div>
+        
+        <div class="p-8 overflow-y-auto custom-scrollbar flex-1 whitespace-pre-wrap">
+          <div class="text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-300 leading-relaxed font-sans">
+            {{ legalModalContent }}
+            
+            <div class="mt-8 pt-8 border-t border-slate-100 dark:border-white/5">
+              <p class="text-[10px] text-slate-400 italic">这是一份旨在通过实验精神而非法律博弈来维护社区的通用协议。如果您有任何疑问，请联系基地管理员。</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="px-8 py-6 border-t border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.02]">
+          <button 
+            @click="showLegalModal = false"
+            class="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-2xl transition-all shadow-lg shadow-blue-500/20 uppercase tracking-widest text-xs active:scale-95"
+          >
+            我已阅读并知悉协议内容 (Protocol_ACK)
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 调查问卷弹窗 (仅在此处保留一个逻辑完整的版本) -->
     <div v-if="showSurveyModal && currentSurvey" class="fixed inset-0 bg-slate-900/40 dark:bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center p-3">
       <div class="bg-white dark:bg-[#0c0c0e] border border-slate-200 dark:border-white/10 rounded-[2rem] p-5 max-w-sm w-full shadow-[0_50px_100px_-20px_rgba(79,70,229,0.3)] animate-in zoom-in relative overflow-hidden group">
         <div class="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 blur-[50px] -mr-16 -mt-16 group-hover:bg-indigo-500/10 transition-all opacity-50" />

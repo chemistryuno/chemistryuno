@@ -24,6 +24,17 @@ var (
 	configRepo *repository.ConfigRepository
 )
 
+// scientistNames AI 玩家姓名库
+var scientistNames = []string{
+	"门捷列夫", "拉瓦锡", "居里夫人", "波义耳", "诺贝尔",
+	"道尔顿", "阿伏伽德罗", "法拉第", "海森堡", "薛定谔",
+	"波尔", "欧本海默", "屠呦呦", "钱学森", "袁隆平",
+	"爱因斯坦", "牛顿", "达尔文", "特斯拉", "霍金",
+	"费曼", "普朗克", "玻尔兹曼", "盖-吕萨克", "舍勒",
+	"贝切里乌斯", "凯库勒", "范霍夫", "维勒", "李比希",
+	"路易斯", "鲍林", "伍德沃德", "桑格", "霍奇金",
+}
+
 // cryptoRandUint64 使用 crypto/rand 生成密码学安全的随机 uint64
 func cryptoRandUint64() uint64 {
 	var b [8]byte
@@ -1783,14 +1794,32 @@ func StartGame(roomID string, uid int) error {
 	}
 
 	// 初始化玩家
+	usedScientistNames := make(map[string]bool)
+	shuffledScientistNames := make([]string, len(scientistNames))
+	copy(shuffledScientistNames, scientistNames)
+	rand.Shuffle(len(shuffledScientistNames), func(i, j int) {
+		shuffledScientistNames[i], shuffledScientistNames[j] = shuffledScientistNames[j], shuffledScientistNames[i]
+	})
+	nextScientistIdx := 0
+
 	for _, pid := range shuffledPlayers {
 		username := ""
 		nickname := ""
 		avatar := ""
 		if pid < 0 {
-			// AI 玩家
+			// AI 玩家 - 从姓名库中随机挑选科学家姓名，确保不重复
+			sName := fmt.Sprintf("AI_%d", -pid)
+			for nextScientistIdx < len(shuffledScientistNames) {
+				potentialName := shuffledScientistNames[nextScientistIdx]
+				nextScientistIdx++
+				if !usedScientistNames[potentialName] {
+					sName = potentialName
+					usedScientistNames[sName] = true
+					break
+				}
+			}
 			username = fmt.Sprintf("AI_%d", -pid)
-			nickname = "AI"
+			nickname = sName
 			avatar = "🤖"
 		} else {
 			user := userMap[uint(pid)]
@@ -1806,6 +1835,8 @@ func StartGame(roomID string, uid int) error {
 				}
 				avatar = user.Avatar
 			}
+			// 记录人类玩家已使用的昵称，防止 AI 撞名（虽然概率极低，但仍需处理）
+			usedScientistNames[nickname] = true
 		}
 
 		player := &models.PlayerState{

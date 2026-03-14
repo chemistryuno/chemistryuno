@@ -122,7 +122,7 @@ const handleStartChat = () => {
 
               <div class="flex flex-wrap items-center justify-center md:justify-start gap-5 py-1">
                 <div class="flex flex-col">
-                  <span class="text-[8px] font-black text-slate-400 uppercase tracking-widest">积分 / Pts</span>
+                  <span class="text-[8px] font-black text-slate-400 uppercase tracking-widest">燃素 / Phl</span>
                   <span class="text-sm font-black text-slate-800 dark:text-white font-mono">{{ Math.floor(user.points) }}</span>
                 </div>
                 <div class="w-px h-6 bg-slate-100 dark:bg-white/5" />

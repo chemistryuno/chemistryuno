@@ -384,10 +384,10 @@ onMounted(loadPlugins)
       <h1 class="text-xs font-black uppercase tracking-widest">插件系统管理</h1>
       <span v-if="restartScheduled" class="text-[11px] px-2 py-0.5 rounded-full bg-orange-500/20 border border-orange-500/40 text-orange-300">重启 {{ restartCountdown }}s</span>
       <div class="ml-auto flex items-center gap-2">
-        <button @click="reloadPlugins" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><RefreshCw class="w-3 h-3" />热重载</button>
-        <button @click="restoreDefaultDeck" class="px-2.5 py-1 bg-cyan-600 hover:bg-cyan-500 rounded text-[11px] font-bold">恢复默认卡组</button>
-        <button @click="installFileInput?.click()" class="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 rounded text-[11px] font-bold flex items-center gap-1"><Upload class="w-3 h-3" />安装.cumod</button>
-        <button @click="restartScheduled ? cancelRestart() : (showRestartModal = true)" class="px-2.5 py-1 bg-red-600 hover:bg-red-500 rounded text-[11px] font-bold flex items-center gap-1"><Power class="w-3 h-3" />{{ restartScheduled ? '取消重启' : '重启服务器' }}</button>
+        <button @click="reloadPlugins" class="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 shadow-lg shadow-blue-500/20 active:scale-95 transition-all"><RefreshCw class="w-3 h-3" />热重载</button>
+        <button @click="restoreDefaultDeck" class="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all">恢复默认卡组</button>
+        <button @click="installFileInput?.click()" class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 shadow-lg shadow-indigo-500/20 active:scale-95 transition-all"><Upload class="w-3 h-3" />安装.CUMOD</button>
+        <button @click="restartScheduled ? cancelRestart() : (showRestartModal = true)" :class="cn('px-4 py-1.5 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 shadow-lg active:scale-95 transition-all', restartScheduled ? 'bg-amber-600 hover:bg-amber-500 shadow-amber-500/20' : 'bg-red-600 hover:bg-red-500 shadow-red-500/20')"><Power class="w-3 h-3" />{{ restartScheduled ? '取消重启' : '重启服务器' }}</button>
       </div>
       <input ref="installFileInput" type="file" accept=".cumod" class="hidden" @change="installPlugin" />
     </div>

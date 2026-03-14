@@ -12,17 +12,17 @@
       <div class="flex items-center justify-between mb-8">
         <button 
           @click="router.push('/')"
-          class="group flex items-center gap-3 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all px-4 py-2 rounded-xl hover:bg-white dark:hover:bg-white/5 border border-transparent hover:border-slate-200 dark:hover:border-white/10"
+          class="group flex items-center gap-3 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-all px-4 py-2.5 rounded-2xl bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 shadow-sm active:scale-95"
         >
-          <ArrowLeft class="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-          <span class="font-bold tracking-wider uppercase text-xs">返回大厅</span>
+          <ArrowLeft class="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+          <span class="font-black tracking-widest uppercase text-[10px]">返回大厅</span>
         </button>
 
         <button
           @click="loadPlugins"
-          class="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600/10 hover:bg-blue-600 text-blue-600 hover:text-white border border-blue-500/20 transition-all text-[10px] font-black uppercase tracking-widest"
+          class="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-blue-600 hover:bg-blue-500 dark:bg-blue-500 dark:hover:bg-blue-400 text-white shadow-lg shadow-blue-500/20 transition-all text-[10px] font-black uppercase tracking-widest active:scale-95"
         >
-          <RefreshCw class="w-3.5 h-3.5" />
+          <RefreshCw class="w-3.5 h-3.5" :class="{ 'animate-spin': loading }" />
           刷新列表
         </button>
       </div>
@@ -99,78 +99,111 @@
       </div>
 
       <!-- Plugin List -->
-      <div v-else class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div v-else class="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div
           v-for="plugin in plugins"
           :key="plugin.id"
-          class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 rounded-[2rem] overflow-hidden shadow-sm"
+          class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 rounded-[2.5rem] overflow-hidden shadow-sm hover:shadow-xl transition-all duration-500 group/card relative"
         >
+          <!-- Plugin Active Glow -->
+          <div v-if="plugin.is_active" class="absolute -right-12 -top-12 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl group-hover/card:bg-emerald-500/20 transition-all"></div>
+
           <!-- Header -->
-          <div class="p-5 border-b border-slate-100 dark:border-white/5 flex items-start gap-4">
-            <div class="w-12 h-12 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center shrink-0">
-              <Puzzle class="w-6 h-6 text-purple-500" />
+          <div class="p-6 border-b border-slate-100 dark:border-white/5 flex items-start gap-5 relative z-10">
+            <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-500/20 to-indigo-500/20 border border-purple-500/20 flex items-center justify-center shrink-0 shadow-inner group-hover/card:scale-110 transition-transform duration-500">
+              <Puzzle class="w-7 h-7 text-purple-500" />
             </div>
-            <div class="min-w-0">
-              <div class="flex items-center gap-2 flex-wrap">
-                <h2 class="text-lg font-black text-slate-900 dark:text-white truncate">{{ plugin.name }}</h2>
-                <span class="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-600 dark:text-purple-300 border border-purple-500/20 font-black uppercase tracking-widest">
-                  v{{ plugin.version || '1.0.0' }}
-                </span>
-                <span
-                  class="text-[10px] px-2 py-0.5 rounded-full border font-black uppercase tracking-widest"
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center justify-between gap-2 flex-wrap mb-1.5">
+                <div class="flex items-center gap-2 max-w-full">
+                   <h2 class="text-xl font-black text-slate-900 dark:text-white truncate tracking-tight">{{ plugin.name }}</h2>
+                   <span class="text-[9px] px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-white/10 font-black uppercase tracking-widest">
+                     v{{ plugin.version || '1.0.0' }}
+                   </span>
+                </div>
+                <div
+                  class="text-[9px] px-2.5 py-1 rounded-full border font-black uppercase tracking-[0.15em] flex items-center gap-1.5"
                   :class="plugin.is_active
-                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 border-emerald-500/20'
-                    : 'bg-slate-200/60 dark:bg-white/5 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-white/10'"
+                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 shadow-[0_0_12px_rgba(16,185,129,0.1)]'
+                    : 'bg-slate-100 dark:bg-white/5 text-slate-400 border-slate-200 dark:border-white/10'"
                 >
-                  {{ plugin.is_active ? '已激活' : '未激活' }}
-                </span>
+                  <div v-if="plugin.is_active" class="w-1 h-1 rounded-full bg-emerald-500 animate-pulse"></div>
+                  {{ plugin.is_active ? 'Active' : 'Standby' }}
+                </div>
               </div>
-              <p v-if="plugin.description" class="text-sm text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">
+              <p v-if="plugin.description" class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed max-w-md">
                 {{ plugin.description }}
               </p>
-              <div class="flex items-center gap-3 mt-2 text-[10px] text-slate-400 dark:text-slate-500 font-mono uppercase tracking-widest">
-                <span v-if="plugin.author">作者 {{ plugin.author }}</span>
-                <span>卡牌 {{ plugin.cards?.length ?? 0 }}</span>
-                <span>创建 {{ formatDate(plugin.created_at) }}</span>
+              <div class="flex items-center gap-4 mt-3 text-[9px] text-slate-400 dark:text-slate-500 font-mono uppercase tracking-widest">
+                <div class="flex items-center gap-1.5">
+                   <UserIcon class="w-3 h-3 opacity-50" />
+                   <span>{{ plugin.author || 'Mendeleev' }}</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                   <Layers class="w-3 h-3 opacity-50" />
+                   <span>{{ plugin.cards?.length ?? 0 }} Assets</span>
+                </div>
+                <div class="flex items-center gap-1.5 hidden sm:flex">
+                   <Clock class="w-3 h-3 opacity-50" />
+                   <span>{{ formatDate(plugin.created_at) }}</span>
+                </div>
               </div>
             </div>
           </div>
 
-          <!-- Cards -->
-          <div class="p-5">
-            <div v-if="!plugin.cards || plugin.cards.length === 0" class="text-slate-500 text-sm text-center py-6">
-              该插件暂无卡牌
+          <!-- Cards Scrollable Area -->
+          <div class="bg-slate-50/50 dark:bg-black/20 p-6">
+            <div v-if="!plugin.cards || plugin.cards.length === 0" class="flex flex-col items-center justify-center py-10 text-slate-400">
+               <Layers class="w-8 h-8 opacity-10 mb-2" />
+               <p class="text-[10px] font-black uppercase tracking-widest italic">No Internal Card Assets</p>
             </div>
-            <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               <div
                 v-for="card in plugin.cards"
                 :key="card.id"
-                class="rounded-2xl border p-4 flex items-start gap-3 transition-all hover:-translate-y-0.5"
-                :class="card.color ? '' : 'bg-slate-50/80 dark:bg-white/[0.03] border-slate-200 dark:border-white/10'"
-                :style="card.color ? { backgroundColor: `${card.color}10`, borderColor: `${card.color}40` } : undefined"
+                class="group/card-item bg-white dark:bg-[#16161a] rounded-[1.5rem] border border-slate-200 dark:border-white/5 p-4 flex items-start gap-4 transition-all hover:bg-white dark:hover:bg-white/10 hover:shadow-lg hover:border-blue-500/30 dark:hover:border-blue-500/20"
               >
+                <!-- Card Symbol Hexagon-like shape -->
                 <div
-                  class="w-10 h-10 rounded-xl flex items-center justify-center text-[11px] font-black text-white flex-shrink-0 shadow-sm"
+                  class="w-12 h-12 rounded-2xl flex items-center justify-center text-xs font-black text-white shrink-0 shadow-lg relative overflow-hidden transition-transform group-hover/card-item:scale-105"
                   :style="card.color ? `background-color: ${card.color}` : 'background-color: #6366f1'"
                 >
-                  {{ card.symbol.slice(0, 3) }}
+                  <div class="absolute inset-0 bg-white/10 opacity-0 group-hover/card-item:opacity-100 transition-opacity"></div>
+                  <span class="relative z-10">{{ card.symbol.slice(0, 3).toUpperCase() }}</span>
                 </div>
-                <div class="min-w-0">
-                  <div class="font-black text-slate-900 dark:text-white text-sm truncate">
-                    {{ card.display_name || card.symbol }}
+
+                <div class="min-w-0 flex-1">
+                  <div class="flex items-center justify-between gap-2">
+                    <span class="font-black text-slate-900 dark:text-white text-[13px] truncate tracking-tight">
+                      {{ card.display_name || card.symbol }}
+                    </span>
+                    <span class="text-[8px] font-mono text-blue-500/60 font-black">×{{ card.default_count }}</span>
                   </div>
-                  <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                  
+                  <!-- Type Badge -->
+                  <div class="inline-flex items-center px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-white/5 text-[9px] font-bold text-slate-500 mt-1 uppercase tracking-tighter">
                     {{ effectLabel(card.effect_type) }}
                   </div>
-                  <div class="text-[10px] text-slate-500 dark:text-slate-400 mt-1">
-                    默认 {{ card.default_count }} 张 · 符号：{{ card.symbol }}
-                  </div>
-                  <div class="text-[10px] mt-1.5 font-mono text-slate-400 dark:text-slate-500 truncate" :title="card.effect_config">
-                    {{ formatConfig(card.effect_config) }}
+
+                  <!-- Config Summary -->
+                  <div class="flex items-center gap-1.5 mt-2 overflow-hidden">
+                    <div class="flex-1 h-px bg-slate-100 dark:bg-white/5"></div>
+                    <span class="text-[8px] font-black font-mono text-slate-400 dark:text-slate-500 uppercase shrink-0">
+                      {{ formatConfig(card.effect_config) }}
+                    </span>
                   </div>
                 </div>
               </div>
             </div>
+          </div>
+          
+          <!-- Footer Actions -->
+          <div class="px-6 py-4 bg-white dark:bg-[#111114] border-t border-slate-100 dark:border-white/5 flex items-center justify-between">
+             <div class="flex items-center gap-1.5">
+                <span class="w-1.5 h-1.5 rounded-full" :class="plugin.is_active ? 'bg-emerald-500' : 'bg-slate-300'"></span>
+                <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Protocol OK</span>
+             </div>
+             <div class="text-[8px] font-mono text-slate-400 opacity-50">UID_{{ plugin.id }}</div>
           </div>
         </div>
       </div>
@@ -181,7 +214,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowLeft, Puzzle, RefreshCw, Sparkles, Layers } from 'lucide-vue-next'
+import { ArrowLeft, Puzzle, RefreshCw, Sparkles, Layers, User as UserIcon, Clock } from 'lucide-vue-next'
 import { pluginAPI } from '../utils/api'
 
 interface PluginCard {

@@ -27,7 +27,7 @@ import DeviceManagementModal from '../components/profile/DeviceManagementModal.v
 import ChangeEmailModal from '../components/profile/ChangeEmailModal.vue'
 import SetEmailModal from '../components/profile/SetEmailModal.vue'
 import LevelProgress from '../components/LevelProgress.vue'
-import { LayoutDashboard, ShieldCheck, FlaskConical, History, Sliders, Menu, X as CloseIcon, LogOut, User as UserIcon } from 'lucide-vue-next'
+import { LayoutDashboard, ShieldCheck, FlaskConical, History, Sliders, Menu, X as CloseIcon, LogOut, User as UserIcon, FileText } from 'lucide-vue-next'
 
 const router = useRouter()
 const { showAlert, showConfirm, showPrompt } = useDialog()
@@ -51,6 +51,7 @@ const categories = [
   { id: 'overview', name: '数据概览', icon: LayoutDashboard, eng: 'Dashboard' },
   { id: 'space', name: '个人空间', icon: UserIcon, eng: 'Space' },
   { id: 'security', name: '安全中心', icon: ShieldCheck, eng: 'Security' },
+  { id: 'legal', name: '合规协议', icon: FileText, eng: 'Compliance' },
   { id: 'research', name: '实验资产', icon: FlaskConical, eng: 'Research' },
   { id: 'history', name: '反应记录', icon: History, eng: 'Records' },
   { id: 'settings', name: '外观偏好', icon: Sliders, eng: 'Preferences' }
@@ -446,6 +447,10 @@ const handleOAuthUnbind = async (provider: 'github' | 'ms' | 'google' | 'apple')
             />
           </div>
 
+          <div v-if="currentCategory === 'legal'" class="space-y-6">
+            <SettingsPanel :user="user" force-tab="user_agreement" />
+          </div>
+
           <div v-if="currentCategory === 'research'">
             <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 rounded-2xl p-8 shadow-sm">
               <CustomDecks />
@@ -461,25 +466,6 @@ const handleOAuthUnbind = async (provider: 'github' | 'ms' | 'google' | 'apple')
           <div v-if="currentCategory === 'settings'" class="space-y-6">
             <!-- Visual Settings Section -->
             <SettingsPanel :user="user" @update="fetchLatestUserInfo" />
-
-            <!-- Feedback Section -->
-            <router-link 
-              to="/feedbacks/my"
-              class="group flex items-center justify-between p-6 bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 rounded-2xl shadow-sm hover:shadow-lg transition-all"
-            >
-              <div class="flex items-center gap-5">
-                <div class="w-12 h-12 bg-blue-500/10 rounded-xl flex items-center justify-center text-blue-500 group-hover:bg-blue-500 group-hover:text-white transition-all duration-300">
-                  <MessageSquare class="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 class="text-base font-black uppercase tracking-widest text-slate-800 dark:text-white leading-none">反馈与消息 / Feedback</h3>
-                  <p class="text-slate-500 dark:text-slate-400 mt-1.5 font-medium text-[11px]">查看提交的建议、错误报告及管理员回复</p>
-                </div>
-              </div>
-              <div class="w-8 h-8 rounded-full border border-slate-200 dark:border-white/5 flex items-center justify-center text-slate-400 group-hover:bg-blue-500 group-hover:text-white group-hover:translate-x-1 transition-all">
-                <ArrowLeft class="w-3.5 h-3.5 rotate-180" />
-              </div>
-            </router-link>
           </div>
 
         </div>

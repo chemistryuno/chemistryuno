@@ -768,7 +768,7 @@ const filteredHistory = computed(() => {
         <div class="flex items-center gap-4">
           <div class="relative group">
             <div class="absolute inset-x-0 inset-y-0 bg-cyan-500 blur-2xl opacity-20 group-hover:opacity-40 transition-opacity" />
-            <div class="w-16 h-16 rounded-xl bg-white dark:bg-[#111114] border border-cyan-500/40 flex items-center justify-center relative z-10 shadow-[0_0_30px_rgba(6,182,212,0.15)] group-hover:shadow-[0_0_40px_rgba(6,182,212,0.25)] transition-all">
+            <div class="w-16 h-16 rounded-2xl bg-white dark:bg-[#111114] border border-cyan-500/40 flex items-center justify-center relative z-10 shadow-[0_0_30px_rgba(6,182,212,0.15)] group-hover:shadow-[0_0_40px_rgba(6,182,212,0.25)] transition-all">
               <Shield class="w-8 h-8 text-cyan-600 dark:text-cyan-400 group-hover:scale-110 transition-transform" />
             </div>
           </div>
@@ -781,7 +781,7 @@ const filteredHistory = computed(() => {
         </div>
 
         <div class="flex items-center gap-4">
-          <div class="px-4 py-2.5 bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/5 rounded-xl flex items-center gap-4 shadow-xl backdrop-blur-md">
+          <div class="px-4 py-2.5 bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/5 rounded-2xl flex items-center gap-4 shadow-xl backdrop-blur-md">
             <div class="flex flex-col items-end">
               <span class="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Interface Status</span>
               <span class="text-xs font-bold text-cyan-600 dark:text-cyan-400 flex items-center gap-1.5">
@@ -810,52 +810,64 @@ const filteredHistory = computed(() => {
       </header>
 
       <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 p-3 rounded-xl hover:border-cyan-500/40 transition-all shadow-lg dark:shadow-xl group">
-          <div class="flex items-center justify-between mb-3">
-            <div class="p-2 rounded-lg bg-cyan-500/10 text-cyan-600 dark:text-cyan-400">
+        <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 p-4 rounded-2xl hover:border-cyan-500/40 transition-all shadow-lg dark:shadow-xl group relative overflow-hidden">
+          <div class="absolute -right-4 -bottom-4 opacity-5 group-hover:rotate-12 group-hover:scale-110 transition-all duration-500 text-cyan-500">
+            <Users class="w-24 h-24" />
+          </div>
+          <div class="flex items-center justify-between mb-3 relative z-10">
+            <div class="p-2 rounded-xl bg-cyan-500/10 text-cyan-600 dark:text-cyan-400">
               <Users class="w-5 h-5" />
             </div>
             <div class="text-[9px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-[0.2em] group-hover:text-cyan-600 transition-colors">STAFF_INDEX</div>
           </div>
-          <div class="text-xl font-black text-slate-900 dark:text-white italic tracking-tighter">{{ stats.user_count }}</div>
-          <div class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mt-1 tracking-wider">在册研究员总数</div>
+          <div class="text-2xl font-black text-slate-900 dark:text-white italic tracking-tighter relative z-10">{{ stats.user_count }}</div>
+          <div class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mt-1 tracking-wider relative z-10">在册研究员总数</div>
         </div>
 
-        <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 p-3 rounded-xl hover:border-violet-500/40 transition-all shadow-lg dark:shadow-xl group">
-          <div class="flex items-center justify-between mb-3">
-            <div class="p-2 rounded-lg bg-violet-500/10 text-violet-600 dark:text-violet-400">
+        <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 p-4 rounded-2xl hover:border-violet-500/40 transition-all shadow-lg dark:shadow-xl group relative overflow-hidden">
+          <div class="absolute -right-4 -bottom-4 opacity-5 group-hover:rotate-12 group-hover:scale-110 transition-all duration-500 text-violet-500">
+            <Cpu class="w-24 h-24" />
+          </div>
+          <div class="flex items-center justify-between mb-3 relative z-10">
+            <div class="p-2 rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400">
               <Cpu class="w-5 h-5" />
             </div>
             <div class="text-[9px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-[0.2em] group-hover:text-violet-600 transition-colors">CORE_DRIVE</div>
           </div>
-          <div class="text-xl font-black text-slate-900 dark:text-white italic tracking-tighter">{{ stats.deck_card_types }}</div>
-          <div class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mt-1 tracking-wider">核定反应元基数</div>
+          <div class="text-2xl font-black text-slate-900 dark:text-white italic tracking-tighter relative z-10">{{ stats.deck_card_types }}</div>
+          <div class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mt-1 tracking-wider relative z-10">核定反应元基数</div>
         </div>
 
-        <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 p-3 rounded-xl hover:border-orange-500/40 transition-all shadow-lg dark:shadow-xl group">
-          <div class="flex items-center justify-between mb-3">
-            <div class="p-2 rounded-lg bg-orange-500/10 text-orange-600 dark:text-orange-400">
+        <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 p-4 rounded-2xl hover:border-orange-500/40 transition-all shadow-lg dark:shadow-xl group relative overflow-hidden">
+          <div class="absolute -right-4 -bottom-4 opacity-5 group-hover:rotate-12 group-hover:scale-110 transition-all duration-500 text-orange-500">
+            <History class="w-24 h-24" />
+          </div>
+          <div class="flex items-center justify-between mb-3 relative z-10">
+            <div class="p-2 rounded-xl bg-orange-500/10 text-orange-600 dark:text-orange-400">
               <History class="w-5 h-5" />
             </div>
             <div class="text-[9px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-[0.2em] group-hover:text-orange-600 transition-colors">LOG_BUFFER</div>
           </div>
-          <div class="text-xl font-black text-slate-900 dark:text-white italic tracking-tighter">{{ stats.history_count }}</div>
-          <div class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mt-1 tracking-wider">全域实验活动记录</div>
+          <div class="text-2xl font-black text-slate-900 dark:text-white italic tracking-tighter relative z-10">{{ stats.history_count }}</div>
+          <div class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mt-1 tracking-wider relative z-10">全域实验活动记录</div>
         </div>
 
-        <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 p-3 rounded-xl hover:border-emerald-500/40 transition-all shadow-lg dark:shadow-xl group">
-          <div class="flex items-center justify-between mb-3">
-            <div class="p-2 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+        <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 p-4 rounded-2xl hover:border-emerald-500/40 transition-all shadow-lg dark:shadow-xl group relative overflow-hidden">
+          <div class="absolute -right-4 -bottom-4 opacity-5 group-hover:rotate-12 group-hover:scale-110 transition-all duration-500 text-emerald-500">
+            <Database class="w-24 h-24" />
+          </div>
+          <div class="flex items-center justify-between mb-3 relative z-10">
+            <div class="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
               <Database class="w-5 h-5" />
             </div>
             <div class="text-[9px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-[0.2em] group-hover:text-emerald-600 transition-colors">ACTIVE_ROOMS</div>
           </div>
-          <div class="text-xl font-black text-slate-900 dark:text-white italic tracking-tighter">{{ stats.active_rooms }}</div>
-          <div class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mt-1 tracking-wider">当前活跃实验室</div>
+          <div class="text-2xl font-black text-slate-900 dark:text-white italic tracking-tighter relative z-10">{{ stats.active_rooms }}</div>
+          <div class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mt-1 tracking-wider relative z-10">当前活跃实验室</div>
         </div>
       </section>
 
-      <main class="bg-white dark:bg-[#0c0c0e] border border-slate-200 dark:border-white/5 rounded-[1.25rem] shadow-[0_40px_100px_-20px_rgba(0,0,0,0.3)] overflow-hidden min-h-[600px] flex flex-col relative">
+      <main class="bg-white dark:bg-[#0c0c0e] border border-slate-200 dark:border-white/5 rounded-[2rem] shadow-[0_40px_100px_-20px_rgba(0,0,0,0.3)] overflow-hidden min-h-[600px] flex flex-col relative">
         <div class="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-500/50 to-transparent" />
         
         <nav class="flex border-b border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-black/40 p-3 overflow-x-auto custom-scrollbar relative">
@@ -863,15 +875,15 @@ const filteredHistory = computed(() => {
             v-for="tab in tabs"
             :key="tab.id"
             @click="activeTab = tab.id"
-            class="flex items-center gap-3 px-5 py-2.5 rounded-xl transition-all shrink-0 group relative"
+            class="flex items-center gap-3 px-5 py-2.5 rounded-2xl transition-all shrink-0 group relative"
             :class="[
               activeTab === tab.id 
-                ? 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400' 
+                ? 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 shadow-sm' 
                 : 'text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-slate-300'
             ]"
           >
             <component :is="tab.icon" :class="cn('w-4 h-4 transition-transform group-hover:scale-110', activeTab === tab.id ? 'text-cyan-500 animate-pulse' : '')" />
-            <span class="font-black uppercase tracking-widest text-[10px]">{{ tab.label }}</span>
+            <span class="font-black uppercase tracking-widest text-[11px]">{{ tab.label }}</span>
             <div v-if="activeTab === tab.id" class="absolute inset-x-0 bottom-1 px-5 z-10">
               <div class="h-0.5 bg-cyan-500 shadow-[0_0_15px_rgba(6,182,212,0.8)] rounded-full" />
             </div>
@@ -880,10 +892,11 @@ const filteredHistory = computed(() => {
           <div class="ml-auto flex items-center gap-2 pr-2">
             <router-link
               to="/admin/plugins"
-              class="flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all shrink-0 group border border-purple-500/20 bg-purple-500/10 text-purple-600 dark:text-purple-400 hover:bg-purple-500/20"
+              class="flex items-center gap-3 px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all hover:shadow-lg hover:shadow-blue-500/20 active:scale-95 group"
             >
-              <Puzzle class="w-4 h-4 transition-transform group-hover:scale-110" />
-              <span class="font-black uppercase tracking-widest text-[10px]">安装插件</span>
+              <Puzzle class="w-4 h-4 group-hover:rotate-12 transition-transform" />
+              进入核心外部插件管理
+              <ChevronRight class="ml-auto w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </router-link>
           </div>
         </nav>
@@ -949,9 +962,9 @@ const filteredHistory = computed(() => {
                       </td>
                       <td class="px-4 py-2.5 text-[10px] text-slate-500 tracking-widest">{{ u.uid }}</td>
                       <td class="px-4 py-2.5">
-                        <span v-if="u.role === 'admin'" class="text-[8px] px-2 py-0.5 bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 rounded-md border border-cyan-500/20 font-black tracking-widest uppercase shadow-[0_0_10px_rgba(6,182,212,0.1)] transition-all">LV.99 CORE</span>
-                        <span v-else-if="u.role === 'co-worker'" class="text-[8px] px-2 py-0.5 bg-violet-500/10 text-violet-600 dark:text-violet-400 rounded-md border border-violet-500/20 font-black tracking-widest uppercase">LV.50 ASSIST</span>
-                        <span v-else class="text-[8px] px-2 py-0.5 bg-slate-100 dark:bg-white/5 text-slate-400 dark:text-slate-500 rounded-md border border-slate-200 dark:border-white/10 font-black tracking-widest uppercase">LV.01 STAFF</span>
+                        <span v-if="u.role === 'admin'" class="text-[8px] px-2 py-0.5 bg-rose-500/10 text-rose-600 dark:text-rose-400 rounded-md border border-rose-500/20 font-black tracking-widest uppercase shadow-[0_0_10px_rgba(244,63,94,0.1)] transition-all">CORE_PROTOCOL</span>
+                        <span v-else-if="u.role === 'co-worker'" class="text-[8px] px-2 py-0.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-md border border-amber-500/20 font-black tracking-widest uppercase">CO_WORKER</span>
+                        <span v-else class="text-[8px] px-2 py-0.5 bg-slate-100 dark:bg-white/5 text-slate-400 dark:text-slate-500 rounded-md border border-slate-200 dark:border-white/10 font-black tracking-widest uppercase">RESEARCHER</span>
                       </td>
                       <td class="px-4 py-2.5 text-[9px] text-slate-500 uppercase font-bold">{{ new Date(u.created_at).toLocaleDateString() }}</td>
                       <td class="px-4 py-2.5 text-right">
@@ -959,24 +972,24 @@ const filteredHistory = computed(() => {
                           <button
                             v-if="tabs.length > 1"
                             @click="handlePromoteUser(u.uid, u.role)"
-                            class="p-2.5 bg-slate-100 dark:bg-white/5 hover:bg-violet-500/10 text-slate-400 hover:text-violet-600 rounded-xl transition-all border border-transparent hover:border-violet-500/20"
+                            class="p-2.5 bg-blue-500/10 text-blue-500 hover:bg-blue-600 hover:text-white rounded-xl transition-all active:scale-90"
                             title="ELEVATE_AUTH"
                           >
-                            <ArrowUp class="w-3.5 h-3.5" />
+                            <ArrowUp class="w-4 h-4" />
                           </button>
                           <button
                             @click="handleKickPlayer(u)"
-                            class="p-2.5 bg-slate-100 dark:bg-white/5 hover:bg-amber-500/10 text-slate-400 hover:text-amber-600 rounded-xl transition-all border border-transparent hover:border-amber-500/20"
+                            class="p-2.5 bg-amber-500/10 text-amber-500 hover:bg-amber-600 hover:text-white rounded-xl transition-all active:scale-90"
                             title="KICK_FROM_ROOM"
                           >
-                            <UserMinus class="w-3.5 h-3.5" />
+                            <UserMinus class="w-4 h-4" />
                           </button>
                           <button
                             @click="openBanModal(u)"
-                            class="p-2.5 bg-slate-100 dark:bg-white/5 hover:bg-rose-500/10 text-slate-400 hover:text-rose-600 rounded-xl transition-all border border-transparent hover:border-rose-500/20"
+                            class="p-2.5 bg-rose-500/10 text-rose-500 hover:bg-rose-600 hover:text-white rounded-xl transition-all active:scale-90"
                             title="BAN_USER"
                           >
-                            <Ban class="w-3.5 h-3.5" />
+                            <Ban class="w-4 h-4" />
                           </button>
                         </div>
                       </td>
@@ -1333,7 +1346,7 @@ const filteredHistory = computed(() => {
                     <div class="absolute top-0 right-0 w-32 h-32 bg-amber-500/[0.03] blur-[50px] -mr-16 -mt-16" />
                     <div class="relative z-10">
                       <label class="text-[10px] font-mono text-amber-600 dark:text-amber-400 uppercase tracking-widest font-black flex items-center gap-2 mb-3">
-                        <Trophy class="w-4 h-4" /> 积分动态缩放系统
+                        <Trophy class="w-4 h-4" /> 燃素动态缩放系统
                       </label>
                       <select
                         v-model="gameTimeConfigs.points_scaling_enabled"
@@ -1342,7 +1355,7 @@ const filteredHistory = computed(() => {
                         <option value="true">ENABLED / 启用</option>
                         <option value="false">DISABLED / 禁用</option>
                       </select>
-                      <div class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-2 opacity-70">根据房间人数和离线率自动调整积分获取量</div>
+                      <div class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-2 opacity-70">根据房间人数和离线率自动调整燃素获取量</div>
                     </div>
                   </div>
                 </div>
@@ -1351,10 +1364,10 @@ const filteredHistory = computed(() => {
                 <div class="flex justify-end mt-6">
                   <button
                     @click="handleUpdateGameTimeConfig"
-                    class="px-5 py-2.5 bg-gradient-to-r from-blue-500 to-purple-600 text-white font-black uppercase text-sm rounded-xl hover:shadow-2xl hover:shadow-blue-500/20 transition-all flex items-center gap-3 border border-white/10"
+                    class="px-8 py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-black uppercase text-[10px] tracking-[0.2em] rounded-2xl hover:shadow-2xl hover:shadow-blue-500/20 transition-all flex items-center gap-3 active:scale-95 group shadow-lg"
                   >
-                    <Save class="w-4 h-4" />
-                    保存配置
+                    <Save class="w-4 h-4 group-hover:rotate-12 transition-transform" />
+                    APPLY_CHANGES / 保存配置
                   </button>
                 </div>
               </div>
@@ -1381,61 +1394,62 @@ const filteredHistory = computed(() => {
             <div v-if="activeTab === 'history'" class="space-y-8">
               <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                 <h3 class="text-lg font-black italic uppercase text-slate-900 dark:text-white flex items-center gap-4">
-                  <History class="w-5 h-5 text-cyan-500 shrink-0" />
+                  <History class="w-5 h-5 text-blue-500 shrink-0" />
                   全球实验追溯记录 <span class="text-slate-400 dark:text-slate-600 font-mono not-italic text-[10px] tracking-normal">/ SCAN@LOGS --ALL</span>
                 </h3>
                 <div class="flex items-center gap-4">
                   <div class="relative group">
-                    <SearchIcon class="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-cyan-500 transition-colors" />
+                    <SearchIcon class="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
                     <input 
                       v-model="searchTerm"
                       type="text" 
                       placeholder="SEARCH EXPERIMENT ID..."
-                      class="bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/5 rounded-xl pl-12 pr-6 py-2.5 text-[10px] font-black tracking-widest focus:outline-none focus:border-cyan-500/30 w-full md:w-64 transition-all placeholder:text-slate-400 dark:placeholder:text-slate-700 text-slate-900 dark:text-white"
+                      class="bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/5 rounded-2xl pl-12 pr-6 py-3 text-[10px] font-black tracking-widest focus:outline-none focus:border-blue-500/30 w-full md:w-64 transition-all placeholder:text-slate-400 dark:placeholder:text-slate-700 text-slate-900 dark:text-white shadow-sm"
                     />
                   </div>
                 </div>
               </div>
 
-              <div class="overflow-x-auto custom-scrollbar border border-slate-200 dark:border-white/5 rounded-[1.5rem] bg-slate-50 dark:bg-black/20">
-                <table class="w-full text-left">
-                  <thead>
-                    <tr class="text-slate-400 dark:text-slate-600 text-[9px] font-black uppercase tracking-[0.3em] border-b border-slate-200 dark:border-white/10">
-                      <th class="px-5 py-2.5">Experiment ID</th>
-                      <th class="px-5 py-2.5">Timestamp / Sync</th>
-                      <th class="px-5 py-2.5">Subject Status</th>
-                      <th class="px-5 py-2.5 text-right">Protocol Data</th>
-                    </tr>
-                  </thead>
-                  <tbody class="divide-y divide-slate-100 dark:divide-white/5 font-mono">
-                    <tr v-for="game in filteredHistory" :key="game.id" class="hover:bg-white/40 dark:hover:bg-cyan-500/[0.03] transition-all group cursor-pointer">
-                      <td class="px-5 py-2.5 font-black text-slate-900 dark:text-white group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors text-xs tracking-tighter">
-                        <span class="text-slate-400 dark:text-slate-600 font-normal opacity-50">STATION:</span>{{ String(game.id).padStart(4, '0') }}
-                      </td>
-                      <td class="px-5 py-2.5 text-[10px] text-slate-500 dark:text-slate-500 font-bold uppercase">
-                        {{ new Date((game.finished_at || game.created_at || '').replace(' ', 'T')).toLocaleString() }}
-                      </td>
-                      <td class="px-5 py-2.5">
-                        <div class="flex items-center gap-3">
-                          <span class="text-[9px] px-3.5 py-1.5 bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 rounded-lg border border-cyan-500/20 font-black tracking-widest uppercase shadow-sm">
-                            Winner: {{ game.winner_name || 'UNDEFINED' }}
-                          </span>
-                          <span class="text-[8px] text-slate-400 dark:text-slate-600 uppercase font-black opacity-40">/ COMPLETED</span>
-                        </div>
-                      </td>
-                      <td class="px-5 py-2.5 text-right">
-                        <div class="inline-flex items-center justify-center w-8 h-8 rounded-full border border-slate-200 dark:border-white/10 group-hover:border-cyan-500/50 transition-all">
-                           <ChevronRight class="w-4 h-4 text-slate-300 dark:text-slate-800 group-hover:text-cyan-500 group-hover:translate-x-1 transition-all" />
-                        </div>
-                      </td>
-                    </tr>
-                    <tr v-if="filteredHistory.length === 0">
-                      <td colspan="4" class="py-24 text-center text-slate-400 dark:text-slate-600 italic font-black uppercase tracking-[0.4em] text-[10px]">
-                        / NO_HISTORY_DATA_FOUND_IN_BUFFER
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+              <div class="overflow-hidden border border-slate-200 dark:border-white/5 rounded-[2.5rem] bg-white dark:bg-[#111114] shadow-xl">
+                <div class="overflow-x-auto custom-scrollbar">
+                  <table class="w-full text-left">
+                    <thead>
+                      <tr class="text-slate-400 dark:text-slate-600 text-[9px] font-black uppercase tracking-[0.3em] border-b border-slate-100 dark:border-white/5">
+                        <th class="px-8 py-5">Experiment ID</th>
+                        <th class="px-8 py-5">Timestamp / Sync</th>
+                        <th class="px-8 py-5">Subject Status</th>
+                        <th class="px-8 py-5 text-right">Protocol Data</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-50 dark:divide-white/5 font-mono">
+                      <tr v-for="game in filteredHistory" :key="game.id" class="hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-all group cursor-pointer">
+                        <td class="px-8 py-5 font-black text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors text-xs tracking-tighter">
+                          <span class="text-slate-400 dark:text-slate-600 font-normal opacity-50 uppercase mr-1">Station:</span>{{ String(game.id).padStart(4, '0') }}
+                        </td>
+                        <td class="px-8 py-5 text-[10px] text-slate-500 dark:text-slate-500 font-bold uppercase">
+                          {{ new Date((game.finished_at || game.created_at || '').replace(' ', 'T')).toLocaleString() }}
+                        </td>
+                        <td class="px-8 py-5">
+                          <div class="flex items-center gap-3">
+                            <span class="text-[9px] px-3.5 py-1.5 bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-xl border border-blue-500/20 font-black tracking-widest uppercase shadow-sm group-hover:bg-blue-500 group-hover:text-white group-hover:border-blue-500 transition-all duration-300">
+                              Winner: {{ game.winner_name || 'UNDEFINED' }}
+                            </span>
+                          </div>
+                        </td>
+                        <td class="px-8 py-5 text-right">
+                          <div class="inline-flex items-center justify-center w-10 h-10 rounded-2xl border border-slate-100 dark:border-white/10 group-hover:border-blue-500/50 group-hover:bg-blue-500/5 transition-all">
+                             <ChevronRight class="w-4 h-4 text-slate-300 dark:text-slate-800 group-hover:text-blue-500 group-hover:translate-x-1 transition-all" />
+                          </div>
+                        </td>
+                      </tr>
+                      <tr v-if="filteredHistory.length === 0">
+                        <td colspan="4" class="py-24 text-center text-slate-400 dark:text-slate-600 italic font-black uppercase tracking-[0.4em] text-[10px]">
+                          / NO_BUFFER_DATA_LOADED
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
 
@@ -2011,12 +2025,12 @@ const filteredHistory = computed(() => {
               />
             </div>
             <div>
-              <label class="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-2 ml-1">奖励 (积分/经验)</label>
+              <label class="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-2 ml-1">奖励 (燃素/经验)</label>
               <div class="grid grid-cols-2 gap-2">
                 <input 
                   v-model.number="newSurvey.reward_points"
                   type="number" 
-                  placeholder="POINTS..."
+                  placeholder="燃素..."
                   class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2 text-[11px] font-bold text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500/50 transition-all italic"
                 />
                 <input 
@@ -2067,7 +2081,7 @@ const filteredHistory = computed(() => {
                   <input type="checkbox" v-model="q.is_required" class="accent-indigo-500 w-3 h-3" />
                   <span class="text-[8px] font-black text-slate-400 uppercase">必填</span>
                 </label>
-                <button @click="removeQuestion(index)" class="p-1.5 text-slate-400 hover:text-red-500 transition-colors">
+                <button @click="removeQuestion(Number(index))" class="p-1.5 text-slate-400 hover:text-red-500 transition-colors">
                   <Trash2 class="w-3.5 h-3.5" />
                 </button>
               </div>
@@ -2128,12 +2142,12 @@ const filteredHistory = computed(() => {
               />
             </div>
             <div>
-              <label class="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-2 ml-1">奖励 (积分/经验)</label>
+              <label class="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-2 ml-1">奖励 (燃素/经验)</label>
               <div class="grid grid-cols-2 gap-2">
                 <input
                   v-model.number="editingSurvey.reward_points"
                   type="number"
-                  placeholder="POINTS..."
+                  placeholder="燃素..."
                   class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2 text-[11px] font-bold text-slate-900 dark:text-white focus:outline-none focus:border-amber-500/50 transition-all italic"
                 />
                 <input
@@ -2168,11 +2182,11 @@ const filteredHistory = computed(() => {
               <div class="flex items-start gap-2">
                 <!-- 顺序控制 -->
                 <div class="flex flex-col gap-0.5 shrink-0">
-                  <button @click="moveEditQuestion(index, -1)" :disabled="index === 0" class="p-0.5 text-slate-300 dark:text-slate-600 hover:text-amber-500 disabled:opacity-30 transition-colors">
+                  <button @click="moveEditQuestion(Number(index), -1)" :disabled="Number(index) === 0" class="p-0.5 text-slate-300 dark:text-slate-600 hover:text-amber-500 disabled:opacity-30 transition-colors">
                     <ChevronUp class="w-3 h-3" />
                   </button>
-                  <span class="text-[8px] font-black text-slate-400 text-center">{{ index + 1 }}</span>
-                  <button @click="moveEditQuestion(index, 1)" :disabled="index === editingSurvey.questions.length - 1" class="p-0.5 text-slate-300 dark:text-slate-600 hover:text-amber-500 disabled:opacity-30 transition-colors">
+                  <span class="text-[8px] font-black text-slate-400 text-center">{{ Number(index) + 1 }}</span>
+                  <button @click="moveEditQuestion(Number(index), 1)" :disabled="Number(index) === editingSurvey.questions.length - 1" class="p-0.5 text-slate-300 dark:text-slate-600 hover:text-amber-500 disabled:opacity-30 transition-colors">
                     <ChevronDown class="w-3 h-3" />
                   </button>
                 </div>
@@ -2194,7 +2208,7 @@ const filteredHistory = computed(() => {
                   <input type="checkbox" v-model="q.is_required" class="accent-amber-500 w-3 h-3" />
                   <span class="text-[8px] font-black text-slate-400 uppercase">必填</span>
                 </label>
-                <button @click="removeEditQuestion(index)" class="p-1.5 text-slate-400 hover:text-red-500 transition-colors shrink-0">
+                <button @click="removeEditQuestion(Number(index))" class="p-1.5 text-slate-400 hover:text-red-500 transition-colors shrink-0">
                   <Trash2 class="w-3.5 h-3.5" />
                 </button>
               </div>

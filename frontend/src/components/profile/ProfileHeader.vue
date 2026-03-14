@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import PhlogistonIcon from '../icons/PhlogistonIcon.vue'
 import { Shield, Fingerprint, Calendar, Award, User as UserIcon, RefreshCw, Zap, Edit2 } from 'lucide-vue-next'
 import LevelBadge from '../LevelBadge.vue'
 import UserAvatar from '../UserAvatar.vue'
@@ -91,7 +92,9 @@ onMounted(() => {
           <div v-else class="text-slate-400 text-[9px]">加载中...</div>
         </div>
         <div class="flex justify-between items-center text-[10px]">
-          <span class="text-slate-400 font-bold uppercase tracking-widest flex items-center gap-1"><Zap class="w-2.5 h-2.5 text-yellow-500" /> 积分</span>
+          <span class="text-slate-400 font-bold uppercase tracking-widest flex items-center gap-1">
+            <PhlogistonIcon :size="10" color="#f59e0b" class="shrink-0" /> 燃素
+          </span>
           <span class="font-black text-slate-900 dark:text-white uppercase font-mono">{{ Math.floor(user.points || 0) }}</span>
         </div>
         <div v-if="user.created_at" class="flex justify-between items-center text-[10px]">

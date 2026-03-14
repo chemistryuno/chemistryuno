@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import PhlogistonIcon from '../components/icons/PhlogistonIcon.vue'
 import { gameAPI, adminAPI, friendAPI, authAPI, commonAPI, substanceAPI } from '../utils/api'
 import { useDialog, setToastRef } from '../utils/dialog'
 import websocket from '../utils/websocket'
@@ -459,7 +460,7 @@ const allPlayers = computed(() => {
       const baseInfo = playersInfo.value.find(b => Number(b.uid) === Number(p.uid))
       return {
         ...p,
-        avatar: p.avatar || baseInfo?.avatar,
+        avatar: p.avatar || baseInfo?.avatar || '🧪',
         // 强制显示昵称，回退到用户名
         username: p.nickname || baseInfo?.nickname || p.username || baseInfo?.username,
         is_ready: roomInfo.value?.ready_uids?.includes(Number(p.uid)),
@@ -469,6 +470,7 @@ const allPlayers = computed(() => {
   }
   return playersInfo.value.map(p => ({
     ...p,
+    avatar: p.avatar || '🧪',
     username: p.nickname || p.username,
     is_ready: roomInfo.value?.ready_uids?.includes(Number(p.uid)),
     is_offline: p.is_offline
@@ -1443,7 +1445,7 @@ const handleLeaveRoom = async () => {
     if (isSpectator.value) {
       const rank = (gameState.value?.finished_players || []).indexOf(user.value?.uid) + 1
       const points = rank === 1 ? 100 : (rank === 2 ? 50 : (rank === 3 ? 33 : 25))
-      message = `实验已完成！你获得了第 ${rank} 名，系统已为你发放约 ${points} 积分。确定现在结束这次实验吗？`
+      message = `实验已完成！你获得了第 ${rank} 名，系统已为你发放约 ${points} 燃素。确定现在结束这次实验吗？`
       title = '实验结算'
     }
 
@@ -1845,21 +1847,23 @@ watch(() => gameState.value?.current_player, () => {
                 v-if="myData?.double_action_available"
                 @click.stop="toggleDoubleMode"
                 :class="cn(
-                  'px-2.5 sm:px-2 py-1 sm:py-0.5 rounded-lg border border-white/20 transition-all flex items-center gap-1.5 relative overflow-hidden touch-feedback',
-                  doubleMode ? 'bg-amber-500 text-white border-amber-400 shadow-sm' : 'bg-black/40 text-white/60 hover:text-white hover:bg-black/60'
+                  'px-3 sm:px-2.5 py-1.5 sm:py-1 rounded-2xl border border-white/20 transition-all flex items-center gap-2 relative overflow-hidden touch-feedback',
+                  doubleMode 
+                    ? 'bg-blue-600 text-white border-blue-400 shadow-[0_0_15px_rgba(37,99,235,0.4)]' 
+                    : 'bg-white/10 text-white/70 hover:text-white hover:bg-white/20'
                 )"
               >
                  <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover/btn:animate-shimmer"></div>
-                 <Activity :class="cn('w-3.5 h-3.5 sm:w-3 sm:h-3', doubleMode && 'animate-spin')" />
-                 <span class="text-xs-mobile font-black uppercase tracking-tighter">{{ doubleMode ? '解除超限' : '超限双联' }}</span>
+                 <Activity :class="cn('w-4 h-4 sm:w-3.5 sm:h-3.5', doubleMode && 'animate-spin')" />
+                 <span class="text-[10px] font-black uppercase tracking-widest">{{ doubleMode ? '解除超限操作' : '发动超限双联' }}</span>
               </button>
 
               <!-- 强制出牌提示 -->
               <div
                 v-if="isMyTurn && gameState?.pending_forced_plays > 0"
-                class="flex items-center gap-1 px-2 py-1 rounded-lg bg-orange-500/80 border border-orange-400/50 animate-pulse pointer-events-none"
+                class="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-blue-500/80 border border-blue-400/50 shadow-[0_0_12px_rgba(59,130,246,0.3)] animate-pulse pointer-events-none"
               >
-                <Zap class="w-3 h-3 fill-current text-white" />
+                <Zap class="w-3.5 h-3.5 fill-current text-white" />
                 <span class="text-[10px] font-black uppercase tracking-widest text-white whitespace-nowrap">强制出牌 ×{{ gameState.pending_forced_plays }}</span>
               </div>
             </div>
@@ -1966,12 +1970,12 @@ watch(() => gameState.value?.current_player, () => {
                 </div>
 
                 <div v-if="roomInfo?.status === 'waiting'" class="space-y-3">
-                   <!-- 积分模式提示 -->
+                   <!-- 燃素模式提示 -->
                    <div v-if="roomInfo?.is_points_mode" class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center gap-2">
-                      <Trophy class="w-4 h-4 text-amber-500 shrink-0" />
+                      <PhlogistonIcon :size="16" color="#f59e0b" class="shrink-0" />
                       <div class="text-left">
                          <p class="text-[9px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-500">Competitive Mode</p>
-                         <p class="text-[8px] font-bold text-slate-500 mt-0.5">积分竞技模式：胜者获得积分，败者扣除积分。</p>
+                         <p class="text-[8px] font-bold text-slate-500 mt-0.5">燃素竞技模式：胜者获得燃素，败者扣除燃素。</p>
                       </div>
                    </div>
 
@@ -2605,103 +2609,129 @@ watch(() => gameState.value?.current_player, () => {
     <!-- Players Floating Panel -->
     <div
       :class="cn(
-        'fixed right-0 top-0 bottom-0 w-full lg:w-80 z-[100] bg-white/95 dark:bg-slate-900/60 backdrop-blur-3xl border-l lg:border border-slate-200 dark:border-white/10 lg:rounded-[40px] lg:top-6 lg:bottom-52 lg:right-6 shadow-3xl transition-all duration-500 flex flex-col overflow-hidden',
+        'fixed right-0 top-0 bottom-0 w-[85%] sm:w-80 z-[110] bg-white dark:bg-slate-900 border-l lg:border border-slate-200 dark:border-white/10 lg:rounded-[40px] lg:top-6 lg:bottom-52 lg:right-6 shadow-2xl transition-all duration-500 ease-in-out flex flex-col overflow-hidden',
         showPlayers ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0 pointer-events-none'
       )"
     >
-      <div class="p-4 py-3 border-b border-slate-200 dark:border-white/10 flex items-center justify-between bg-slate-50/50 dark:bg-white/[0.02]">
-        <div class="flex items-center gap-2">
-          <div class="w-6 h-6 rounded-lg bg-blue-500/10 flex items-center justify-center">
-            <Users class="w-3.5 h-3.5 text-blue-500" />
+      <div class="px-5 py-4 border-b border-slate-200 dark:border-white/10 flex items-center justify-between sticky top-0 z-20 bg-inherit pb-6 lg:pb-4">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20">
+            <Users class="w-5 h-5 text-blue-500" />
           </div>
           <div>
-            <h3 class="text-[10px] font-black uppercase tracking-widest text-slate-800 dark:text-white">研究员列表</h3>
-            <p class="text-[8px] font-mono text-slate-400 uppercase tracking-tighter">Players_{{ allPlayers.length }}/{{ roomInfo?.max_players }}</p>
+            <h3 class="text-sm font-black uppercase tracking-widest text-slate-800 dark:text-white leading-none">研究员列表</h3>
+            <div class="flex items-center gap-2 mt-2">
+               <span class="text-[9px] font-mono font-bold text-slate-400 bg-slate-100 dark:bg-white/5 px-1.5 py-0.5 rounded">
+                  POS: {{ allPlayers.length }}/{{ roomInfo?.max_players }}
+               </span>
+               <div class="w-1 h-1 rounded-full bg-emerald-500 animate-pulse"></div>
+            </div>
           </div>
         </div>
-        <button @click="showPlayers = false" class="p-1 hover:bg-slate-200 dark:hover:bg-white/10 rounded-lg transition-colors text-slate-400 hover:text-slate-600 dark:hover:text-white">
-          <X class="w-4 h-4" />
+        <button
+          @click="showPlayers = false"
+          class="p-2.5 bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 rounded-2xl transition-all text-slate-400 hover:text-slate-900 dark:hover:text-white active:scale-90"
+        >
+          <X class="w-5 h-5" />
         </button>
       </div>
 
-      <div ref="playersContainer" class="flex-1 overflow-y-auto p-3 custom-scrollbar space-y-2">
+      <div ref="playersContainer" class="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-3 pb-24 lg:pb-4">
         <template v-if="allPlayers.length > 0">
           <div
             v-for="(player, index) in allPlayers"
             :key="player.uid || index"
             data-player-card
             :class="cn(
-              'flex items-center gap-2 px-3 py-2.5 rounded-xl border transition-all',
+              'flex items-center gap-3 p-3 rounded-2xl border transition-all duration-300 relative overflow-hidden',
               gameState?.current_player === index
-                ? 'bg-blue-600 shadow-md shadow-blue-500/10 ring-1 ring-blue-500/20 border-blue-500'
-                : (gameState ? 'bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/5 opacity-70 hover:opacity-100' : 'bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/10'),
-              drawAnimatingUIDs.has(player.uid) && 'animate-card-draw ring-2 ring-rose-500 border-rose-500 opacity-100'
+                ? 'bg-blue-600 border-blue-400 shadow-xl shadow-blue-500/20 active-player-card'
+                : (gameState ? 'bg-slate-50 dark:bg-white/[0.03] border-slate-200 dark:border-white/5' : 'bg-slate-50 dark:bg-white/[0.03] border-slate-200 dark:border-white/10'),
+              drawAnimatingUIDs.has(player.uid) && 'ring-2 ring-rose-500 animate-pulse'
             )"
           >
-            <div class="relative w-8 h-8 shrink-0">
-              <div :class="cn(
-                'w-full h-full rounded-lg flex items-center justify-center text-sm border overflow-hidden relative shadow-inner',
-                gameState?.current_player === index ? 'bg-white text-blue-600 border-white/20' : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-white/10'
-              )">
-                <UserAvatar :avatar="player.avatar" />
+            <!-- Background Decoration for active player -->
+            <div v-if="gameState?.current_player === index" class="absolute -right-4 -top-4 w-16 h-16 bg-white/10 rounded-full blur-xl"></div>
 
-                <!-- Offline Overlay -->
-                <div v-if="player.is_offline" class="absolute inset-0 bg-red-500/40 flex items-center justify-center backdrop-blur-[1px]">
-                  <Activity class="w-3.5 h-3.5 text-white animate-pulse" />
-                </div>
-              </div>
-              <!-- Action Progress Dots -->
-              <div v-if="gameState" class="absolute -bottom-0.5 -right-0.5 flex gap-0.5">
-                <div v-for="i in 2" :key="i" :class="cn('w-1.5 h-1.5 rounded-full border border-black/20', i <= (player.action_progress || 0) ? (gameState?.current_player === index ? 'bg-white' : 'bg-blue-500') : 'bg-slate-500')"></div>
-              </div>
+            <div class="relative w-10 h-10 shrink-0">
+               <div :class="cn(
+                 'w-full h-full rounded-xl flex items-center justify-center border transition-all duration-300 shadow-sm overflow-hidden relative',
+                 gameState?.current_player === index ? 'bg-white border-white scale-105 shadow-blue-500/20 shadow-lg' : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-white/10'
+               )">
+                 <div class="w-full h-full flex items-center justify-center pointer-events-none">
+                    <UserAvatar :avatar="player.avatar" />
+                 </div>
+
+                 <!-- Offline Overlay -->
+                 <div v-if="player.is_offline" class="absolute inset-0 bg-rose-500/60 flex items-center justify-center backdrop-blur-sm z-10">
+                   <Activity class="w-4 h-4 text-white animate-pulse" />
+                 </div>
+               </div>
+               
+               <!-- Action Progress -->
+               <div v-if="gameState" class="absolute -bottom-1 -right-1 flex gap-0.5 z-20">
+                 <div 
+                   v-for="i in 2" 
+                   :key="i" 
+                   :class="cn(
+                     'w-1.5 h-1.5 rounded-full border border-black/10 shadow-sm transition-all duration-300', 
+                     i <= (player.action_progress || 0) 
+                       ? (gameState?.current_player === index ? 'bg-blue-400' : 'bg-blue-500') 
+                       : 'bg-slate-200 dark:bg-slate-700'
+                   )"
+                 ></div>
+               </div>
             </div>
-            <div class="flex flex-col min-w-0 flex-1">
-              <div class="flex items-center gap-1 leading-none">
-                <span class="text-[11px] font-black truncate max-w-[80px] tracking-tight" :class="[
-                  gameState?.current_player === index ? 'text-white' : (shouldShowInBlue(player) ? 'text-blue-600 dark:text-blue-400' : 'text-slate-700 dark:text-slate-300')
-                ]">{{ getPlayerDisplayName(player) }}</span>
-                <span v-if="gameState?.current_player === index && hasTurnLimit" class="text-[9px] font-mono font-black px-1 rounded" :class="isMyTurn ? 'bg-white/20 text-white' : 'bg-blue-500/10 text-blue-500'">{{ timeRemaining }}s</span>
-                <span class="text-[8px] font-mono opacity-40 shrink-0" :class="gameState?.current_player === index ? 'text-white' : 'text-slate-500'">#{{ player.uid }}</span>
-                <Zap v-if="player.double_action_available" :class="cn('w-2.5 h-2.5 fill-current', gameState?.current_player === index ? 'text-amber-300' : 'text-amber-500')" />
-              </div>
-              <!-- Status/Card Count -->
-              <div class="flex items-center gap-1 mt-0.5">
-                <template v-if="gameState">
-                  <Trophy v-if="!player.is_offline" :class="cn('w-2.5 h-2.5', gameState?.current_player === index ? 'text-white' : 'text-slate-400')" />
-                  <span v-if="!player.is_offline" :class="cn('text-[10px] font-mono font-bold', gameState?.current_player === index ? 'text-white/80' : 'text-slate-400')">{{ player.card_count || 0 }} 张</span>
-                  <span v-else class="text-[9px] font-black uppercase text-red-500 animate-pulse tracking-tighter">OFFLINE</span>
-                </template>
-                <template v-else>
-                  <span :class="cn('text-[10px] font-black uppercase tracking-widest', player.is_ready ? 'text-emerald-500' : 'text-slate-400')">
-                    {{ player.is_ready ? 'READY' : 'WAIT' }}
-                  </span>
-                </template>
-              </div>
-            </div>
-            <!-- Player Actions -->
-            <div class="flex items-center gap-1 shrink-0">
-              <button v-if="Number(player.uid) !== Number(user.uid) && !isFriend(player.uid)"
-                      @click.stop="handleAddFriend(player)"
-                      :class="cn('p-1 rounded-lg transition-colors touch-feedback', gameState?.current_player === index ? 'hover:bg-white/20 text-white' : 'hover:bg-amber-500/20 text-amber-500')"
-                      title="添加好友"
-              >
-                <UserPlus class="w-3 h-3" />
-              </button>
-              <!-- 私聊按钮已禁用于实验室内 -->
-              <button v-if="Number(player.uid) !== Number(user.uid)"
-                      @click.stop="handleReportPlayer(player)"
-                      :class="cn('p-1 rounded-lg transition-colors touch-feedback', gameState?.current_player === index ? 'hover:bg-white/20 text-white' : 'hover:bg-rose-500/20 text-rose-500')"
-                      title="举报玩家"
-              >
-                <Flag class="w-3 h-3" />
-              </button>
-              <button v-if="user.is_admin && Number(player.uid) !== Number(user.uid)"
-                      @click.stop="openAdminAction(player)"
-                      :class="cn('p-1 rounded-lg transition-colors touch-feedback', gameState?.current_player === index ? 'hover:bg-white/20 text-white' : 'hover:bg-red-500/20 text-red-500')"
-                      title="管理玩家"
-              >
-                <ShieldAlert class="w-3 h-3" />
-              </button>
+
+            <div class="flex-1 min-w-0 flex flex-col justify-center">
+               <div class="flex items-center justify-between h-5">
+                  <span class="text-xs font-black truncate tracking-tight uppercase" :class="[
+                     gameState?.current_player === index ? 'text-white' : (shouldShowInBlue(player) ? 'text-blue-600 dark:text-blue-400' : 'text-slate-800 dark:text-slate-200')
+                  ]">{{ getPlayerDisplayName(player) }}</span>
+                  <div class="flex items-center gap-1">
+                     <Zap v-if="player.double_action_available" :class="cn('w-3.5 h-3.5 fill-current', gameState?.current_player === index ? 'text-amber-300' : 'text-amber-500')" />
+                     <template v-if="gameState">
+                        <div class="flex items-center gap-1 px-1.5 py-0.5 rounded-lg" :class="gameState?.current_player === index ? 'bg-white/20 text-white' : 'bg-slate-900/5 dark:bg-white/5 text-slate-500'">
+                           <span class="text-[10px] font-black font-mono leading-none">{{ player.card_count || 0 }}</span>
+                        </div>
+                     </template>
+                  </div>
+               </div>
+               <div class="flex items-center justify-between mt-1 h-4">
+                  <div class="flex items-center gap-1.5">
+                     <span class="text-[8px] font-mono opacity-40 shrink-0 uppercase tracking-tighter" :class="gameState?.current_player === index ? 'text-white/80' : 'text-slate-500'">UID: {{ player.uid }}</span>
+                     <span v-if="player.is_offline" class="text-[7px] font-black uppercase text-rose-100 px-1 py-0.5 bg-rose-500/80 rounded-md border border-rose-500/20 leading-none">OFFLINE</span>
+                     <template v-if="!gameState">
+                        <div :class="cn('px-1.5 py-0.5 rounded-md border text-[7px] font-black uppercase tracking-widest transition-all leading-none', 
+                           player.is_ready 
+                           ? 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20' 
+                           : 'text-slate-400 bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/10')">
+                           {{ player.is_ready ? 'READY' : 'WAIT' }}
+                        </div>
+                     </template>
+                  </div>
+                  
+                  <div class="flex items-center gap-1">
+                     <button v-if="Number(player.uid) !== Number(user.uid) && !isFriend(player.uid)"
+                             @click.stop="handleAddFriend(player)"
+                             :class="cn('p-1 rounded-lg transition-all active:scale-90', gameState?.current_player === index ? 'bg-white/20 text-white' : 'bg-slate-200/50 dark:bg-white/5 text-slate-500')"
+                     >
+                       <UserPlus class="w-3 h-3" />
+                     </button>
+                     <button v-if="Number(player.uid) !== Number(user.uid)"
+                             @click.stop="handleReportPlayer(player)"
+                             :class="cn('p-1 rounded-lg transition-all active:scale-90', gameState?.current_player === index ? 'bg-white/20 text-white' : 'bg-slate-200/50 dark:bg-white/5 text-slate-500')"
+                     >
+                       <Flag class="w-3 h-3" />
+                     </button>
+                     <button v-if="user.is_admin && Number(player.uid) !== Number(user.uid)"
+                             @click.stop="openAdminAction(player)"
+                             :class="cn('p-1 rounded-lg transition-all active:scale-90', gameState?.current_player === index ? 'bg-white/20 text-white' : 'bg-rose-500/20 text-rose-500')"
+                     >
+                       <ShieldAlert class="w-3 h-3" />
+                     </button>
+                  </div>
+               </div>
             </div>
           </div>
 

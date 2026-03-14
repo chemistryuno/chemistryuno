@@ -595,7 +595,7 @@ const formatTime = (date: Date) => {
                   </div>
                   <div v-if="msg.gameInviteData.is_points_mode" class="flex items-center gap-1 px-2 py-0.5 bg-amber-500/10 text-amber-600 dark:text-amber-500 rounded-lg">
                     <Trophy class="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                    <span class="font-black uppercase tracking-widest">积分模式</span>
+                    <span class="font-black uppercase tracking-widest">燃素模式</span>
                   </div>
                 </div>
 

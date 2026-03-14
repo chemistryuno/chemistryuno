@@ -60,9 +60,10 @@ func (gr *GameRoom) BroadcastSystemMessage(msg string) {
 		UID:     0, // 0 表示系统
 		Message: msg,
 		Data: map[string]string{
-			"username": "系统",
-			"nickname": "量子记录仪",
-			"avatar":   "🤖",
+			"username":  "系统",
+			"nickname":  "量子记录仪",
+			"avatar":    "🤖",
+			"is_system": "true",
 		},
 	})
 }
@@ -2548,7 +2549,8 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 		activeEffect = card.Effect
 	}
 
-	// 补回：如果 AI 使用 AI_BEST_CHOICE_CARD 出功能牌，则从 substance 中提取效果
+	// 补回：如果 AI 使用其合成的物质作为卡牌类型，则从 substance 中提取潜在特权效果
+	// 特殊卡牌类型在 specialTypes 中已定义，如 "Au", "+2" 等
 	if activeEffect == "" && specialTypes[substance] {
 		activeEffect = substance
 	}

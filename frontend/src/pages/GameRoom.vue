@@ -208,8 +208,10 @@ const isFriend = (uid: number) => {
 const getPlayerDisplayName = (player: any) => {
   if (!player) return '研究员'
 
-  // 如果是 AI 玩家，直接返回 AI
-  if (player.uid < 0 || player.is_ai) return 'AI'
+  // 如果是 AI 玩家，显示其分配到的科学家姓名
+  if (player.uid < 0 || player.is_ai) {
+    return player.nickname || 'AI'
+  }
 
   // 查找好友备注
   const friend = friendsList.value?.find(f => Number(f.uid) === Number(player.uid))
@@ -2636,24 +2638,32 @@ watch(() => gameState.value?.current_player, () => {
         </button>
       </div>
 
-      <div ref="playersContainer" class="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-3 pb-24 lg:pb-4">
+      <div ref="playersContainer" class="flex-1 overflow-y-auto p-4 sm:p-3 custom-scrollbar space-y-2.5 sm:space-y-2 pb-24 lg:pb-4">
         <template v-if="allPlayers.length > 0">
           <div
             v-for="(player, index) in allPlayers"
             :key="player.uid || index"
             data-player-card
             :class="cn(
-              'flex items-center gap-3 p-3 rounded-2xl border transition-all duration-300 relative overflow-hidden',
+              'flex items-center gap-2.5 sm:gap-2 p-2.5 sm:p-2 rounded-2xl border transition-all duration-300 relative overflow-hidden',
               gameState?.current_player === index
                 ? 'bg-blue-600 border-blue-400 shadow-xl shadow-blue-500/20 active-player-card'
                 : (gameState ? 'bg-slate-50 dark:bg-white/[0.03] border-slate-200 dark:border-white/5' : 'bg-slate-50 dark:bg-white/[0.03] border-slate-200 dark:border-white/10'),
-              drawAnimatingUIDs.has(player.uid) && 'ring-2 ring-rose-500 animate-pulse'
+              drawAnimatingUIDs.has(player.uid) && 'ring-2 ring-rose-500 animate-pulse',
+              gameState?.finished_players?.includes(player.uid) && 'opacity-60 grayscale-[0.8] bg-slate-200/50 dark:bg-black/40 border-slate-300/30'
             )"
           >
             <!-- Background Decoration for active player -->
             <div v-if="gameState?.current_player === index" class="absolute -right-4 -top-4 w-16 h-16 bg-white/10 rounded-full blur-xl"></div>
 
-            <div class="relative w-10 h-10 shrink-0">
+            <!-- Finished Badge -->
+            <div v-if="gameState?.finished_players?.includes(player.uid)" class="absolute top-0 right-0 z-20">
+               <div class="bg-emerald-500 text-white text-[6px] font-black px-1.5 py-0.5 rounded-bl-lg shadow-sm animate-in fade-in zoom-in duration-500 uppercase tracking-tighter">
+                  Finished
+               </div>
+            </div>
+
+            <div class="relative w-9 h-9 sm:w-8 sm:h-8 shrink-0">
                <div :class="cn(
                  'w-full h-full rounded-xl flex items-center justify-center border transition-all duration-300 shadow-sm overflow-hidden relative',
                  gameState?.current_player === index ? 'bg-white border-white scale-105 shadow-blue-500/20 shadow-lg' : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-white/10'
@@ -2684,51 +2694,51 @@ watch(() => gameState.value?.current_player, () => {
             </div>
 
             <div class="flex-1 min-w-0 flex flex-col justify-center">
-               <div class="flex items-center justify-between h-5">
-                  <span class="text-xs font-black truncate tracking-tight uppercase" :class="[
+               <div class="flex items-center justify-between h-4">
+                  <span class="text-xs sm:text-[11px] font-black truncate tracking-tight uppercase" :class="[
                      gameState?.current_player === index ? 'text-white' : (shouldShowInBlue(player) ? 'text-blue-600 dark:text-blue-400' : 'text-slate-800 dark:text-slate-200')
                   ]">{{ getPlayerDisplayName(player) }}</span>
                   <div class="flex items-center gap-1">
-                     <Zap v-if="player.double_action_available" :class="cn('w-3.5 h-3.5 fill-current', gameState?.current_player === index ? 'text-amber-300' : 'text-amber-500')" />
+                     <Zap v-if="player.double_action_available" :class="cn('w-3 h-3 fill-current', gameState?.current_player === index ? 'text-amber-300' : 'text-amber-500')" />
                      <template v-if="gameState">
-                        <div class="flex items-center gap-1 px-1.5 py-0.5 rounded-lg" :class="gameState?.current_player === index ? 'bg-white/20 text-white' : 'bg-slate-900/5 dark:bg-white/5 text-slate-500'">
-                           <span class="text-[10px] font-black font-mono leading-none">{{ player.card_count || 0 }}</span>
+                        <div class="flex items-center gap-1 px-1 py-0.5 rounded-lg" :class="gameState?.current_player === index ? 'bg-white/20 text-white' : 'bg-slate-900/5 dark:bg-white/5 text-slate-500'">
+                           <span class="text-[9px] font-black font-mono leading-none">{{ player.card_count || 0 }}</span>
                         </div>
                      </template>
                   </div>
                </div>
-               <div class="flex items-center justify-between mt-1 h-4">
-                  <div class="flex items-center gap-1.5">
-                     <span class="text-[8px] font-mono opacity-40 shrink-0 uppercase tracking-tighter" :class="gameState?.current_player === index ? 'text-white/80' : 'text-slate-500'">UID: {{ player.uid }}</span>
-                     <span v-if="player.is_offline" class="text-[7px] font-black uppercase text-rose-100 px-1 py-0.5 bg-rose-500/80 rounded-md border border-rose-500/20 leading-none">OFFLINE</span>
+               <div class="flex items-center justify-between mt-0.5 h-3.5">
+                  <div class="flex items-center gap-1">
+                     <span class="text-[7px] font-mono opacity-40 shrink-0 uppercase tracking-tighter" :class="gameState?.current_player === index ? 'text-white/80' : 'text-slate-500'">UID: {{ player.uid }}</span>
+                     <span v-if="player.is_offline" class="text-[6px] font-black uppercase text-rose-100 px-1 py-0.5 bg-rose-500/80 rounded-md border border-rose-500/20 leading-none">OFF</span>
                      <template v-if="!gameState">
-                        <div :class="cn('px-1.5 py-0.5 rounded-md border text-[7px] font-black uppercase tracking-widest transition-all leading-none', 
+                        <div :class="cn('px-1 py-0.5 rounded-md border text-[6px] font-black uppercase tracking-widest transition-all leading-none', 
                            player.is_ready 
                            ? 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20' 
                            : 'text-slate-400 bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/10')">
-                           {{ player.is_ready ? 'READY' : 'WAIT' }}
+                           {{ player.is_ready ? 'RDY' : 'WT' }}
                         </div>
                      </template>
                   </div>
                   
-                  <div class="flex items-center gap-1">
+                  <div class="flex items-center gap-0.5">
                      <button v-if="Number(player.uid) !== Number(user.uid) && !isFriend(player.uid)"
                              @click.stop="handleAddFriend(player)"
-                             :class="cn('p-1 rounded-lg transition-all active:scale-90', gameState?.current_player === index ? 'bg-white/20 text-white' : 'bg-slate-200/50 dark:bg-white/5 text-slate-500')"
+                             :class="cn('p-0.5 rounded-md transition-all active:scale-90', gameState?.current_player === index ? 'bg-white/20 text-white' : 'bg-slate-200/50 dark:bg-white/5 text-slate-500')"
                      >
-                       <UserPlus class="w-3 h-3" />
+                       <UserPlus class="w-2.5 h-2.5" />
                      </button>
                      <button v-if="Number(player.uid) !== Number(user.uid)"
                              @click.stop="handleReportPlayer(player)"
-                             :class="cn('p-1 rounded-lg transition-all active:scale-90', gameState?.current_player === index ? 'bg-white/20 text-white' : 'bg-slate-200/50 dark:bg-white/5 text-slate-500')"
+                             :class="cn('p-0.5 rounded-md transition-all active:scale-90', gameState?.current_player === index ? 'bg-white/20 text-white' : 'bg-slate-200/50 dark:bg-white/5 text-slate-500')"
                      >
-                       <Flag class="w-3 h-3" />
+                       <Flag class="w-2.5 h-2.5" />
                      </button>
                      <button v-if="user.is_admin && Number(player.uid) !== Number(user.uid)"
                              @click.stop="openAdminAction(player)"
-                             :class="cn('p-1 rounded-lg transition-all active:scale-90', gameState?.current_player === index ? 'bg-white/20 text-white' : 'bg-rose-500/20 text-rose-500')"
+                             :class="cn('p-0.5 rounded-md transition-all active:scale-90', gameState?.current_player === index ? 'bg-white/20 text-white' : 'bg-rose-500/20 text-rose-500')"
                      >
-                       <ShieldAlert class="w-3 h-3" />
+                       <ShieldAlert class="w-2.5 h-2.5" />
                      </button>
                   </div>
                </div>

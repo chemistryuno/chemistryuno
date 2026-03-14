@@ -43,7 +43,6 @@ func (gr *GameRoom) TriggerAITurn() {
 	}
 
 	log.Printf("[AI] 🤖 AI %d 立即行动...", currentPlayer.UID)
-	gr.BroadcastSystemMessage(fmt.Sprintf("%s 正在实验台前审视战局...", currentPlayer.Nickname))
 
 	// 教学脚本模式：按照脚本执行固定操作
 	if gr.GameState.TutorialScriptMode {
@@ -112,7 +111,6 @@ func (gr *GameRoom) TriggerAITurn() {
 
 	// 摸牌逻辑 (摸2张并过牌)
 	log.Printf("[AI] 🛑 AI %s (%d) 摸牌", currentPlayer.Nickname, currentPlayer.UID)
-	gr.BroadcastSystemMessage(fmt.Sprintf("%s 暂时无法合成目标，决定进入库房寻找灵感（摸 2 张牌）。", currentPlayer.Nickname))
 	gr.aiDrawCard(currentPlayer.UID)
 	// aiDrawCard 已经释放锁
 }
@@ -533,7 +531,8 @@ func (gr *GameRoom) aiTryPlayCard(player *models.PlayerState) bool {
 	// 如果找到了最佳出牌物质
 	if bestSub != "" {
 		log.Printf("[AI] 🧠 AI %d 采用智能协作策略: %s (综合得分: %d, 难度: %d)", player.UID, bestSub, bestScore, difficulty)
-		gr.aiExecutePlay(player.UID, models.Card{Type: "AI_BEST_CHOICE_CARD"}, bestSub)
+		// 构建一张占位卡片，类型设为要合成的物质本身，这样在 PlayCard 中能通过 IsValidSubstance 校验
+		gr.aiExecutePlay(player.UID, models.Card{Type: bestSub}, bestSub)
 		return true
 	}
 

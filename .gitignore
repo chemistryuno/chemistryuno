@@ -58,3 +58,4 @@ android/
 *.db-wal
 .gocache/
 demo/
+__pycache__/

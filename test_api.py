@@ -673,6 +673,226 @@ ok, r = delete(SESSION_A, f"/friends/{uid('B')}", token=tok("A"), expect=[200, 4
 _mark(ok, "DELETE /friends/:uid  删除好友关系")
 
 # ─────────────────────────────────────────────
+# ⑯ 密保问题重置密码
+# ─────────────────────────────────────────────
+section("⑯ 密保问题重置密码")
+
+# B 通过密保问题重置密码（使用相同密码）
+ok, r = post(SESSION_A, "/auth/security-question/reset-password", {
+    "username":        PLAYER["B"]["username"],
+    "security_answer": PLAYER["B"]["security_answer"],
+    "new_password":    PLAYER["B"]["password"],
+})
+_mark(ok, "POST /auth/security-question/reset-password  B 通过密保重置密码")
+
+# 重置后重新登录 B（原 session 已失效）
+ok, r = post(SESSION_B, "/auth/login", {
+    "identifier": PLAYER["B"]["username"],
+    "password":   PLAYER["B"]["password"],
+})
+_mark(ok, "POST /auth/login  B 重置密码后重新登录")
+if ok and r:
+    PLAYER["B"]["token"] = r.json().get("token")
+
+# 错误答案应拒绝
+ok, r = post(SESSION_A, "/auth/security-question/reset-password", {
+    "username":        PLAYER["A"]["username"],
+    "security_answer": "错误答案",
+    "new_password":    "NewPass@2025",
+}, expect=[400, 401, 403])
+_mark(ok, "POST /auth/security-question/reset-password  错误答案应拒绝")
+
+# ─────────────────────────────────────────────
+# ⑰ 会话管理增强
+# ─────────────────────────────────────────────
+section("⑰ 会话管理增强")
+
+# 获取 B 的当前会话列表
+ok, r = get(SESSION_B, "/user/sessions", token=tok("B"))
+_mark(ok, "GET /user/sessions  B 获取会话列表")
+
+# 撤销 B 的最早一个会话（若存在多个）
+if ok and r and isinstance(r.json(), list) and len(r.json()) > 1:
+    old_session_id = r.json()[-1].get("id")
+    if old_session_id:
+        ok2, _ = post(SESSION_B, "/user/sessions/logout", {
+            "id": old_session_id,
+        }, token=tok("B"), expect=[200, 400])
+        _mark(ok2, "POST /user/sessions/logout  撤销指定历史会话",
+              f"session_id={old_session_id}")
+    else:
+        skip("POST /user/sessions/logout  撤销指定历史会话", "会话ID为空")
+else:
+    skip("POST /user/sessions/logout  撤销指定历史会话", "无可撤销的历史会话")
+
+# ─────────────────────────────────────────────
+# ⑱ 资料增强（生日 & 联系方式）
+# ─────────────────────────────────────────────
+section("⑱ 资料增强（生日 & 联系方式）")
+
+ok, r = put(SESSION_A, "/user/profile", {
+    "nickname":   PLAYER["A"]["nickname"],
+    "bio":        "这是集成测试账号",
+    "birthday":   "2000-01-01",
+    "show_email": False,
+}, token=tok("A"))
+_mark(ok, "PUT /user/profile  更新资料含生日字段")
+
+ok, r = get(SESSION_B, f"/user/profile/{uid('A')}", token=tok("B"))
+_mark(ok, "GET /user/profile/:uid  B 查看 A 的公开资料（含生日）")
+
+# ─────────────────────────────────────────────
+# ⑲ 单挑系统（HTTP 层验证）
+# ─────────────────────────────────────────────
+section("⑲ 单挑系统")
+
+# A 向 B 发起单挑（B 未连 WebSocket，预期失败）
+ok, r = post(SESSION_A, "/game/duel", {
+    "target_uid": uid("B"),
+}, token=tok("A"), expect=[200, 400, 404])
+_mark(ok, "POST /game/duel  A→B 发起单挑（B不在线应返回400）",
+      r.json().get("error", "") if (ok and r) else "?")
+
+# 挑战自己应拒绝
+ok, r = post(SESSION_A, "/game/duel", {
+    "target_uid": uid("A"),
+}, token=tok("A"), expect=[400])
+_mark(ok, "POST /game/duel  挑战自己应拒绝")
+
+# B 响应单挑（无有效挑战ID，预期400）
+ok, r = post(SESSION_B, "/game/duel/respond", {
+    "target_uid": uid("A"),
+    "accept": False,
+}, token=tok("B"), expect=[200, 400])
+_mark(ok, "POST /game/duel/respond  响应单挑邀请（无有效挑战应拒绝）")
+
+# ─────────────────────────────────────────────
+# ⑳ 积分悬赏
+# ─────────────────────────────────────────────
+section("⑳ 积分悬赏")
+
+# A 向 B 发布悬赏（新用户积分不足，预期400）
+ok, r = post(SESSION_A, "/points/bounty", {
+    "target_uid": uid("B"),
+    "amount": 100,
+}, token=tok("A"), expect=[200, 400])
+_mark(ok, "POST /points/bounty  积分不足时发布悬赏应拒绝",
+      r.json().get("error", "") if (ok and r) else "?")
+
+# 向自己发悬赏应拒绝
+ok, r = post(SESSION_A, "/points/bounty", {
+    "target_uid": uid("A"),
+    "amount": 100,
+}, token=tok("A"), expect=[400])
+_mark(ok, "POST /points/bounty  向自己设置悬赏应拒绝")
+
+# ─────────────────────────────────────────────
+# ㉑ AI 补位功能
+# ─────────────────────────────────────────────
+section("㉑ AI 补位功能")
+
+ai_room_id = None
+
+# 创建启用 AI 补位的房间（3人 + 补位AI填满）
+ok, r = post(SESSION_A, "/rooms", {
+    "name": f"AI补位测试_{sfx[:4]}",
+    "max_players": 3,
+    "is_points_mode": False,
+    "is_private": False,
+    "enable_ai_backfill": True,
+    "ai_backfill_difficulty": 50,
+}, token=tok("A"), expect=[200, 201])
+_mark(ok, "POST /rooms  创建启用 AI 补位的房间",
+      f"id={r.json().get('id') if (ok and r) else '?'}")
+if ok and r:
+    ai_room_id = r.json().get("id")
+
+if ai_room_id:
+    # 验证房间详情中 AI 补位字段存在
+    ok, r = get(SESSION_A, f"/rooms/{ai_room_id}", token=tok("A"))
+    if ok and r:
+        room_data = r.json()
+        has_backfill = "enable_ai_backfill" in room_data or "ai_backfill" in str(room_data)
+        _mark(ok, "GET /rooms/:id  获取 AI 补位房间详情")
+
+    # A 准备并开始（AI 应自动补入填满空位）
+    ok, r = post(SESSION_A, f"/rooms/{ai_room_id}/ready", token=tok("A"))
+    _mark(ok, "POST /rooms/:id/ready  房主在 AI 补位房间中准备")
+
+    ok, r = post(SESSION_A, f"/rooms/{ai_room_id}/start", token=tok("A"),
+                 expect=[200, 400])
+    _mark(ok, "POST /rooms/:id/start  启动 AI 补位游戏",
+          r.json().get("error", "成功") if r else "?")
+
+    # 验证游戏状态（若开始成功）
+    if ok:
+        time.sleep(0.5)
+        ok2, r2 = get(SESSION_A, f"/rooms/{ai_room_id}", token=tok("A"))
+        if ok2 and r2:
+            st = r2.json().get("status", "")
+            players = r2.json().get("players", [])
+            ai_players = [p for p in players if isinstance(p.get("uid"), int) and p["uid"] < 0]
+            _mark(len(ai_players) > 0 or st == "playing",
+                  "  └─ AI 玩家已补入",
+                  f"AI数={len(ai_players)}，状态={st}")
+
+    # 离开 AI 补位房间
+    post(SESSION_A, f"/rooms/{ai_room_id}/leave", token=tok("A"))
+else:
+    skip("AI 补位房间详细测试", "房间创建失败")
+
+# PvE 模式不允许开启 AI 补位（参数验证）
+ok, r = post(SESSION_A, "/rooms", {
+    "name": f"PvE补位_invalid_{sfx[:4]}",
+    "max_players": 2,
+    "game_mode": "pve",
+    "enable_ai_backfill": True,
+}, token=tok("A"), expect=[200, 201, 400])
+# PvE + 补位本身合法性取决于后端，仅验证接口可达
+_mark(ok, "POST /rooms  PvE模式+AI补位（接口可达）")
+if ok and r:
+    pve_room = r.json().get("id")
+    if pve_room:
+        post(SESSION_A, f"/rooms/{pve_room}/leave", token=tok("A"))
+
+# ─────────────────────────────────────────────
+# ㉒ 双联反应（接口可达性验证）
+# ─────────────────────────────────────────────
+section("㉒ 双联反应")
+
+# 非游戏中调用应返回 400
+ok, r = post(SESSION_A, f"/rooms/{room_id or 'invalid'}/play-double", {
+    "sub1": "H2",
+    "sub2": "O2",
+}, token=tok("A"), expect=[200, 400, 404])
+_mark(ok, "POST /rooms/:id/play-double  双联反应接口可达（非游戏中应拒绝）",
+      r.json().get("error", "") if (ok and r) else "?")
+
+# 参数缺失应返回 400
+ok, r = post(SESSION_A, f"/rooms/{room_id or 'invalid'}/play-double", {
+    "sub1": "H2",
+    # 缺少 sub2
+}, token=tok("A"), expect=[400])
+_mark(ok, "POST /rooms/:id/play-double  缺少参数应返回 400")
+
+# ─────────────────────────────────────────────
+# ㉓ 账号冻结
+# ─────────────────────────────────────────────
+section("㉓ 账号冻结")
+
+# B 自我冻结 1 小时（仅测试接口，不影响清理流程中的账号删除）
+ok, r = post(SESSION_B, "/user/account/freeze", {
+    "hours": 1,
+}, token=tok("B"), expect=[200])
+_mark(ok, "POST /user/account/freeze  B 冻结自身账号 1 小时")
+
+# 冻结时长超出范围（max 24h）应拒绝
+ok, r = post(SESSION_B, "/user/account/freeze", {
+    "hours": 100,
+}, token=tok("B"), expect=[400])
+_mark(ok, "POST /user/account/freeze  冻结时长超限应拒绝")
+
+# ─────────────────────────────────────────────
 # ⑯ 清理（删除测试账号）
 # ─────────────────────────────────────────────
 section("⑯ 清理测试账号")

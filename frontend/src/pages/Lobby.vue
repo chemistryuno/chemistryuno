@@ -226,7 +226,7 @@ const createTutorialMatch = async () => {
   loading.value = true
   try {
     const response = await gameAPI.createRoom(
-      'Tutorial: First AI Battle',
+      '教学: 首战AI',
       2, // 1 (Human) + 1 (AI)
       deckID.value,
       false, // 非积分模式
@@ -460,7 +460,7 @@ const handleCreateAIRoom = async () => {
   loading.value = true
   try {
     const response = await gameAPI.createRoom(
-      roomName.value || `AI Challenge - ${pveDifficulty.value}`,
+      roomName.value || `AI挑战 · ${pveDifficulty.value}`,
       1 + aiCount.value, // MaxPlayers = 1 (Human) + AI Count
       deckID.value,
       isPointsMode.value,
@@ -575,7 +575,7 @@ const copyToClipboard = (text: string) => {
                <div class="hidden sm:flex flex-col">
                  <span class="text-xs-mobile font-black text-slate-900 dark:text-white">{{ user.nickname || user.username }}</span>
                  <span class="text-[9px] sm:text-[8px] text-slate-500 font-mono uppercase">
-                   {{ user.is_admin ? 'Lead' : 'Researcher' }}
+                   {{ user.is_admin ? '管理员' : '研究员' }}
                  </span>
                </div>
             </div>
@@ -647,7 +647,7 @@ const copyToClipboard = (text: string) => {
                   </div>
                   <div>
                      <h4 class="text-sm font-black text-slate-800 dark:text-white leading-none uppercase">{{ user.nickname || user.username }}</h4>
-                     <p class="text-[9px] font-mono text-slate-400 mt-1.5 uppercase tracking-widest">Researcher_ID: {{ user.uid }}</p>
+                     <p class="text-[9px] font-mono text-slate-400 mt-1.5 uppercase tracking-widest">研究员ID: {{ user.uid }}</p>
                   </div>
                </div>
                <div class="text-right">
@@ -655,7 +655,7 @@ const copyToClipboard = (text: string) => {
                      <PhlogistonIcon :size="14" color="#f59e0b" />
                      <span class="text-xs font-black font-mono">{{ Math.floor(user.points || 0) }}</span>
                   </div>
-                  <p class="text-[8px] font-bold text-slate-400 uppercase mt-1">Phlogiston</p>
+                  <p class="text-[8px] font-bold text-slate-400 uppercase mt-1">燃素</p>
                </div>
             </div>
 
@@ -734,7 +734,7 @@ const copyToClipboard = (text: string) => {
           <div class="hub-title-group">
             <div class="hub-status-badge">
               <span class="w-1 h-1 bg-blue-500 rounded-full animate-ping"></span>
-              <span class="text-[8px] font-black text-blue-500 uppercase tracking-widest">Research_Lobby</span>
+              <span class="text-[8px] font-black text-blue-500 uppercase tracking-widest">试验场大厅</span>
             </div>
             <h2 class="hub-title">试验场枢纽</h2>
             <p class="text-[10px] text-slate-500 font-medium max-w-md leading-none">当前有 <span class="text-blue-500 font-black">{{ onlineCount }}</span> 名研究员在线进行博弈。</p>
@@ -824,7 +824,7 @@ const copyToClipboard = (text: string) => {
                   </div>
                   <div class="flex flex-col">
                      <span class="text-[9px] font-black uppercase text-blue-200 tracking-widest leading-none mb-1">
-                        {{ activeRoom.status === 'waiting' && activeRoom.countdown > 0 ? `实验启动中: ${activeRoom.countdown}S` : '活跃实验中' }}
+                        {{ activeRoom.status === 'waiting' && getRoomLiveCountdown(activeRoom) > 0 ? `实验启动中: ${getRoomLiveCountdown(activeRoom)}秒` : '活跃实验中' }}
                      </span>
                      <h3 class="text-lg font-black text-white uppercase tracking-wider">{{ activeRoom.name }}</h3>
                   </div>
@@ -895,8 +895,8 @@ const copyToClipboard = (text: string) => {
                   </div>
 
                   <div class="room-meta-container">
-                    <!-- Config / Deck -->
-                    <div v-if="room.deck_config" class="meta-item">
+                    <!-- Config / Deck（在小屏三列布局下隐藏以保持紧凑） -->
+                    <div v-if="room.deck_config" class="meta-item hidden sm:flex">
                       <span class="meta-label">牌组</span>
                       <button 
                         @click.stop="handleViewDeckConfig(room.deck_config)"
@@ -944,7 +944,7 @@ const copyToClipboard = (text: string) => {
             
             <!-- Right Column: World Chat -->
             <div class="lobby-sidebar-pane bg-white/40 dark:bg-black/20 rounded-2xl overflow-hidden border border-slate-200 dark:border-white/5">
-                <ChatBox title="全域通信频率" placeholder="发送..." maxHeight="100%" class="h-full" />
+                <ChatBox title="全域通信频率" placeholder="发送消息..." maxHeight="100%" class="h-full" />
             </div>
         </div> <!-- lobby-main-grid end -->
       </main>

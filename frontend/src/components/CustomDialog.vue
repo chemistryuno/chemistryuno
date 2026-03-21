@@ -7,6 +7,7 @@ const { state, handleConfirm, handleCancel } = useDialog()
 
 const countdown = ref(0)
 const timer = ref<any>(null)
+const isComposing = ref(false)
 
 watch(() => state.show, (newVal) => {
   if (newVal && state.closeDelay > 0) {
@@ -25,6 +26,21 @@ watch(() => state.show, (newVal) => {
     countdown.value = 0
   }
 })
+
+const handleInputKeyDown = (e: KeyboardEvent) => {
+  // 只有在非 composition 状态且计时器完成后，按 Enter 才确认
+  if (e.key === 'Enter' && !isComposing.value && countdown.value <= 0) {
+    handleConfirm()
+  }
+}
+
+const handleCompositionStart = () => {
+  isComposing.value = true
+}
+
+const handleCompositionEnd = () => {
+  isComposing.value = false
+}
 </script>
 
 <template>
@@ -58,7 +74,9 @@ watch(() => state.show, (newVal) => {
               type="text" 
               :placeholder="state.inputPlaceholder"
               class="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl px-5 py-4 text-slate-900 dark:text-white focus:outline-none focus:border-purple-500/50 focus:ring-4 focus:ring-purple-500/5 transition-all placeholder:text-slate-400 dark:placeholder:text-slate-600 font-medium"
-              @keydown.enter="countdown <= 0 && handleConfirm"
+              @keydown="handleInputKeyDown"
+              @compositionstart="handleCompositionStart"
+              @compositionend="handleCompositionEnd"
               autofocus
             />
           </div>

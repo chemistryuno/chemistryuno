@@ -24,6 +24,9 @@ const newMessage = ref('')
 const currentUID = ref(JSON.parse(localStorage.getItem('user') || '{}').uid)
 const scrollContainer = ref<HTMLElement | null>(null)
 
+// 输入法状态标记 - 跟踪用户是否正在使用输入法
+const isComposing = ref(false)
+
 // 聊天模式切换
 const chatMode = ref<'normal' | 'private'>('normal')
 const privateTarget = ref<{uid: number, username: string, nickname?: string} | null>(null)
@@ -160,6 +163,8 @@ onMounted(() => {
 })
 
 const handleSend = () => {
+  // 必须等待输入法输入完成后再发送消息
+  if (isComposing.value) return
   if (!newMessage.value.trim()) return
 
   if (chatMode.value === 'private' && privateTarget.value) {
@@ -187,6 +192,21 @@ const handleSend = () => {
 
 const handleJoinGame = (roomId: string) => {
   router.push(`/room/${roomId}`)
+}
+
+const handleKeyDown = (e: KeyboardEvent) => {
+  // 仅在 Enter 键且非 composition 状态时发送
+  if (e.key === 'Enter' && !isComposing.value) {
+    handleSend()
+  }
+}
+
+const handleCompositionStart = () => {
+  isComposing.value = true
+}
+
+const handleCompositionEnd = () => {
+  isComposing.value = false
 }
 
 const formatTime = (date: Date) => {
@@ -389,7 +409,9 @@ const formatTime = (date: Date) => {
             type="text"
             :placeholder="placeholder || '输入实验指令或群聊讯息...'"
             class="relative w-full h-11 sm:h-10 bg-white dark:bg-slate-700/80 border border-slate-200 dark:border-white/10 rounded-xl px-3 sm:px-2.5 text-sm sm:text-xs font-bold focus:outline-none focus:border-blue-500/50 transition-all dark:text-white dark:placeholder:text-slate-500"
-            @keydown.enter="handleSend"
+            @keydown="handleKeyDown"
+            @compositionstart="handleCompositionStart"
+            @compositionend="handleCompositionEnd"
             @focus="emit('input-focus')"
             @blur="emit('input-blur')"
           />

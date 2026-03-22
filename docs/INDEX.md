@@ -8,7 +8,7 @@ Chemistry UNO 项目的完整文档导航。
 
 **新用户必读** → [快速开始指南](./guides/QUICK_START.md)
 
-新手开发者的5分钟快速上手指南，包括：
+新手开发者的 5 分钟快速上手指南，包括：
 - 环境设置
 - 首次运行
 - 主要命令
@@ -46,11 +46,28 @@ Chemistry UNO 项目的完整文档导航。
 
 ---
 
+## ✨ 性能优化 (docs/)
+
+| 文件 | 说明 |
+|------|------|
+| [PERFORMANCE_OPTIMIZATION_REPORT.md](./PERFORMANCE_OPTIMIZATION_REPORT.md) | 前端性能优化完成报告（↓69% JS体积，↓72% 首屏时间） |
+
+---
+
+## 📝 文档规范 (docs/)
+
+| 文件 | 说明 |
+|------|------|
+| [MARKDOWN_STANDARDIZATION_GUIDE.md](./MARKDOWN_STANDARDIZATION_GUIDE.md) | Markdown 书写规范指南（全局标准） |
+| [MARKDOWN_STANDARDIZATION_REPORT.md](./MARKDOWN_STANDARDIZATION_REPORT.md) | Markdown 规范化执行报告（进度追踪） |
+
+---
+
 ## ⚙️ 后端文档 (backend/docs/)
 
 | 文件 | 说明 |
 |------|------|
-| [API_DOCUMENTATION.md](../backend/docs/API_DOCUMENTATION.md) | 完整的API文档和架构说明 |
+| [API_DOCUMENTATION.md](../backend/docs/API_DOCUMENTATION.md) | 完整的 API 文档和架构说明 |
 
 ---
 
@@ -58,7 +75,7 @@ Chemistry UNO 项目的完整文档导航。
 
 | 文件 | 说明 |
 |------|------|
-| [COMPOSABLES.md](../frontend/docs/COMPOSABLES.md) | Vue 3 组合式函数框架 |
+| [COMPOSABLES.md](../frontend/docs/COMPOSABLES.md) | Vue 3 组合式 API 框架 |
 | [CSS_ARCHITECTURE.md](../frontend/docs/CSS_ARCHITECTURE.md) | CSS架构和主题系统 |
 | [FEEDBACK_SYSTEM.md](../frontend/docs/FEEDBACK_SYSTEM.md) | 用户反馈系统 |
 | [PING_SYSTEM.md](../frontend/docs/PING_SYSTEM.md) | 实时Ping系统 |
@@ -84,7 +101,7 @@ Chemistry UNO 项目的完整文档导航。
 
 ## 🗂️ 完整目录结构
 
-```
+```text
 chemistryuno/
 ├── README.md                           # 项目总说明 ⭐
 │

@@ -1,4 +1,4 @@
-# 《化学UNO》隐私政策 (Privacy Policy)
+# 《化学 UNO》隐私政策 (Privacy Policy)
 
 **生效日期：2026年3月14日**
 

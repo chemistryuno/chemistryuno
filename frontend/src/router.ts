@@ -1,22 +1,24 @@
 import { createRouter, createWebHistory, type RouteLocationNormalized } from 'vue-router'
-import Login from './pages/Login.vue'
-import Register from './pages/Register.vue'
-import Lobby from './pages/Lobby.vue'
-import GameRoom from './pages/GameRoom.vue'
-import Profile from './pages/Profile.vue'
-import Admin from './pages/Admin.vue'
-import AdminPlugins from './pages/AdminPlugins.vue'
-import AdminSurveyResponses from './pages/AdminSurveyResponses.vue'
-import Plugins from './pages/Plugins.vue'
-import Reactions from './pages/Reactions.vue'
-import Feedbacks from './pages/Feedbacks.vue'
-import Survey from './pages/Survey.vue'
-import Ranking from './pages/Ranking.vue'
-import DataConfig from './pages/DataConfig.vue'
-import Substances from './pages/Substances.vue'
-import Chat from './pages/Chat.vue'
-import UserSpace from './pages/UserSpace.vue'
-import OAuthCallback from './pages/OAuthCallback.vue'
+import { defineAsyncComponent } from 'vue'
+
+const Login = defineAsyncComponent(() => import('./pages/Login.vue'))
+const Register = defineAsyncComponent(() => import('./pages/Register.vue'))
+const Lobby = defineAsyncComponent(() => import('./pages/Lobby.vue'))
+const GameRoom = defineAsyncComponent(() => import('./pages/GameRoom.vue'))
+const Profile = defineAsyncComponent(() => import('./pages/Profile.vue'))
+const Admin = defineAsyncComponent(() => import('./pages/Admin.vue'))
+const AdminPlugins = defineAsyncComponent(() => import('./pages/AdminPlugins.vue'))
+const AdminSurveyResponses = defineAsyncComponent(() => import('./pages/AdminSurveyResponses.vue'))
+const Plugins = defineAsyncComponent(() => import('./pages/Plugins.vue'))
+const Reactions = defineAsyncComponent(() => import('./pages/Reactions.vue'))
+const Feedbacks = defineAsyncComponent(() => import('./pages/Feedbacks.vue'))
+const Survey = defineAsyncComponent(() => import('./pages/Survey.vue'))
+const Ranking = defineAsyncComponent(() => import('./pages/Ranking.vue'))
+const DataConfig = defineAsyncComponent(() => import('./pages/DataConfig.vue'))
+const Substances = defineAsyncComponent(() => import('./pages/Substances.vue'))
+const Chat = defineAsyncComponent(() => import('./pages/Chat.vue'))
+const UserSpace = defineAsyncComponent(() => import('./pages/UserSpace.vue'))
+const OAuthCallback = defineAsyncComponent(() => import('./pages/OAuthCallback.vue'))
 
 const routes = [
   {

@@ -157,7 +157,7 @@ if (tutorialScriptMode.value) {
 
 ### 需要的后端功能
 
-#### 1. 创建教学房间API扩展
+#### 1. 创建教学房间 API 扩展
 
 **位置**：`backend/handlers/game.go`
 
@@ -311,7 +311,7 @@ location.reload()
 3. 防止客户端绕过验证
 
 ### Phase 4: 前后端联调 🟢 最终
-1. 前端调用新的创建房间API
+1. 前端调用新的创建房间 API
 2. 测试完整的教学流程
 3. 优化提示文案和用户体验
 

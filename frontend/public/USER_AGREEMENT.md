@@ -1,4 +1,4 @@
-# 《化学UNO》研究员服务协议 (User Agreement)
+# 《化学 UNO》研究员服务协议 (User Agreement)
 
 **版本日期：2026年3月14日**
 

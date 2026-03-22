@@ -66,6 +66,7 @@ const defaultSteps: TutorialStep[] = [
 在 `TutorialGuide.vue` 中，找到对应的占位符替换为实际文案：
 
 ```vue
+
 <!-- 当前：显示占位符 -->
 <h3 class="text-xl sm:text-2xl font-black text-white tracking-tight">
   {{ tutorialSteps[currentStep].titlePlaceholder }}

@@ -165,9 +165,11 @@ onMounted(() => {
     const userData = localStorage.getItem('user')
     
     if (token && userData) {
-      // 用户已登录，建立 WebSocket 连接
-      websocket.connect()
-      loadPluginScripts()
+      // 用户已登录，异步建立 WebSocket 连接（不阻塞首屏）
+      setTimeout(() => {
+        websocket.connect()
+        loadPluginScripts()
+      }, 800)
     }
 
     websocket.on('feedback_update', handleFeedbackUpdate)

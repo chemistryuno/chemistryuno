@@ -177,7 +177,7 @@ MYSQL_DSN=chemistryuno:your_secure_password@tcp(localhost:3306)/chemistryuno?cha
 ##### JWT 密钥（必须）
 
 ```env
-# 首次启动会自动生成，也可手动设置（至少32字符）
+# 首次启动会自动生成，也可手动设置（至少 32 字符）
 JWT_SECRET=your-random-secret-key-at-least-32-characters-long
 ```
 
@@ -512,7 +512,7 @@ sudo ufw status
 | `DB_TYPE` | 否 | `sqlite` | 数据库类型: `sqlite` 或 `mysql` |
 | `SQLITE_PATH` | 否 | `./chemistryuno.db` | SQLite 数据库文件路径 |
 | `MYSQL_DSN` | MySQL时必需 | - | MySQL 连接字符串 |
-| `JWT_SECRET` | 是 | 自动生成 | JWT 签名密钥（至少32字符） |
+| `JWT_SECRET` | 是 | 自动生成 | JWT 签名密钥（至少 32 字符） |
 | `REDIS_ADDR` | 否 | - | Redis 地址（如 `localhost:6379`） |
 | `REDIS_PASSWORD` | 否 | - | Redis 密码 |
 | `REDIS_DB` | 否 | `0` | Redis 数据库编号 |

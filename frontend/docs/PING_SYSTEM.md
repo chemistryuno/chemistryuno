@@ -7,9 +7,9 @@
 ## 功能特性
 
 ### 实时监控
-- 每3秒自动发送ping请求
-- 计算往返时间(RTT)
-- 维护最近10次延迟记录
+- 每 3 秒自动发送 ping 请求
+- 计算往返时间 (RTT)
+- 维护最近 10 次延迟记录
 - 显示平均延迟
 
 ### 状态分级
@@ -67,8 +67,8 @@ export function usePing() {
 ```
 
 **工作流程**:
-1. 组件挂载后自动开始ping监控
-2. 每3秒通过WebSocket发送ping消息
+1. 组件挂载后自动开始 ping 监控
+2. 每 3 秒通过 WebSocket 发送 ping 消息
 3. 接收pong响应后计算RTT
 4. 更新延迟历史并计算平均值
 5. 根据平均延迟计算状态等级
@@ -267,7 +267,7 @@ onMounted(() => {
 ```
 
 ### 2. 连接检测
-如果WebSocket未连接，最多等待10秒：
+如果 WebSocket 未连接，最多等待 10 秒：
 
 ```typescript
 const checkInterval = setInterval(() => {
@@ -293,29 +293,29 @@ onUnmounted(() => {
 
 ## 故障排查
 
-### Ping显示为0ms或未连接
+### Ping 显示为 0ms 或未连接
 
 **可能原因**:
-1. WebSocket未连接
-2. 后端未返回pong响应
+1. WebSocket 未连接
+2. 后端未返回 pong 响应
 3. 消息格式不正确
 
 **解决方法**:
-1. 检查浏览器控制台WebSocket连接状态
-2. 检查后端日志是否有ping/pong消息
-3. 使用浏览器开发者工具的网络面板查看WebSocket消息
+1. 检查浏览器控制台 WebSocket 连接状态
+2. 检查后端日志是否有 ping/pong 消息
+3. 使用浏览器开发者工具的网络面板查看 WebSocket 消息
 
-### Ping值异常高
+### Ping 值异常高
 
 **可能原因**:
 1. 网络延迟高
 2. 服务器响应慢
-3. WebSocket消息队列阻塞
+3. WebSocket 消息队列阻塞
 
 **解决方法**:
 1. 检查网络连接
 2. 查看服务器负载
-3. 检查是否有大量WebSocket消息发送
+3. 检查是否有大量 WebSocket 消息发送
 
 ### 指示器不显示
 

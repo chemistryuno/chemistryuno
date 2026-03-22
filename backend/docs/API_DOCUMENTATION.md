@@ -97,11 +97,11 @@ backend/
 - `POST /user/sessions/logout` - 撤销指定会话
 - `POST /user/account/freeze` - 冻结账号
 
-#### 2FA管理
+#### 2FA 管理
 
-- `POST /user/2fa/setup` - 设置2FA
-- `POST /user/2fa/enable` - 启用2FA
-- `POST /user/2fa/disable` - 禁用2FA
+- `POST /user/2fa/setup` - 设置 2FA
+- `POST /user/2fa/enable` - 启用 2FA
+- `POST /user/2fa/disable` - 禁用 2FA
 
 #### WebAuthn管理
 

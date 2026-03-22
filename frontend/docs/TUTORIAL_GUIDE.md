@@ -61,7 +61,7 @@ TUTORIAL_COMPLETE_CONTENT       // 完成内容
 const defaultSteps: TutorialStep[] = [
   {
     id: 'welcome',
-    titlePlaceholder: '欢迎来到化学UNO！',  // ← 修改这里
+    titlePlaceholder: '欢迎来到化学 UNO！',  // ← 修改这里
     contentPlaceholder: '让我们用2分钟快速了解游戏规则...',  // ← 修改这里
     position: 'center'
   },

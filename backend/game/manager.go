@@ -2258,6 +2258,12 @@ func GetRoomState(roomID string, uid int) (map[string]interface{}, error) {
 		readyUIDs = []int{}
 	}
 
+	// 确保 spectators 列表始终返回
+	spectators := gameRoom.Room.Spectators
+	if spectators == nil {
+		spectators = []int{}
+	}
+
 	result := map[string]interface{}{
 		"id":             gameRoom.Room.ID,
 		"name":           gameRoom.Room.Name,
@@ -2272,6 +2278,7 @@ func GetRoomState(roomID string, uid int) (map[string]interface{}, error) {
 		"is_private":     gameRoom.Room.IsPrivate,
 		"access_key":     gameRoom.Room.AccessKey,
 		"is_pve":         gameRoom.Room.IsPvE, // 添加 is_pve 字段
+		"spectators":     spectators,          // 即使GameState为nil也返回观战者列表
 	}
 
 	if gameRoom.GameState != nil {

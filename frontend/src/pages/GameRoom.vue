@@ -484,15 +484,27 @@ const currentPlayerObj = computed(() => {
   return gameState.value.players?.[gameState.value.current_player]
 })
 const isSpectator = computed(() => {
-  if (!gameState.value || !user.value?.uid) return false
-  // 已完成比赛的玩家
-  const isFinished = gameState.value.finished_players?.includes(user.value.uid)
-  // 直接加入的观战者
-  const inSpectatorsList = gameState.value.spectators?.includes(user.value.uid)
-  // 不在选手列表中的玩家也是观战者
-  const isNotPlayer = !gameState.value.players?.some((p: any) => Number(p.uid) === Number(user.value?.uid))
+  if (!user.value?.uid) return false
   
-  return isFinished || inSpectatorsList || isNotPlayer
+  // 优先检查根级别的 spectators 字段（用于房间等待状态）
+  if (roomInfo.value?.spectators) {
+    const inRoomSpectators = (roomInfo.value.spectators as number[]).includes(Number(user.value.uid))
+    if (inRoomSpectators) return true
+  }
+  
+  // 游戏运行时检查游戏状态中的观战者信息
+  if (gameState.value) {
+    // 已完成比赛的玩家
+    const isFinished = gameState.value.finished_players?.includes(user.value.uid)
+    // 直接加入的观战者
+    const inSpectatorsList = gameState.value.spectators?.includes(user.value.uid)
+    // 不在选手列表中的玩家也是观战者
+    const isNotPlayer = !gameState.value.players?.some((p: any) => Number(p.uid) === Number(user.value?.uid))
+    
+    if (isFinished || inSpectatorsList || isNotPlayer) return true
+  }
+  
+  return false
 })
 
 const isMyTurn = computed(() => {
@@ -1372,7 +1384,13 @@ const handleKeyboardConfirm = async (formula: string) => {
 const handleLeaveRoom = async () => {
   // 人机对战模式下，如果玩家已经完成（进入观战状态），点击退出改为“结算”
   if (roomInfo.value?.is_pve && isSpectator.value) {
-    // 立即断开房间连接并停止监听（直接“关闭”房间逻辑）
+    try {
+      // 调用API通知服务器玩家离开房间
+      await gameAPI.leaveRoom(id)
+    } catch (error) {
+      console.error('离开房间API调用失败:', error)
+    }
+    // 断开房间连接并停止监听（直接“关闭”房间逻辑）
     websocket.leaveRoom()
     websocket.off('game_update', handleGameUpdate)
     websocket.off('player_joined', handlePlayerJoined)
@@ -1454,6 +1472,13 @@ const handleLeaveRoom = async () => {
     const confirmed = await showConfirm(message, title)
     if (confirmed) {
       feedback.click()
+      // 关键修复：调用API通知服务器玩家离开房间
+      try {
+        await gameAPI.leaveRoom(id)
+      } catch (error) {
+        console.error('离开房间API调用失败:', error)
+        // 即使API调用失败也继续跳转，避免玩家被卡住
+      }
       router.push('/')
     }
   } catch (error) {

@@ -172,7 +172,7 @@ backend/
 
 ### 管理员接口（需要admin权限）
 
-#### 用户管理
+#### 用户管理（管理员）
 
 - `GET /admin/users` - 获取所有用户
 - `POST /admin/users` - 创建用户

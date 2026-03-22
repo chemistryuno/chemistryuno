@@ -88,10 +88,10 @@ type UserCredential struct {
 
 type RegisterRequest struct {
 	Username         string `json:"username" binding:"required,min=3,max=30"`
-	Email            string `json:"email"`   // 可选
+	Email            string `json:"email"` // 可选
 	Nickname         string `json:"nickname" binding:"required,min=1,max=20"`
 	Password         string `json:"password" binding:"required,min=6"`
-	Code             string `json:"code"`    // 邮箱验证码（仅当提供邮箱且SMTP开启时需要）
+	Code             string `json:"code"` // 邮箱验证码（仅当提供邮箱且SMTP开启时需要）
 	SecurityQuestion string `json:"security_question" binding:"required,min=1,max=200"`
 	SecurityAnswer   string `json:"security_answer" binding:"required,min=1,max=100"`
 }
@@ -170,7 +170,7 @@ type UpdateAvatarRequest struct {
 }
 
 type UpdateProfileRequest struct {
-	Nickname           string     `json:"nickname" binding:"required,min=1,max=20"`
+	Nickname           string     `json:"nickname"`
 	Bio                string     `json:"bio"`
 	Wechat             string     `json:"wechat"`
 	QQ                 string     `json:"qq"`
@@ -190,9 +190,9 @@ type ChangeEmailRequest struct {
 
 // SetEmailRequest 无邮箱用户设置首个邮箱
 type SetEmailRequest struct {
-	NewEmail         string `json:"new_email" binding:"required,email"`
-	NewCode          string `json:"new_code" binding:"required"` // 新邮箱验证码
-	SecurityAnswer   string `json:"security_answer"`              // 密保验证（无2FA时需要）
+	NewEmail       string `json:"new_email" binding:"required,email"`
+	NewCode        string `json:"new_code" binding:"required"` // 新邮箱验证码
+	SecurityAnswer string `json:"security_answer"`             // 密保验证（无2FA时需要）
 }
 
 // VerifySecurityAnswerRequest 验证密保答案（用于敏感操作）
@@ -202,9 +202,9 @@ type VerifySecurityAnswerRequest struct {
 
 // ResetPasswordBySecurityQuestionRequest 通过密保问题重置密码（忘记密码且无邮箱）
 type ResetPasswordBySecurityQuestionRequest struct {
-	Username         string `json:"username" binding:"required"`
-	SecurityAnswer   string `json:"security_answer" binding:"required"`
-	NewPassword      string `json:"new_password" binding:"required,min=6"`
+	Username       string `json:"username" binding:"required"`
+	SecurityAnswer string `json:"security_answer" binding:"required"`
+	NewPassword    string `json:"new_password" binding:"required,min=6"`
 }
 
 // UpdateSecurityQuestionRequest 更新密保问题和答案

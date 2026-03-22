@@ -1469,6 +1469,11 @@ func JoinRoomWithKey(roomID string, uid int, accessKey string) error {
 			}
 		}
 
+		// 禁止 AI 玩家观战
+		if uid < 0 {
+			return errors.New("AI 玩家无法观战")
+		}
+
 		gameRoom.Room.Spectators = append(gameRoom.Room.Spectators, uid)
 		if gameRoom.GameState != nil {
 			gameRoom.GameState.Spectators = append(gameRoom.GameState.Spectators, uid)
@@ -1554,6 +1559,35 @@ func LeaveRoom(roomID string, uid int) error {
 	}
 	gameRoom.Room.Spectators = newSpectators
 
+	// 如果游戏还未开始，尝试将观战者提升为玩家
+	if gameRoom.Room.Status == "waiting" && len(gameRoom.Room.Spectators) > 0 && len(gameRoom.Room.Players) < gameRoom.Room.MaxPlayers {
+		promotedUID := gameRoom.Room.Spectators[0]
+		// 检查观战者是否已在Players中（防止重复）
+		alreadyPlayer := false
+		for _, pid := range gameRoom.Room.Players {
+			if pid == promotedUID {
+				alreadyPlayer = true
+				break
+			}
+		}
+		if !alreadyPlayer {
+			gameRoom.Room.Spectators = gameRoom.Room.Spectators[1:]
+			gameRoom.Room.Players = append(gameRoom.Room.Players, promotedUID)
+			// 同时从GameState.Spectators中移除升级的观战者
+			if gameRoom.GameState != nil {
+				newGameStateSpectators := []int{}
+				for _, sid := range gameRoom.GameState.Spectators {
+					if sid != promotedUID {
+						newGameStateSpectators = append(newGameStateSpectators, sid)
+					}
+				}
+				gameRoom.GameState.Spectators = newGameStateSpectators
+			}
+			log.Printf("[房间] 玩家 %d 离开，观战者 %d 自动晋升为玩家", uid, promotedUID)
+			gameRoom.BroadcastSystemMessage(fmt.Sprintf("观战员已自动加入游戏，现在房间有 %d/%d 位研究员", len(gameRoom.Room.Players), gameRoom.Room.MaxPlayers))
+		}
+	}
+
 	// 检查自动开始状态
 	if gameRoom.Room.Status == "waiting" {
 		gameRoom.checkAutoStart()
@@ -1587,14 +1621,26 @@ func LeaveRoom(roomID string, uid int) error {
 		gameRoom.GameState.Players = newPS
 
 		// 调整当前玩家索引
-		if leftIndex != -1 {
+		if leftIndex != -1 && len(gameRoom.GameState.Players) > 0 {
 			if gameRoom.GameState.CurrentPlayer > leftIndex {
 				gameRoom.GameState.CurrentPlayer--
 			}
-			if gameRoom.GameState.CurrentPlayer >= len(gameRoom.GameState.Players) {
-				gameRoom.GameState.CurrentPlayer = 0
+			// 使用模运算确保CurrentPlayer始终在有效范围内
+			gameRoom.GameState.CurrentPlayer = gameRoom.GameState.CurrentPlayer % len(gameRoom.GameState.Players)
+		} else if len(gameRoom.GameState.Players) == 0 {
+			gameRoom.GameState.CurrentPlayer = 0
+		}
+	}
+
+	// 从 GameState.Spectators 中移除观战者
+	if gameRoom.GameState != nil {
+		newGameStateSpectators := []int{}
+		for _, sid := range gameRoom.GameState.Spectators {
+			if sid != uid {
+				newGameStateSpectators = append(newGameStateSpectators, sid)
 			}
 		}
+		gameRoom.GameState.Spectators = newGameStateSpectators
 	}
 
 	// 从 WebSocket Hub 中移除该用户的房间订阅

@@ -51,8 +51,11 @@ func NewClient(hub *Hub, conn *websocket.Conn, uid int, username string, nicknam
 
 func (c *Client) ReadPump() {
 	defer func() {
-		c.hub.LeaveRoom(c)
-		c.hub.unregister <- c
+		// 防止在hub已关闭或roomID为空时仍尝试LeaveRoom
+		if c.hub != nil {
+			c.hub.LeaveRoom(c)
+			c.hub.unregister <- c
+		}
 		c.conn.Close()
 	}()
 

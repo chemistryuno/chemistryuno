@@ -113,6 +113,8 @@ func CreateRoom(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, room)
+	// 广播房间列表更新
+	go game.BroadcastRoomsUpdate()
 }
 
 // 加入房间
@@ -120,10 +122,11 @@ func JoinRoom(c *gin.Context) {
 	roomID := c.Param("id")
 	uid := c.GetInt("uid")
 
-	// 从查询参数获取访问密钥
+	// 从查询参数获取访问密钥和观战模式
 	accessKey := c.Query("key")
+	asSpectator := c.Query("spectator") == "true" || c.Query("spectator") == "1"
 
-	err := game.JoinRoomWithKey(roomID, uid, accessKey)
+	err := game.JoinRoomWithKeyAsSpectator(roomID, uid, accessKey, asSpectator)
 	if err != nil {
 		if err.Error() == "房间不存在" {
 			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
@@ -134,6 +137,7 @@ func JoinRoom(c *gin.Context) {
 	}
 
 	broadcastPlayerJoint(roomID)
+	go game.BroadcastRoomsUpdate() // 广播房间列表更新
 	c.JSON(http.StatusOK, gin.H{"message": "加入房间成功"})
 }
 
@@ -256,6 +260,7 @@ func StartGame(c *gin.Context) {
 
 	broadcastUpdate(roomID)
 	log.Printf("[HTTP] StartGame handler: game started for room %s, broadcasted update", roomID)
+	go game.BroadcastRoomsUpdate() // 广播房间列表更新
 	c.JSON(http.StatusOK, gin.H{"message": "游戏开始"})
 }
 

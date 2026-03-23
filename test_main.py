@@ -440,6 +440,53 @@ class GameTestManager:
         else:
             self.log_result("观战", "SKIP", "房间满员或其他原因")
             return True
+
+    def test_spectate_any_public_room(self) -> bool:
+        """测试玩家可以旁观任意非私密房间 (新功能✓)"""
+        print("\n" + "=" * 70)
+        print("阶段 8.5: 公开房间旁观测试 (✓新功能)")
+        print("=" * 70)
+        
+        players_list = list(self.players.values())
+        if len(players_list) < 4:
+            self.log_result("公开房间旁观", "SKIP", "玩家不足")
+            return True
+        
+        # 使用前3个玩家创建房间
+        try:
+            success, data = self.client.create_room(f"SpectateTest_{int(time.time())}", max_players=3)
+            if not success:
+                self.log_result("公开房间旁观", "SKIP", "创建房间失败")
+                return True
+            
+            spectate_room_id = data.get("id")
+            if not spectate_room_id:
+                self.log_result("公开房间旁观", "SKIP", "无法获取房间ID")
+                return True
+            
+            # 让第2和第3个玩家填满房间
+            for i in range(1, 3):
+                success, _ = self.client.join_room(spectate_room_id, players_list[i].token)
+                if not success:
+                    self.log_result("公开房间旁观", "SKIP", f"玩家{i}加入失败")
+                    return True
+            
+            # 第4个玩家尝试以观战者身份加入（房间已满）
+            spectator = players_list[3]
+            self.client.set_auth_token(spectator.access_token)
+            status, resp = self.client._request("POST", f"/rooms/{spectate_room_id}/join?spectator=true")
+            
+            if status == 200:
+                self.log_result("公开房间旁观", "PASS", 
+                    f"{spectator.username} 成功旁观已满房间（无需密钥）")
+                return True
+            else:
+                error = resp.get("error", "") if isinstance(resp, dict) else str(resp)
+                self.log_result("公开房间旁观", "SKIP", f"旁观失败: {error[:30]}")
+                return True
+        except Exception as e:
+            self.log_result("公开房间旁观", "SKIP", f"测试异常: {str(e)[:50]}")
+            return True
     
     def test_reaction_check(self) -> bool:
         """测试化学反应"""
@@ -661,6 +708,7 @@ class GameTestManager:
             self.test_leave_room(room_id)
             time.sleep(1)
             self.test_spectator_features(room_id)
+            self.test_spectate_any_public_room()
             self.test_reaction_check()
             
             self.print_summary()

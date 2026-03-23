@@ -288,8 +288,10 @@ export const gameAPI = {
     api.get(`/rooms/${roomId}`),
   checkRoomStatus: (roomId: string) =>
     api.get(`/rooms/${roomId}/status`),
-  joinRoom: (roomId: string, accessKey?: string) =>
-    api.post(`/rooms/${roomId}/join${accessKey ? `?key=${accessKey}` : ''}`),
+  joinRoom: (roomId: string, accessKey?: string, asSpectator?: boolean) =>
+    api.post(`/rooms/${roomId}/join${accessKey ? `?key=${accessKey}` : ''}${asSpectator ? '&spectator=true' : ''}`),
+  spectateRoom: (roomId: string, accessKey?: string) =>
+    api.post(`/rooms/${roomId}/join?spectator=true${accessKey ? `&key=${accessKey}` : ''}`),
   leaveRoom: (roomId: string) =>
     api.post(`/rooms/${roomId}/leave`),
   ready: (roomId: string) =>

@@ -774,6 +774,18 @@ func GetAllRoomsAdmin() []*models.Room {
 	return result
 }
 
+// BroadcastRoomsUpdate 广播房间列表更新到所有在线玩家（实时推送）
+func BroadcastRoomsUpdate() {
+	ws := websocket.GlobalHub
+	if ws != nil {
+		message := websocket.Message{
+			Type: "rooms_update",
+			Data: GetAllRooms(0), // 获取所有公开房间
+		}
+		ws.BroadcastToAll(message)
+	}
+}
+
 // GetRoomStatus 检查房间是否存在及其状态
 func GetRoomStatus(roomID string) (exists bool, status string) {
 	roomMutex.RLock()
@@ -1517,6 +1529,75 @@ func JoinRoomWithKey(roomID string, uid int, accessKey string) error {
 	gameRoom.checkAutoStart()
 	gameRoom.broadcastRoomUpdate()
 	emitPlayerJoin(roomID, uid, "", len(gameRoom.Room.Players), "join_room")
+	return nil
+}
+
+// JoinRoomWithKeyAsSpectator 以观战者身份加入房间
+func JoinRoomWithKeyAsSpectator(roomID string, uid int, accessKey string, asSpectator bool) error {
+	// 如果不要求作为观战者加入，使用原有逻辑
+	if !asSpectator {
+		return JoinRoomWithKey(roomID, uid, accessKey)
+	}
+
+	// 以下是观战模式的逻辑
+	banned, until, reason, _ := isBanned(uid)
+	if banned {
+		if reason == "" {
+			reason = "您的账号由于多次消极游戏已被封禁"
+		}
+		return fmt.Errorf("%s，直到 %s", reason, until.Format("2006-01-02 15:04:05"))
+	}
+
+	roomMutex.RLock()
+	gameRoom, exists := rooms[roomID]
+	roomMutex.RUnlock()
+
+	if !exists {
+		return errors.New("房间不存在")
+	}
+
+	gameRoom.mutex.Lock()
+	defer gameRoom.mutex.Unlock()
+
+	// 检查用户是否已在房间中（玩家或观战者）
+	for _, pid := range gameRoom.Room.Players {
+		if pid == uid {
+			return nil
+		}
+	}
+	for _, sid := range gameRoom.Room.Spectators {
+		if sid == uid {
+			return nil
+		}
+	}
+
+	// 私密房间需要验证密钥
+	if gameRoom.Room.IsPrivate && gameRoom.Room.AccessKey != "" {
+		isCreator := len(gameRoom.Room.Players) > 0 && gameRoom.Room.Players[0] == uid
+		alreadyInRoom := false
+		for _, pid := range gameRoom.Room.Players {
+			if pid == uid {
+				alreadyInRoom = true
+				break
+			}
+		}
+		// 观战者需要验证密钥（除非是房主或已在房间）
+		if !isCreator && !alreadyInRoom && accessKey != gameRoom.Room.AccessKey {
+			return errors.New("访问密钥错误，无法观战私密房间")
+		}
+	}
+
+	// 禁止 AI 玩家观战
+	if uid < 0 {
+		return errors.New("AI 玩家无法观战")
+	}
+
+	// 添加为观战者
+	gameRoom.Room.Spectators = append(gameRoom.Room.Spectators, uid)
+	if gameRoom.GameState != nil {
+		gameRoom.GameState.Spectators = append(gameRoom.GameState.Spectators, uid)
+	}
+	gameRoom.broadcastRoomUpdate()
 	return nil
 }
 

@@ -334,8 +334,8 @@ onMounted(() => {
   websocket.on('system_announcement', handleSystemAnnouncement)
   websocket.on('rooms_update', handleRoomsUpdate)
 
-  // 优化：房间列表改为10秒轮询（减少70%请求），改为WebSocket推送后可移除
-  roomInterval = setInterval(loadRooms, 10000)
+  // 使用WebSocket实时推送房间列表，不再使用轮询
+  // roomInterval = setInterval(loadRooms, 10000)  // 已移除轮询机制
   
   // 移除不必要的1秒时间更新，改为按需更新
   // timeInterval = setInterval(() => {
@@ -497,9 +497,9 @@ const handleCreateAIRoom = async () => {
   }
 }
 
-const handleJoinRoom = async (roomId: string) => {
+const handleJoinRoom = async (roomId: string, asSpectator: boolean = false) => {
   try {
-    await gameAPI.joinRoom(roomId)
+    await gameAPI.joinRoom(roomId, undefined, asSpectator)
     router.push(`/room/${roomId}`)
   } catch (error: any) {
     showAlert(error.response?.data?.error || '加入房间失败', '连接错误')
@@ -942,7 +942,28 @@ const copyToClipboard = (text: string) => {
 
                 <!-- Card Footer Action -->
                 <div class="room-card-footer">
+                  <!-- 非私密房间：显示加入和旁观两个选项 -->
+                  <template v-if="!room.is_private">
+                    <button
+                      v-if="room.status !== 'playing' && !isRoomFull(room)"
+                      @click="handleJoinRoom(room.id, false)"
+                      class="btn-room-action btn-enter"
+                    >
+                      <Play class="w-3.5 h-3.5 fill-current" />
+                      加入
+                    </button>
+                    <button
+                      @click="handleJoinRoom(room.id, true)"
+                      class="btn-room-action btn-spectate"
+                    >
+                      <Shield class="w-3.5 h-3.5" />
+                      旁观
+                    </button>
+                  </template>
+                  
+                  <!-- 私密房间：仅显示加入或旁观 -->
                   <button
+                    v-else
                     @click="handleJoinRoom(room.id)"
                     :class="cn(
                       'btn-room-action',

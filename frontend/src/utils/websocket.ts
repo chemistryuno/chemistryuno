@@ -28,7 +28,10 @@ class WebSocketService {
   }
 
   connect(): void {
-    const token = localStorage.getItem('token')
+    // 优先使用 access_token（新方案），回退到旧的 token 字段
+    const accessToken = localStorage.getItem('access_token')
+    const legacyToken = localStorage.getItem('token')
+    const token = accessToken || legacyToken
     if (!token) return
 
     // 避免重复连接

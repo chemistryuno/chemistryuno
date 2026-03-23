@@ -275,9 +275,16 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	token, err := utils.GenerateToken(int(user.UID), user.Email, user.IsAdmin, user.Role, sid)
+	// 生成access token（15分钟）和refresh token（7天）
+	accessToken, err := utils.GenerateAccessToken(int(user.UID), user.Email, user.IsAdmin, user.Role, sid)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate token"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate access token"})
+		return
+	}
+
+	refreshToken, err := utils.GenerateRefreshToken(int(user.UID), sid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate refresh token"})
 		return
 	}
 
@@ -309,7 +316,10 @@ func Login(c *gin.Context) {
 	fmt.Printf("login success - username: %s (UID=%d), SID: %s, IP: %s\n", user.Username, user.UID, sid, c.ClientIP())
 
 	c.JSON(http.StatusOK, gin.H{
-		"token": token,
+		"access_token":  accessToken,
+		"refresh_token": refreshToken,
+		"token_type":    "Bearer",
+		"expires_in":    900, // 900秒 = 15分钟
 		"user": gin.H{
 			"uid":                user.UID,
 			"username":           user.Username,
@@ -323,6 +333,75 @@ func Login(c *gin.Context) {
 		"announcements":         announcements,
 		"is_returning_player":   isReturningPlayer,
 		"days_since_last_login": daysSinceLastLogin,
+	})
+}
+
+// RefreshToken 使用refresh token获取新的access token
+func RefreshToken(c *gin.Context) {
+	var req struct {
+		RefreshToken string `json:"refresh_token" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "missing refresh_token"})
+		return
+	}
+
+	// 解析refresh token
+	claims, err := utils.ParseToken(req.RefreshToken)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid refresh_token"})
+		return
+	}
+
+	// 检查token类型
+	if claims.TokenType != "refresh" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token type, expected refresh token"})
+		return
+	}
+
+	// 检查SID是否有效
+	if claims.SID == "" || !utils.IsSessionValid(claims.SID) {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "session expired, please login again"})
+		return
+	}
+
+	// 验证session属于该用户
+	if !utils.ValidateSessionForUser(claims.SID, claims.UID) {
+		log.Printf("[session validation failed] UID=%d, SID=%s", claims.UID, claims.SID)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "session validation failed"})
+		return
+	}
+
+	// 获取用户信息以获得最新的email, role等
+	userRepo := repository.NewUserRepository()
+	user, err := userRepo.FindByUID(uint(claims.UID))
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not found"})
+		return
+	}
+
+	// 检查账户状态
+	now := time.Now()
+	if user.BannedUntil != nil && now.Before(*user.BannedUntil) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "account is banned"})
+		return
+	}
+	if user.FrozenUntil != nil && now.Before(*user.FrozenUntil) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "account is frozen"})
+		return
+	}
+
+	// 生成新的access token
+	accessToken, err := utils.GenerateAccessToken(claims.UID, user.Email, user.IsAdmin, user.Role, claims.SID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate access token"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"access_token": accessToken,
+		"token_type":   "Bearer",
+		"expires_in":   900, // 900秒 = 15分钟
 	})
 }
 

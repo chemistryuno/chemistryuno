@@ -50,6 +50,8 @@ const handleDuelDeclined = (msg: any) => {
 }
 
 const handleForceLogout = async (msg: any) => {
+  localStorage.removeItem('access_token')
+  localStorage.removeItem('refresh_token')
   localStorage.removeItem('token')
   localStorage.removeItem('user')
   websocket.disconnect()
@@ -145,7 +147,9 @@ const handlePluginMessage = (msg: any) => {
 }
 
 const handleAuthChanged = () => {
-  const token = localStorage.getItem('token')
+  const accessToken = localStorage.getItem('access_token')
+  const legacyToken = localStorage.getItem('token')
+  const token = accessToken || legacyToken
   if (token) {
     loadPluginScripts()
   }
@@ -161,7 +165,9 @@ onMounted(() => {
     })
     window.addEventListener('theme-changed', updateTheme)
     window.addEventListener('auth-changed', handleAuthChanged)
-    const token = localStorage.getItem('token')
+    const accessToken = localStorage.getItem('access_token')
+    const legacyToken = localStorage.getItem('token')
+    const token = accessToken || legacyToken
     const userData = localStorage.getItem('user')
     
     if (token && userData) {

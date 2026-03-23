@@ -1,15 +1,78 @@
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosResponse } from 'axios'
 import router from '../router'
 
+// 简单的API响应缓存系统
+interface CacheEntry {
+  data: any
+  timestamp: number
+  ttl: number  // 缓存时间（毫秒）
+}
+
+const apiCache = new Map<string, CacheEntry>()
+
+// 缓存辅助函数
+const getCached = (key: string): any | null => {
+  const entry = apiCache.get(key)
+  if (!entry) return null
+  if (Date.now() - entry.timestamp > entry.ttl) {
+    apiCache.delete(key)
+    return null
+  }
+  return entry.data
+}
+
+const setCached = (key: string, data: any, ttl: number = 5 * 60 * 1000) => {  // 默认5分钟
+  apiCache.set(key, { data, timestamp: Date.now(), ttl })
+}
+
+// Token管理
+let isRefreshing = false
+let refreshSubscribers: ((token: string) => void)[] = []
+
+const subscribeTokenRefresh = (cb: (token: string) => void) => {
+  refreshSubscribers.push(cb)
+}
+
+const onRefreshed = (token: string) => {
+  refreshSubscribers.forEach(cb => cb(token))
+  refreshSubscribers = []
+}
+
+// 刷新access token
+const refreshAccessToken = async (): Promise<string | null> => {
+  try {
+    const refreshToken = localStorage.getItem('refresh_token')
+    if (!refreshToken) {
+      return null
+    }
+
+    const response = await axios.post('/api/auth/refresh', {
+      refresh_token: refreshToken
+    })
+
+    const newAccessToken = response.data.access_token
+    localStorage.setItem('access_token', newAccessToken)
+    
+    return newAccessToken
+  } catch (error) {
+    console.error('Token refresh failed:', error)
+    return null
+  }
+}
+
 const api: AxiosInstance = axios.create({
   baseURL: '/api',
   timeout: 10000,
 })
 
-// 请求拦截器
+// 请求拦截器 - 添加access token
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    const token = localStorage.getItem('token')
+    // 优先使用access_token（新方案），回退到旧的token字段（兼容旧版本）
+    const accessToken = localStorage.getItem('access_token')
+    const legacyToken = localStorage.getItem('token')
+    const token = accessToken || legacyToken
+    
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
@@ -20,27 +83,63 @@ api.interceptors.request.use(
   }
 )
 
-// 响应拦截器
+// 响应拦截器 - 自动刷新token
 api.interceptors.response.use(
   (response: AxiosResponse) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('token')
-      localStorage.removeItem('user')
+  async (error) => {
+    const originalRequest = error.config
 
-      // 避免在登录页面或执行登录 API 时强制刷新/跳转
+    // 401错误处理
+    if (error.response?.status === 401 && originalRequest) {
+      // 避免在登录页面或执行认证API时强制刷新
       const isLoginPage = window.location.pathname === '/login'
-      const isAuthRequest = error.config.url.includes('/auth/login') || error.config.url.includes('/auth/webauthn/login')
+      const isAuthRequest = originalRequest.url.includes('/auth/login') || 
+                           originalRequest.url.includes('/auth/webauthn/login') ||
+                           originalRequest.url.includes('/auth/refresh')
 
       if (!isLoginPage && !isAuthRequest) {
+        // 如果已经在刷新中，等待刷新完成
+        if (isRefreshing) {
+          return new Promise((resolve) => {
+            subscribeTokenRefresh((token: string) => {
+              originalRequest.headers.Authorization = `Bearer ${token}`
+              resolve(api(originalRequest))
+            })
+          })
+        }
+
+        // 尝试使用refresh token刷新access token
+        isRefreshing = true
+        const newAccessToken = await refreshAccessToken()
+        isRefreshing = false
+
+        if (newAccessToken) {
+          onRefreshed(newAccessToken)
+          originalRequest.headers.Authorization = `Bearer ${newAccessToken}`
+          return api(originalRequest)
+        }
+
+        // Refresh token也过期了，清除所有token并登出
+        localStorage.removeItem('access_token')
+        localStorage.removeItem('refresh_token')
+        localStorage.removeItem('token')
+        localStorage.removeItem('user')
+
         // 使用路由跳转而非页面刷新
         const currentPath = window.location.pathname + window.location.search
         router.push({
           path: '/login',
           query: { redirect: currentPath }
         })
+      } else if (isLoginPage || isAuthRequest) {
+        // 登录或刷新接口本身返回401，不做特殊处理（让调用者来处理）
+        // 仅清除可能的旧token
+        if (isAuthRequest && originalRequest.url.includes('/auth/refresh')) {
+          localStorage.removeItem('refresh_token')
+        }
       }
     }
+
     return Promise.reject(error)
   }
 )
@@ -158,8 +257,16 @@ export const authAPI = {
 
 // 游戏API
 export const gameAPI = {
-  getRooms: () =>
-    api.get('/rooms'),
+  // 房间列表 - 支持缓存（1分钟）
+  getRooms: async () => {
+    const cacheKey = 'rooms_list'
+    const cached = getCached(cacheKey)
+    if (cached) return { data: cached }
+    
+    const response = await api.get('/rooms')
+    setCached(cacheKey, response.data, 60 * 1000)  // 缓存1分钟
+    return response
+  },
   createRoom: (name: string, maxPlayers: number, deckID: number, isPointsMode: boolean = false, isPrivate: boolean = false, accessKey?: string, isPvE: boolean = false, pveDifficulty: number = 0, aiCount: number = 0, enableAIBackfill: boolean = false, aiBackfillDifficulty: number = 50, isRanked: boolean = false, levelRange: number = 5, tutorialScript: boolean = false) =>
     api.post('/rooms', {
       name,
@@ -368,12 +475,26 @@ export const reactionAPI = {
 
 // 物质管理API
 export const substanceAPI = {
-  // 获取全量物质名称映射（不带版本，用于自动推导）
-  getSubstanceNames: () =>
-    api.get('/substances/names'),
-  // 获取所有物质（分组）
-  getSubstances: () =>
-    api.get('/data/substances'),
+  // 获取全量物质名称映射（不带版本，用于自动推导）- 支持缓存
+  getSubstanceNames: async () => {
+    const cacheKey = 'substance_names'
+    const cached = getCached(cacheKey)
+    if (cached) return { data: cached }
+    
+    const response = await api.get('/substances/names')
+    setCached(cacheKey, response.data, 30 * 60 * 1000)  // 缓存30分钟
+    return response
+  },
+  // 获取所有物质（分组）- 支持缓存
+  getSubstances: async () => {
+    const cacheKey = 'substances_all'
+    const cached = getCached(cacheKey)
+    if (cached) return { data: cached }
+    
+    const response = await api.get('/data/substances')
+    setCached(cacheKey, response.data, 30 * 60 * 1000)  // 缓存30分钟
+    return response
+  },
   // 获取我的物质
   getMySubstances: () =>
     api.get('/data/substances/my'),

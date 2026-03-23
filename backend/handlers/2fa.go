@@ -239,9 +239,16 @@ func Verify2FALogin(c *gin.Context) {
 		return
 	}
 
-	token, err := utils.GenerateToken(int(user.UID), user.Email, user.IsAdmin, user.Role, sid)
+	// 生成access token（15分钟）和refresh token（7天）
+	accessToken, err := utils.GenerateAccessToken(int(user.UID), user.Email, user.IsAdmin, user.Role, sid)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成token失败"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成access token失败"})
+		return
+	}
+
+	refreshToken, err := utils.GenerateRefreshToken(int(user.UID), sid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成refresh token失败"})
 		return
 	}
 
@@ -260,7 +267,10 @@ func Verify2FALogin(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"token": token,
+		"access_token":  accessToken,
+		"refresh_token": refreshToken,
+		"token_type":    "Bearer",
+		"expires_in":    900,
 		"user": gin.H{
 			"uid":      user.UID,
 			"username": user.Username,

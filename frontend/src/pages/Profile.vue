@@ -127,6 +127,8 @@ const handleUpdateNickname = async () => {
 }
 
 const handleLogout = () => {
+  localStorage.removeItem('access_token')
+  localStorage.removeItem('refresh_token')
   localStorage.removeItem('token')
   localStorage.removeItem('user')
   router.push('/login')
@@ -247,7 +249,10 @@ const handleOAuthBind = (provider: 'github' | 'ms' | 'google' | 'apple') => {
   const left = window.screen.width / 2 - width / 2
   const top = window.screen.height / 2 - height / 2
   
-  const token = localStorage.getItem('token') || ''
+  // 优先使用 access_token（新方案），回退到旧的 token 字段
+  const accessToken = localStorage.getItem('access_token')
+  const legacyToken = localStorage.getItem('token')
+  const token = accessToken || legacyToken || ''
   const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api'
   const url = `${baseUrl}/auth/${provider}/bind?token=${token}`
   

@@ -237,6 +237,7 @@ func main() {
 		{
 			authGroup.POST("/register", handlers.Register)
 			authGroup.POST("/login", handlers.Login)
+			authGroup.POST("/refresh", handlers.RefreshToken)
 			authGroup.GET("/config", handlers.GetAuthConfig)
 			authGroup.POST("/send-code", handlers.SendVerificationCode)
 			authGroup.POST("/reset-password", handlers.ResetPasswordByEmail)

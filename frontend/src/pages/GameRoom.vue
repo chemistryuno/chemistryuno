@@ -53,7 +53,8 @@ const loadError = ref<string | null>(null)
 const isRedirecting = ref(false)
 const timeRemaining = ref(0)
 const timePercent = ref(100)
-let timerInterval: any = null
+let timerRaf: any = null
+let lastTimeUpdate = 0
 const selectedCard = ref<any>(null)
 const selectedSubstance = ref<string | null>(null)
 const turnReadySubstances = ref<string[]>([])
@@ -255,9 +256,15 @@ let toastIdCounter = 0
 const drawAnimatingUIDs = ref<Set<number>>(new Set())
 const playerCardCounts = ref<Record<number, number>>({})
 
-watch(() => gameState.value?.players, (newPlayers) => {
-  if (!newPlayers) return
-  newPlayers.forEach((p: any) => {
+// 计算属性：只监听players的关键变化（uid + card_count）
+const playersCardState = computed(() => {
+  return gameState.value?.players?.map((p: any) => `${p.uid}:${p.card_count}`).join(',') || ''
+})
+
+// 改为监听简化版本而不是deep watch
+watch(playersCardState, (newState) => {
+  if (!gameState.value?.players) return
+  gameState.value.players.forEach((p: any) => {
     const oldVal = playerCardCounts.value[p.uid]
     // 只有当牌数增加且不是初始发牌（处于游戏中）时触发
     if (gameState.value?.status === 'playing' && typeof oldVal !== 'undefined' && p.card_count > oldVal) {
@@ -268,7 +275,7 @@ watch(() => gameState.value?.players, (newPlayers) => {
     }
     playerCardCounts.value[p.uid] = p.card_count
   })
-}, { deep: true })
+})
 
 const addPvEToast = (text: string) => {
   const id = ++toastIdCounter
@@ -749,20 +756,38 @@ watch(() => roomInfo.value?.is_points_mode, (val) => {
 // --- 移植结束 ---
 
 const startTimer = () => {
-  if (timerInterval) clearInterval(timerInterval)
-  timerInterval = setInterval(() => {
+  if (timerRaf) cancelAnimationFrame(timerRaf)
+  lastTimeUpdate = 0
+  
+  const animate = () => {
     if (!gameState.value || !gameState.value.turn_end_time || gameState.value.status !== 'playing') {
       timeRemaining.value = 0
       timePercent.value = 0
       return
     }
+    
     const now = Date.now()
     const diffMs = gameState.value.turn_end_time - now
-    const diff = Math.max(0, Math.floor(diffMs / 1000))
-    timeRemaining.value = diff
-    // 假设总回合时长为 20s
+    
+    // 进度条平滑更新（每帧）
     timePercent.value = Math.max(0, Math.min(100, (diffMs / 30000) * 100))
-  }, 100)
+    
+    // 秒数显示每秒更新一次
+    if (now - lastTimeUpdate >= 1000) {
+      const diff = Math.max(0, Math.floor(diffMs / 1000))
+      timeRemaining.value = diff
+      lastTimeUpdate = now
+    }
+    
+    if (diffMs > 0) {
+      timerRaf = requestAnimationFrame(animate)
+    } else {
+      timeRemaining.value = 0
+      timePercent.value = 0
+    }
+  }
+  
+  timerRaf = requestAnimationFrame(animate)
 }
 
 watch(() => gameState.value?.turn_end_time, () => {
@@ -1148,7 +1173,7 @@ onUnmounted(() => {
     }
   }
 
-  if (timerInterval) clearInterval(timerInterval)
+  if (timerRaf) cancelAnimationFrame(timerRaf)
   websocket.leaveRoom()
   websocket.off('game_update', handleGameUpdate)
   websocket.off('player_joined', handlePlayerJoined)

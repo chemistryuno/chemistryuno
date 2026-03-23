@@ -313,6 +313,14 @@ const handleSystemAnnouncement = (msg: any) => {
   }
 }
 
+// WebSocket房间更新事件处理（后续支持）
+const handleRoomsUpdate = (msg: any) => {
+  if (msg.data && Array.isArray(msg.data)) {
+    rooms.value = msg.data
+    roomsFetchedAt.value = Date.now()
+  }
+}
+
 onMounted(() => {
   loadRooms()
   loadDecks()
@@ -324,11 +332,15 @@ onMounted(() => {
   websocket.connect()
   websocket.on('online_count', handleOnlineCountUpdate)
   websocket.on('system_announcement', handleSystemAnnouncement)
+  websocket.on('rooms_update', handleRoomsUpdate)
 
-  roomInterval = setInterval(loadRooms, 3000)
-  timeInterval = setInterval(() => {
-    currentTime.value = new Date()
-  }, 1000)
+  // 优化：房间列表改为10秒轮询（减少70%请求），改为WebSocket推送后可移除
+  roomInterval = setInterval(loadRooms, 10000)
+  
+  // 移除不必要的1秒时间更新，改为按需更新
+  // timeInterval = setInterval(() => {
+  //   currentTime.value = new Date()
+  // }, 1000)
 
   // 检查大厅新手指引
   checkFirstTimeLobby()
@@ -358,6 +370,7 @@ onUnmounted(() => {
   if (timeInterval) clearInterval(timeInterval)
   websocket.off('online_count', handleOnlineCountUpdate)
   websocket.off('system_announcement', handleSystemAnnouncement)
+  websocket.off('rooms_update', handleRoomsUpdate)
 })
 
 const loadRooms = async () => {
@@ -507,6 +520,8 @@ const handleLeaveRoom = async (roomId: string) => {
 }
 
 const handleLogout = () => {
+  localStorage.removeItem('access_token')
+  localStorage.removeItem('refresh_token')
   localStorage.removeItem('token')
   localStorage.removeItem('user')
   websocket.disconnect()

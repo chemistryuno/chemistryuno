@@ -37,26 +37,51 @@ func initJWTSecret() {
 }
 
 type Claims struct {
-	UID     int    `json:"uid"`
-	Email   string `json:"email"`
-	IsAdmin bool   `json:"is_admin"`
-	Role    string `json:"role"`
-	SID     string `json:"sid,omitempty"`
+	UID       int    `json:"uid"`
+	Email     string `json:"email"`
+	IsAdmin   bool   `json:"is_admin"`
+	Role      string `json:"role"`
+	SID       string `json:"sid,omitempty"`
+	TokenType string `json:"token_type"` // "access" 或 "refresh"
 	jwt.RegisteredClaims
 }
 
-// GenerateToken 生成JWT Token
+// GenerateToken 生成JWT Token（兼容旧版本，内部调用GenerateAccessToken）
 func GenerateToken(uid int, email string, isAdmin bool, role string, sid string) (string, error) {
-	initJWTSecret() // 确保密钥已初始化
+	return GenerateAccessToken(uid, email, isAdmin, role, sid)
+}
+
+// GenerateAccessToken 生成短期访问令牌（15分钟）
+func GenerateAccessToken(uid int, email string, isAdmin bool, role string, sid string) (string, error) {
+	initJWTSecret()
 
 	claims := Claims{
-		UID:     uid,
-		Email:   email,
-		IsAdmin: isAdmin,
-		Role:    role,
-		SID:     sid,
+		UID:       uid,
+		Email:     email,
+		IsAdmin:   isAdmin,
+		Role:      role,
+		SID:       sid,
+		TokenType: "access",
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(15 * time.Minute)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString(jwtSecret)
+}
+
+// GenerateRefreshToken 生成长期刷新令牌（7天）
+func GenerateRefreshToken(uid int, sid string) (string, error) {
+	initJWTSecret()
+
+	claims := Claims{
+		UID:       uid,
+		TokenType: "refresh",
+		SID:       sid,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(7 * 24 * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 		},
 	}

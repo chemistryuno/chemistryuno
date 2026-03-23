@@ -62,6 +62,8 @@ const handleLogoutSession = async (session: any) => {
   try {
     await authAPI.logoutSession(session.id)
     if (session.is_current) {
+      localStorage.removeItem('access_token')
+      localStorage.removeItem('refresh_token')
       localStorage.removeItem('token')
       localStorage.removeItem('user')
       router.push('/login')
@@ -97,6 +99,8 @@ const handleFreezeAccount = async () => {
   freezeLoading.value = true
   try {
     await authAPI.freezeAccount(hours)
+    localStorage.removeItem('access_token')
+    localStorage.removeItem('refresh_token')
     localStorage.removeItem('token')
     localStorage.removeItem('user')
     router.push('/login')

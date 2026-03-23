@@ -45,6 +45,18 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
+		// 检查token类型（API调用只接受access token）
+		if claims.TokenType != "access" && claims.TokenType != "" {
+			// TokenType为空表示旧版token（兼容），为"refresh"表示刷新令牌不能用于API调用
+			if claims.TokenType == "refresh" {
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "刷新令牌不能用于API调用，请刷新后重试"})
+			} else {
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "无效的token类型"})
+			}
+			c.Abort()
+			return
+		}
+
 		// 强制要求 SID 存在（防止旧版 Token 或非法 Token 绕过会话检查）
 		if claims.SID == "" {
 			log.Printf("[强制踢出] Token中缺少SID: UID=%d, IP=%s", claims.UID, c.ClientIP())

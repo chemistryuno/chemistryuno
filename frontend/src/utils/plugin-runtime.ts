@@ -190,7 +190,9 @@ function buildRouteComponent(plugin: PluginMeta, routeDef: PluginRouteDefinition
 function createPluginApi() {
   const baseURL = '/api'
   const getAuthHeaders = (): Record<string, string> => {
-    const token = localStorage.getItem('token')
+    const accessToken = localStorage.getItem('access_token')
+    const legacyToken = localStorage.getItem('token')
+    const token = accessToken || legacyToken
     if (!token) return {}
     return { Authorization: `Bearer ${token}` }
   }
@@ -405,7 +407,9 @@ export async function loadPluginScripts() {
 }
 
 export async function initializePluginRuntime() {
-  const token = localStorage.getItem('token')
+  const accessToken = localStorage.getItem('access_token')
+  const legacyToken = localStorage.getItem('token')
+  const token = accessToken || legacyToken
   if (!token) return
   await loadPluginScripts()
 }

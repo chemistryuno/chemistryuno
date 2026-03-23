@@ -59,3 +59,4 @@ android/
 .gocache/
 demo/
 __pycache__/
+chemistryuno.db-shm

@@ -83,8 +83,8 @@ const handleSubmit = async () => {
       return
     }
 
-    const { token, user, announcements, is_returning_player, days_since_last_login } = response.data
-    handleLoginSuccess(token, user, announcements, is_returning_player, days_since_last_login)
+    const { token, access_token, refresh_token, user, announcements, is_returning_player, days_since_last_login } = response.data
+    handleLoginSuccess(token, user, announcements, is_returning_player, days_since_last_login, access_token, refresh_token)
   } catch (err: any) {
     const data = err.response?.data
     if (data?.banned_until) {
@@ -108,8 +108,8 @@ const handle2FAVerify = async () => {
 
   try {
     const response = await authAPI.verify2FALogin(tempUID.value, twoFactorCode.value)
-    const { token, user, announcements, is_returning_player, days_since_last_login } = response.data
-    handleLoginSuccess(token, user, announcements, is_returning_player, days_since_last_login)
+    const { token, access_token, refresh_token, user, announcements, is_returning_player, days_since_last_login } = response.data
+    handleLoginSuccess(token, user, announcements, is_returning_player, days_since_last_login, access_token, refresh_token)
   } catch (err: any) {
     error.value = err.response?.data?.error || '2FA验证失败'
   } finally {
@@ -117,8 +117,15 @@ const handle2FAVerify = async () => {
   }
 }
 
-const handleLoginSuccess = (token: string, user: any, announcements: any[] = [], isReturningPlayer: boolean = false, daysSinceLastLogin: number = 0) => {
-  localStorage.setItem('token', token)
+const handleLoginSuccess = (token: string | null, user: any, announcements: any[] = [], isReturningPlayer: boolean = false, daysSinceLastLogin: number = 0, accessToken?: string, refreshToken?: string) => {
+  // 支持新的双token方案（access_token + refresh_token）和旧的单token方案（向后兼容）
+  if (accessToken && refreshToken) {
+    localStorage.setItem('access_token', accessToken)
+    localStorage.setItem('refresh_token', refreshToken)
+  } else if (token) {
+    // 旧的单token存储方式（兼容旧版本）
+    localStorage.setItem('token', token)
+  }
   localStorage.setItem('user', JSON.stringify(user))
   websocket.connect()
   window.dispatchEvent(new Event('auth-changed'))
@@ -195,8 +202,8 @@ const handleWebAuthnLogin = async () => {
     const finishRes = await authAPI.finishWebAuthnLogin(credential, identifier.value)
     console.log('WebAuthn 验证成功')
 
-    const { token, user, announcements } = finishRes.data
-    handleLoginSuccess(token, user, announcements)
+    const { token, access_token, refresh_token, user, announcements } = finishRes.data
+    handleLoginSuccess(token, user, announcements, false, 0, access_token, refresh_token)
     dialog.showAlert('已通过物理研究密钥验证身份，准许进入。', '授权成功')
   } catch (err: any) {
     console.error('WebAuthn 登录失败:', err)
@@ -258,8 +265,8 @@ const handleOAuthLogin = (provider: 'github' | 'ms' | 'google' | 'apple') => {
     if (event.data.type === 'oauth-success') {
       oauthFinished = true
       cleanup()
-      const { token, user } = event.data
-      handleLoginSuccess(token, user)
+      const { token, access_token, refresh_token, user } = event.data
+      handleLoginSuccess(token, user, [], false, 0, access_token, refresh_token)
       loading.value = false
     } else if (event.data.type === 'oauth-error') {
       oauthFinished = true

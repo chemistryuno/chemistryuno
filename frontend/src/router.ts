@@ -168,7 +168,9 @@ const findActiveRoomId = async (token: string, uid: number): Promise<string | nu
 }
 
 router.beforeEach(async (to: RouteLocationNormalized, _from: RouteLocationNormalized) => {
-  const token = localStorage.getItem('token')
+  const accessToken = localStorage.getItem('access_token')
+  const legacyToken = localStorage.getItem('token')
+  const token = accessToken || legacyToken
   let user = null
   try {
     user = JSON.parse(localStorage.getItem('user') || 'null')

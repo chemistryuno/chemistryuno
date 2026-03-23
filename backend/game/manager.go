@@ -1474,6 +1474,13 @@ func JoinRoomWithKey(roomID string, uid int, accessKey string) error {
 			return errors.New("AI 玩家无法观战")
 		}
 
+		// 检查是否已在观战者列表中
+		for _, sid := range gameRoom.Room.Spectators {
+			if sid == uid {
+				return errors.New("已在观战者列表中")
+			}
+		}
+
 		gameRoom.Room.Spectators = append(gameRoom.Room.Spectators, uid)
 		if gameRoom.GameState != nil {
 			gameRoom.GameState.Spectators = append(gameRoom.GameState.Spectators, uid)
@@ -1538,6 +1545,9 @@ func LeaveRoom(roomID string, uid int) error {
 	}
 	gameRoom.Room.Players = newPlayers
 
+	// 清除离线记录，防止旧的OfflineAt条目影响后续重连
+	delete(gameRoom.OfflineAt, uid)
+
 	// 移除准备状态
 	newReady := []int{}
 	for _, rid := range gameRoom.Room.ReadyUIDs {
@@ -1558,6 +1568,17 @@ func LeaveRoom(roomID string, uid int) error {
 		}
 	}
 	gameRoom.Room.Spectators = newSpectators
+
+	// 同时从 GameState.Spectators 中移除观战者
+	if gameRoom.GameState != nil {
+		newGameStateSpectators := []int{}
+		for _, sid := range gameRoom.GameState.Spectators {
+			if sid != uid {
+				newGameStateSpectators = append(newGameStateSpectators, sid)
+			}
+		}
+		gameRoom.GameState.Spectators = newGameStateSpectators
+	}
 
 	// 如果游戏还未开始，尝试将观战者提升为玩家
 	if gameRoom.Room.Status == "waiting" && len(gameRoom.Room.Spectators) > 0 && len(gameRoom.Room.Players) < gameRoom.Room.MaxPlayers {
@@ -1632,15 +1653,18 @@ func LeaveRoom(roomID string, uid int) error {
 		}
 	}
 
-	// 从 GameState.Spectators 中移除观战者
-	if gameRoom.GameState != nil {
+	// GameState.Spectators已在上面的代码中移除，这里做额外安全检查
+	if gameRoom.GameState != nil && len(gameRoom.GameState.Spectators) > 0 {
+		// 验证一致性：如果用户仍在GameState观战者中，移除（防御性编程）
 		newGameStateSpectators := []int{}
 		for _, sid := range gameRoom.GameState.Spectators {
 			if sid != uid {
 				newGameStateSpectators = append(newGameStateSpectators, sid)
 			}
 		}
-		gameRoom.GameState.Spectators = newGameStateSpectators
+		if len(newGameStateSpectators) < len(gameRoom.GameState.Spectators) {
+			gameRoom.GameState.Spectators = newGameStateSpectators
+		}
 	}
 
 	// 从 WebSocket Hub 中移除该用户的房间订阅

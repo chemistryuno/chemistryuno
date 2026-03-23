@@ -400,6 +400,21 @@
                 </tbody>
               </table>
             </div>
+
+            <!-- Load More Button -->
+            <div v-if="!searchTerm && displayCount < allLeaderboardData.length" class="py-4 px-6 bg-slate-50/50 dark:bg-white/[0.02] border-t border-slate-100 dark:border-white/5 text-center">
+              <button
+                @click="loadMoreLeaderboard"
+                :disabled="isLoadingMore"
+                class="px-6 py-2 bg-blue-500/10 hover:bg-blue-500/20 disabled:opacity-50 text-blue-600 dark:text-blue-400 text-sm font-black rounded-lg transition-all"
+              >
+                <span v-if="isLoadingMore" class="flex items-center gap-2">
+                  <Loader2 class="w-3 h-3 animate-spin" />
+                  加载中...
+                </span>
+                <span v-else>加载更多 ({{ allLeaderboardData.length - displayCount }})</span>
+              </button>
+            </div>
           </div>
         </div>
       </main>
@@ -551,9 +566,12 @@ const bountyAmount = ref(0)
 const submitting = ref(false)
 
 const leaderboard = ref<any[]>([])
+const allLeaderboardData = ref<any[]>([])  // 完整排行榜数据
+const displayCount = ref(50)  // 初始显示50条
+const loading = ref(true)
+const isLoadingMore = ref(false)
 const myRankInfo = ref<any>(null)
 const friendsList = ref<any[]>([])
-const loading = ref(true)
 const userPoints = ref(0)
 const rankingMode = ref<'total' | 'monthly'>('total')
 
@@ -636,6 +654,7 @@ const startPrivateChat = (player: any) => {
 const loadLeaderboard = async () => {
   try {
     loading.value = true
+    displayCount.value = 50  // 重置为初始50条
     const [leaderRes, friendsRes] = await Promise.all([
       pointsAPI.getLeaderboard(rankingMode.value),
       friendAPI.getFriends()
@@ -643,13 +662,14 @@ const loadLeaderboard = async () => {
     
     console.log('Leaderboard Raw Response Data:', leaderRes.data)
     
-    leaderboard.value = leaderRes.data.leaderboard || []
+    allLeaderboardData.value = leaderRes.data.leaderboard || []
+    leaderboard.value = allLeaderboardData.value.slice(0, 50)  // 初始只显示50条
     myRankInfo.value = leaderRes.data.self || null
     friendsList.value = friendsRes.data || []
     
     // 同时也尝试更新一下本地的用户分数实时显示
     const currentUid = user.value.uid
-    const self = leaderboard.value.find(p => Number(p.uid) === Number(currentUid)) || myRankInfo.value
+    const self = allLeaderboardData.value.find(p => Number(p.uid) === Number(currentUid)) || myRankInfo.value
     if (self) {
       userPoints.value = rankingMode.value === 'monthly' ? self.monthly_points : self.points
     }
@@ -658,6 +678,20 @@ const loadLeaderboard = async () => {
   } finally {
     loading.value = false
   }
+}
+
+// 加载更多排行榜项
+const loadMoreLeaderboard = () => {
+  if (isLoadingMore.value || displayCount.value >= allLeaderboardData.value.length) return
+  isLoadingMore.value = true
+  
+  // 模拟异步加载（实际上是同步的，但给用户Loading反馈）
+  setTimeout(() => {
+    const newCount = Math.min(displayCount.value + 50, allLeaderboardData.value.length)
+    leaderboard.value = allLeaderboardData.value.slice(0, newCount)
+    displayCount.value = newCount
+    isLoadingMore.value = false
+  }, 200)
 }
 
 watch(rankingMode, () => {

@@ -1,4 +1,4 @@
-name: Build and Test
+﻿name: Build and Test
 
 on:
   push:
@@ -40,22 +40,5 @@ jobs:
           pnpm -C frontend run copy-dist
           go build -o chemistryuno main.go
 
-      - name: Start backend for Python tests
-        timeout-minutes: 5
-        run: |
-          nohup timeout 120 ./chemistryuno > server.log 2>&1 &
-          BACKEND_PID=$!
-          echo "Backend PID: $BACKEND_PID"
-          sleep 25
-          if ! kill -0 $BACKEND_PID 2>/dev/null; then
-            echo "Backend startup failed"
-            tail -20 server.log
-            exit 1
-          fi
-          echo "✓ Backend ready"
-          
       - name: Test Full Stack
-        timeout-minutes: 10
-        run: |
-          pip install requests
-          timeout 300 python test_main.py || echo "Tests completed or timed out"
+        run: node test.js

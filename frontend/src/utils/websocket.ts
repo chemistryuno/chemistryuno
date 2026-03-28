@@ -14,12 +14,12 @@ class WebSocketService {
   constructor() {
     // 监听浏览器离线事件
     window.addEventListener('offline', () => {
-      console.log('网络已离线，WebSocket 将自动重连')
+      console.log('🔴 网络已离线，WebSocket 将自动重连')
     })
 
     // 监听浏览器在线事件
     window.addEventListener('online', () => {
-      console.log('网络已恢复')
+      console.log('🟢 网络已恢复')
       // 网络恢复后立即尝试重连
       if (!this.isConnected() && this.reconnectAttempts < this.maxReconnectAttempts) {
         this.connect()
@@ -46,7 +46,7 @@ class WebSocketService {
     this.ws = new WebSocket(wsUrl)
 
     this.ws.onopen = () => {
-      console.log('WebSocket连接已建立')
+      console.log('🟢 WebSocket 连接已建立')
       this.reconnectAttempts = 0
       this.isConnecting = false
       
@@ -62,18 +62,18 @@ class WebSocketService {
         const message: WebSocketMessage = JSON.parse(event.data)
         this.handleMessage(message)
       } catch (error) {
-        console.error('消息解析失败:', error)
+        console.error('❌ 消息解析失败:', error)
       }
     }
 
     this.ws.onclose = () => {
-      console.log('WebSocket连接已关闭')
+      console.log('🔴 WebSocket 连接已关闭')
       this.isConnecting = false
       this.attemptReconnect()
     }
 
     this.ws.onerror = (error: Event) => {
-      console.error('WebSocket错误:', error)
+      console.error('❌ WebSocket 错误:', error)
       this.isConnecting = false
     }
   }
@@ -81,7 +81,7 @@ class WebSocketService {
   private attemptReconnect(): void {
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
       this.reconnectAttempts++
-      console.log(`尝试重连 (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`)
+      console.log(`🔄 尝试重连 (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`)
       setTimeout(() => this.connect(), 3000)
     }
   }

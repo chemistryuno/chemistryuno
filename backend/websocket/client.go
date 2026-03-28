@@ -70,14 +70,14 @@ func (c *Client) ReadPump() {
 		_, message, err := c.conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Printf("error: %v", err)
+				log.Printf("❌ WebSocket 错误: %v", err)
 			}
 			break
 		}
 
 		var msg Message
 		if err := json.Unmarshal(message, &msg); err != nil {
-			log.Printf("消息解析失败: %v", err)
+			log.Printf("❌ 消息解析失败: %v", err)
 			continue
 		}
 
@@ -89,7 +89,7 @@ func (c *Client) ReadPump() {
 func (c *Client) Send(msg interface{}) {
 	payload, err := json.Marshal(msg)
 	if err != nil {
-		log.Printf("Send error: %v", err)
+		log.Printf("❌ 序列化失败: %v", err)
 		return
 	}
 	c.send <- payload
@@ -131,7 +131,7 @@ func (c *Client) WritePump() {
 }
 
 func (c *Client) handleMessage(msg *Message) {
-	log.Printf("[WebSocket] User %d handling message type: %s", c.uid, msg.Type)
+	log.Printf("📡 消息类型: %s (用户 %d)", msg.Type, c.uid)
 
 	switch msg.Type {
 	case "ping":
@@ -143,7 +143,7 @@ func (c *Client) handleMessage(msg *Message) {
 		return
 
 	case "join_room":
-		log.Printf("[WebSocket] User %d joining room %s", c.uid, msg.RoomID)
+		log.Printf("✅ 用户 %d 加入房间 %s", c.uid, msg.RoomID)
 		c.hub.JoinRoom(c, msg.RoomID)
 		displayName := c.nickname
 		if displayName == "" {
@@ -154,10 +154,10 @@ func (c *Client) handleMessage(msg *Message) {
 			UID:     c.uid,
 			Message: "安全门开启：研究员 " + displayName + " 已进入实验室。",
 		})
-		log.Printf("[WebSocket] Broadcasted player_joined for user %d to room %s", c.uid, msg.RoomID)
+		log.Printf("📢 广播 player_joined: 用户 %d 房间 %s", c.uid, msg.RoomID)
 
 	case "leave_room":
-		log.Printf("[WebSocket] User %d leaving room %s", c.uid, c.roomID)
+		log.Printf("✅ 用户 %d 离开房间 %s", c.uid, c.roomID)
 		roomID := c.roomID
 		c.hub.LeaveRoom(c)
 		displayName := c.nickname
@@ -169,7 +169,7 @@ func (c *Client) handleMessage(msg *Message) {
 			UID:     c.uid,
 			Message: "安全门关闭：研究员 " + displayName + " 已撤离实验室。",
 		})
-		log.Printf("[WebSocket] Broadcasted player_left for user %d from room %s", c.uid, roomID)
+		log.Printf("📢 广播 player_left: 用户 %d 房间 %s", c.uid, roomID)
 
 	case "chat":
 		targetRoom := c.roomID
@@ -231,7 +231,7 @@ func (c *Client) handleMessage(msg *Message) {
 			privateChatRepo := repository.NewPrivateChatRepository()
 			err = privateChatRepo.SavePrivateMessage(uint(c.uid), uint(msg.TargetUID), msg.Message, isGameInvite, roomID)
 			if err != nil {
-				log.Printf("保存私聊消息到数据库失败: %v", err)
+					log.Printf("❌ 保存私聊消息失败: %v", err)
 			}
 
 			// 发送给目标用户

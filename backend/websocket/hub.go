@@ -22,7 +22,7 @@ func (h *Hub) SendToUser(uid int, message Message) {
 
 	jsonData, err := json.Marshal(message)
 	if err != nil {
-		log.Printf("JSON 序列化失败: %v", err)
+		log.Printf("❌ 消息序列化失败: %v", err)
 		return
 	}
 
@@ -57,7 +57,8 @@ func (h *Hub) Run() {
 			h.mutex.Lock()
 			h.clients[client] = true
 			h.mutex.Unlock()
-			log.Printf("客户端 %d 已连接", client.uid)
+			log.Println("👤 用户连接")
+			log.Printf("   ✅ 用户 %d 已连接到系统", client.uid)
 			h.BroadcastOnlineCount()
 
 			if h.OnRegister != nil {
@@ -79,7 +80,8 @@ func (h *Hub) Run() {
 				}
 			}
 			h.mutex.Unlock()
-			log.Printf("客户端 %d 已断开", client.uid)
+			log.Println("👤 用户断开")
+			log.Printf("   ❌ 用户 %d 已断开连接", client.uid)
 			h.BroadcastOnlineCount()
 
 		case message := <-h.broadcast:
@@ -133,14 +135,16 @@ func (h *Hub) JoinRoom(client *Client, roomID string) {
 	h.rooms[roomID][client] = true
 	client.roomID = roomID
 
-	log.Printf("用户 %d 加入房间 %s (房间内共 %d 人)", client.uid, roomID, len(h.rooms[roomID]))
+	log.Println("🎮 房间操作 - 加入")
+	log.Printf("   ✅ 用户 %d 加入房间 %s", client.uid, roomID)
+	log.Printf("   📊 房间现有人数: %d", len(h.rooms[roomID]))
 
 	// 打印房间内所有用户
 	var uids []int
 	for c := range h.rooms[roomID] {
 		uids = append(uids, c.uid)
 	}
-	log.Printf("房间 %s 当前成员 UIDs: %v", roomID, uids)
+	log.Printf("   👥 成员列表: %v", uids)
 }
 
 func (h *Hub) LeaveRoom(client *Client) {
@@ -167,10 +171,12 @@ func (h *Hub) leaveRoomInternal(client *Client) {
 		roomID := client.roomID
 		if clients, ok := h.rooms[client.roomID]; ok {
 			delete(clients, client)
-			log.Printf("用户 %d 离开房间 %s (房间剩余 %d 人)", client.uid, roomID, len(clients))
+			log.Println("🎮 房间操作 - 离开")
+			log.Printf("   ✅ 用户 %d 离开房间 %s", client.uid, roomID)
+			log.Printf("   📊 房间剩余人数: %d", len(clients))
 			if len(clients) == 0 {
 				delete(h.rooms, client.roomID)
-				log.Printf("房间 %s 已清空并从 Hub 中删除", roomID)
+				log.Printf("   🗑️  房间 %s 已清空，自动删除", roomID)
 			}
 		}
 		client.roomID = ""
@@ -184,25 +190,27 @@ func (h *Hub) BroadcastToRoom(roomID string, message interface{}) {
 
 	data, err := json.Marshal(message)
 	if err != nil {
-		log.Printf("消息序列化失败: %v", err)
+		log.Printf("❌ 消息序列化失败: %v", err)
 		return
 	}
 
 	if clients, ok := h.rooms[roomID]; ok {
-		log.Printf("广播消息到房间 %s (共 %d 个客户端)", roomID, len(clients))
+		log.Println("📡 广播消息")
+		log.Printf("   🎯 目标房间: %s", roomID)
+		log.Printf("   👥 连接客户端数: %d", len(clients))
 		sentCount := 0
 		for client := range clients {
 			select {
 			case client.send <- data:
 				sentCount++
 			default:
-				log.Printf("发送失败，注销客户端 %d", client.uid)
+				log.Printf("   ⚠️  无法发送给用户 %d，准备断开连接", client.uid)
 				h.unregister <- client
 			}
 		}
-		log.Printf("成功发送消息给 %d/%d 个客户端", sentCount, len(clients))
+		log.Printf("   ✅ 消息发送完成: %d/%d 个客户端收到", sentCount, len(clients))
 	} else {
-		log.Printf("警告: 房间 %s 不存在，无法广播消息", roomID)
+		log.Printf("   ⚠️  房间 %s 不存在，无法广播消息", roomID)
 	}
 }
 
@@ -213,7 +221,7 @@ func (h *Hub) SendToUID(uid int, message interface{}) {
 
 	data, err := json.Marshal(message)
 	if err != nil {
-		log.Printf("消息序列化失败: %v", err)
+		log.Printf("❌ 消息序列化失败: %v", err)
 		return
 	}
 
@@ -249,7 +257,7 @@ func (h *Hub) BroadcastToAll(message interface{}) {
 
 	data, err := json.Marshal(message)
 	if err != nil {
-		log.Printf("消息序列化失败: %v", err)
+		log.Printf("❌ 消息序列化失败: %v", err)
 		return
 	}
 

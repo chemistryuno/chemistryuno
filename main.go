@@ -44,58 +44,58 @@ func main() {
 		// 当前目录的 .env（从根目录运行或 dist 目录运行）
 		loadErr = godotenv.Load(".env")
 		if loadErr == nil {
-			log.Println("✅ 成功从当前目录 .env 加载配置")
+			log.Println("\n✅ 配置文件加载成功 (当前目录 .env)")
 			envFileFound = true
 		} else {
-			log.Printf("⚠️  从 .env 加载配置失败: %v", loadErr)
+			log.Printf("\n⚠️  配置文件加载失败 (当前目录): %v", loadErr)
 		}
 	} else if _, err := os.Stat("../.env"); err == nil {
 		// 上级目录的 .env（从 backend 目录运行）
 		loadErr = godotenv.Load("../.env")
 		if loadErr == nil {
-			log.Println("✅ 成功从上级目录 ../.env 加载配置")
+			log.Println("\n✅ 配置文件加载成功 (上级目录 ../.env)")
 			envFileFound = true
 		} else {
-			log.Printf("⚠️  从 ../.env 加载配置失败: %v", loadErr)
+			log.Printf("\n⚠️  配置文件加载失败 (上级目录): %v", loadErr)
 		}
 	}
 
 	// 首次启动检查和提示
 	if !envFileFound {
-		log.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-		log.Println("⚠️  警告: 未找到 .env 配置文件")
-		log.Println("")
-		log.Println("📝 首次部署步骤:")
-		log.Println("   1. 复制配置文件模板:")
-		log.Println("      Linux/macOS: cp .env.example .env")
-		log.Println("      Windows:     copy .env.example .env")
-		log.Println("")
-		log.Println("   2. 编辑 .env 文件，配置以下必要项:")
-		log.Println("      - DB_TYPE (数据库类型: sqlite 或 mysql)")
-		log.Println("      - JWT_SECRET (将在首次启动时自动生成)")
-		log.Println("      - OAuth 配置 (可选，用于第三方登录)")
-		log.Println("")
-		log.Println("   3. 重新启动程序")
-		log.Println("")
-		log.Println("💡 程序将使用默认配置继续启动 (SQLite 数据库)")
-		log.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-		log.Println("")
+		log.Println("\n┌─────────────────────────────────────────────────────┐")
+		log.Println("│ ⚠️  警告: 未找到配置文件                          │")
+		log.Println("├─────────────────────────────────────────────────────┤")
+		log.Println("│ 📝 首次部署步骤:                                  │")
+		log.Println("│                                                     │")
+		log.Println("│ 1️⃣  复制配置文件模板:                            │")
+		log.Println("│    Linux/macOS:  cp .env.example .env            │")
+		log.Println("│    Windows:      copy .env.example .env          │")
+		log.Println("│                                                     │")
+		log.Println("│ 2️⃣  编辑 .env 文件，配置必要项:                 │")
+		log.Println("│    • DB_TYPE (数据库类型: sqlite 或 mysql)      │")
+		log.Println("│    • JWT_SECRET (首次启动时自动生成)            │")
+		log.Println("│    • OAuth 配置 (可选，用于第三方登录)         │")
+		log.Println("│                                                     │")
+		log.Println("│ 3️⃣  重新启动程序                                │")
+		log.Println("│                                                     │")
+		log.Println("│ 💡 将使用默认配置 (SQLite) 继续启动              │")
+		log.Println("└─────────────────────────────────────────────────────┘\n")
 	}
 
 	if loadErr != nil && !os.IsNotExist(loadErr) {
-		log.Printf("⚠️  加载 .env 配置文件出错: %v（将使用系统环境变量）", loadErr)
+		log.Printf("⚠️  配置文件读取出错: %v | 将使用系统环境变量", loadErr)
 	}
 
 	if delayRaw := os.Getenv("CHEMISTRYUNO_START_DELAY_MS"); delayRaw != "" {
 		if delayMs, err := strconv.Atoi(delayRaw); err == nil && delayMs > 0 {
-			log.Printf("⏳ 检测到启动延迟 %dms，等待后继续初始化...", delayMs)
+			log.Printf("⏳ 启动延迟 %dms，初始化中...", delayMs)
 			time.Sleep(time.Duration(delayMs) * time.Millisecond)
 		}
 	}
 
 	// 确保JWT密钥存在（首次启动自动生成）
 	if err := utils.EnsureJWTSecret(); err != nil {
-		log.Printf("警告: JWT密钥初始化失败: %v", err)
+		log.Printf("⚠️  JWT密钥初始化失败: %v", err)
 	}
 
 	// 设置生产模式
@@ -103,13 +103,13 @@ func main() {
 
 	// 初始化数据库
 	if err := database.InitDB(""); err != nil {
-		log.Fatal("数据库初始化失败:", err)
+		log.Fatal("❌ 数据库初始化失败: ", err)
 	}
 	defer database.Close()
 
 	// 迁移reactions表到R1/R2结构（如果需要）
 	if err := database.MigrateReactionsToR1R2(); err != nil {
-		log.Printf("警告: reactions表迁移失败: %v (如果是首次启动或已迁移过，可以忽略)", err)
+		log.Printf("ℹ️  化学反应表迁移略过: %v (首次启动或已迁移)", err)
 	}
 
 	// 初始化所有Repository（需要在数据库初始化后）
@@ -120,7 +120,7 @@ func main() {
 
 	// 初始化游戏时间配置（需要在数据库初始化后）
 	if err := game.InitGameConfig(); err != nil {
-		log.Printf("⚠️  游戏配置初始化失败: %v (将使用默认配置)", err)
+		log.Printf("ℹ️  游戏配置初始化略过: %v | 使用默认配置", err)
 	}
 
 	// 初始化合法物质缓存

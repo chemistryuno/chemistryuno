@@ -55,7 +55,7 @@ const refreshAccessToken = async (): Promise<string | null> => {
     
     return newAccessToken
   } catch (error) {
-    console.error('Token refresh failed:', error)
+    console.error('❌ Token刷新失败:', error)
     return null
   }
 }
@@ -288,10 +288,19 @@ export const gameAPI = {
     api.get(`/rooms/${roomId}`),
   checkRoomStatus: (roomId: string) =>
     api.get(`/rooms/${roomId}/status`),
-  joinRoom: (roomId: string, accessKey?: string, asSpectator?: boolean) =>
-    api.post(`/rooms/${roomId}/join${accessKey ? `?key=${accessKey}` : ''}${asSpectator ? '&spectator=true' : ''}`),
-  spectateRoom: (roomId: string, accessKey?: string) =>
-    api.post(`/rooms/${roomId}/join?spectator=true${accessKey ? `&key=${accessKey}` : ''}`),
+  joinRoom: (roomId: string, accessKey?: string, asSpectator?: boolean) => {
+    let url = `/rooms/${roomId}/join`
+    const params: string[] = []
+    if (accessKey) params.push(`key=${accessKey}`)
+    if (asSpectator) params.push('spectator=true')
+    if (params.length > 0) url += '?' + params.join('&')
+    return api.post(url)
+  },
+  spectateRoom: (roomId: string, accessKey?: string) => {
+    let url = `/rooms/${roomId}/join?spectator=true`
+    if (accessKey) url += `&key=${accessKey}`
+    return api.post(url)
+  },
   leaveRoom: (roomId: string) =>
     api.post(`/rooms/${roomId}/leave`),
   ready: (roomId: string) =>

@@ -991,9 +991,10 @@ const loadGameState = async (silent = false) => {
     // 只在首次加载时尝试加入房间
     if (!silent) {
       try {
-        // 从 URL 查询参数中获取访问密钥
+        // 从 URL 查询参数中获取访问密钥和观战模式
         const accessKey = route.query.key as string | undefined
-        await gameAPI.joinRoom(id, accessKey)
+        const asSpectator = route.query.spectator === 'true' || route.query.spectator === '1'
+        await gameAPI.joinRoom(id, accessKey, asSpectator)
       } catch (joinError: any) {
         // 如果加入失败（例如房间已满、被封禁等），显示错误并返回
         console.error('[GameRoom] Failed to join room:', joinError)
@@ -1479,6 +1480,7 @@ const handleLeaveRoom = async () => {
         gameState.value.points_changes = changes
       }
     }
+    router.push('/')
     return
   }
 
@@ -1498,11 +1500,14 @@ const handleLeaveRoom = async () => {
     if (confirmed) {
       feedback.click()
       // 关键修复：调用API通知服务器玩家离开房间
-      try {
-        await gameAPI.leaveRoom(id)
-      } catch (error) {
-        console.error('离开房间API调用失败:', error)
-        // 即使API调用失败也继续跳转，避免玩家被卡住
+      // 如果房间正在游戏且不是观战状态，则不调用leaveRoom以保留暂离逻辑
+      if (roomInfo.value?.status !== 'playing' || isSpectator.value) {
+        try {
+          await gameAPI.leaveRoom(id)
+        } catch (error) {
+          console.error('离开房间API调用失败:', error)
+          // 即使API调用失败也继续跳转，避免玩家被卡住
+        }
       }
       router.push('/')
     }

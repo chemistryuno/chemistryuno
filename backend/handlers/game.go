@@ -17,12 +17,12 @@ import (
 
 func broadcastUpdate(roomID string) {
 	if websocket.GlobalHub != nil {
-		log.Printf("[Broadcast] Broadcasting game_update to room %s", roomID)
+		log.Printf("📡 广播游戏更新到房间 %s", roomID)
 		websocket.GlobalHub.BroadcastToRoom(roomID, websocket.Message{
 			Type: "game_update",
 		})
 	} else {
-		log.Printf("[Broadcast] Warning: GlobalHub is nil, cannot broadcast to room %s", roomID)
+		log.Printf("⚠️  WebSocket Hub 不可用，无法广播到房间 %s", roomID)
 	}
 }
 
@@ -157,6 +157,7 @@ func LeaveRoom(c *gin.Context) {
 	}
 
 	broadcastUpdate(roomID)
+	go game.BroadcastRoomsUpdate() // 广播房间列表更新到主界面
 	c.JSON(http.StatusOK, gin.H{"message": "离开房间成功"})
 }
 
@@ -171,6 +172,7 @@ func ToggleReady(c *gin.Context) {
 		return
 	}
 
+	go game.BroadcastRoomsUpdate() // 广播房间列表更新，用于主界面显示倒计时和状态变化
 	c.JSON(http.StatusOK, gin.H{"message": "准备状态已更新"})
 }
 
@@ -259,7 +261,7 @@ func StartGame(c *gin.Context) {
 	}
 
 	broadcastUpdate(roomID)
-	log.Printf("[HTTP] StartGame handler: game started for room %s, broadcasted update", roomID)
+	log.Printf("✅ 游戏已启动: 房间 %s", roomID)
 	go game.BroadcastRoomsUpdate() // 广播房间列表更新
 	c.JSON(http.StatusOK, gin.H{"message": "游戏开始"})
 }

@@ -2593,7 +2593,7 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 			if substance != currentScriptStep.Substance {
 				log.Printf("[教学脚本] ❌ 玩家尝试打出 %s，但当前步骤 %d 要求打出 %s",
 					substance, currentStep, currentScriptStep.Substance)
-				return errors.New(fmt.Sprintf("请按照教程出牌，当前步骤应打出 %s", currentScriptStep.Substance))
+				return fmt.Errorf("请按照教程出牌，当前步骤应打出 %s", currentScriptStep.Substance)
 			}
 
 			log.Printf("[教学脚本] ✅ 玩家正确打出 %s (步骤 %d)", substance, currentStep)

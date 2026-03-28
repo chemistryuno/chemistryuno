@@ -196,7 +196,9 @@ func Login(c *gin.Context) {
 	}
 
 	identifier := strings.TrimSpace(req.Identifier)
-	fmt.Printf("login attempt - identifier: %s, ip: %s\n", identifier, c.ClientIP())
+	log.Println("🔍 登录尝试")
+	log.Printf("   账户: %s", identifier)
+	log.Printf("   IP: %s", c.ClientIP())
 
 	userRepo := repository.NewUserRepository()
 
@@ -256,7 +258,7 @@ func Login(c *gin.Context) {
 	}
 
 	if user.UID < 0 {
-		log.Printf("[AI login blocked] UID=%d, IP=%s", user.UID, c.ClientIP())
+		log.Printf("❌ AI 账户不能登录 (UID=%d, IP=%s)", user.UID, c.ClientIP())
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "AI account cannot login"})
 		return
 	}
@@ -295,7 +297,7 @@ func Login(c *gin.Context) {
 		daysSinceLastLogin = int(daysSince)
 		if daysSince >= 30 {
 			isReturningPlayer = true
-			log.Printf("[returning user] %s (UID=%d), inactive days=%d", user.Nickname, user.UID, daysSinceLastLogin)
+			log.Printf("🔁 用户回归: %s (UID=%d), %d 天未畛线", user.Nickname, user.UID, daysSinceLastLogin)
 		}
 	}
 
@@ -313,7 +315,10 @@ func Login(c *gin.Context) {
 		})
 	}
 
-	fmt.Printf("login success - username: %s (UID=%d), SID: %s, IP: %s\n", user.Username, user.UID, sid, c.ClientIP())
+	log.Println("✅ 登录成功")
+	log.Printf("   账户: %s (UID=%d)", user.Username, user.UID)
+	log.Printf("   SID: %s", sid)
+	log.Printf("   IP: %s", c.ClientIP())
 
 	c.JSON(http.StatusOK, gin.H{
 		"access_token":  accessToken,
@@ -367,7 +372,7 @@ func RefreshToken(c *gin.Context) {
 
 	// 验证session属于该用户
 	if !utils.ValidateSessionForUser(claims.SID, claims.UID) {
-		log.Printf("[session validation failed] UID=%d, SID=%s", claims.UID, claims.SID)
+		log.Printf("❌ 会话验证失败: UID=%d, SID=%s", claims.UID, claims.SID)
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "session validation failed"})
 		return
 	}
@@ -801,7 +806,7 @@ func SendVerificationCode(c *gin.Context) {
 
 	go func() {
 		if err := utils.SendEmail(req.Email, subject, body); err != nil {
-			fmt.Printf("邮件发送失败: %v\n", err)
+			log.Printf("❌ 邮件发送失败: %v", err)
 		}
 	}()
 
@@ -1007,7 +1012,7 @@ func GetSessions(c *gin.Context) {
 	sessionRepo := repository.NewSessionRepository()
 	sessions, err := sessionRepo.FindByUserUID(uint(uid.(int)))
 	if err != nil {
-		fmt.Printf("查询数据库失败: %v\n", err)
+		log.Printf("❌ 查询数据库失败: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "无法加载设备列表"})
 		return
 	}

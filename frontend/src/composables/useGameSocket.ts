@@ -20,43 +20,43 @@ export function useGameSocket(
 ) {
   // 游戏更新
   const handleGameUpdate = (data: any) => {
-    console.log('收到游戏状态更新:', data)
+    console.log('🎮 游戏状态更新:', data)
     callbacks.onGameUpdate?.(data)
   }
 
   // 玩家加入
   const handlePlayerJoined = (data: any) => {
-    console.log('玩家加入:', data)
+    console.log('👥 玩家加入:', data)
     callbacks.onPlayerJoined?.(data)
   }
 
   // 玩家离开
   const handlePlayerLeft = (data: any) => {
-    console.log('玩家离开:', data)
+    console.log('🚪 玩家离开:', data)
     callbacks.onPlayerLeft?.(data)
   }
 
   // 操作提示
   const handleActionToast = (data: any) => {
-    console.log('操作提示:', data)
+    console.log('💬 操作提示:', data)
     callbacks.onActionToast?.(data)
   }
 
   // 房间关闭
   const handleRoomTerminated = (data: any) => {
-    console.log('房间已关闭:', data)
+    console.log('🔴 房间已关闭:', data)
     callbacks.onRoomTerminated?.(data)
   }
 
   // 玩家被踢
   const handlePlayerKicked = (data: any) => {
-    console.log('玩家被踢:', data)
+    console.log('❌ 玩家被踢:', data)
     callbacks.onPlayerKicked?.(data)
   }
 
   // 聊天消息
   const handleChatMessage = (data: any) => {
-    console.log('聊天消息:', data)
+    console.log('💬 聊天:', data)
     callbacks.onChatMessage?.(data)
   }
 
@@ -70,7 +70,7 @@ export function useGameSocket(
 
   // 连接和断开
   const connect = () => {
-    console.log('[WebSocket] 加入房间:', roomId)
+    console.log('🔊 WebSocket 加入房间: ' + roomId)
     websocket.joinRoom(roomId)
 
     // 注册事件监听
@@ -85,7 +85,7 @@ export function useGameSocket(
   }
 
   const disconnect = () => {
-    console.log('[WebSocket] 离开房间:', roomId)
+    console.log('🔊 WebSocket 离开房间: ' + roomId)
     websocket.leaveRoom()
 
     // 移除事件监听

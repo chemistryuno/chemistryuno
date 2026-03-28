@@ -500,9 +500,21 @@ const handleCreateAIRoom = async () => {
 const handleJoinRoom = async (roomId: string, asSpectator: boolean = false) => {
   try {
     await gameAPI.joinRoom(roomId, undefined, asSpectator)
-    router.push(`/room/${roomId}`)
+    const url = asSpectator ? `/room/${roomId}?spectator=true` : `/room/${roomId}`
+    router.push(url)
   } catch (error: any) {
-    showAlert(error.response?.data?.error || '加入房间失败', '连接错误')
+    if (error.response?.data?.error === '房间不存在') {
+      const index = rooms.value.findIndex(r => r.id === roomId)
+      if (index !== -1) {
+        rooms.value.splice(index, 1)
+      }
+      if (activeRoom.value?.id === roomId) {
+         activeRoom.value = null
+      }
+      showAlert('该房间已失效并自动清理', '提示')
+    } else {
+      showAlert(error.response?.data?.error || '加入房间失败', '连接错误')
+    }
   }
 }
 
@@ -515,7 +527,12 @@ const handleLeaveRoom = async (roomId: string) => {
     loadRooms()
     showAlert('已成功从核心节点撤离。', '实验中止')
   } catch (error: any) {
-    showAlert(error.response?.data?.error || '退出失败', '链路故障')
+    if (error.response?.data?.error === '房间不存在') {
+      loadRooms()
+      showAlert('房间已不存在，正在刷新状态。', '实验中止')
+    } else {
+      showAlert(error.response?.data?.error || '退出失败', '链路故障')
+    }
   }
 }
 

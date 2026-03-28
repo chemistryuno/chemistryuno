@@ -137,7 +137,7 @@ class GameAPIClient:
     
     def refresh_token(self, refresh_token: str) -> Tuple[bool, Dict]:
         """使用refresh_token刷新access_token"""
-        status, data = self._request("POST", "/auth/refresh", {
+        status, data = self._request("POST", "/api/auth/refresh", {
             "refresh_token": refresh_token
         })
         return status == 200, data

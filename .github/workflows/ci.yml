@@ -42,8 +42,24 @@ jobs:
 
       - name: Start backend for Python tests
         run: |
-          ./chemistryuno &
-          sleep 5
+          nohup ./chemistryuno > server.log 2>&1 &
+          echo "Backend starting..."
+          sleep 10
+          
+          # Health check - wait for server to be ready
+          for i in {1..30}; do
+            if curl -s http://localhost:8080/ping > /dev/null 2>&1; then
+              echo "✓ Backend is ready"
+              break
+            fi
+            if [ $i -eq 30 ]; then
+              echo "✗ Backend failed to start"
+              cat server.log
+              exit 1
+            fi
+            echo "Waiting for backend... ($i/30)"
+            sleep 1
+          done
           
       - name: Test Full Stack
         run: |

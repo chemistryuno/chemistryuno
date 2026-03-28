@@ -189,24 +189,17 @@ function buildRouteComponent(plugin: PluginMeta, routeDef: PluginRouteDefinition
 
 function createPluginApi() {
   const baseURL = '/api'
-  const getAuthHeaders = (): Record<string, string> => {
-    const accessToken = localStorage.getItem('access_token')
-    const legacyToken = localStorage.getItem('token')
-    const token = accessToken || legacyToken
-    if (!token) return {}
-    return { Authorization: `Bearer ${token}` }
-  }
 
   const request = async (method: string, path: string, data?: any, extraHeaders?: Record<string, string>) => {
     const url = path.startsWith('http') ? path : `${baseURL}${path.startsWith('/') ? '' : '/'}${path}`
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      ...getAuthHeaders(),
       ...(extraHeaders || {})
     }
     const res = await fetch(url, {
       method,
       headers,
+      credentials: 'include', // 自动发送cookie中的token
       body: data === undefined ? undefined : JSON.stringify(data)
     })
 
@@ -407,10 +400,9 @@ export async function loadPluginScripts() {
 }
 
 export async function initializePluginRuntime() {
-  const accessToken = localStorage.getItem('access_token')
-  const legacyToken = localStorage.getItem('token')
-  const token = accessToken || legacyToken
-  if (!token) return
+  // Token存储在HttpOnly Cookie中，检查user信息判断是否已登录
+  const user = localStorage.getItem('user')
+  if (!user) return
   await loadPluginScripts()
 }
 

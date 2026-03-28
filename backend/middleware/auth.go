@@ -1,8 +1,10 @@
 ﻿package middleware
 
 import (
+	"chemistryuno/backend/cache"
 	"chemistryuno/backend/repository"
 	"chemistryuno/backend/utils"
+	"context"
 	"log"
 	"net/http"
 	"strings"
@@ -16,10 +18,15 @@ func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var token string
 
-		// 优先从查询参数获取token（用于WebSocket）
+		// 优先从查询参数获取token（用于WebSocket的向后兼容）
 		token = c.Query("token")
 
-		// 如果查询参数中没有，则从Authorization头获取
+		// 如果查询参数中没有，则从Cookie获取
+		if token == "" {
+			token, _ = c.Cookie("access_token")
+		}
+
+		// 如果Cookie也没有，则从Authorization头获取
 		if token == "" {
 			authHeader := c.GetHeader("Authorization")
 			if authHeader == "" {
@@ -75,8 +82,18 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		// 验证会话是否依然有效
-		if !utils.IsSessionValid(claims.SID) {
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
+		defer cancel()
+
+		// 使用缓存验证会话 - 先查Redis，miss后查DB
+		sessionValid, err := cache.ValidateSessionWithCache(ctx, claims.SID)
+		if err != nil {
+			log.Printf("❌ 会话验证失败 SID=%s: %v", claims.SID, err)
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "会话验证失败"})
+			c.Abort()
+			return
+		}
+		if !sessionValid {
 			log.Printf("[会话失效] UID=%d, SID=%s, IP=%s", claims.UID, claims.SID, c.ClientIP())
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "会话已过期或在其他设备登出"})
 			c.Abort()
@@ -84,15 +101,22 @@ func AuthMiddleware() gin.HandlerFunc {
 		}
 
 		// 验证会话是否属于该用户（防止会话劫持）
-		if !utils.ValidateSessionForUser(claims.SID, claims.UID) {
+		userValid, err := cache.ValidateSessionForUserWithCache(ctx, claims.SID, uint(claims.UID))
+		if err != nil {
+			log.Printf("❌ 会话用户验证失败 SID=%s, UID=%d: %v", claims.SID, claims.UID, err)
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "会话验证失败"})
+			c.Abort()
+			return
+		}
+		if !userValid {
 			log.Printf("[会话验证失败] UID=%d, SID=%s, IP=%s", claims.UID, claims.SID, c.ClientIP())
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "会话验证失败"})
 			c.Abort()
 			return
 		}
 
-		// 更新活动时间及当前访问 IP
-		utils.UpdateSessionActivity(claims.SID, c.ClientIP())
+		// 更新活动时间及当前访问 IP（异步，不阻塞）
+		go utils.UpdateSessionActivity(claims.SID, c.ClientIP())
 
 		// 将用户信息存入上下文
 		c.Set("uid", claims.UID)
@@ -101,22 +125,44 @@ func AuthMiddleware() gin.HandlerFunc {
 		c.Set("role", claims.Role)
 		c.Set("sid", claims.SID)
 
-		// 检查账号冻结/封禁状态（使用Repository）
-		userRepo := repository.NewUserRepository()
-		bannedUntil, frozenUntil, reason, err := userRepo.CheckBanStatus(uint(claims.UID))
-		if err == nil {
-			now := time.Now()
-			if bannedUntil != nil && bannedUntil.After(now) {
-				msg := "账号已被封禁"
-				if reason != "" {
-					msg = reason
+		// 检查账号冻结/封禁状态 - 使用缓存
+		cachedUser, err := cache.GetUserWithCache(ctx, uint(claims.UID))
+		if err != nil {
+			// 降级到旧方式
+			log.Printf("⚠️  缓存查询失败，降级到数据库: %v", err)
+			userRepo := repository.NewUserRepository()
+			bannedUntil, frozenUntil, reason, err := userRepo.CheckBanStatus(uint(claims.UID))
+			if err == nil {
+				now := time.Now()
+				if bannedUntil != nil && bannedUntil.After(now) {
+					msg := "账号已被封禁"
+					if reason != "" {
+						msg = reason
+					}
+					c.JSON(http.StatusForbidden, gin.H{"error": msg + " (截至 " + bannedUntil.Format("2006-01-02 15:04:05") + ")"})
+					c.Abort()
+					return
 				}
-				c.JSON(http.StatusForbidden, gin.H{"error": msg + " (截至 " + bannedUntil.Format("2006-01-02 15:04:05") + ")"})
+				if frozenUntil != nil && frozenUntil.After(now) {
+					c.JSON(http.StatusForbidden, gin.H{"error": "账号已被冻结至 " + frozenUntil.Format("2006-01-02 15:04:05")})
+					c.Abort()
+					return
+				}
+			}
+		} else if cachedUser != nil {
+			// 使用缓存的用户信息
+			now := time.Now()
+			if cachedUser.BannedUntil != nil && cachedUser.BannedUntil.After(now) {
+				msg := "账号已被封禁"
+				if cachedUser.BanReason != "" {
+					msg = cachedUser.BanReason
+				}
+				c.JSON(http.StatusForbidden, gin.H{"error": msg + " (截至 " + cachedUser.BannedUntil.Format("2006-01-02 15:04:05") + ")"})
 				c.Abort()
 				return
 			}
-			if frozenUntil != nil && frozenUntil.After(now) {
-				c.JSON(http.StatusForbidden, gin.H{"error": "账号已被冻结至 " + frozenUntil.Format("2006-01-02 15:04:05")})
+			if cachedUser.FrozenUntil != nil && cachedUser.FrozenUntil.After(now) {
+				c.JSON(http.StatusForbidden, gin.H{"error": "账号已被冻结至 " + cachedUser.FrozenUntil.Format("2006-01-02 15:04:05")})
 				c.Abort()
 				return
 			}

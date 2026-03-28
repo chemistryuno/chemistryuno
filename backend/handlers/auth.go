@@ -21,6 +21,28 @@ import (
 	"gorm.io/gorm"
 )
 
+// setSecureAuthCookie 设置安全的认证Cookie
+// 包括HttpOnly、Secure（HTTPS时）、SameSite（CSRF防护）等安全属性
+func setSecureAuthCookie(c *gin.Context, name string, value string, maxAge int) {
+	// 根据请求协议判断是否使用HTTPS
+	secure := c.Request.URL.Scheme == "https" || c.Request.Header.Get("X-Forwarded-Proto") == "https"
+	
+	// 设置Cookie，包含安全属性
+	c.SetCookie(
+		name,           // cookie名称
+		value,          // token值
+		maxAge,         // 过期时间（秒）
+		"/",            // 路径：整个网站
+		"",             // 域：空表示当前域
+		secure,         // Secure：HTTPS时启用，防止中间人攻击
+		true,           // HttpOnly：防止XSS窃取
+	)
+	
+	// 添加SameSite属性防CSRF（Gin的SetCookie不支持SameSite，需要手动设置）
+	// SameSite=Lax：GET请求跨站时被发送，POST等状态变更请求不被发送
+	c.SetSameSite(http.SameSiteLaxMode)
+}
+
 // consumeVerificationCode atomically deletes one matching, unexpired code.
 func consumeVerificationCode(email, code, codeType string) (bool, error) {
 	consumed := false
@@ -320,9 +342,11 @@ func Login(c *gin.Context) {
 	log.Printf("   SID: %s", sid)
 	log.Printf("   IP: %s", c.ClientIP())
 
+	// 设置安全的HttpOnly Cookie存储token
+	setSecureAuthCookie(c, "access_token", accessToken, 900)       // 15分钟
+	setSecureAuthCookie(c, "refresh_token", refreshToken, 7*24*3600) // 7天
+
 	c.JSON(http.StatusOK, gin.H{
-		"access_token":  accessToken,
-		"refresh_token": refreshToken,
 		"token_type":    "Bearer",
 		"expires_in":    900, // 900秒 = 15分钟
 		"user": gin.H{
@@ -343,16 +367,15 @@ func Login(c *gin.Context) {
 
 // RefreshToken 使用refresh token获取新的access token
 func RefreshToken(c *gin.Context) {
-	var req struct {
-		RefreshToken string `json:"refresh_token" binding:"required"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "missing refresh_token"})
+	// 从cookie中读取refresh_token
+	refreshToken, err := c.Cookie("refresh_token")
+	if err != nil || refreshToken == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "missing refresh_token in cookie"})
 		return
 	}
 
 	// 解析refresh token
-	claims, err := utils.ParseToken(req.RefreshToken)
+	claims, err := utils.ParseToken(refreshToken)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid refresh_token"})
 		return
@@ -403,8 +426,10 @@ func RefreshToken(c *gin.Context) {
 		return
 	}
 
+	// 设置新的access_token cookie（安全属性）
+	setSecureAuthCookie(c, "access_token", accessToken, 900)
+
 	c.JSON(http.StatusOK, gin.H{
-		"access_token": accessToken,
 		"token_type":   "Bearer",
 		"expires_in":   900, // 900秒 = 15分钟
 	})

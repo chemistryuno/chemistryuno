@@ -695,18 +695,27 @@ func handleOAuthUser(c *gin.Context, provider, providerID, username, email, nick
 	}
 
 	// 生成 Token，现在包含有效的 sid
-	token, err := utils.GenerateToken(int(user.UID), user.Email, user.IsAdmin, user.Role, sid)
+	accessToken, err := utils.GenerateAccessToken(int(user.UID), user.Email, user.IsAdmin, user.Role, sid)
 	if err != nil {
 		sendOAuthError(c, http.StatusInternalServerError, "实验室访问令牌签署失败")
 		return
 	}
 
-	// 将 token 和 user 序列化为 JSON，以便在 JS 中安全嵌入（防止特殊字符破坏脚本）
+	refreshToken, err := utils.GenerateRefreshToken(int(user.UID), sid)
+	if err != nil {
+		sendOAuthError(c, http.StatusInternalServerError, "实验室刷新令牌签署失败")
+		return
+	}
+
+	// 设置安全的HttpOnly Cookie存储token
+	setSecureAuthCookie(c, "access_token", accessToken, 900)       // 15分钟
+	setSecureAuthCookie(c, "refresh_token", refreshToken, 7*24*3600) // 7天
+
+	// 将 user 序列化为 JSON，以便在 JS 中安全嵌入（防止特殊字符破坏脚本）
 	userJSON := ToJSON(user)
 	payloadJSON, _ := json.Marshal(map[string]interface{}{
-		"type":  "oauth-success",
-		"token": token,
-		"user":  json.RawMessage(userJSON),
+		"type": "oauth-success",
+		"user": json.RawMessage(userJSON),
 	})
 
 	// 计算前端回调页基础 URL（用于 window.opener 不可用时的降级重定向）
@@ -731,7 +740,7 @@ func handleOAuthUser(c *gin.Context, provider, providerID, username, email, nick
 			frontendBaseURL = origin
 		}
 	}
-	fallbackURL := frontendBaseURL + "/oauth-callback#token=" + token
+	fallbackURL := frontendBaseURL + "/oauth-callback"
 
 	// 通信与跳转
 	// postMessage 优先（弹窗场景），window.opener 不可用时降级重定向（跨域 / 独立标签场景）
@@ -756,7 +765,7 @@ func handleOAuthUser(c *gin.Context, provider, providerID, username, email, nick
         // opener 跨域访问受限，降级到重定向
       }
     }
-    // 降级方案：通过 URL hash 将 token 传递给前端
+    // 降级方案：重定向到oauth-callback页面，token已通过cookie设置
     window.location.replace(%s);
   })();
 </script>

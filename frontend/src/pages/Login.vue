@@ -118,14 +118,7 @@ const handle2FAVerify = async () => {
 }
 
 const handleLoginSuccess = (token: string | null, user: any, announcements: any[] = [], isReturningPlayer: boolean = false, daysSinceLastLogin: number = 0, accessToken?: string, refreshToken?: string) => {
-  // 支持新的双token方案（access_token + refresh_token）和旧的单token方案（向后兼容）
-  if (accessToken && refreshToken) {
-    localStorage.setItem('access_token', accessToken)
-    localStorage.setItem('refresh_token', refreshToken)
-  } else if (token) {
-    // 旧的单token存储方式（兼容旧版本）
-    localStorage.setItem('token', token)
-  }
+  // Token已由后端通过HttpOnly Cookie设置，前端不需要存储
   localStorage.setItem('user', JSON.stringify(user))
   websocket.connect()
   window.dispatchEvent(new Event('auth-changed'))

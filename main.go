@@ -1,6 +1,7 @@
 package main
 
 import (
+	"chemistryuno/backend/cache"
 	"chemistryuno/backend/database"
 	"chemistryuno/backend/game"
 	"chemistryuno/backend/handlers"
@@ -106,6 +107,20 @@ func main() {
 		log.Fatal("❌ 数据库初始化失败: ", err)
 	}
 	defer database.Close()
+
+	// 初始化 Redis 缓存（可选）
+	redisAddr := os.Getenv("REDIS_ADDR")
+	if redisAddr == "" {
+		redisAddr = "localhost:6379" // 默认地址
+	}
+
+	if err := cache.InitRedis(redisAddr); err != nil {
+		log.Printf("⚠️  Redis 初始化失败，将在缓存 miss 时自动降级到数据库查询: %v", err)
+		// 不中断启动，允许程序在没有 Redis 的情况下运行
+	} else {
+		defer cache.Close()
+		log.Println("✅ Redis 缓存已启用 - Session 查询性能提升")
+	}
 
 	// 迁移reactions表到R1/R2结构（如果需要）
 	if err := database.MigrateReactionsToR1R2(); err != nil {

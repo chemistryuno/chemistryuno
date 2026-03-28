@@ -66,7 +66,7 @@ onMounted(async () => {
 })
 
 const handleLoginSuccess = (token: string, user: any) => {
-  localStorage.setItem('token', token)
+  // Token已由后端通过HttpOnly Cookie设置，前端不需要存储
   localStorage.setItem('user', JSON.stringify(user))
   websocket.connect()
   window.dispatchEvent(new Event('auth-changed'))

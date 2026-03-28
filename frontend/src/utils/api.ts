@@ -41,19 +41,13 @@ const onRefreshed = (token: string) => {
 // 刷新access token
 const refreshAccessToken = async (): Promise<string | null> => {
   try {
-    const refreshToken = localStorage.getItem('refresh_token')
-    if (!refreshToken) {
-      return null
-    }
-
-    const response = await axios.post('/api/auth/refresh', {
-      refresh_token: refreshToken
+    // Cookie会自动发送给服务器，不需要手动获取refresh_token
+    const response = await axios.post('/api/auth/refresh', {}, {
+      withCredentials: true // 确保cookie被发送
     })
 
-    const newAccessToken = response.data.access_token
-    localStorage.setItem('access_token', newAccessToken)
-    
-    return newAccessToken
+    // 新的access_token已经由后端通过Set-Cookie设置，不需要存储
+    return 'refreshed'
   } catch (error) {
     console.error('❌ Token刷新失败:', error)
     return null
@@ -63,19 +57,12 @@ const refreshAccessToken = async (): Promise<string | null> => {
 const api: AxiosInstance = axios.create({
   baseURL: '/api',
   timeout: 10000,
+  withCredentials: true, // 启用cookie自动发送
 })
 
-// 请求拦截器 - 添加access token
+// 请求拦截器 - Cookie会自动发送，不需要手动处理
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    // 优先使用access_token（新方案），回退到旧的token字段（兼容旧版本）
-    const accessToken = localStorage.getItem('access_token')
-    const legacyToken = localStorage.getItem('token')
-    const token = accessToken || legacyToken
-    
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`
-    }
     return config
   },
   (error) => {
@@ -102,7 +89,6 @@ api.interceptors.response.use(
         if (isRefreshing) {
           return new Promise((resolve) => {
             subscribeTokenRefresh((token: string) => {
-              originalRequest.headers.Authorization = `Bearer ${token}`
               resolve(api(originalRequest))
             })
           })
@@ -110,19 +96,15 @@ api.interceptors.response.use(
 
         // 尝试使用refresh token刷新access token
         isRefreshing = true
-        const newAccessToken = await refreshAccessToken()
+        const refreshed = await refreshAccessToken()
         isRefreshing = false
 
-        if (newAccessToken) {
-          onRefreshed(newAccessToken)
-          originalRequest.headers.Authorization = `Bearer ${newAccessToken}`
+        if (refreshed) {
+          onRefreshed('refreshed')
           return api(originalRequest)
         }
 
-        // Refresh token也过期了，清除所有token并登出
-        localStorage.removeItem('access_token')
-        localStorage.removeItem('refresh_token')
-        localStorage.removeItem('token')
+        // Refresh token也过期了，清除所有本地数据并登出
         localStorage.removeItem('user')
 
         // 使用路由跳转而非页面刷新
@@ -131,12 +113,6 @@ api.interceptors.response.use(
           path: '/login',
           query: { redirect: currentPath }
         })
-      } else if (isLoginPage || isAuthRequest) {
-        // 登录或刷新接口本身返回401，不做特殊处理（让调用者来处理）
-        // 仅清除可能的旧token
-        if (isAuthRequest && originalRequest.url.includes('/auth/refresh')) {
-          localStorage.removeItem('refresh_token')
-        }
       }
     }
 

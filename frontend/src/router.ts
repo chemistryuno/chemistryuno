@@ -142,12 +142,10 @@ const router = createRouter({
 
 const isDataRoute = (path: string): boolean => path === '/data' || path.startsWith('/data/')
 
-const findActiveRoomId = async (token: string, uid: number): Promise<string | null> => {
+const findActiveRoomId = async (token: string | null, uid: number): Promise<string | null> => {
   try {
     const res = await fetch('/api/rooms', {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
+      credentials: 'include', // 自动发送cookie中的token
     })
     if (!res.ok) return null
 
@@ -168,9 +166,7 @@ const findActiveRoomId = async (token: string, uid: number): Promise<string | nu
 }
 
 router.beforeEach(async (to: RouteLocationNormalized, _from: RouteLocationNormalized) => {
-  const accessToken = localStorage.getItem('access_token')
-  const legacyToken = localStorage.getItem('token')
-  const token = accessToken || legacyToken
+  // Token存储在HttpOnly Cookie中，检查user信息判断是否已登录
   let user = null
   try {
     user = JSON.parse(localStorage.getItem('user') || 'null')
@@ -179,12 +175,12 @@ router.beforeEach(async (to: RouteLocationNormalized, _from: RouteLocationNormal
     localStorage.removeItem('user')
   }
 
-  if (to.meta.requiresAuth && !token) {
+  if (to.meta.requiresAuth && !user) {
     return {
       path: '/login',
       query: { redirect: to.fullPath }
     }
-  } else if (to.meta.guestOnly && token) {
+  } else if (to.meta.guestOnly && user) {
     const redirect = to.query.redirect as string
     if (redirect && redirect.startsWith('/') && !redirect.startsWith('//')) {
       return redirect
@@ -196,8 +192,8 @@ router.beforeEach(async (to: RouteLocationNormalized, _from: RouteLocationNormal
     return '/'
   }
 
-  if (token && user?.uid && isDataRoute(to.path)) {
-    const activeRoomID = await findActiveRoomId(token, Number(user.uid))
+  if (user?.uid && isDataRoute(to.path)) {
+    const activeRoomID = await findActiveRoomId(null, Number(user.uid))
     if (activeRoomID) {
       return `/room/${activeRoomID}`
     }

@@ -537,9 +537,7 @@ const handleLeaveRoom = async (roomId: string) => {
 }
 
 const handleLogout = () => {
-  localStorage.removeItem('access_token')
-  localStorage.removeItem('refresh_token')
-  localStorage.removeItem('token')
+  // Token已存储在HttpOnly Cookie中，浏览器会自动处理
   localStorage.removeItem('user')
   websocket.disconnect()
   router.push('/login')

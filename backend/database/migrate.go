@@ -93,6 +93,11 @@ func autoMigrate() error {
 		log.Printf("⚠️  教学反应数据检查失败: %v", err)
 	}
 
+	// 添加性能优化索引
+	if err := AddPerformanceIndexes(DB); err != nil {
+		log.Printf("⚠️  性能索引添加失败: %v", err)
+	}
+
 	log.Println("✅ 数据库迁移完成")
 	return nil
 }

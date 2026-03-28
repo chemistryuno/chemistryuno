@@ -126,7 +126,7 @@ func BeginRegistration(c *gin.Context) {
 	sessionStore[sessionID] = sessionData
 	sessionMutex.Unlock()
 
-	c.SetCookie("webauthn_session", sessionID, 300, "/", "", false, true)
+	setSecureAuthCookie(c, "webauthn_session", sessionID, 300)
 	c.JSON(http.StatusOK, options)
 }
 
@@ -228,7 +228,7 @@ func BeginLogin(c *gin.Context) {
 	sessionStore[sessionID] = sessionData
 	sessionMutex.Unlock()
 
-	c.SetCookie("webauthn_session", sessionID, 300, "/", "", false, true)
+	setSecureAuthCookie(c, "webauthn_session", sessionID, 300)
 	c.JSON(http.StatusOK, options)
 }
 
@@ -467,7 +467,7 @@ func BeginResetPasswordWebAuthn(c *gin.Context) {
 	sessionStore[sessionID] = sessionData
 	sessionMutex.Unlock()
 
-	c.SetCookie("webauthn_session", sessionID, 300, "/", "", false, true)
+	setSecureAuthCookie(c, "webauthn_session", sessionID, 300)
 	c.JSON(http.StatusOK, options)
 }
 
@@ -560,7 +560,7 @@ func BeginChangePasswordWebAuthn(c *gin.Context) {
 	sessionStore[sessionID] = sessionData
 	sessionMutex.Unlock()
 
-	c.SetCookie("webauthn_session", sessionID, 300, "/", "", false, true)
+	setSecureAuthCookie(c, "webauthn_session", sessionID, 300)
 	c.JSON(http.StatusOK, options)
 }
 

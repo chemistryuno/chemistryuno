@@ -62,9 +62,7 @@ const handleLogoutSession = async (session: any) => {
   try {
     await authAPI.logoutSession(session.id)
     if (session.is_current) {
-      localStorage.removeItem('access_token')
-      localStorage.removeItem('refresh_token')
-      localStorage.removeItem('token')
+      // Token已存储在HttpOnly Cookie中，浏览器会自动处理
       localStorage.removeItem('user')
       router.push('/login')
     } else {
@@ -99,9 +97,7 @@ const handleFreezeAccount = async () => {
   freezeLoading.value = true
   try {
     await authAPI.freezeAccount(hours)
-    localStorage.removeItem('access_token')
-    localStorage.removeItem('refresh_token')
-    localStorage.removeItem('token')
+    // Token已存储在HttpOnly Cookie中，浏览器会自动处理
     localStorage.removeItem('user')
     router.push('/login')
   } catch (err: any) {

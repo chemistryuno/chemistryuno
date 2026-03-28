@@ -50,9 +50,7 @@ const handleDuelDeclined = (msg: any) => {
 }
 
 const handleForceLogout = async (msg: any) => {
-  localStorage.removeItem('access_token')
-  localStorage.removeItem('refresh_token')
-  localStorage.removeItem('token')
+  // Token已存储在HttpOnly Cookie中，浏览器会自动处理
   localStorage.removeItem('user')
   websocket.disconnect()
   const reason = msg?.message || msg?.data || '您已被管理员强制下线'
@@ -147,10 +145,9 @@ const handlePluginMessage = (msg: any) => {
 }
 
 const handleAuthChanged = () => {
-  const accessToken = localStorage.getItem('access_token')
-  const legacyToken = localStorage.getItem('token')
-  const token = accessToken || legacyToken
-  if (token) {
+  // Token存储在HttpOnly Cookie中，检查user信息判断是否已登录
+  const userData = localStorage.getItem('user')
+  if (userData) {
     loadPluginScripts()
   }
 }
@@ -165,12 +162,10 @@ onMounted(() => {
     })
     window.addEventListener('theme-changed', updateTheme)
     window.addEventListener('auth-changed', handleAuthChanged)
-    const accessToken = localStorage.getItem('access_token')
-    const legacyToken = localStorage.getItem('token')
-    const token = accessToken || legacyToken
+    // Token存储在HttpOnly Cookie中，检查user信息判断是否已登录
     const userData = localStorage.getItem('user')
     
-    if (token && userData) {
+    if (userData) {
       // 用户已登录，异步建立 WebSocket 连接（不阻塞首屏）
       setTimeout(() => {
         websocket.connect()

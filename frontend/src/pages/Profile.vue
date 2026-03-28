@@ -127,9 +127,7 @@ const handleUpdateNickname = async () => {
 }
 
 const handleLogout = () => {
-  localStorage.removeItem('access_token')
-  localStorage.removeItem('refresh_token')
-  localStorage.removeItem('token')
+  // Token已存储在HttpOnly Cookie中，浏览器会自动处理
   localStorage.removeItem('user')
   router.push('/login')
 }
@@ -249,12 +247,9 @@ const handleOAuthBind = (provider: 'github' | 'ms' | 'google' | 'apple') => {
   const left = window.screen.width / 2 - width / 2
   const top = window.screen.height / 2 - height / 2
   
-  // 优先使用 access_token（新方案），回退到旧的 token 字段
-  const accessToken = localStorage.getItem('access_token')
-  const legacyToken = localStorage.getItem('token')
-  const token = accessToken || legacyToken || ''
+  // Token已由浏览器自动通过Cookie发送，不需要在URL中传递
   const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api'
-  const url = `${baseUrl}/auth/${provider}/bind?token=${token}`
+  const url = `${baseUrl}/auth/${provider}/bind`
   
   const popup = window.open(url, 'OAuth Bind', `width=${width},height=${height},left=${left},top=${top}`)
   

@@ -28,12 +28,7 @@ class WebSocketService {
   }
 
   connect(): void {
-    // 优先使用 access_token（新方案），回退到旧的 token 字段
-    const accessToken = localStorage.getItem('access_token')
-    const legacyToken = localStorage.getItem('token')
-    const token = accessToken || legacyToken
-    if (!token) return
-
+    // Cookie会自动由浏览器发送给WebSocket连接，无需手动处理
     // 避免重复连接
     if (this.isConnecting || (this.ws && this.ws.readyState === WebSocket.OPEN)) {
       return
@@ -41,7 +36,7 @@ class WebSocketService {
 
     this.isConnecting = true
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const wsUrl = `${protocol}//${window.location.host}/api/ws?token=${token}`
+    const wsUrl = `${protocol}//${window.location.host}/api/ws`
     
     this.ws = new WebSocket(wsUrl)
 

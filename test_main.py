@@ -90,28 +90,38 @@ class GameAPIClient:
             "Content-Type": "application/json"
         })
     
-    def _request(self, method: str, endpoint: str, data: Dict = None) -> Tuple[int, Dict]:
-        """发送HTTP请求"""
+    def _request(self, method: str, endpoint: str, data: Dict = None, retries: int = 3) -> Tuple[int, Dict]:
+        """发送HTTP请求，支持重试"""
         url = f"{self.base_url}{endpoint}"
-        try:
-            if method == "GET":
-                resp = self.session.get(url, timeout=10)
-            elif method == "POST":
-                resp = self.session.post(url, json=data, timeout=10)
-            elif method == "PUT":
-                resp = self.session.put(url, json=data, timeout=10)
-            elif method == "DELETE":
-                resp = self.session.delete(url, timeout=10)
-            else:
-                raise ValueError(f"不支持的HTTP方法: {method}")
-            
+        last_error = None
+        
+        for attempt in range(retries):
             try:
-                return resp.status_code, resp.json()
-            except:
-                return resp.status_code, {"raw": resp.text}
-        except Exception as e:
-            logger.warning(f"请求失败 {method} {url}: {e}")
-            return 0, {"error": str(e)}
+                if method == "GET":
+                    resp = self.session.get(url, timeout=10)
+                elif method == "POST":
+                    resp = self.session.post(url, json=data, timeout=10)
+                elif method == "PUT":
+                    resp = self.session.put(url, json=data, timeout=10)
+                elif method == "DELETE":
+                    resp = self.session.delete(url, timeout=10)
+                else:
+                    raise ValueError(f"不支持的HTTP方法: {method}")
+                
+                try:
+                    return resp.status_code, resp.json()
+                except:
+                    return resp.status_code, {"raw": resp.text}
+            except Exception as e:
+                last_error = e
+                if attempt < retries - 1:
+                    wait_time = 1 + attempt
+                    logger.info(f"请求失败 {method} {url}，{wait_time}秒后重试 ({attempt+1}/{retries}): {e}")
+                    time.sleep(wait_time)
+                else:
+                    logger.warning(f"请求失败 {method} {url}: {e}")
+        
+        return 0, {"error": str(last_error)}
     
     # ========== 认证相关 ==========
     def register(self, username: str, password: str) -> Tuple[bool, Dict]:

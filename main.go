@@ -108,6 +108,12 @@ func main() {
 	}
 	defer database.Close()
 
+	// 初始化日志系统
+	if err := utils.InitLogger(5000); err != nil {
+		log.Printf("⚠️  日志系统初始化失败: %v（将继续使用标准日志）", err)
+	}
+	defer utils.CloseLogger()
+
 	// 初始化 Redis 缓存（可选）
 	redisAddr := os.Getenv("REDIS_ADDR")
 	if redisAddr == "" {
@@ -427,6 +433,8 @@ func main() {
 			admin.PUT("/deck-config", middleware.AdminMiddleware(), handlers.UpdateGlobalDeckConfig)
 			admin.POST("/deck-config/reset", middleware.AdminMiddleware(), handlers.ResetGlobalDeckConfig)
 			admin.GET("/game-history", middleware.AdminMiddleware(), handlers.GetGameHistory)
+			admin.GET("/logs", middleware.AdminMiddleware(), handlers.GetLogs)
+			admin.POST("/logs/clear", middleware.AdminMiddleware(), handlers.ClearLogs)
 			admin.GET("/feedbacks", middleware.AdminMiddleware(), handlers.GetAllFeedbacks)
 			admin.PUT("/feedbacks/:id/status", middleware.AdminMiddleware(), handlers.UpdateFeedbackStatus)
 			admin.GET("/configs", middleware.AdminMiddleware(), handlers.GetSystemConfigs)

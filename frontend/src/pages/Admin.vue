@@ -45,6 +45,9 @@ const gameHistory = ref<any[]>([])
 const feedbacks = ref<any[]>([])
 const announcements = ref<any[]>([])
 const surveys = ref<any[]>([])
+const logs = ref<any[]>([])
+const logFilter = ref<'all' | 'INFO' | 'WARNING' | 'ERROR' | 'DEBUG'>('all')
+const autoRefreshLogs = ref(true)
 const showCreateSurveyModal = ref(false)
 const newSurvey = ref<any>({
   title: '',
@@ -291,6 +294,7 @@ const tabs = computed(() => {
     { id: 'surveys', label: '问卷调查', icon: FileText },
     { id: 'feedbacks', label: '通讯报告', icon: MessageSquare },
     { id: 'game-time', label: '时间配置', icon: Clock },
+    { id: 'logs', label: '系统日志', icon: Terminal },
     { id: 'history', label: '实验日志', icon: History }
   ]
   
@@ -345,6 +349,9 @@ const loadData = async () => {
       if (response.data?.configs) {
         gameTimeConfigs.value = response.data.configs
       }
+    } else if (activeTab.value === 'logs') {
+      const response = await adminAPI.getLogs(100, logFilter.value === 'all' ? '' : logFilter.value)
+      logs.value = response.data?.logs || []
     }
   } catch (error) {
     console.error('加载数据失败:', error)
@@ -356,12 +363,48 @@ const loadData = async () => {
 onMounted(() => {
   loadData()
   adminAPI.getStats().then(r => { stats.value = r.data }).catch(() => {})
+  
+  // 自动刷新日志的interval
+  const logRefreshInterval = setInterval(() => {
+    if (activeTab.value === 'logs' && autoRefreshLogs.value) {
+      loadData()
+    }
+  }, 3000) // 每3秒刷新一次
+
+  // Cleanup
+  watch(activeTab, () => {
+    if (activeTab.value === 'logs') {
+      loadData()
+    }
+  })
+
+  // Return cleanup function
+  return () => clearInterval(logRefreshInterval)
 })
 
 watch(activeTab, () => {
   loadData()
   searchTerm.value = ''
 })
+
+watch(logFilter, () => {
+  if (activeTab.value === 'logs') {
+    loadData()
+  }
+})
+
+const handleClearLogs = async () => {
+  const confirmed = await showConfirm('确认清空所有日志？', '清空日志')
+  if (confirmed) {
+    try {
+      await adminAPI.clearLogs()
+      await showAlert('日志已清空', '成功')
+      loadData()
+    } catch (error: any) {
+      await showAlert(error.response?.data?.error || '操作失败', '错误')
+    }
+  }
+}
 
 const handleAcceptFeedback = async (id: number) => {
   try {
@@ -1451,6 +1494,69 @@ const filteredHistory = computed(() => {
                       </tr>
                     </tbody>
                   </table>
+                </div>
+              </div>
+            </div>
+
+            <!-- Logs Tab -->
+            <div v-if="activeTab === 'logs'" class="space-y-8">
+              <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <h3 class="text-lg font-black italic uppercase text-slate-900 dark:text-white flex items-center gap-4">
+                  <Terminal class="w-5 h-5 text-green-500 shrink-0" />
+                  实时系统日志 <span class="text-slate-400 dark:text-slate-600 font-mono not-italic text-[10px] tracking-normal">/ SYSTEM DEBUG LOG</span>
+                </h3>
+                <div class="flex items-center gap-3">
+                  <div class="flex items-center gap-2 bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/5 rounded-xl px-3 py-2">
+                    <span class="text-[9px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-widest">LEVEL:</span>
+                    <select v-model="logFilter" class="bg-transparent text-[10px] font-bold text-slate-900 dark:text-white focus:outline-none uppercase tracking-widest">
+                      <option value="all">ALL</option>
+                      <option value="INFO">INFO</option>
+                      <option value="WARNING">WARNING</option>
+                      <option value="ERROR">ERROR</option>
+                      <option value="DEBUG">DEBUG</option>
+                    </select>
+                  </div>
+                  <label class="flex items-center gap-2 bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/5 rounded-xl px-3 py-2 cursor-pointer hover:border-cyan-500/40 transition-all">
+                    <input type="checkbox" v-model="autoRefreshLogs" class="w-3 h-3 rounded cursor-pointer" />
+                    <span class="text-[9px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-widest">AUTO</span>
+                  </label>
+                  <button 
+                    @click="handleClearLogs"
+                    class="bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 px-3 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 transition-all"
+                  >
+                    <Trash2 class="w-3 h-3" />
+                    CLEAR
+                  </button>
+                </div>
+              </div>
+
+              <div class="overflow-hidden border border-slate-200 dark:border-white/5 rounded-[2.5rem] bg-black dark:bg-[#0a0a0b] shadow-xl font-mono">
+                <div class="overflow-x-auto custom-scrollbar h-[600px] overflow-y-auto bg-slate-950 dark:bg-[#000000]">
+                  <div class="text-[9px] text-slate-400 p-4 space-y-1">
+                    <div v-if="logs.length === 0" class="text-center py-24 text-slate-600">
+                      <p class="italic">/ NO_LOGS_LOADED</p>
+                      <p v-if="autoRefreshLogs" class="text-[8px] mt-2 text-cyan-500">WAITING FOR EVENTS...</p>
+                    </div>
+                    <div v-for="(log, idx) in logs" :key="idx" :class="cn(
+                      'py-1 px-2 rounded transition-all hover:bg-white/5',
+                      log.level === 'ERROR' ? 'text-red-400' :
+                      log.level === 'WARNING' ? 'text-amber-400' :
+                      log.level === 'INFO' ? 'text-green-400' :
+                      log.level === 'DEBUG' ? 'text-blue-400' :
+                      'text-slate-400'
+                    )">
+                      <span class="text-slate-600">{{ log.timestamp }}</span>
+                      <span :class="cn(
+                        'inline-block w-12 text-left font-black ml-2',
+                        log.level === 'ERROR' ? 'text-red-500' :
+                        log.level === 'WARNING' ? 'text-amber-500' :
+                        log.level === 'INFO' ? 'text-green-500' :
+                        log.level === 'DEBUG' ? 'text-blue-500' :
+                        'text-slate-500'
+                      )">[{{ log.level }}]</span>
+                      <span class="text-slate-300 ml-2">{{ log.message }}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

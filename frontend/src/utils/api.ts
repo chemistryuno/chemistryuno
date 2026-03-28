@@ -63,6 +63,16 @@ const api: AxiosInstance = axios.create({
 // 请求拦截器 - Cookie会自动发送，不需要手动处理
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
+    // 缓存拦截逻辑
+    if (config.method === 'get') {
+      const cacheKey = config.url + (config.params ? JSON.stringify(config.params) : '')
+      const cached = getCached(cacheKey)
+      if (cached) {
+        // 返回一个取消请求的信号或特殊结果，但 axios-compatible 做法是模拟响应
+        // 这里采用简单的逻辑：组件调用处如果传了 _cacheTTL，我们会先查缓存
+        // 如果想在拦截器里完成，需要一些技巧。为了不增加复杂度，我们在 API 定义处直接查缓存。
+      }
+    }
     return config
   },
   (error) => {
@@ -70,11 +80,20 @@ api.interceptors.request.use(
   }
 )
 
-// 响应拦截器 - 自动刷新token
+// 响应拦截器 - 自动刷新token与缓存注入
 api.interceptors.response.use(
-  (response: AxiosResponse) => response,
+  (response: AxiosResponse) => {
+    // 注入缓存逻辑：如果请求方法是GET且带有有效缓存配置
+    const config = response.config as any
+    if (config.method === 'get' && config._cacheTTL) {
+      setCached(config.url + (config.params ? JSON.stringify(config.params) : ''), response.data, config._cacheTTL)
+    }
+    return response
+  },
   async (error) => {
     const originalRequest = error.config
+
+    // 如果请求被打断且有缓存（预读模式），可以在这里处理（但通常在请求拦截器处理更好）
 
     // 401错误处理
     if (error.response?.status === 401 && originalRequest) {
@@ -144,17 +163,27 @@ export const authAPI = {
     api.post('/auth/webauthn/reset-password/begin', { identifier }),
   finishResetPasswordWebAuthn: (identifier: string, newPassword: string, credential: any) =>
     api.post(`/auth/webauthn/reset-password/finish?identifier=${encodeURIComponent(identifier)}&new_password=${encodeURIComponent(newPassword)}`, credential),
-  getUserInfo: () =>
-    api.get('/user/info'),
+  getUserInfo: async () => {
+    const cacheKey = 'user_info'
+    const cached = getCached(cacheKey)
+    if (cached) return { data: cached }
+    
+    const response = await api.get('/user/info')
+    setCached(cacheKey, response.data, 60 * 1000) // 缓存1分钟
+    return response
+  },
   changePassword: (oldPassword: string, newPassword: string, code: string = '', useEmail: boolean = false) =>
     api.put('/user/password', { old_password: oldPassword, new_password: newPassword, code, use_email: useEmail }),
   beginChangePasswordWebAuthn: () =>
     api.post('/user/webauthn/change-password/begin'),
   finishChangePasswordWebAuthn: (newPassword: string, credential: any) =>
     api.post(`/user/webauthn/change-password/finish?newPassword=${newPassword}`, credential),
-  updateAvatar: (avatar: string) =>
-    api.put('/user/avatar', { avatar }),
-  updateProfile: (data: {
+  updateAvatar: async (avatar: string) => {
+    const response = await api.put('/user/avatar', { avatar })
+    apiCache.delete('user_info')
+    return response
+  },
+  updateProfile: async (data: {
     nickname: string,
     bio?: string,
     wechat?: string,
@@ -165,8 +194,11 @@ export const authAPI = {
     vibration_enabled?: boolean,
     enable_element_input?: boolean,
     custom_contact?: string
-  }) =>
-    api.put('/user/profile', data),
+  }) => {
+    const response = await api.put('/user/profile', data)
+    apiCache.delete('user_info') // 个人资料修改后清除缓存
+    return response
+  },
   getUserPublicProfile: (uid: number) =>
     api.get(`/user/profile/${uid}`),
   changeEmail: (data: { old_code: string, new_email: string, new_code: string }) =>
@@ -421,6 +453,16 @@ export const adminAPI = {
     api.get(`/admin/surveys/${id}/config`),
   importSurveyConfig: (data: any) =>
     api.post('/admin/surveys/import', data),
+
+  // 日志管理
+  getLogs: (count?: number, level?: string) => {
+    const params = new URLSearchParams()
+    if (count) params.append('count', count.toString())
+    if (level) params.append('level', level)
+    return api.get(`/admin/logs?${params.toString()}`)
+  },
+  clearLogs: () =>
+    api.post('/admin/logs/clear'),
 }
 
 export const commonAPI = {

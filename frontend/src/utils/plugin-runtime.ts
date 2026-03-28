@@ -189,8 +189,19 @@ function buildRouteComponent(plugin: PluginMeta, routeDef: PluginRouteDefinition
 
 function createPluginApi() {
   const baseURL = '/api'
+  const pluginCache = new Map<string, { data: any, expire: number }>()
 
-  const request = async (method: string, path: string, data?: any, extraHeaders?: Record<string, string>) => {
+  const request = async (method: string, path: string, data?: any, extraHeaders?: Record<string, string>, cacheTTL: number = 0) => {
+    const isGet = (method || 'GET').toUpperCase() === 'GET'
+    const cacheKey = `${method}:${path}:${data ? JSON.stringify(data) : ''}`
+    
+    if (isGet && cacheTTL > 0) {
+      const cached = pluginCache.get(cacheKey)
+      if (cached && cached.expire > Date.now()) {
+        return cached.data
+      }
+    }
+
     const url = path.startsWith('http') ? path : `${baseURL}${path.startsWith('/') ? '' : '/'}${path}`
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -212,15 +223,20 @@ function createPluginApi() {
       throw new Error(message)
     }
 
+    if (isGet && cacheTTL > 0) {
+      pluginCache.set(cacheKey, { data: payload, expire: Date.now() + cacheTTL })
+    }
+
     return payload
   }
 
   return {
     request,
-    get: (path: string) => request('GET', path),
+    get: (path: string, cacheTTL: number = 0) => request('GET', path, undefined, undefined, cacheTTL),
     post: (path: string, data?: any) => request('POST', path, data),
     put: (path: string, data?: any) => request('PUT', path, data),
     del: (path: string, data?: any) => request('DELETE', path, data),
+    clearCache: () => pluginCache.clear()
   }
 }
 

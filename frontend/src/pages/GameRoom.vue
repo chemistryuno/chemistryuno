@@ -758,6 +758,7 @@ watch(() => roomInfo.value?.is_points_mode, (val) => {
 const startTimer = () => {
   if (timerRaf) cancelAnimationFrame(timerRaf)
   lastTimeUpdate = 0
+  let hasTimeoutFired = false
   
   const animate = () => {
     if (!gameState.value || !gameState.value.turn_end_time || gameState.value.status !== 'playing') {
@@ -784,6 +785,13 @@ const startTimer = () => {
     } else {
       timeRemaining.value = 0
       timePercent.value = 0
+      
+      // 倒计时结束后自动摸牌（仅在我的回合且未触发过）
+      if (isMyTurn.value && !hasTimeoutFired && !tutorialScriptMode.value) {
+        hasTimeoutFired = true
+        console.log('⏰ 回合倒计时已到期，自动摸牌')
+        handleDrawCard()
+      }
     }
   }
   
@@ -1499,16 +1507,17 @@ const handleLeaveRoom = async () => {
     const confirmed = await showConfirm(message, title)
     if (confirmed) {
       feedback.click()
-      // 关键修复：调用API通知服务器玩家离开房间
-      // 如果房间正在游戏且不是观战状态，则不调用leaveRoom以保留暂离逻辑
-      if (roomInfo.value?.status !== 'playing' || isSpectator.value) {
-        try {
-          await gameAPI.leaveRoom(id)
-        } catch (error) {
-          console.error('离开房间API调用失败:', error)
-          // 即使API调用失败也继续跳转，避免玩家被卡住
-        }
+      // 调用API通知服务器玩家彻底离开房间
+      // 注意：即便是正在游戏中，用户点击“退出”也应该执行 leaveRoom 逻辑
+      // 以释放该用户的“同时只能进行一次游戏”锁定
+      try {
+        await gameAPI.leaveRoom(id)
+      } catch (error) {
+        console.error('离开房间API调用失败:', error)
       }
+      
+      // 断开房间连接并停止监听
+      websocket.leaveRoom()
       router.push('/')
     }
   } catch (error) {

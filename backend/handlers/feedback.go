@@ -238,7 +238,7 @@ func DismissFeedback(c *gin.Context) {
 	}
 
 	// 系统警告可以直接删除
-	if feedback.Type == "system_alert" {
+	if feedback.Type == "system_alert" || feedback.Type == "security_alert" {
 		err = repository.FeedbackRepo.Delete(uint(id))
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误"})

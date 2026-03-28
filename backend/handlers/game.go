@@ -71,6 +71,18 @@ func CreateRoom(c *gin.Context) {
 		return
 	}
 
+	uid := c.GetInt("uid")
+
+	// 玩家限购检查：每人同时只能在一个房间
+	if !game.IsPlayerIdle(uid) {
+		currentRoomID := game.GetUserRoomID(uid)
+		c.JSON(http.StatusConflict, gin.H{
+			"error":   "您当前已在实验室中（只能同时进行一个实验）",
+			"room_id": currentRoomID,
+		})
+		return
+	}
+
 	// PvE 模式下私密性校验特殊处理：PvE 房间通常默认为私密或不公开，但这里沿用前段传参
 	// 如果是积分模式且是私密房间（非 PvE），则禁止
 	if req.IsPointsMode && req.IsPrivate && !req.IsPvE {
@@ -104,8 +116,6 @@ func CreateRoom(c *gin.Context) {
 		req.LevelRange = 5
 	}
 
-	uid := c.GetInt("uid")
-
 	room, err := game.CreateRoomWithKey(req.Name, uid, req.MaxPlayers, req.DeckID, req.IsPointsMode, req.IsPrivate, req.AccessKey, req.IsPvE, req.PvEDifficulty, req.AICount, req.EnableAIBackfill, req.AIBackfillDifficulty, req.IsRanked, req.LevelRange, req.TutorialScript)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -125,6 +135,18 @@ func JoinRoom(c *gin.Context) {
 	// 从查询参数获取访问密钥和观战模式
 	accessKey := c.Query("key")
 	asSpectator := c.Query("spectator") == "true" || c.Query("spectator") == "1"
+
+	// 如果是以玩家身份加入，检查是否已经在其他房间
+	if !asSpectator {
+		currentRoomID := game.GetUserRoomID(uid)
+		if currentRoomID != "" && currentRoomID != roomID {
+			c.JSON(http.StatusConflict, gin.H{
+				"error":   "您正在另一个实验室进行实验，请先完成或离开当前房间",
+				"room_id": currentRoomID,
+			})
+			return
+		}
+	}
 
 	err := game.JoinRoomWithKeyAsSpectator(roomID, uid, accessKey, asSpectator)
 	if err != nil {

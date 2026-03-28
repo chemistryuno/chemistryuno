@@ -1645,3 +1645,39 @@ func BatchRejectReactions(c *gin.Context) {
 		"count":   affected,
 	})
 }
+
+// GetLogs 获取实时日志（管理员专用）
+func GetLogs(c *gin.Context) {
+	count := 100 // 默认获取最近100条
+	if countStr := c.Query("count"); countStr != "" {
+		if parsedCount, err := strconv.Atoi(countStr); err == nil && parsedCount > 0 {
+			if parsedCount > 1000 {
+				count = 1000 // 最多1000条
+			} else {
+				count = parsedCount
+			}
+		}
+	}
+
+	level := c.Query("level") // 可选：过滤日志级别
+
+	var logs interface{}
+	if level != "" {
+		logs = utils.GetLogsByLevel(level, count)
+	} else {
+		logs = utils.GetLogs(count)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"logs":  logs,
+		"count": len(logs.([]utils.LogEntry)),
+	})
+}
+
+// ClearLogs 清空日志缓冲（管理员专用）
+func ClearLogs(c *gin.Context) {
+	utils.ClearLogs()
+	c.JSON(http.StatusOK, gin.H{
+		"message": "日志已清空",
+	})
+}

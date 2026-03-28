@@ -6,7 +6,7 @@ import { gameAPI, authAPI, commonAPI, friendAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
 import UserAvatar from '../components/UserAvatar.vue'
 import websocket from '../utils/websocket'
-import { Beaker, Plus, Shield, LogOut, Settings, Play, X, Loader2, Database, MessageCircle, Trophy, Megaphone, Menu, Puzzle, FileText, ExternalLink, ShieldCheck, ChevronRight } from 'lucide-vue-next'
+import { Beaker, Plus, Shield, LogOut, Settings, Play, X, Loader2, Database, MessageCircle, Megaphone, Menu, Puzzle, FileText, ChevronRight } from 'lucide-vue-next'
 import { cn } from '../utils/cn'
 import ChatBox from '../components/ChatBox.vue'
 import TutorialGuide from '../components/TutorialGuide.vue'
@@ -20,6 +20,16 @@ const props = defineProps<{
 const router = useRouter()
 const { showAlert, showConfirm } = useDialog()
 const user = ref<any>({})
+const loadUserInfo = async () => {
+  try {
+    const res = await authAPI.getUserInfo()
+    user.value = res.data
+    localStorage.setItem('user', JSON.stringify(res.data))
+  } catch (e) {
+    console.error('Failed to load user info:', e)
+  }
+}
+
 try {
   const userData = JSON.parse(localStorage.getItem('user') || '{}')
   // 兼容旧版本的 id 字段
@@ -45,6 +55,7 @@ const loadFriends = async () => {
 const rooms = ref<any[]>([])
 const decks = ref<any[]>([])
 const pendingFeedbacks = ref<any[]>([])
+const unreadChatCount = ref(0)
 const persistentAnnouncements = ref<any[]>([])
 const showCreateModal = ref(false)
 const showAIArenaModal = ref(false)
@@ -160,9 +171,15 @@ const handleDismissSurvey = async () => {
 const currentTime = ref(new Date())
 const roomsFetchedAt = ref(Date.now())
 const onlineCount = ref(0)
+const lastTimeUpdate = ref(Date.now())
 
 const getRoomLiveCountdown = (room: any): number => {
   if (!room.countdown || room.countdown <= 0) return 0
+  // 检查是否需要更新 currentTime 以保持倒计时活跃
+  if (Date.now() - lastTimeUpdate.value > 1000) {
+    currentTime.value = new Date()
+    lastTimeUpdate.value = Date.now()
+  }
   const elapsed = Math.floor((currentTime.value.getTime() - roomsFetchedAt.value) / 1000)
   return Math.max(0, room.countdown - elapsed)
 }
@@ -265,6 +282,10 @@ const activeRoom = computed(() => {
   )
 })
 
+const totalUnreadCount = computed(() => {
+  return unreadChatCount.value + pendingFeedbacks.value.length
+})
+
 const loadDecks = async () => {
   try {
     const res = await gameAPI.getMyDecks()
@@ -321,7 +342,14 @@ const handleRoomsUpdate = (msg: any) => {
   }
 }
 
+const handleChatUnreadUpdate = (msg: any) => {
+  if (typeof msg.count === 'number') {
+    unreadChatCount.value = msg.count
+  }
+}
+
 onMounted(() => {
+  loadUserInfo()
   loadRooms()
   loadDecks()
   loadPendingFeedbacks()
@@ -333,6 +361,7 @@ onMounted(() => {
   websocket.on('online_count', handleOnlineCountUpdate)
   websocket.on('system_announcement', handleSystemAnnouncement)
   websocket.on('rooms_update', handleRoomsUpdate)
+  websocket.on('chat_unread_count', handleChatUnreadUpdate)
 
   // 使用WebSocket实时推送房间列表，不再使用轮询
   // roomInterval = setInterval(loadRooms, 10000)  // 已移除轮询机制
@@ -371,6 +400,7 @@ onUnmounted(() => {
   websocket.off('online_count', handleOnlineCountUpdate)
   websocket.off('system_announcement', handleSystemAnnouncement)
   websocket.off('rooms_update', handleRoomsUpdate)
+  websocket.off('chat_unread_count', handleChatUnreadUpdate)
 })
 
 const loadRooms = async () => {
@@ -508,9 +538,6 @@ const handleJoinRoom = async (roomId: string, asSpectator: boolean = false) => {
       if (index !== -1) {
         rooms.value.splice(index, 1)
       }
-      if (activeRoom.value?.id === roomId) {
-         activeRoom.value = null
-      }
       showAlert('该房间已失效并自动清理', '提示')
     } else {
       showAlert(error.response?.data?.error || '加入房间失败', '连接错误')
@@ -621,7 +648,10 @@ const copyToClipboard = (text: string) => {
                 <span class="text-[10px] font-black uppercase tracking-widest hidden md:block text-amber-600/80 group-hover/phlogiston:text-amber-500 transition-colors house-style">排位</span>
               </router-link>
               <div class="w-px h-4 bg-slate-200 dark:bg-white/10 mx-0.5"></div>
-              <router-link to="/feedbacks" class="lobby-nav-link lobby-nav-link-amber" title="反馈与公告">
+              <router-link to="/feedbacks" class="lobby-nav-link lobby-nav-link-amber relative" title="反馈与公告">
+                <div v-if="pendingFeedbacks.length > 0" class="absolute -top-1 -right-1 min-w-[14px] h-[14px] px-0.5 bg-amber-500 text-white text-[8px] font-black rounded-full flex items-center justify-center border border-white dark:border-slate-900 z-10">
+                  {{ pendingFeedbacks.length }}
+                </div>
                 <Megaphone class="w-4 h-4" />
               </router-link>
               <router-link to="/profile" class="lobby-nav-link" title="个人主页">
@@ -630,7 +660,10 @@ const copyToClipboard = (text: string) => {
               <router-link to="/data" class="lobby-nav-link lobby-nav-link-blue" title="数据库">
                 <Database class="w-4 h-4" />
               </router-link>
-              <router-link to="/chat" class="lobby-nav-link lobby-nav-link-indigo" title="公共频道">
+              <router-link to="/chat" class="lobby-nav-link lobby-nav-link-indigo relative" title="公共频道">
+                <div v-if="unreadChatCount > 0" class="absolute -top-1 -right-1 min-w-[14px] h-[14px] px-0.5 bg-red-500 text-white text-[8px] font-black rounded-full flex items-center justify-center border border-white dark:border-slate-900 z-10 animate-pulse">
+                  {{ unreadChatCount > 99 ? '99+' : unreadChatCount }}
+                </div>
                 <MessageCircle class="w-4 h-4" />
               </router-link>
               <router-link to="/plugins" class="lobby-nav-link lobby-nav-link-purple" title="插件市场">
@@ -649,8 +682,11 @@ const copyToClipboard = (text: string) => {
             <button
               @click="isMobileMenuOpen = !isMobileMenuOpen"
               data-tutorial="mobile-menu"
-              class="lg:hidden p-2.5 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-slate-500 touch-feedback transition-all"
+              class="lg:hidden p-2.5 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-slate-500 touch-feedback transition-all relative"
             >
+              <div v-if="totalUnreadCount > 0" class="absolute -top-1.5 -right-1.5 min-w-[16px] h-[16px] px-1 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-white dark:border-slate-900 z-10 shadow-sm animate-pulse-subtle">
+                {{ totalUnreadCount > 99 ? '99+' : totalUnreadCount }}
+              </div>
               <Menu v-if="!isMobileMenuOpen" class="w-5 h-5" />
               <X v-else class="w-5 h-5" />
             </button>
@@ -711,14 +747,20 @@ const copyToClipboard = (text: string) => {
                 <span class="text-[9px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300 text-center leading-tight">物质百科</span>
               </router-link>
 
-              <router-link @click="isMobileMenuOpen = false" to="/chat" class="flex flex-col items-center justify-center p-3 bg-slate-50 dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/10 shadow-sm active:scale-95 transition-all">
+              <router-link @click="isMobileMenuOpen = false" to="/chat" class="flex flex-col items-center justify-center p-3 bg-slate-50 dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/10 shadow-sm active:scale-95 transition-all relative">
+                <div v-if="unreadChatCount > 0" class="absolute top-2 right-2 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-white dark:border-slate-900 z-10 animate-pulse">
+                  {{ unreadChatCount > 99 ? '99+' : unreadChatCount }}
+                </div>
                 <div class="w-10 h-10 bg-indigo-500/10 rounded-xl flex items-center justify-center mb-2 text-indigo-500">
                   <MessageCircle class="w-5 h-5" />
                 </div>
                 <span class="text-[9px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300 text-center leading-tight">公共频道</span>
               </router-link>
 
-              <router-link @click="isMobileMenuOpen = false" to="/feedbacks" class="flex flex-col items-center justify-center p-3 bg-slate-50 dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/10 shadow-sm active:scale-95 transition-all">
+              <router-link @click="isMobileMenuOpen = false" to="/feedbacks" class="flex flex-col items-center justify-center p-3 bg-slate-50 dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/10 shadow-sm active:scale-95 transition-all relative">
+                <div v-if="pendingFeedbacks.length > 0" class="absolute top-2 right-2 min-w-[18px] h-[18px] px-1 bg-amber-500 text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-white dark:border-slate-900 z-10">
+                  {{ pendingFeedbacks.length }}
+                </div>
                 <div class="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center mb-2 text-emerald-500">
                   <Megaphone class="w-5 h-5" />
                 </div>

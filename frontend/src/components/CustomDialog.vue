@@ -6,7 +6,7 @@ import { AlertCircle, HelpCircle, MessageSquare } from 'lucide-vue-next'
 const { state, handleConfirm, handleCancel } = useDialog()
 
 const countdown = ref(0)
-const timer = ref<any>(null)
+const timer = ref<ReturnType<typeof setInterval> | null>(null)
 const isComposing = ref(false)
 
 watch(() => state.show, (newVal) => {
@@ -16,12 +16,12 @@ watch(() => state.show, (newVal) => {
     timer.value = setInterval(() => {
       countdown.value--
       if (countdown.value <= 0) {
-        clearInterval(timer.value)
+        if (timer.value) clearInterval(timer.value)
         timer.value = null
       }
     }, 1000)
   } else {
-    clearInterval(timer.value)
+    if (timer.value) clearInterval(timer.value)
     timer.value = null
     countdown.value = 0
   }

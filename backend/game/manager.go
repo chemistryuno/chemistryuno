@@ -406,6 +406,23 @@ func IsPlayerIdle(uid int) bool {
 	return true
 }
 
+// GetUserRoomID 获取玩家所在的房间ID，如果不在任何房间则返回空字符串
+func GetUserRoomID(uid int) string {
+	roomMutex.RLock()
+	defer roomMutex.RUnlock()
+
+	for roomID, gr := range rooms {
+		if gr.Room.Status == "playing" {
+			for _, puid := range gr.Room.Players {
+				if puid == uid {
+					return roomID
+				}
+			}
+		}
+	}
+	return ""
+}
+
 // 初始化默认牌组配置
 func getDefaultDeckConfig() map[string]int {
 	return BuiltinDeckDefaults()
@@ -1762,6 +1779,35 @@ func LeaveRoom(roomID string, uid int) error {
 		return nil
 	}
 
+	// 检查游戏是否应该自动结算
+	// 当活跃玩家数 <= 1 时，自动结算游戏
+	if gameRoom.GameState != nil && gameRoom.GameState.Status == "playing" {
+		activeCount := 0
+		lastPlayerUID := 0
+		for _, p := range gameRoom.GameState.Players {
+			isFinished := false
+			for _, fuid := range gameRoom.GameState.FinishedPlayers {
+				if p.UID == fuid {
+					isFinished = true
+					break
+				}
+			}
+			if !isFinished {
+				activeCount++
+				lastPlayerUID = p.UID
+			}
+		}
+
+		// 如果只剩 ≤1 个活跃玩家，自动结算游戏
+		if activeCount <= 1 {
+			if activeCount == 1 {
+				gameRoom.GameState.FinishedPlayers = append(gameRoom.GameState.FinishedPlayers, lastPlayerUID)
+			}
+			finalizeGame(gameRoom)
+			return nil
+		}
+	}
+
 	// 如果所有玩家和观战者均已离开，销毁房间
 	if len(gameRoom.Room.Players) == 0 && len(gameRoom.Room.Spectators) == 0 {
 		gameRoom.cancelStartTimer()
@@ -1916,21 +1962,13 @@ func StartGame(roomID string, uid int) error {
 
 	// 检查牌堆是否足够
 	if len(gameRoom.GameState.DrawPile) < totalCardsNeeded {
-		log.Printf("[初始手牌] ⚠️  牌堆不足：需要 %d 张，实际 %d 张，将平均分配",
-			totalCardsNeeded, len(gameRoom.GameState.DrawPile))
 		initialCardsCount = len(gameRoom.GameState.DrawPile) / numPlayers
 	}
 
-	log.Printf("[初始手牌] 📊 牌堆统计：总计 %d 张，将为 %d 位玩家每人发 %d 张",
-		len(gameRoom.GameState.DrawPile), numPlayers, initialCardsCount)
+	// 手牌分配准备完成
 	gameRoom.BroadcastSystemMessage(fmt.Sprintf("正在分发实验素材... 每位研究员已领取 %d 份基础试剂。", initialCardsCount))
 
-	// 统计牌堆中的卡牌类型分布（用于日志）
-	cardTypeCount := make(map[string]int)
-	for _, card := range gameRoom.GameState.DrawPile {
-		cardTypeCount[card.Type]++
-	}
-	log.Printf("[初始手牌] 🎴 牌堆组成：%v", cardTypeCount)
+	// 牌堆已准备好
 
 	// 批量预加载所有人类玩家信息，避免 N+1 查询
 	humanUIDs := make([]uint, 0)
@@ -2014,8 +2052,7 @@ func StartGame(roomID string, uid int) error {
 			playerCardTypes[card.Type]++
 		}
 
-		log.Printf("[初始手牌] 👤 玩家 %s (UID:%d) 获得 %d 张手牌：%v",
-			username, pid, player.CardCount, playerCardTypes)
+		// 玩家初始手牌已分配
 
 		gameRoom.GameState.Players = append(gameRoom.GameState.Players, player)
 	}
@@ -2035,8 +2072,7 @@ func StartGame(roomID string, uid int) error {
 			randomIndex := rand.Intn(len(availableSubstances))
 			initialSubstance = availableSubstances[randomIndex]
 
-			log.Printf("[场上初始物质] 🎲 已批准物质总数=%d，随机选择: %s",
-				len(availableSubstances), initialSubstance)
+			log.Printf("[场上初始物质] 随机选择: %s", initialSubstance)
 
 			// 从牌堆中找出对应的卡牌作为"底座"
 			// 优先找非功能牌，且类型匹配的卡牌
@@ -2060,7 +2096,7 @@ func StartGame(roomID string, uid int) error {
 					// 从牌堆移除该牌
 					gameRoom.GameState.DrawPile = append(gameRoom.GameState.DrawPile[:i], gameRoom.GameState.DrawPile[i+1:]...)
 					foundBase = true
-					log.Printf("[场上初始物质] ✅ 找到匹配的卡牌: %s", card.Type)
+					log.Printf("[场上初始物质] 找到匹配的卡牌: %s", card.Type)
 					break
 				}
 			}
@@ -2103,11 +2139,10 @@ func StartGame(roomID string, uid int) error {
 		gameRoom.GameState.DiscardPile = append(gameRoom.GameState.DiscardPile, playedCard)
 		gameRoom.GameState.LastCard = &gameRoom.GameState.DiscardPile[0]
 		gameRoom.BroadcastSystemMessage(fmt.Sprintf("对撞机底座已安装完成，观测到初始物质：[ %s ]。", initialSubstance))
-		log.Printf("[场上初始物质] 🎴 场上初始卡牌已设置: 卡牌类型=%s, 展示物质=%s",
-			initialCard.Type, initialSubstance)
+		log.Printf("[场上初始卡牌] 卡牌类型=%s, 展示物质=%s", initialCard.Type, initialSubstance)
 	} else {
 		// 回退方案：如果 reactions 为空或没找到合适的底牌，从牌堆抽第一张非功能牌
-		log.Println("[场上初始物质] ⚠️  未找到合适的初始物质，使用备用方案")
+		log.Println("[场上初始物质] 使用备用方案")
 		maxAttempts := len(gameRoom.GameState.DrawPile)
 		for attempts := 0; attempts < maxAttempts && len(gameRoom.GameState.DrawPile) > 0; attempts++ {
 			firstCard := gameRoom.GameState.DrawPile[0]
@@ -2133,7 +2168,7 @@ func StartGame(roomID string, uid int) error {
 				}
 				gameRoom.GameState.DiscardPile = append(gameRoom.GameState.DiscardPile, playedCard)
 				gameRoom.GameState.LastCard = &gameRoom.GameState.DiscardPile[0]
-				log.Printf("[场上初始物质] 🎴 备用方案：使用卡牌 %s", firstCard.Type)
+				log.Printf("[场上初始物质] 备用方案：使用卡牌 %s", firstCard.Type)
 				break
 			} else {
 				gameRoom.GameState.DrawPile = append(gameRoom.GameState.DrawPile, firstCard)

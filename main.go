@@ -250,11 +250,11 @@ func main() {
 		// 公开路由 - 认证组
 		authGroup := api.Group("/auth")
 		{
-			authGroup.POST("/register", handlers.Register)
-			authGroup.POST("/login", handlers.Login)
+			authGroup.POST("/register", middleware.RegisterRateLimiter(), handlers.Register)
+			authGroup.POST("/login", middleware.LoginRateLimiter(), handlers.Login)
 			authGroup.POST("/refresh", handlers.RefreshToken)
 			authGroup.GET("/config", handlers.GetAuthConfig)
-			authGroup.POST("/send-code", handlers.SendVerificationCode)
+			authGroup.POST("/send-code", middleware.SendCodeRateLimiter(), handlers.SendVerificationCode)
 			authGroup.POST("/reset-password", handlers.ResetPasswordByEmail)
 			authGroup.POST("/reset_password", handlers.ResetPasswordByEmail) // 别名兼容
 			authGroup.POST("/2fa/reset-password", handlers.ResetPasswordBy2FA)

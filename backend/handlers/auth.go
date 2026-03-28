@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"chemistryuno/backend/database"
+	"chemistryuno/backend/middleware"
 	"chemistryuno/backend/models"
 	"chemistryuno/backend/repository"
 	"chemistryuno/backend/utils"
@@ -26,18 +27,18 @@ import (
 func setSecureAuthCookie(c *gin.Context, name string, value string, maxAge int) {
 	// 根据请求协议判断是否使用HTTPS
 	secure := c.Request.URL.Scheme == "https" || c.Request.Header.Get("X-Forwarded-Proto") == "https"
-	
+
 	// 设置Cookie，包含安全属性
 	c.SetCookie(
-		name,           // cookie名称
-		value,          // token值
-		maxAge,         // 过期时间（秒）
-		"/",            // 路径：整个网站
-		"",             // 域：空表示当前域
-		secure,         // Secure：HTTPS时启用，防止中间人攻击
-		true,           // HttpOnly：防止XSS窃取
+		name,   // cookie名称
+		value,  // token值
+		maxAge, // 过期时间（秒）
+		"/",    // 路径：整个网站
+		"",     // 域：空表示当前域
+		secure, // Secure：HTTPS时启用，防止中间人攻击
+		true,   // HttpOnly：防止XSS窃取
 	)
-	
+
 	// 添加SameSite属性防CSRF（Gin的SetCookie不支持SameSite，需要手动设置）
 	// SameSite=Lax：GET请求跨站时被发送，POST等状态变更请求不被发送
 	c.SetSameSite(http.SameSiteLaxMode)
@@ -312,6 +313,23 @@ func Login(c *gin.Context) {
 		return
 	}
 
+	// 检测异常登录
+	clientIP := c.ClientIP()
+	userAgent := c.GetHeader("User-Agent")
+	anomalousLoginDetector := middleware.GetGlobalAnomalousLoginDetector()
+	anomalies := anomalousLoginDetector.CheckAnomalousLogin(user.UID, clientIP, userAgent)
+
+	// 如果检测到异常，记录反馈
+	if len(anomalies) > 0 {
+		loginRecorder := repository.NewAnomalousLoginRecorder(database.DB)
+		go func() {
+			if err := loginRecorder.RecordAnomalousLogin(uint(user.UID), clientIP, anomalies); err != nil {
+				log.Printf("⚠️ 记录异常登录失败: %v", err)
+			}
+		}()
+		log.Printf("⚠️ 检测到异常登录 UID=%d: %v", user.UID, anomalies)
+	}
+
 	isReturningPlayer := false
 	daysSinceLastLogin := 0
 	if dbUser.LastOfflineAt != nil {
@@ -340,15 +358,15 @@ func Login(c *gin.Context) {
 	log.Println("✅ 登录成功")
 	log.Printf("   账户: %s (UID=%d)", user.Username, user.UID)
 	log.Printf("   SID: %s", sid)
-	log.Printf("   IP: %s", c.ClientIP())
+	log.Printf("   IP: %s", clientIP)
 
 	// 设置安全的HttpOnly Cookie存储token
-	setSecureAuthCookie(c, "access_token", accessToken, 900)       // 15分钟
+	setSecureAuthCookie(c, "access_token", accessToken, 900)         // 15分钟
 	setSecureAuthCookie(c, "refresh_token", refreshToken, 7*24*3600) // 7天
 
 	c.JSON(http.StatusOK, gin.H{
-		"token_type":    "Bearer",
-		"expires_in":    900, // 900秒 = 15分钟
+		"token_type": "Bearer",
+		"expires_in": 900, // 900秒 = 15分钟
 		"user": gin.H{
 			"uid":                user.UID,
 			"username":           user.Username,
@@ -430,8 +448,8 @@ func RefreshToken(c *gin.Context) {
 	setSecureAuthCookie(c, "access_token", accessToken, 900)
 
 	c.JSON(http.StatusOK, gin.H{
-		"token_type":   "Bearer",
-		"expires_in":   900, // 900秒 = 15分钟
+		"token_type": "Bearer",
+		"expires_in": 900, // 900秒 = 15分钟
 	})
 }
 

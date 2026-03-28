@@ -79,7 +79,7 @@ func main() {
 		log.Println("│ 3️⃣  重新启动程序                                │")
 		log.Println("│                                                     │")
 		log.Println("│ 💡 将使用默认配置 (SQLite) 继续启动              │")
-		log.Println("└─────────────────────────────────────────────────────┘\n")
+		log.Println("└─────────────────────────────────────────────────────┘")
 	}
 
 	if loadErr != nil && !os.IsNotExist(loadErr) {

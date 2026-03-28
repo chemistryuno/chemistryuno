@@ -41,9 +41,11 @@ jobs:
           go build -o chemistryuno main.go
 
       - name: Start backend for Python tests
-        run: ./chemistryuno &
-        
+        run: |
+          ./chemistryuno &
+          sleep 5
+          
       - name: Test Full Stack
         run: |
-          node test.js
+          pip install requests
           python test_main.py

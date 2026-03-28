@@ -35,7 +35,10 @@ jobs:
           go-version: '1.22'
 
       - name: Build Full Stack
-        run: node build.js
+        run: |
+          pnpm run build:frontend
+          pnpm -C frontend run copy-dist
+          go build -o chemistryuno main.go
 
       - name: Test Full Stack
         run: node test.js

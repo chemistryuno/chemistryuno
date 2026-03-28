@@ -7,30 +7,8 @@ on:
     branches: [ "main", "master", "mendeleef" ]
   workflow_dispatch:
 jobs:
-  backend:
-    name: Build and Test Go Backend
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.22'
-          cache: true
-
-      - name: Install dependencies
-        run: go mod download
-
-      - name: Build
-        run: go build -v ./...
-
-      - name: Test
-        run: go test -v ./...
-
-  frontend:
-    name: Build Frontend
+  build-and-test:
+    name: Build & Test Full Stack
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -47,8 +25,23 @@ jobs:
           node-version: '20'
           cache: 'pnpm'
 
-      - name: Install dependencies
+      - name: Install frontend dependencies
         run: pnpm install
 
-      - name: Build Check
-        run: pnpm run build
+      - name: Build frontend
+        run: pnpm run build:frontend
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+
+      - name: Install Go dependencies
+        run: go mod download
+
+      - name: Build Go backend
+        run: go build -v ./...
+
+      - name: Test Go backend
+        run: go test -v ./...

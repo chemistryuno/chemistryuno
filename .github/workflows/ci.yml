@@ -46,7 +46,9 @@ jobs:
           BACKEND_PID=$!
           echo "Backend PID: $BACKEND_PID"
           echo "Waiting for backend to initialize..."
-          sleep 15
+          
+          # Wait for backend process to start
+          sleep 20
           
           # Check if process is still running
           if ! kill -0 $BACKEND_PID 2>/dev/null; then
@@ -54,10 +56,12 @@ jobs:
             cat server.log
             exit 1
           fi
+          
+          # Wait additional time to ensure routes are registered
+          sleep 10
           echo "✓ Backend initialization complete"
           
       - name: Test Full Stack
         run: |
           pip install requests
-          sleep 5
           python test_main.py

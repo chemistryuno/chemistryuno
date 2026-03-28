@@ -40,5 +40,10 @@ jobs:
           pnpm -C frontend run copy-dist
           go build -o chemistryuno main.go
 
+      - name: Start backend for Python tests
+        run: ./chemistryuno &
+        
       - name: Test Full Stack
-        run: node test.js
+        run: |
+          node test.js
+          python test_main.py

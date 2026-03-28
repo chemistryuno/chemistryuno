@@ -42,7 +42,7 @@ const onRefreshed = (token: string) => {
 const refreshAccessToken = async (): Promise<string | null> => {
   try {
     // Cookie会自动发送给服务器，不需要手动获取refresh_token
-    const response = await axios.post('/api/auth/refresh', {}, {
+    await axios.post('/api/auth/refresh', {}, {
       withCredentials: true // 确保cookie被发送
     })
 
@@ -88,7 +88,7 @@ api.interceptors.response.use(
         // 如果已经在刷新中，等待刷新完成
         if (isRefreshing) {
           return new Promise((resolve) => {
-            subscribeTokenRefresh((token: string) => {
+            subscribeTokenRefresh((_token: string) => {
               resolve(api(originalRequest))
             })
           })
@@ -195,6 +195,8 @@ export const authAPI = {
     api.post(`/feedbacks/${id}/urge`),
   withdrawFeedback: (id: number) =>
     api.post('/feedback/withdraw', { id }),
+  dismissFeedback: (id: number) =>
+    api.post(`/feedbacks/${id}/dismiss`),
   getActiveSurveys: () =>
     api.get('/surveys/active'),
   getAllActiveSurveys: () =>

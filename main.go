@@ -324,6 +324,7 @@ func main() {
 			auth.POST("/feedback", handlers.CreateFeedback)
 			auth.GET("/feedbacks/my", handlers.GetMyFeedbacks)
 			auth.POST("/feedbacks/:id/urge", handlers.UrgeFeedback)
+			auth.POST("/feedbacks/:id/dismiss", handlers.DismissFeedback)
 			auth.POST("/feedback/withdraw", handlers.WithdrawFeedback)
 
 			// 玩家自定义卡组

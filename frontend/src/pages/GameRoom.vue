@@ -2641,8 +2641,8 @@ watch(() => gameState.value?.current_player, () => {
             >
               <div class="flex items-center gap-4">
                 <div class="relative">
-                  <div class="w-12 h-12 rounded-xl bg-white dark:bg-white/10 flex items-center justify-center text-2xl border border-slate-200 dark:border-white/10 shadow-sm">
-                    {{ friend.avatar || '🧪' }}
+                  <div class="w-12 h-12 rounded-xl bg-white dark:bg-white/10 flex items-center justify-center text-2xl border border-slate-200 dark:border-white/10 shadow-sm overflow-hidden">
+                    <UserAvatar :avatar="friend.avatar" />
                   </div>
                   <div v-if="friend.is_online" class="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-emerald-500 border-3 border-white dark:border-[#121216] rounded-full shadow-lg shadow-emerald-500/20"></div>
                 </div>

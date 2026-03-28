@@ -142,7 +142,7 @@ const router = createRouter({
 
 const isDataRoute = (path: string): boolean => path === '/data' || path.startsWith('/data/')
 
-const findActiveRoomId = async (token: string | null, uid: number): Promise<string | null> => {
+const findActiveRoomId = async (_token: string | null, uid: number): Promise<string | null> => {
   try {
     const res = await fetch('/api/rooms', {
       credentials: 'include', // 自动发送cookie中的token

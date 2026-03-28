@@ -667,85 +667,85 @@ const copyToClipboard = (text: string) => {
         leave-from-class="opacity-100 translate-y-0"
         leave-to-class="opacity-0 -translate-y-4"
       >
-        <div v-if="isMobileMenuOpen" class="lg:hidden fixed inset-0 z-[45] pt-20 bg-white/98 dark:bg-slate-900/98 backdrop-blur-2xl">
-          <div class="px-6 py-4 space-y-6 max-h-[calc(100vh-80px)] overflow-y-auto">
+        <div v-if="isMobileMenuOpen" class="lg:hidden fixed inset-0 z-[45] pt-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-lg">
+          <div class="px-4 py-3 space-y-4 max-h-[calc(100vh-80px)] overflow-y-auto">
             <!-- 顶部装饰与统计 -->
-            <div class="flex items-center justify-between p-5 bg-blue-500/5 dark:bg-white/5 rounded-[32px] border border-blue-500/10 dark:border-white/10">
-               <div class="flex items-center gap-3">
-                  <div class="w-12 h-12 rounded-2xl bg-white dark:bg-slate-800 shadow-xl flex items-center justify-center border border-slate-100 dark:border-white/5">
-                     <UserAvatar :avatar="user.avatar" class="w-10 h-10" />
+            <div class="flex items-center justify-between p-3 bg-slate-50 dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/10">
+               <div class="flex items-center gap-2">
+                  <div class="w-10 h-10 rounded-lg bg-slate-200 dark:bg-slate-800 shadow-sm flex items-center justify-center border border-slate-100 dark:border-white/5 overflow-hidden">
+                     <UserAvatar :avatar="user.avatar" />
                   </div>
                   <div>
-                     <h4 class="text-sm font-black text-slate-800 dark:text-white leading-none uppercase">{{ user.nickname || user.username }}</h4>
-                     <p class="text-[9px] font-mono text-slate-400 mt-1.5 uppercase tracking-widest">研究员ID: {{ user.uid }}</p>
+                     <h4 class="text-xs font-black text-slate-800 dark:text-white leading-tight uppercase">{{ user.nickname || user.username }}</h4>
+                     <p class="text-[8px] font-mono text-slate-400 mt-0.5 uppercase tracking-widest">ID: {{ user.uid }}</p>
                   </div>
                </div>
                <div class="text-right">
-                  <div class="flex items-center justify-end gap-1.5 text-amber-500">
-                     <PhlogistonIcon :size="14" color="#f59e0b" />
-                     <span class="text-xs font-black font-mono">{{ Math.floor(user.points || 0) }}</span>
+                  <div class="flex items-center justify-end gap-1 text-amber-500">
+                     <PhlogistonIcon :size="12" color="#f59e0b" />
+                     <span class="text-[10px] font-black font-mono">{{ Math.floor(user.points || 0) }}</span>
                   </div>
-                  <p class="text-[8px] font-bold text-slate-400 uppercase mt-1">燃素</p>
+                  <p class="text-[7px] font-bold text-slate-400 uppercase mt-0.5">燃素</p>
                </div>
             </div>
 
-            <div class="grid grid-cols-2 gap-3">
-              <router-link @click="isMobileMenuOpen = false" to="/ranking" class="flex flex-col items-center justify-center p-5 bg-white dark:bg-white/5 rounded-3xl border border-slate-200 dark:border-white/10 shadow-sm active:scale-95 transition-all">
-                <div class="w-12 h-12 bg-amber-500/10 rounded-2xl flex items-center justify-center mb-3 text-amber-500">
-                  <PhlogistonIcon :size="28" color="#f59e0b" />
+            <div class="grid grid-cols-2 gap-2">
+              <router-link @click="isMobileMenuOpen = false" to="/ranking" class="flex flex-col items-center justify-center p-3 bg-slate-50 dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/10 shadow-sm active:scale-95 transition-all">
+                <div class="w-10 h-10 bg-amber-500/10 rounded-xl flex items-center justify-center mb-2 text-amber-500">
+                  <PhlogistonIcon :size="20" color="#f59e0b" />
                 </div>
-                <span class="text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300 text-center">排位榜单</span>
+                <span class="text-[9px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300 text-center leading-tight">排位榜单</span>
               </router-link>
 
-              <router-link @click="isMobileMenuOpen = false" to="/profile" class="flex flex-col items-center justify-center p-5 bg-white dark:bg-white/5 rounded-3xl border border-slate-200 dark:border-white/10 shadow-sm active:scale-95 transition-all">
-                <div class="w-12 h-12 bg-blue-500/10 rounded-2xl flex items-center justify-center mb-3 text-blue-500">
-                  <Settings class="w-6 h-6" />
+              <router-link @click="isMobileMenuOpen = false" to="/profile" class="flex flex-col items-center justify-center p-3 bg-slate-50 dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/10 shadow-sm active:scale-95 transition-all">
+                <div class="w-10 h-10 bg-blue-500/10 rounded-xl flex items-center justify-center mb-2 text-blue-500">
+                  <Settings class="w-5 h-5" />
                 </div>
-                <span class="text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300 text-center">个人中心</span>
+                <span class="text-[9px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300 text-center leading-tight">个人中心</span>
               </router-link>
 
-              <router-link @click="isMobileMenuOpen = false" to="/data" class="flex flex-col items-center justify-center p-5 bg-white dark:bg-white/5 rounded-3xl border border-slate-200 dark:border-white/10 shadow-sm active:scale-95 transition-all">
-                <div class="w-12 h-12 bg-cyan-500/10 rounded-2xl flex items-center justify-center mb-3 text-cyan-500">
-                  <Database class="w-6 h-6" />
+              <router-link @click="isMobileMenuOpen = false" to="/data" class="flex flex-col items-center justify-center p-3 bg-slate-50 dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/10 shadow-sm active:scale-95 transition-all">
+                <div class="w-10 h-10 bg-cyan-500/10 rounded-xl flex items-center justify-center mb-2 text-cyan-500">
+                  <Database class="w-5 h-5" />
                 </div>
-                <span class="text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300 text-center">物质百科</span>
+                <span class="text-[9px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300 text-center leading-tight">物质百科</span>
               </router-link>
 
-              <router-link @click="isMobileMenuOpen = false" to="/chat" class="flex flex-col items-center justify-center p-5 bg-white dark:bg-white/5 rounded-3xl border border-slate-200 dark:border-white/10 shadow-sm active:scale-95 transition-all">
-                <div class="w-12 h-12 bg-indigo-500/10 rounded-2xl flex items-center justify-center mb-3 text-indigo-500">
-                  <MessageCircle class="w-6 h-6" />
+              <router-link @click="isMobileMenuOpen = false" to="/chat" class="flex flex-col items-center justify-center p-3 bg-slate-50 dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/10 shadow-sm active:scale-95 transition-all">
+                <div class="w-10 h-10 bg-indigo-500/10 rounded-xl flex items-center justify-center mb-2 text-indigo-500">
+                  <MessageCircle class="w-5 h-5" />
                 </div>
-                <span class="text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300 text-center">公共频道</span>
+                <span class="text-[9px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300 text-center leading-tight">公共频道</span>
               </router-link>
 
-              <router-link @click="isMobileMenuOpen = false" to="/feedbacks" class="flex flex-col items-center justify-center p-5 bg-white dark:bg-white/5 rounded-3xl border border-slate-200 dark:border-white/10 shadow-sm active:scale-95 transition-all">
-                <div class="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center mb-3 text-emerald-500">
-                  <Megaphone class="w-6 h-6" />
+              <router-link @click="isMobileMenuOpen = false" to="/feedbacks" class="flex flex-col items-center justify-center p-3 bg-slate-50 dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/10 shadow-sm active:scale-95 transition-all">
+                <div class="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center mb-2 text-emerald-500">
+                  <Megaphone class="w-5 h-5" />
                 </div>
-                <span class="text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300 text-center">反馈公告</span>
+                <span class="text-[9px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300 text-center leading-tight">反馈公告</span>
               </router-link>
 
-              <router-link @click="isMobileMenuOpen = false" to="/plugins" class="flex flex-col items-center justify-center p-5 bg-white dark:bg-white/5 rounded-[2.5rem] border border-slate-200 dark:border-white/10 shadow-sm active:scale-95 transition-all group">
-                <div class="w-12 h-12 bg-blue-600/10 rounded-2xl flex items-center justify-center mb-3 text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-all">
-                  <Puzzle class="w-6 h-6" />
+              <router-link @click="isMobileMenuOpen = false" to="/plugins" class="flex flex-col items-center justify-center p-3 bg-slate-50 dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/10 shadow-sm active:scale-95 transition-all group">
+                <div class="w-10 h-10 bg-blue-600/10 rounded-xl flex items-center justify-center mb-2 text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-all">
+                  <Puzzle class="w-5 h-5" />
                 </div>
-                <span class="text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300 text-center">插件扩展市场</span>
+                <span class="text-[9px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300 text-center leading-tight">插件扩展市场</span>
               </router-link>
 
-              <router-link v-if="user.is_admin || user.role === 'co-worker'" @click="isMobileMenuOpen = false" to="/admin" class="flex flex-col items-center justify-center p-5 bg-white dark:bg-white/5 rounded-3xl border border-slate-200 dark:border-white/10 shadow-sm active:scale-95 transition-all col-span-2">
-                <div class="flex items-center gap-4">
-                  <div class="w-10 h-10 bg-rose-500/10 rounded-2xl flex items-center justify-center text-rose-500 shrink-0">
-                    <Shield class="w-5 h-5" />
+              <router-link v-if="user.is_admin || user.role === 'co-worker'" @click="isMobileMenuOpen = false" to="/admin" class="flex flex-col items-center justify-center p-3 bg-slate-50 dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/10 shadow-sm active:scale-95 transition-all col-span-2">
+                <div class="flex items-center gap-3">
+                  <div class="w-8 h-8 bg-rose-500/10 rounded-lg flex items-center justify-center text-rose-500 shrink-0">
+                    <Shield class="w-4 h-4" />
                   </div>
-                  <span class="text-[10px] font-black uppercase tracking-[0.2em] text-slate-600 dark:text-slate-300">系统核心管理面板</span>
+                  <span class="text-[9px] font-black uppercase tracking-[0.2em] text-slate-600 dark:text-slate-300">系统核心管理面板</span>
                 </div>
               </router-link>
             </div>
             
-            <div class="pt-4">
+            <div class="pt-2">
                <button 
                  @click="handleLogout" 
-                 class="w-full flex items-center justify-between px-6 py-4 bg-slate-100 dark:bg-white/5 hover:bg-red-500/10 text-slate-400 hover:text-red-500 rounded-[28px] border border-slate-200 dark:border-white/10 transition-all font-black uppercase tracking-widest text-[10px] group"
+                 class="w-full flex items-center justify-between px-4 py-3 bg-slate-50 dark:bg-white/5 hover:bg-red-500/10 text-slate-400 hover:text-red-500 rounded-2xl border border-slate-200 dark:border-white/10 transition-all font-black uppercase tracking-widest text-[9px] group"
                >
                  <div class="flex items-center gap-3">
                     <LogOut class="w-4 h-4" />

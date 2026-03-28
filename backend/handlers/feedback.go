@@ -213,3 +213,47 @@ func WithdrawFeedback(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "反馈已撤回"})
 }
+
+// 消除系统警告（特别是异常登陆警告）
+func DismissFeedback(c *gin.Context) {
+	uid := c.GetInt("uid")
+	feedbackID := c.Param("id")
+
+	id, err := strconv.ParseUint(feedbackID, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的反馈ID"})
+		return
+	}
+
+	// 检查反馈是否存在且属于当前用户
+	feedback, err := repository.FeedbackRepo.FindByID(uint(id))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "反馈不存在"})
+		return
+	}
+
+	if int(feedback.UserUID) != uid {
+		c.JSON(http.StatusForbidden, gin.H{"error": "无权消除此警告"})
+		return
+	}
+
+	// 系统警告可以直接删除
+	if feedback.Type == "system_alert" {
+		err = repository.FeedbackRepo.Delete(uint(id))
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "警告已消除"})
+		return
+	}
+
+	// 其他类型的消息标记为已消除
+	err = repository.FeedbackRepo.UpdateStatus(uint(id), "dismissed", 0, "用户已消除")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "反馈已消除"})
+}

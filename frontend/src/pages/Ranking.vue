@@ -442,12 +442,7 @@
           <div class="p-8 space-y-6 text-center">
              <div class="flex flex-col items-center">
                 <div class="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-center justify-center text-3xl mb-4 relative group overflow-hidden shadow-inner">
-                   <template v-if="(selectedTarget?.avatar || '').length > 50">
-                      <img :src="selectedTarget?.avatar" class="w-full h-full object-cover" />
-                   </template>
-                   <template v-else>
-                      {{ selectedTarget?.avatar || '🧪' }}
-                   </template>
+                   <UserAvatar :avatar="selectedTarget?.avatar" />
                    <div class="absolute -top-2 -right-2 w-6 h-6 bg-rose-600 rounded-full flex items-center justify-center border-4 border-white dark:border-[#121216]">
                       <Crosshair class="w-3 h-3 text-white" />
                    </div>

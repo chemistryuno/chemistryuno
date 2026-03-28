@@ -738,35 +738,38 @@ def main():
     ╚════════════════════════════════════════════════════════════╝
     """)
     
-    # 检查服务器连接，带重试机制
-    max_retries = 10
-    retry_count = 0
-    while retry_count < max_retries:
+    # 检查服务器连接，带重试机制（最多5次重试）
+    max_retries = 5
+    for attempt in range(max_retries):
         try:
-            # 尝试一个简单的API调用来验证服务器就绪
-            resp = requests.get(f"{BASE_URL}/api/game/substances", timeout=5)
-            if resp.status_code in [200, 400, 401]:  # 任何有效的HTTP响应都表示服务器在运行
-                print(f"✓ 已连接到 {BASE_URL}\n")
+            resp = requests.get(f"{BASE_URL}/api/game/substances", timeout=3)
+            if resp.status_code in [200, 400, 401]:
+                print(f"✓ Connected to {BASE_URL}\n")
                 break
+        except requests.exceptions.Timeout:
+            print(f"⏳ Server timeout, retrying... ({attempt+1}/{max_retries})")
+            if attempt < max_retries - 1:
+                time.sleep(2)
         except requests.exceptions.ConnectionError:
-            retry_count += 1
-            if retry_count < max_retries:
-                wait_time = 2
-                print(f"⏳ 等待后端服务器就绪... ({retry_count}/{max_retries})")
-                time.sleep(wait_time)
-            else:
-                print("✗ 无法连接到后端服务器")
-                print(f"  地址: {BASE_URL}")
-                print(f"  已重试 {max_retries} 次，放弃")
+            print(f"⏳ Waiting for server... ({attempt+1}/{max_retries})")
+            if attempt < max_retries - 1:
+                time.sleep(2)
+            elif attempt == max_retries - 1:
+                print("✗ Cannot connect to backend")
                 return False
         except Exception as e:
-            print("✗ 无法连接到后端服务器")
-            print(f"  地址: {BASE_URL}")
-            print(f"  错误: {e}")
+            print(f"✗ Error: {e}")
             return False
     
     manager = GameTestManager(BASE_URL)
-    success = manager.run_all_tests()
+    try:
+        success = manager.run_all_tests()
+    except KeyboardInterrupt:
+        print("\n✗ Tests interrupted")
+        return False
+    except Exception as e:
+        print(f"\n✗ Test error: {e}")
+        return False
     
     return success
 

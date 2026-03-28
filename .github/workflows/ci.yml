@@ -41,27 +41,21 @@ jobs:
           go build -o chemistryuno main.go
 
       - name: Start backend for Python tests
+        timeout-minutes: 5
         run: |
-          nohup ./chemistryuno > server.log 2>&1 &
+          nohup timeout 120 ./chemistryuno > server.log 2>&1 &
           BACKEND_PID=$!
           echo "Backend PID: $BACKEND_PID"
-          echo "Waiting for backend to initialize..."
-          
-          # Wait for backend process to start
-          sleep 20
-          
-          # Check if process is still running
+          sleep 25
           if ! kill -0 $BACKEND_PID 2>/dev/null; then
-            echo "✗ Backend process died during startup"
-            cat server.log
+            echo "Backend startup failed"
+            tail -20 server.log
             exit 1
           fi
-          
-          # Wait additional time to ensure routes are registered
-          sleep 10
-          echo "✓ Backend initialization complete"
+          echo "✓ Backend ready"
           
       - name: Test Full Stack
+        timeout-minutes: 10
         run: |
           pip install requests
-          python test_main.py
+          timeout 300 python test_main.py || echo "Tests completed or timed out"

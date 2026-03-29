@@ -8,6 +8,7 @@ import (
 	"chemistryuno/backend/middleware"
 	"chemistryuno/backend/plugins"
 	"chemistryuno/backend/repository"
+	"chemistryuno/backend/router"
 	"chemistryuno/backend/static"
 	"chemistryuno/backend/utils"
 	"chemistryuno/backend/websocket"
@@ -251,7 +252,7 @@ func main() {
 		api.GET("/version", handlers.GetVersion)
 
 		// 数据管理路由（物质、反应等）
-		handlers.RegisterDataRoutes(r)
+		router.RegisterDataRoutes(r)
 
 		// 公开路由 - 认证组
 		authGroup := api.Group("/auth")
@@ -503,7 +504,7 @@ func main() {
 		}
 
 		// 等级系统路由
-		handlers.RegisterLevelRoutes(r, middleware.AuthMiddleware())
+		router.RegisterLevelRoutes(r)
 	}
 
 	// 服务前端静态文件（使用 embed 嵌入）

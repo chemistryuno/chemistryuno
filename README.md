@@ -23,6 +23,7 @@
 - [环境变量（核心项）](#️-环境变量核心项)
 - [API 与路由分组（摘要）](#-api-与路由分组摘要)
 - [项目结构](#-项目结构)
+- [文件职责与分层约定](#-文件职责与分层约定)
 - [测试建议](#-测试建议)
 - [文档索引](#-文档索引)
 - [FAQ / 排障](#-faq--排障)
@@ -317,6 +318,7 @@ pnpm start
 ├── backend/
 │   ├── game/                 # 游戏核心逻辑（规则、AI、回合、房间）
 │   ├── handlers/             # HTTP 处理器（auth/game/admin/plugin...）
+│   ├── router/               # 路由装配层（分组、鉴权绑定、路径注册）
 │   ├── middleware/           # 鉴权、权限、CORS
 │   ├── repository/           # 数据访问层
 │   ├── websocket/            # WS Hub & Client
@@ -328,12 +330,22 @@ pnpm start
 │       ├── components/       # 组件
 │       ├── composables/      # 复用逻辑
 │       └── utils/            # API/WS/工具函数
-├── tools/                    # 工具脚本
+├── tools/                    # 工具模块（入口在 tools/cmd/*）
 ├── COMMANDS.md
 ├── QUICKSTART.md
 ├── DEPLOYMENT.md
 └── backend/API_DOCUMENTATION.md
 ```
+
+---
+
+## 🧭 文件职责与分层约定
+
+- 工程入口脚本（`init.js` / `start.js` / `build.js` / `test.js`）仅负责流程编排，不承载业务规则。
+- 后端业务逻辑放在 `backend/` 分层内：`router` 处理路由装配，`handlers` 处理协议边界，`repository` 处理数据访问，`game` 处理领域规则。
+- 数据修复与迁移脚本统一放在 `backend/scripts/`，避免与通用工具目录重复。
+- 仓库级自动化脚本放在 `scripts/`。
+- 详细职责说明见：`docs/FILE_RESPONSIBILITIES.md`。
 
 ---
 
@@ -353,6 +365,7 @@ pnpm start
 - 命令速查：`COMMANDS.md`
 - API 文档：`backend/API_DOCUMENTATION.md`
 - 等级系统：`LEVEL_SYSTEM_DOCS.md`
+- 文件职责：`docs/FILE_RESPONSIBILITIES.md`
 
 ---
 

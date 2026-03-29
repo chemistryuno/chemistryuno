@@ -3,7 +3,6 @@ package handlers
 import (
 	"chemistryuno/backend/database"
 	"chemistryuno/backend/game"
-	"chemistryuno/backend/middleware"
 	"chemistryuno/backend/repository"
 	"errors"
 	"fmt"
@@ -437,30 +436,4 @@ func SubmitNewSubstance(c *gin.Context) {
 		"message": "物质建议已提交，等待管理员审核",
 		"id":      newSubstance.ID,
 	})
-}
-
-// RegisterDataRoutes 注册数据管理路由
-func RegisterDataRoutes(r *gin.Engine) {
-	// 公开路由 - 物质名称映射
-	r.GET("/api/substances/names", GetSubstanceNames)
-
-	data := r.Group("/api/data")
-	data.Use(middleware.AuthMiddleware())
-	{
-		// 物质管理
-		data.GET("/substances", GetAllSubstancesGrouped)
-		data.GET("/substances/my", GetMySubstances)
-		data.GET("/substances/:id/group", GetSubstancesByGroup)
-		data.POST("/substances/:id/update", SubmitSubstanceUpdate)
-		data.POST("/substances/new", SubmitNewSubstance) // 新增：提交新物质建议
-
-		// 协作者/管理员专用
-		coworker := data.Group("")
-		coworker.Use(middleware.CoWorkerMiddleware())
-		{
-			coworker.PUT("/substances/:id", AdminUpdateSubstance)
-			coworker.POST("/substances/:id/approve", ApproveSubstanceUpdate)
-			coworker.DELETE("/substances/:id/reject", RejectSubstanceUpdate)
-		}
-	}
 }

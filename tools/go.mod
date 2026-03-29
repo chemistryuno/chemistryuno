@@ -2,7 +2,7 @@ module tools
 
 go 1.24.0
 
-replace chemistryuno => ../backend
+replace chemistryuno => ..
 
 require (
 	chemistryuno v0.0.0

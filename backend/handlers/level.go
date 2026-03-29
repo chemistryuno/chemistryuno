@@ -3,7 +3,6 @@ package handlers
 import (
 	"chemistryuno/backend/database"
 	"chemistryuno/backend/game"
-	"chemistryuno/backend/middleware"
 	"chemistryuno/backend/repository"
 	"net/http"
 	"strconv"
@@ -135,17 +134,4 @@ func GetAllLevelConfigs(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, configs)
-}
-
-// RegisterLevelRoutes registers level routes.
-func RegisterLevelRoutes(router *gin.Engine, authMiddleware gin.HandlerFunc) {
-	router.GET("/api/level/configs", GetAllLevelConfigs)
-	router.GET("/api/level/leaderboard", GetLevelLeaderboard)
-	router.GET("/api/level/user/:uid", GetUserLevelInfo)
-
-	authGroup := router.Group("/api/level")
-	authGroup.Use(middleware.AuthMiddleware())
-	{
-		authGroup.GET("/info", GetLevelInfo)
-	}
 }

@@ -1661,7 +1661,7 @@ func GetLogs(c *gin.Context) {
 
 	level := c.Query("level") // 可选：过滤日志级别
 
-	var logs interface{}
+	var logs []utils.LogEntry
 	if level != "" {
 		logs = utils.GetLogsByLevel(level, count)
 	} else {
@@ -1670,7 +1670,7 @@ func GetLogs(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"logs":  logs,
-		"count": len(logs.([]utils.LogEntry)),
+		"count": len(logs),
 	})
 }
 

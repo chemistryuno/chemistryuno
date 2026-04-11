@@ -1,4 +1,4 @@
-package handlers
+﻿package handlers
 
 import (
 	"archive/zip"
@@ -26,9 +26,9 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ---- .cumod 鏂囦欢鍐呴儴缁撴瀯 ----
+// ---- .cumod archive structures ----
 
-// pluginManifest 瀵瑰簲 manifest.json
+// pluginManifest maps manifest.json.
 type pluginManifest struct {
 	Name         string          `json:"name"`
 	Version      string          `json:"version"`
@@ -43,7 +43,7 @@ type pluginManifest struct {
 	} `json:"scripts"`
 }
 
-// cumodCardDef 瀵瑰簲 cards.json 涓殑鍗曞紶鍗＄墝瀹氫箟
+// cumodCardDef maps one card entry from cards.json.
 type cumodCardDef struct {
 	Symbol       string          `json:"symbol"`
 	DisplayName  string          `json:"display_name"`
@@ -53,7 +53,7 @@ type cumodCardDef struct {
 	Color        string          `json:"color"`
 }
 
-// ---- 鏈嶅姟鍣ㄩ噸鍚姸鎬?----
+// ---- Restart state ----
 
 var (
 	restartScheduled bool
@@ -151,9 +151,9 @@ func normalizeScriptPath(p string) (string, error) {
 	return path, nil
 }
 
-// ---- 澶勭悊鍣?----
+// ---- Handlers ----
 
-// InstallPlugin 浠?.cumod 鏂囦欢瀹夎鎻掍欢
+// InstallPlugin installs a plugin from a .cumod archive.
 // POST /api/admin/plugins/install  (multipart/form-data, field: "file")
 func InstallPlugin(c *gin.Context) {
 	uid, _ := c.Get("uid")
@@ -167,34 +167,34 @@ func InstallPlugin(c *gin.Context) {
 
 	fileHeader, err := c.FormFile("file")
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "璇蜂笂浼?.cumod 鏂囦欢"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请上传 .cumod 文件"})
 		return
 	}
 	if !strings.HasSuffix(strings.ToLower(fileHeader.Filename), ".cumod") {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "鏂囦欢蹇呴』涓?.cumod 鏍煎紡"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "文件必须为 .cumod 格式"})
 		return
 	}
-	// 鏂囦欢澶у皬鍓嶇疆妫€鏌ワ紙闃?OOM DoS锛?
+	// Reject oversized uploads early to reduce DoS risk.
 	if fileHeader.Size > maxCumodFileSize {
-		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("鏂囦欢涓嶈兘瓒呰繃 %dMB", maxCumodFileSize>>20)})
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("文件不能超过 %dMB", maxCumodFileSize>>20)})
 		return
 	}
 
 	f, err := fileHeader.Open()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "璇诲彇鏂囦欢澶辫触"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "读取文件失败"})
 		return
 	}
 	defer f.Close()
 
-	// 浣跨敤 LimitReader 鍙岄噸淇濋櫓锛岄槻姝?Content-Length 琚吉閫?
+	// Use LimitReader as a second guard even if Content-Length is spoofed.
 	fileBytes, err := io.ReadAll(io.LimitReader(f, maxCumodFileSize+1))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "璇诲彇鏂囦欢鍐呭澶辫触"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "读取文件内容失败"})
 		return
 	}
 	if int64(len(fileBytes)) > maxCumodFileSize {
-		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("鏂囦欢涓嶈兘瓒呰繃 %dMB", maxCumodFileSize>>20)})
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("文件不能超过 %dMB", maxCumodFileSize>>20)})
 		return
 	}
 
@@ -225,53 +225,53 @@ func InstallPlugin(c *gin.Context) {
 		case "manifest.json":
 			rc, err := zf.Open()
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "璇诲彇 manifest.json 澶辫触"})
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "读取 manifest.json 失败"})
 				return
 			}
 			data, readErr := io.ReadAll(io.LimitReader(rc, maxCumodInnerFile))
 			rc.Close()
 			if readErr != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "璇诲彇 manifest.json 鍐呭澶辫触"})
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "读取 manifest.json 内容失败"})
 				return
 			}
 			manifest = &pluginManifest{}
 			data = bytes.TrimPrefix(data, []byte{0xEF, 0xBB, 0xBF})
 			if err := json.Unmarshal(data, manifest); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "manifest.json 鏍煎紡閿欒: " + err.Error()})
+				c.JSON(http.StatusBadRequest, gin.H{"error": "manifest.json 格式错误: " + err.Error()})
 				return
 			}
 
 		case "cards.json":
 			rc, err := zf.Open()
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "璇诲彇 cards.json 澶辫触"})
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "读取 cards.json 失败"})
 				return
 			}
 			data, readErr := io.ReadAll(io.LimitReader(rc, maxCumodInnerFile))
 			rc.Close()
 			if readErr != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "璇诲彇 cards.json 鍐呭澶辫触"})
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "读取 cards.json 内容失败"})
 				return
 			}
 			data = bytes.TrimPrefix(data, []byte{0xEF, 0xBB, 0xBF})
 			if err := json.Unmarshal(data, &cardDefs); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "cards.json 鏍煎紡閿欒: " + err.Error()})
+				c.JSON(http.StatusBadRequest, gin.H{"error": "cards.json 格式错误: " + err.Error()})
 				return
 			}
 		}
 	}
 
-	// 鏍￠獙 manifest.json锛堝繀椤诲瓨鍦級
+	// Validate manifest.json.
 	if manifest == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "闈炴硶鎻掍欢锛氱己灏?manifest.json"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "非法插件：缺少 manifest.json"})
 		return
 	}
 	if strings.TrimSpace(manifest.Name) == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "manifest.json 涓?name 瀛楁涓嶈兘涓虹┖"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "manifest.json 中 name 字段不能为空"})
 		return
 	}
 	if strings.TrimSpace(manifest.Version) == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "manifest.json 涓?version 瀛楁涓嶈兘涓虹┖"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "manifest.json 中 version 字段不能为空"})
 		return
 	}
 
@@ -281,22 +281,22 @@ func InstallPlugin(c *gin.Context) {
 		return
 	}
 
-	// 瑙ｆ瀽鑴氭湰鍏ュ彛锛堝彲閫夛級
+	// Resolve script entry paths.
 	clientPath, err := normalizeScriptPath(manifest.Scripts.Client)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "manifest.json 涓?scripts.client 璺緞闈炴硶"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "manifest.json 中 scripts.client 路径非法"})
 		return
 	}
 	if clientPath == "" {
 		clientPath, err = normalizeScriptPath(manifest.Script)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "manifest.json 涓?script 璺緞闈炴硶"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "manifest.json 中 script 路径非法"})
 			return
 		}
 	}
 	serverPath, err := normalizeScriptPath(manifest.Scripts.Server)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "manifest.json 涓?scripts.server 璺緞闈炴硶"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "manifest.json 中 scripts.server 路径非法"})
 		return
 	}
 
@@ -307,7 +307,7 @@ func InstallPlugin(c *gin.Context) {
 			return
 		}
 		if readErr != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "璇诲彇 client 鑴氭湰鏂囦欢澶辫触"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "读取 client 脚本文件失败"})
 			return
 		}
 		clientScriptBytes = data
@@ -315,12 +315,12 @@ func InstallPlugin(c *gin.Context) {
 		if data, readErr := readZipFile(zipReader, "script.js"); readErr == nil {
 			clientScriptBytes = data
 		} else if readErr != errZipFileNotFound {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "璇诲彇 script.js 澶辫触"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "读取 script.js 失败"})
 			return
 		} else if data, readErr := readZipFile(zipReader, "client.js"); readErr == nil {
 			clientScriptBytes = data
 		} else if readErr != errZipFileNotFound {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "璇诲彇 client.js 澶辫触"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "读取 client.js 失败"})
 			return
 		}
 	}
@@ -332,7 +332,7 @@ func InstallPlugin(c *gin.Context) {
 			return
 		}
 		if readErr != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "璇诲彇 server 鑴氭湰鏂囦欢澶辫触"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "读取 server 脚本文件失败"})
 			return
 		}
 		serverScriptBytes = data
@@ -340,17 +340,17 @@ func InstallPlugin(c *gin.Context) {
 		if data, readErr := readZipFile(zipReader, "server.js"); readErr == nil {
 			serverScriptBytes = data
 		} else if readErr != errZipFileNotFound {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "璇诲彇 server.js 澶辫触"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "读取 server.js 失败"})
 			return
 		}
 	}
 
-	// 鏍￠獙鎵€鏈夊崱鐗屽畾涔?
+	// Validate all custom card definitions.
 	validTypes := map[string]bool{"swap": true, "force_play": true, "convert": true}
 	for i, cd := range cardDefs {
 		symbol := strings.ToUpper(strings.TrimSpace(cd.Symbol))
 		if symbol == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("cards.json 绗?%d 涓崱鐗岀己灏?symbol 瀛楁", i+1)})
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("cards.json 第 %d 个卡牌缺少 symbol 字段", i+1)})
 			return
 		}
 		if isBuiltinDeckCardSymbol(symbol) {
@@ -358,16 +358,16 @@ func InstallPlugin(c *gin.Context) {
 			return
 		}
 		if !validTypes[cd.EffectType] {
-			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("鍗＄墝 %s 鐨?effect_type 鏃犳晥锛屽繀椤讳负 swap / force_play / convert", cd.Symbol)})
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("卡牌 %s 的 effect_type 无效，必须为 swap / force_play / convert", cd.Symbol)})
 			return
 		}
 		if err := validateEffectConfig(cd.EffectType, cd.EffectConfig); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("鍗＄墝 %s 鐨?effect_config 閿欒: %v", cd.Symbol, err)})
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("卡牌 %s 的 effect_config 错误: %v", cd.Symbol, err)})
 			return
 		}
 	}
 
-	// 鍐欏叆 Plugin 璁板綍
+	// Create the plugin record.
 	plugin := &database.Plugin{
 		Name:         strings.TrimSpace(manifest.Name),
 		Description:  manifest.Description,
@@ -382,11 +382,11 @@ func InstallPlugin(c *gin.Context) {
 		CreatedAt:    time.Now(),
 	}
 	if err := repository.PluginRepo.CreatePlugin(plugin); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "鍒涘缓鎻掍欢璁板綍澶辫触: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建插件记录失败: " + err.Error()})
 		return
 	}
 
-	// 鍐欏叆 PluginCard 璁板綍
+	// Create related plugin card records.
 	var createdCards []*database.PluginCard
 	for _, cd := range cardDefs {
 		defaultCount := cd.DefaultCount
@@ -433,12 +433,12 @@ func InstallPlugin(c *gin.Context) {
 	})
 }
 
-// GetPluginsWithCards 鑾峰彇鎵€鏈夋縺娲绘彃浠跺強鍏跺崱鐗岋紙鐢ㄦ埛鍙瑙嗗浘锛?
+// GetPluginsWithCards returns all active plugins and their cards.
 // GET /api/plugins
 func GetPluginsWithCards(c *gin.Context) {
 	plugins, err := repository.PluginRepo.GetAllPlugins()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "鑾峰彇鎻掍欢鍒楄〃澶辫触"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取插件列表失败"})
 		return
 	}
 
@@ -472,13 +472,13 @@ func GetPluginsWithCards(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
-// GetPluginScript 鑾峰彇鎻掍欢鑴氭湰锛堜粎闄愬凡婵€娲绘彃浠讹級
+// GetPluginScript returns the client script for an active plugin.
 // GET /api/plugins/:id/script
 func GetPluginScript(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "鏃犳晥鐨勬彃浠?ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的插件 ID"})
 		return
 	}
 	plugin, err := repository.PluginRepo.GetPlugin(uint(id))
@@ -494,7 +494,7 @@ func GetPluginScript(c *gin.Context) {
 	c.String(http.StatusOK, plugin.Script)
 }
 
-// ScheduleServerRestart 鍊掕鏃堕噸鍚湇鍔″櫒
+// ScheduleServerRestart schedules a delayed server restart.
 // POST /api/admin/server/restart
 // Body: { "delay_seconds": 30, "reason": "..." }
 func ScheduleServerRestart(c *gin.Context) {
@@ -503,7 +503,7 @@ func ScheduleServerRestart(c *gin.Context) {
 		Reason       string `json:"reason"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "鍙傛暟閿欒: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误: " + err.Error()})
 		return
 	}
 	if req.DelaySeconds < 10 {
@@ -519,7 +519,7 @@ func ScheduleServerRestart(c *gin.Context) {
 	restartMu.Lock()
 	if restartScheduled {
 		restartMu.Unlock()
-		c.JSON(http.StatusConflict, gin.H{"error": "宸叉湁閲嶅惎璁″垝杩涜涓紝濡傞渶鍙栨秷璇疯皟鐢?/cancel"})
+		c.JSON(http.StatusConflict, gin.H{"error": "已有重启计划进行中，如需取消请调用 /cancel"})
 		return
 	}
 	restartScheduled = true
@@ -540,7 +540,7 @@ func ScheduleServerRestart(c *gin.Context) {
 		})
 	}
 
-	log.Printf("[Server] 鈿狅笍  鏈嶅姟鍣ㄥ皢鍦?%d 绉掑悗閲嶅惎锛屽師鍥? %s", req.DelaySeconds, req.Reason)
+	log.Printf("[Server] restart scheduled in %d seconds, reason: %s", req.DelaySeconds, req.Reason)
 
 	cancel := restartCancel
 	go func() {
@@ -549,14 +549,14 @@ func ScheduleServerRestart(c *gin.Context) {
 			if hub != nil {
 				hub.BroadcastToAll(websocket.Message{
 					Type: "server_restart_now",
-					Data: "鏈嶅姟鍣ㄦ鍦ㄩ噸鍚紝璇风◢鍊?..",
+					Data: "服务器正在重启，请稍候...",
 				})
 			}
 			time.Sleep(2 * time.Second)
-			log.Println("[Server] 馃攧 鎵ц閲嶅惎...")
+			log.Println("[Server] restarting now...")
 			if shouldSelfRestart() {
 				if err := spawnSelfRestart(); err != nil {
-					log.Printf("[Server] 鉂?鑷惎鍔ㄩ噸鍚け璐? %v (灏嗙洿鎺ラ€€鍑?", err)
+					log.Printf("[Server] failed to spawn restart process: %v", err)
 				} else {
 					log.Println("[Server] new process started, exiting current process")
 				}
@@ -568,19 +568,19 @@ func ScheduleServerRestart(c *gin.Context) {
 	}()
 
 	c.JSON(http.StatusOK, gin.H{
-		"message":    fmt.Sprintf("鏈嶅姟鍣ㄥ皢鍦?%d 绉掑悗閲嶅惎", req.DelaySeconds),
+		"message":    fmt.Sprintf("服务器将在 %d 秒后重启", req.DelaySeconds),
 		"restart_at": restartAt.UnixMilli(),
 	})
 }
 
-// CancelServerRestart 鍙栨秷宸叉帓绋嬬殑閲嶅惎
+// CancelServerRestart cancels a scheduled restart.
 // POST /api/admin/server/restart/cancel
 func CancelServerRestart(c *gin.Context) {
 	restartMu.Lock()
 	defer restartMu.Unlock()
 
 	if !restartScheduled {
-		c.JSON(http.StatusNotFound, gin.H{"error": "褰撳墠娌℃湁杩涜涓殑閲嶅惎璁″垝"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "当前没有进行中的重启计划"})
 		return
 	}
 	close(restartCancel)
@@ -595,3 +595,4 @@ func CancelServerRestart(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "重启已取消"})
 }
+

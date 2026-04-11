@@ -550,7 +550,7 @@ func GetReactions(c *gin.Context) {
 	if c.Query("paginated") == "1" {
 		reactionList, total, err := reactionRepo.FindGroupedWithCreatorPage(filter)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "鏁版嵁搴撻敊璇?"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误"})
 			return
 		}
 
@@ -605,7 +605,7 @@ func GetAllReactions(c *gin.Context) {
 	if c.Query("paginated") == "1" {
 		reactionList, total, err := reactionRepo.FindGroupedWithCreatorPage(filter)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "鏁版嵁搴撻敊璇?"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误"})
 			return
 		}
 
@@ -648,7 +648,7 @@ func GetMyReactions(c *gin.Context) {
 	if c.Query("paginated") == "1" {
 		reactionList, total, err := reactionRepo.FindGroupedWithCreatorPage(filter)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "鏁版嵁搴撻敊璇?"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误"})
 			return
 		}
 

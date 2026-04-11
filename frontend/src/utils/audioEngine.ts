@@ -1,16 +1,16 @@
-/**
- * 音效引擎 - 实验室主题音效系�?
+﻿/**
+ *
  * 使用 Web Audio API 生成实验室特有的声音效果
  * 包含玻璃器皿、纸张摩擦、化学反应等真实音效
- * 独立的音效处理模块，与反馈系统解�?
+ *
  */
 
 export type SoundType =
-  | 'click'          // 普通点�?
+  | 'click'
   | 'play-card'      // 打牌
   | 'draw-card'      // 摸牌
   | 'reaction'       // 化学反应
-  | 'turn-start'     // 回合开�?
+  | 'turn-start'
   | 'success'        // 成功操作
   | 'error'          // 错误操作
   | 'win'            // 胜利
@@ -32,14 +32,14 @@ export class AudioEngine {
   }
 
   /**
-   * 设置启用状�?
+   *
    */
   setEnabled(enabled: boolean) {
     this.enabled = enabled
   }
 
   /**
-   * 获取或创�?AudioContext
+   *
    */
   private getContext(): AudioContext {
     if (!this.context) {
@@ -65,7 +65,7 @@ export class AudioEngine {
   }
 
   /**
-   * 播放玻璃破碎音效（用于化学反应等�?
+   *
    */
   private playGlassBreak(intensity: number = 1) {
     if (!this.enabled) return
@@ -74,7 +74,7 @@ export class AudioEngine {
       const context = this.getContext()
       const now = context.currentTime
 
-      // 噪声�?
+
       const noise = context.createBufferSource()
       noise.buffer = this.createNoiseBuffer(0.3)
 
@@ -83,7 +83,7 @@ export class AudioEngine {
       highpass.type = 'highpass'
       highpass.frequency.value = 2000 + intensity * 1000
 
-      // 增益控制 - 快速衰�?
+
       const gainNode = context.createGain()
       gainNode.gain.setValueAtTime(this.volume * intensity, now)
       gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.3)
@@ -110,7 +110,7 @@ export class AudioEngine {
       const context = this.getContext()
       const now = context.currentTime
 
-      // 噪声�?
+
       const noise = context.createBufferSource()
       noise.buffer = this.createNoiseBuffer(duration)
 
@@ -148,7 +148,7 @@ export class AudioEngine {
       const context = this.getContext()
       const now = context.currentTime
 
-      // 主音�?- 玻璃的共振频�?
+
       const oscillator = context.createOscillator()
       oscillator.type = 'sine'
       oscillator.frequency.value = frequency
@@ -158,7 +158,7 @@ export class AudioEngine {
       oscillator2.type = 'sine'
       oscillator2.frequency.value = frequency * 2.5
 
-      // 增益包络 - 快速衰减模拟玻璃敲�?
+
       const gainNode = context.createGain()
       gainNode.gain.setValueAtTime(this.volume * 0.5, now)
       gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.15)
@@ -195,7 +195,7 @@ export class AudioEngine {
         setTimeout(() => {
           const now = context.currentTime
 
-          // 低频振荡�?- 模拟气泡破裂
+
           const oscillator = context.createOscillator()
           oscillator.type = 'sine'
           oscillator.frequency.setValueAtTime(frequency + Math.random() * 100, now)
@@ -219,7 +219,7 @@ export class AudioEngine {
   }
 
   /**
-   * 播放实验室按�?开关音�?
+   *
    */
   private playLabClick(frequency: number = 1500) {
     if (!this.enabled) return
@@ -233,12 +233,12 @@ export class AudioEngine {
       oscillator.type = 'square'
       oscillator.frequency.value = frequency
 
-      // 低通滤波器 - 柔化机械�?
+
       const lowpass = context.createBiquadFilter()
       lowpass.type = 'lowpass'
       lowpass.frequency.value = 2000
 
-      // 快速衰�?
+
       const gainNode = context.createGain()
       gainNode.gain.setValueAtTime(this.volume * 0.3, now)
       gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.04)
@@ -267,12 +267,12 @@ export class AudioEngine {
 
     switch (type) {
       case 'click':
-        // 实验室按钮点�?
+
         this.playLabClick(1400)
         break
 
       case 'play-card':
-        // 卡牌翻出 - 纸张摩擦�?
+
         this.playPaperShuffle(0.12, 1.2)
         setTimeout(() => this.playPaperShuffle(0.08, 1.4), 60)
         break
@@ -283,13 +283,13 @@ export class AudioEngine {
         break
 
       case 'reaction':
-        // 化学反应 - 玻璃破碎 + 气泡�?
+
         this.playGlassBreak(0.8)
         setTimeout(() => this.playBubble(250, 3), 100)
         break
 
       case 'turn-start':
-        // 回合开�?- 清脆的烧杯碰�?
+
         this.playBeakerClink(2200)
         break
 
@@ -301,7 +301,7 @@ export class AudioEngine {
         break
 
       case 'error':
-        // 错误 - 低沉的玻璃撞�?
+
         this.playBeakerClink(800)
         setTimeout(() => this.playBeakerClink(700), 100)
         break
@@ -329,7 +329,7 @@ export class AudioEngine {
         break
 
       case 'double-mode':
-        // 双联模式 - 快速双击纸�?
+
         this.playPaperShuffle(0.08, 1.5)
         setTimeout(() => this.playPaperShuffle(0.08, 1.7), 50)
         break
@@ -342,7 +342,7 @@ export class AudioEngine {
         break
 
       case 'level-up':
-        // 升级 - 连续上升的烧杯音�?+ 玻璃闪光
+
         const frequencies = [1200, 1400, 1600, 1900, 2300, 2800]
         frequencies.forEach((freq, index) => {
           setTimeout(() => this.playBeakerClink(freq), index * 80)
@@ -356,7 +356,7 @@ export class AudioEngine {
   }
 
   /**
-   * 停止所有音�?
+   *
    */
   stopAll() {
     if (this.context) {
@@ -364,7 +364,7 @@ export class AudioEngine {
         this.context.close()
         this.context = null
       } catch (error) {
-        console.warn('[AudioEngine] 关闭音频上下文失�?', error)
+        console.warn('[AudioEngine] 关闭音频上下文失败:', error)
       }
     }
   }

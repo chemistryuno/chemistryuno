@@ -1676,7 +1676,7 @@ watch(() => gameState.value?.current_player, () => {
 </script>
 
 <template>
-  <div class="h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white overflow-hidden flex flex-col font-sans selection:bg-blue-500/30 max-w-[1920px] mx-auto">
+  <div class="h-screen w-full bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white overflow-hidden flex flex-col font-sans selection:bg-blue-500/30">
     <!-- Loading State -->
     <div v-if="loading" class="h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 flex flex-col items-center justify-center p-4 relative overflow-hidden">
       <!-- Background Elements -->
@@ -1761,8 +1761,7 @@ watch(() => gameState.value?.current_player, () => {
           <div class="hidden xs:block">
             <h2 class="text-xs-mobile font-black tracking-widest uppercase font-mono text-slate-400">Node: {{ roomInfo?.name || id.substring(0, 6) }}</h2>
             <div class="flex items-center gap-1.5">
-               <span class="text-xs-mobile font-black uppercase text-slate-500 tracking-tighter">延迟</span>
-               <PingDisplay />
+              <PingDisplay />
             </div>
           </div>
         </div>
@@ -2304,9 +2303,9 @@ watch(() => gameState.value?.current_player, () => {
              </div>
           </div>
         <!-- Table Console Background Removed or Simplified -->
-        <div class="absolute inset-0 pointer-events-none overflow-hidden">
-           <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-blue-500/[0.02] dark:bg-blue-500/[0.05] rounded-full blur-[120px]"></div>
-        </div>
+          <div class="absolute inset-0 pointer-events-none overflow-hidden">
+            <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[65%] h-[70%] bg-slate-300/[0.14] dark:bg-slate-500/[0.08] rounded-full blur-[100px]"></div>
+          </div>
       </div>
 
       <!-- Hand / Deck Area -->
@@ -2674,10 +2673,8 @@ watch(() => gameState.value?.current_player, () => {
 
     <!-- Players Floating Panel -->
     <div
-      :class="cn(
-        'fixed right-0 top-0 bottom-0 w-[85%] sm:w-80 z-[110] bg-white dark:bg-slate-900 border-l lg:border border-slate-200 dark:border-white/10 lg:rounded-[40px] lg:top-6 lg:bottom-52 lg:right-6 shadow-2xl transition-all duration-500 ease-in-out flex flex-col overflow-hidden',
-        showPlayers ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0 pointer-events-none'
-      )"
+      v-if="showPlayers"
+      class="fixed right-0 top-0 bottom-0 w-[85%] sm:w-80 z-[110] bg-white dark:bg-slate-900 border-l lg:border border-slate-200 dark:border-white/10 lg:rounded-[40px] lg:top-6 lg:bottom-52 lg:right-6 shadow-2xl flex flex-col overflow-hidden"
     >
       <div class="px-5 py-4 border-b border-slate-200 dark:border-white/10 flex items-center justify-between sticky top-0 z-20 bg-inherit pb-6 lg:pb-4">
         <div class="flex items-center gap-3">
@@ -2837,10 +2834,8 @@ watch(() => gameState.value?.current_player, () => {
 
     <!-- Chat Floating Sidebar -->
     <div
-      :class="cn(
-        'fixed right-0 top-0 bottom-0 w-full lg:w-80 z-[100] lg:top-6 lg:bottom-52 lg:right-6 transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] flex flex-col',
-        showChat ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0 pointer-events-none'
-      )"
+      v-if="showChat"
+      class="fixed right-0 top-0 bottom-0 w-full lg:w-80 z-[100] lg:top-6 lg:bottom-52 lg:right-6 flex flex-col"
     >
       <ChatBox
         :roomId="id"

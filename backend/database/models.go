@@ -380,15 +380,23 @@ func (SurveyDismissal) TableName() string {
 
 // GameHistory GORM模型 - 游戏历史表
 type GameHistory struct {
-	ID                  uint      `gorm:"primaryKey;autoIncrement" json:"id"`
-	RoomID              string    `gorm:"not null;size:50;index" json:"room_id"`
-	WinnerUID           *uint     `json:"winner_uid"`
-	Players             JSON      `gorm:"not null;type:json" json:"players"`
-	OriginalPlayerCount int       `json:"original_player_count"`
-	QuittedCount        int       `json:"quitted_count"`
-	StartedAt           time.Time `json:"started_at"`
-	FinishedAt          time.Time `json:"finished_at"`
-	CreatedAt           time.Time `gorm:"autoCreateTime" json:"created_at"`
+	ID                  uint       `gorm:"primaryKey;autoIncrement" json:"id"`
+	RoomID              string     `gorm:"not null;size:50;index" json:"room_id"`
+	WinnerUID           *uint      `json:"winner_uid"`
+	IsInvalid           bool       `gorm:"default:false;index" json:"is_invalid"`
+	InvalidReason       string     `gorm:"size:255" json:"invalid_reason"`
+	ReplayLog           string     `gorm:"type:longtext" json:"replay_log,omitempty"`
+	ReplayPermanent     bool       `gorm:"default:false;index" json:"replay_permanent"`
+	ReplayExpiresAt     *time.Time `gorm:"index" json:"replay_expires_at,omitempty"`
+	ReplayClearedAt     *time.Time `json:"replay_cleared_at,omitempty"`
+	CheatDetected       bool       `gorm:"default:false;index" json:"cheat_detected"`
+	CheatUIDs           JSON       `gorm:"type:json" json:"cheat_uids,omitempty"`
+	Players             JSON       `gorm:"not null;type:json" json:"players"`
+	OriginalPlayerCount int        `json:"original_player_count"`
+	QuittedCount        int        `json:"quitted_count"`
+	StartedAt           time.Time  `json:"started_at"`
+	FinishedAt          time.Time  `json:"finished_at"`
+	CreatedAt           time.Time  `gorm:"autoCreateTime" json:"created_at"`
 }
 
 func (GameHistory) TableName() string {

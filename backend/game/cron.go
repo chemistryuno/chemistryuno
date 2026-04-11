@@ -1,4 +1,4 @@
-﻿package game
+package game
 
 import (
 	"chemistryuno/backend/repository"
@@ -46,6 +46,15 @@ func StartCron() {
 			cleanupOldChatMessages()
 		}
 	}()
+
+	// 5. 每小时清理已过期的游戏回放（永久保留除外）
+	go func() {
+		ticker := time.NewTicker(1 * time.Hour)
+		defer ticker.Stop()
+		for range ticker.C {
+			cleanupExpiredGameReplays()
+		}
+	}()
 }
 
 func countExpired() {
@@ -71,6 +80,15 @@ func cleanupOldChatMessages() {
 		log.Printf("⚠️ Cron: 清理过期大厅聊天失败: %v", err)
 	} else if count > 0 {
 		log.Printf("✅ Cron: 已清理 %d 条超过24小时的大厅聊天消息", count)
+	}
+}
+
+func cleanupExpiredGameReplays() {
+	count, err := repository.GameRepo.CleanupExpiredReplays(time.Now())
+	if err != nil {
+		log.Printf("⚠️ Cron: 清理过期回放失败: %v", err)
+	} else if count > 0 {
+		log.Printf("✅ Cron: 已清理 %d 条超过保留期的游戏回放", count)
 	}
 }
 

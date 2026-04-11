@@ -199,13 +199,19 @@
                 <span class="w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-black italic bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 shrink-0">
                   {{ myRankInfo.rank }}
                 </span>
-                <div class="relative w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-500/20 border border-blue-200 dark:border-blue-500/30 flex items-center justify-center overflow-hidden shrink-0 shadow-inner">
+                <div
+                  @click="showResearcherProfile(myRankInfo.uid)"
+                  class="relative w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-500/20 border border-blue-200 dark:border-blue-500/30 flex items-center justify-center overflow-hidden shrink-0 shadow-inner cursor-pointer active:scale-95 transition-transform"
+                >
                   <UserAvatar :avatar="myRankInfo.avatar" />
                   <div v-if="myRankInfo.is_online" class="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-white dark:border-[#121216] rounded-full"></div>
                 </div>
                 <div class="flex-1 min-w-0">
                   <div class="flex items-center gap-1">
-                    <span class="text-xs font-black text-blue-600 dark:text-blue-400 truncate max-w-[120px]">{{ myRankInfo.nickname || myRankInfo.username }}</span>
+                    <span
+                      @click="showResearcherProfile(myRankInfo.uid)"
+                      class="text-xs font-black text-blue-600 dark:text-blue-400 truncate max-w-[120px] cursor-pointer hover:text-blue-500 transition-colors"
+                    >{{ myRankInfo.nickname || myRankInfo.username }}</span>
                     <span class="text-[7px] bg-blue-600 px-1 py-0.5 rounded font-black text-white shrink-0">我</span>
                   </div>
                   <div class="flex items-center gap-1.5 mt-0.5 flex-wrap">
@@ -355,12 +361,18 @@
                     </td>
                     <td class="px-5 py-3">
                       <div class="flex items-center gap-3">
-                        <div class="relative w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-500/20 border border-blue-200 dark:border-blue-500/30 flex items-center justify-center text-sm overflow-hidden shrink-0 shadow-inner">
+                        <div
+                          @click="showResearcherProfile(myRankInfo.uid)"
+                          class="relative w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-500/20 border border-blue-200 dark:border-blue-500/30 flex items-center justify-center text-sm overflow-hidden shrink-0 shadow-inner cursor-pointer hover:ring-2 hover:ring-blue-500/40 transition-all"
+                        >
                           <UserAvatar :avatar="myRankInfo.avatar" />
                           <div v-if="myRankInfo.is_online" class="absolute bottom-0 right-0 w-2 h-2 bg-emerald-500 border-2 border-white dark:border-[#121216] rounded-full"></div>
                         </div>
                         <div class="flex flex-col">
-                          <span class="text-xs font-black text-blue-600 dark:text-blue-400 flex items-center gap-1.5 flex-wrap">
+                          <span
+                            @click="showResearcherProfile(myRankInfo.uid)"
+                            class="text-xs font-black text-blue-600 dark:text-blue-400 flex items-center gap-1.5 flex-wrap cursor-pointer hover:text-blue-500 transition-colors"
+                          >
                             {{ myRankInfo.nickname || myRankInfo.username }}
                             <span class="text-[7px] bg-blue-600 px-1 py-0.5 rounded uppercase font-black tracking-widest text-white">我</span>
                           </span>
@@ -511,12 +523,12 @@
       <ChatBox title="全球通信频率" maxHeight="500px" />
     </div>
 
-    <!-- User Profile Modal -->
-    <UserSpaceModal 
-      :show="showProfileModal" 
-      :uid="selectedProfileUID" 
-      @close="showProfileModal = false" 
+    <UserSpaceModal
+      :show="showProfileModal"
+      :uid="selectedProfileUID"
+      @close="closeProfileModal"
     />
+
   </div>
 </template>
 
@@ -532,8 +544,8 @@ import { formatLastOfflineForRanking } from '../utils/timeFormat'
 import ChatBox from '../components/ChatBox.vue'
 import LevelBadge from '../components/LevelBadge.vue'
 import websocket from '../utils/websocket'
-import UserSpaceModal from '../components/UserSpaceModal.vue'
 import UserAvatar from '../components/UserAvatar.vue'
+import UserSpaceModal from '../components/UserSpaceModal.vue'
 
 const router = useRouter()
 const { showAlert, showPrompt } = useDialog()
@@ -574,13 +586,31 @@ const searchTerm = ref('')
 const searchResults = ref<any[]>([])
 const isSearching = ref(false)
 
-// 个人空间弹窗相关
 const showProfileModal = ref(false)
 const selectedProfileUID = ref<number | null>(null)
 
-const showResearcherProfile = (uid: number) => {
-  selectedProfileUID.value = uid
+const normalizeUID = (uid: number | string | null | undefined): number | null => {
+  const parsed = Number(uid)
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return null
+  }
+  return Math.trunc(parsed)
+}
+
+const showResearcherProfile = (uid: number | string | null | undefined) => {
+  const normalizedUID = normalizeUID(uid)
+  if (normalizedUID === null) {
+    showAlert('无法打开研究员档案：无效的用户 ID。', '参数错误')
+    return
+  }
+
+  selectedProfileUID.value = normalizedUID
   showProfileModal.value = true
+}
+
+const closeProfileModal = () => {
+  showProfileModal.value = false
+  selectedProfileUID.value = null
 }
 
 const formatLastOfflineText = (value: string | Date | null | undefined) => {

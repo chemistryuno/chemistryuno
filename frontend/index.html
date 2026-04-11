@@ -39,7 +39,11 @@
 
       html, body {
         margin: 0;
-        min-height: 100%;
+        min-height: var(--app-height, 100vh);
+      }
+
+      #app {
+        min-height: var(--app-height, 100vh);
       }
 
       body {
@@ -237,14 +241,14 @@
         65%, 100% { transform: translateX(120%); }
       }
     </style>
-    <script type="text/javascript">
-      (function(c,l,a,r,i,t,y){
-          var clarityId = import.meta.env.VITE_CLARITY_ID;
-          if (!clarityId) return;
-          c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
-          t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+clarityId;
-          y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
-      })(window, document, "clarity", "script");
+    <script type="module">
+      (function (c, l, a, r, t, y) {
+        const clarityId = import.meta?.env?.VITE_CLARITY_ID;
+        if (!clarityId) return;
+        c[a] = c[a] || function () { (c[a].q = c[a].q || []).push(arguments); };
+        t = l.createElement(r); t.async = 1; t.src = 'https://www.clarity.ms/tag/' + clarityId;
+        y = l.getElementsByTagName(r)[0]; y.parentNode.insertBefore(t, y);
+      })(window, document, 'clarity', 'script');
     </script>
   </head>
   <body>

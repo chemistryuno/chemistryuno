@@ -10,7 +10,7 @@ on:
 jobs:
   test:
     name: Run Tests
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -41,5 +41,4 @@ jobs:
           cache: true
 
       - name: Run CI tests
-        shell: powershell
-        run: .\scripts\test-ci.ps1
+        run: pnpm test:ci

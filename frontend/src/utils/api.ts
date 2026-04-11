@@ -27,15 +27,51 @@ const setCached = (key: string, data: any, ttl: number = 5 * 60 * 1000) => {  //
 
 // Token管理
 let isRefreshing = false
-let refreshSubscribers: ((token: string) => void)[] = []
+let isRedirectingToLogin = false
+type RefreshSubscriber = {
+  resolve: () => void
+  reject: (reason?: unknown) => void
+}
+let refreshSubscribers: RefreshSubscriber[] = []
 
-const subscribeTokenRefresh = (cb: (token: string) => void) => {
-  refreshSubscribers.push(cb)
+const subscribeTokenRefresh = () => {
+  return new Promise<void>((resolve, reject) => {
+    refreshSubscribers.push({ resolve, reject })
+  })
 }
 
-const onRefreshed = (token: string) => {
-  refreshSubscribers.forEach(cb => cb(token))
+const onRefreshed = () => {
+  refreshSubscribers.forEach(({ resolve }) => resolve())
   refreshSubscribers = []
+}
+
+const onRefreshFailed = (reason?: unknown) => {
+  refreshSubscribers.forEach(({ reject }) => reject(reason))
+  refreshSubscribers = []
+}
+
+const clearAuthState = () => {
+  localStorage.removeItem('user')
+  localStorage.removeItem('token')
+  localStorage.removeItem('access_token')
+  localStorage.removeItem('refresh_token')
+  apiCache.delete('user_info')
+}
+
+const redirectToLogin = () => {
+  if (window.location.pathname === '/login' || isRedirectingToLogin) {
+    return
+  }
+
+  isRedirectingToLogin = true
+  const currentPath = window.location.pathname + window.location.search
+
+  router.push({
+    path: '/login',
+    query: { redirect: currentPath }
+  }).finally(() => {
+    isRedirectingToLogin = false
+  })
 }
 
 // 刷新access token
@@ -91,7 +127,7 @@ api.interceptors.response.use(
     return response
   },
   async (error) => {
-    const originalRequest = error.config
+    const originalRequest = error.config as (InternalAxiosRequestConfig & { _retry?: boolean }) | undefined
 
     // 如果请求被打断且有缓存（预读模式），可以在这里处理（但通常在请求拦截器处理更好）
 
@@ -99,18 +135,27 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && originalRequest) {
       // 避免在登录页面或执行认证API时强制刷新
       const isLoginPage = window.location.pathname === '/login'
-      const isAuthRequest = originalRequest.url.includes('/auth/login') || 
-                           originalRequest.url.includes('/auth/webauthn/login') ||
-                           originalRequest.url.includes('/auth/refresh')
+      const requestURL = String(originalRequest.url || '')
+      const isAuthRequest = requestURL.includes('/auth/login') || 
+                           requestURL.includes('/auth/webauthn/login') ||
+                           requestURL.includes('/auth/refresh')
 
       if (!isLoginPage && !isAuthRequest) {
+        if (originalRequest._retry) {
+          clearAuthState()
+          redirectToLogin()
+          return Promise.reject(error)
+        }
+        originalRequest._retry = true
+
         // 如果已经在刷新中，等待刷新完成
         if (isRefreshing) {
-          return new Promise((resolve) => {
-            subscribeTokenRefresh((_token: string) => {
-              resolve(api(originalRequest))
-            })
-          })
+          try {
+            await subscribeTokenRefresh()
+            return api(originalRequest)
+          } catch {
+            return Promise.reject(error)
+          }
         }
 
         // 尝试使用refresh token刷新access token
@@ -119,19 +164,15 @@ api.interceptors.response.use(
         isRefreshing = false
 
         if (refreshed) {
-          onRefreshed('refreshed')
+          onRefreshed()
           return api(originalRequest)
         }
 
-        // Refresh token也过期了，清除所有本地数据并登出
-        localStorage.removeItem('user')
+        onRefreshFailed(error)
 
-        // 使用路由跳转而非页面刷新
-        const currentPath = window.location.pathname + window.location.search
-        router.push({
-          path: '/login',
-          query: { redirect: currentPath }
-        })
+        // Refresh token也过期了，清除所有本地数据并登出
+        clearAuthState()
+        redirectToLogin()
       }
     }
 
@@ -323,6 +364,8 @@ export const gameAPI = {
     api.post('/game/duel/respond', { target_uid, accept }),
   getMyGameHistory: () =>
     api.get('/user/game-history'),
+  getMyGameReplay: (historyId: number) =>
+    api.get(`/user/game-history/${historyId}/replay`),
   playCard: (roomId: string, card: any, substance: string) =>
     api.post(`/rooms/${roomId}/play`, { card, substance }),
   playDouble: (roomId: string, sub1: string, sub2: string) =>
@@ -377,6 +420,10 @@ export const adminAPI = {
     api.post('/admin/deck-config/reset'),
   getGameHistory: () =>
     api.get('/admin/game-history'),
+  getGameReplay: (historyId: number) =>
+    api.get(`/admin/game-history/${historyId}/replay`),
+  clearGameReplay: (historyId: number) =>
+    api.delete(`/admin/game-history/${historyId}/replay`),
   getFeedbacks: () =>
     api.get('/admin/feedbacks'),
   updateFeedbackStatus: (id: number, status: string, note?: string) =>

@@ -1,11 +1,13 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { usePing } from '../composables/usePing'
 
 const { pingStatus } = usePing()
+const shouldShowPingPrompt = computed(() => pingStatus.value.status !== 'disconnected' && pingStatus.value.latency > 1000)
 </script>
 
 <template>
-  <div class="flex items-center gap-1.5 text-xs font-mono" :class="[pingStatus.statusColor]">
+  <div v-if="shouldShowPingPrompt" class="flex items-center gap-1.5 text-xs font-mono" :class="[pingStatus.statusColor]">
     <svg
       v-if="pingStatus.status === 'disconnected'"
       class="w-3 h-3"

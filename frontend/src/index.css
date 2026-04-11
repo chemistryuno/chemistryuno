@@ -6,15 +6,33 @@
 
 @layer base {
   /* Global compact density: shrink rem-based spacing and typography a bit. */
+  :root {
+    --app-height: 100vh;
+  }
+
   html {
     font-size: 15px;
+    min-height: var(--app-height);
+  }
+
+  @supports (height: 100dvh) {
+    :root {
+      --app-height: 100dvh;
+    }
   }
 }
 
 /* Base Body Style */
+html,
+body,
+#app {
+  min-height: var(--app-height);
+}
+
 body {
   @apply bg-slate-50 text-slate-900 dark:bg-[#0a0a0c] dark:text-slate-200 antialiased selection:bg-blue-500/30;
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  min-height: var(--app-height);
   line-height: 1.45;
   transition: background-color 0.3s ease, color 0.3s ease;
 }
@@ -102,6 +120,14 @@ body {
 
   .slide-in-from-right-4 {
     --enter-x: 1rem;
+  }
+
+  .min-h-screen {
+    min-height: var(--app-height) !important;
+  }
+
+  .h-screen {
+    height: var(--app-height) !important;
   }
 }
 

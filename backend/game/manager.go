@@ -46,11 +46,15 @@ func cryptoRandUint64() uint64 {
 }
 
 type GameRoom struct {
-	Room       *models.Room
-	GameState  *models.GameState
-	mutex      sync.RWMutex
-	OfflineAt  map[int]time.Time // UID -> 离线起始时间
-	StartTimer *time.Timer       // 游戏开始倒计时器
+	Room              *models.Room
+	GameState         *models.GameState
+	mutex             sync.RWMutex
+	OfflineAt         map[int]time.Time // UID -> 离线起始时间
+	StartTimer        *time.Timer       // 游戏开始倒计时器
+	InsufficientSince *time.Time        // 人数不足开始时间（用于判定无效对局）
+	GameStartedAt     time.Time
+	ReplayEvents      []map[string]interface{}
+	FastReactionUIDs  map[int]int
 }
 
 // BroadcastSystemMessage 广播一条系统级信息到房间聊天室
@@ -81,39 +85,50 @@ func (gr *GameRoom) shouldTerminateRoom() bool {
 		return false
 	}
 
-	// 统计人类玩家数量（场上的）
-	numHumans := 0
+	totalPlayers := len(gr.Room.Players)
+	humanPlayers := 0
 	for _, pid := range gr.Room.Players {
 		if pid >= 0 {
-			numHumans++
+			humanPlayers++
 		}
 	}
 
-	// 即使场上没有人类玩家，只要有观战者，就不关闭房间
-	// 这样允许人们观战 AI 之间的对局
-	numSpectators := len(gr.Room.Spectators)
+	// 新规则：总玩家 < 2 或人类玩家 < 1 时，进入无效对局判定倒计时
+	return totalPlayers < 2 || humanPlayers < 1
+}
 
-	if gr.Room.IsPvE {
-		// 人机模式：场上没有人类且没有观战者，才关闭
-		return numHumans == 0 && numSpectators == 0
+func (gr *GameRoom) evaluateInvalidGameCountdownLocked(now time.Time) (started bool, recovered bool, expired bool, remaining time.Duration) {
+	if gr.Room.Status != "playing" {
+		gr.InsufficientSince = nil
+		return
 	}
 
-	// 多人模式：
-	// 1. 如果完全没人类（场上+观战），关闭
-	// 2. 如果人类离开了（中途退出），导致场上只剩1个或更少人（含AI），且没有任何人完成比赛，
-	//    且没有观战者，关闭
-	if numHumans == 0 && numSpectators == 0 {
-		return true
-	}
-
-	// 如果人类玩家少于2个，且没有任何人（人类或AI）已经完成比赛
-	// 且没有观战者正在观看
-	if numHumans < 2 && numSpectators == 0 {
-		if gr.GameState == nil || len(gr.GameState.FinishedPlayers) == 0 {
-			return true
+	if !gr.shouldTerminateRoom() {
+		if gr.InsufficientSince != nil {
+			gr.InsufficientSince = nil
+			recovered = true
 		}
+		return
 	}
-	return false
+
+	timeout := getPlayerKickTimeout()
+	if gr.InsufficientSince == nil {
+		t := now
+		gr.InsufficientSince = &t
+		started = true
+		remaining = timeout
+		return
+	}
+
+	elapsed := now.Sub(*gr.InsufficientSince)
+	if elapsed >= timeout {
+		expired = true
+		remaining = 0
+		return
+	}
+
+	remaining = timeout - elapsed
+	return
 }
 
 func (gr *GameRoom) checkAutoStart() {
@@ -369,6 +384,194 @@ func emitCardPlayed(roomID string, state *models.GameState, uid int, cardType st
 	emitPluginEvent(plugins.EventCardPlayed, payload)
 }
 
+func copyReplayPayload(payload map[string]interface{}) map[string]interface{} {
+	if payload == nil {
+		return map[string]interface{}{}
+	}
+	cloned := make(map[string]interface{}, len(payload))
+	for k, v := range payload {
+		cloned[k] = v
+	}
+	return cloned
+}
+
+func (gr *GameRoom) resetReplayStateLocked() {
+	gr.GameStartedAt = time.Now()
+	gr.ReplayEvents = []map[string]interface{}{}
+	gr.FastReactionUIDs = make(map[int]int)
+}
+
+func (gr *GameRoom) resolvePlayerNameLocked(uid int) string {
+	if uid == 0 {
+		return "系统"
+	}
+	if gr.GameState != nil {
+		for _, p := range gr.GameState.Players {
+			if p.UID == uid {
+				if p.Nickname != "" {
+					return p.Nickname
+				}
+				if p.Username != "" {
+					return p.Username
+				}
+				break
+			}
+		}
+	}
+	if uid < 0 {
+		return fmt.Sprintf("AI_%d", -uid)
+	}
+	return fmt.Sprintf("uid_%d", uid)
+}
+
+func (gr *GameRoom) appendReplayEventLocked(eventType string, uid int, payload map[string]interface{}) {
+	now := time.Now()
+	event := map[string]interface{}{
+		"event":     eventType,
+		"uid":       uid,
+		"nickname":  gr.resolvePlayerNameLocked(uid),
+		"timestamp": now.Format(time.RFC3339Nano),
+		"unix_ms":   now.UnixMilli(),
+		"payload":   copyReplayPayload(payload),
+	}
+	gr.ReplayEvents = append(gr.ReplayEvents, event)
+}
+
+func (gr *GameRoom) buildReplayParticipantsLocked() []map[string]interface{} {
+	participants := make(map[int]map[string]interface{})
+
+	if gr.GameState != nil {
+		for _, p := range gr.GameState.Players {
+			participants[p.UID] = map[string]interface{}{
+				"uid":      p.UID,
+				"nickname": gr.resolvePlayerNameLocked(p.UID),
+				"is_ai":    p.UID < 0,
+			}
+		}
+	}
+
+	for _, uid := range gr.Room.Players {
+		if _, ok := participants[uid]; !ok {
+			participants[uid] = map[string]interface{}{
+				"uid":      uid,
+				"nickname": gr.resolvePlayerNameLocked(uid),
+				"is_ai":    uid < 0,
+			}
+		}
+	}
+
+	for uid := range gr.FastReactionUIDs {
+		if _, ok := participants[uid]; !ok {
+			participants[uid] = map[string]interface{}{
+				"uid":      uid,
+				"nickname": gr.resolvePlayerNameLocked(uid),
+				"is_ai":    uid < 0,
+			}
+		}
+	}
+
+	uids := make([]int, 0, len(participants))
+	for uid := range participants {
+		uids = append(uids, uid)
+	}
+	sort.Ints(uids)
+
+	result := make([]map[string]interface{}, 0, len(uids))
+	for _, uid := range uids {
+		result = append(result, participants[uid])
+	}
+	return result
+}
+
+func (gr *GameRoom) captureReplaySnapshotLocked(reason string) (string, []int, bool) {
+	cheatUIDs := make([]int, 0)
+	for uid, count := range gr.FastReactionUIDs {
+		if count > 0 {
+			cheatUIDs = append(cheatUIDs, uid)
+		}
+	}
+	sort.Ints(cheatUIDs)
+
+	events := make([]map[string]interface{}, 0, len(gr.ReplayEvents))
+	for _, event := range gr.ReplayEvents {
+		events = append(events, copyReplayPayload(event))
+	}
+
+	payload := map[string]interface{}{
+		"version":        1,
+		"room_id":        gr.Room.ID,
+		"generated_at":   time.Now().Format(time.RFC3339),
+		"participants":   gr.buildReplayParticipantsLocked(),
+		"events":         events,
+		"cheat_detected": len(cheatUIDs) > 0,
+		"cheat_uids":     cheatUIDs,
+	}
+
+	if reason != "" {
+		payload["reason"] = reason
+	}
+	if !gr.GameStartedAt.IsZero() {
+		payload["started_at"] = gr.GameStartedAt.Format(time.RFC3339)
+	}
+	if gr.GameState != nil {
+		payload["status"] = gr.GameState.Status
+		payload["finished_players"] = append([]int(nil), gr.GameState.FinishedPlayers...)
+		payload["original_player_count"] = gr.GameState.OriginalPlayerCount
+		payload["quitted_count"] = gr.GameState.QuittedCount
+	}
+
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		log.Printf("[回放] 生成回放快照失败: %v", err)
+		return "", cheatUIDs, len(cheatUIDs) > 0
+	}
+
+	return string(encoded), cheatUIDs, len(cheatUIDs) > 0
+}
+
+func maybeMarkFastHumanPlay(gr *GameRoom, uid int, nickname string, actionAt time.Time) (bool, int64) {
+	if gr == nil || uid <= 0 || gr.GameState == nil || gr.GameState.TutorialScriptMode || gr.GameState.TurnEndTime <= 0 {
+		return false, 0
+	}
+
+	actionTimeout := getPlayerActionTimeout()
+	if actionTimeout <= 0 {
+		return false, 0
+	}
+
+	turnEndAt := time.Unix(0, gr.GameState.TurnEndTime*int64(time.Millisecond))
+	turnStartAt := turnEndAt.Add(-actionTimeout)
+	interval := actionAt.Sub(turnStartAt)
+	if interval <= 0 || interval >= 3*time.Second {
+		return false, 0
+	}
+
+	if nickname == "" {
+		nickname = fmt.Sprintf("uid_%d", uid)
+	}
+
+	intervalMs := interval.Milliseconds()
+	log.Printf("[快速出牌] 房间=%s 玩家=%s(uid=%d) 出牌间隔=%dms 时间=%s", gr.Room.ID, nickname, uid, intervalMs, actionAt.Format(time.RFC3339))
+
+	if gr.FastReactionUIDs == nil {
+		gr.FastReactionUIDs = make(map[int]int)
+	}
+	gr.FastReactionUIDs[uid]++
+	gr.appendReplayEventLocked("fast_reaction", uid, map[string]interface{}{
+		"interval_ms": intervalMs,
+		"count":       gr.FastReactionUIDs[uid],
+	})
+
+	if gr.FastReactionUIDs[uid] == 1 && websocket.GlobalHub != nil {
+		websocket.GlobalHub.BroadcastToRoom(gr.Room.ID, websocket.Message{
+			Type: "action_toast",
+			Data: fmt.Sprintf("CHEAT 警告：研究员 %s 反应速度异常（%dms），该局回放将永久保留。", nickname, intervalMs),
+		})
+	}
+
+	return true, intervalMs
+}
+
 // 记录当前玩家回合开始时间到数据库
 func (gr *GameRoom) recordTurnStart() {
 	if gr.GameState != nil && len(gr.GameState.Players) > 0 {
@@ -610,8 +813,10 @@ func CreateRoomWithKey(name string, creatorUID int, maxPlayers int, deckID int, 
 	}
 
 	gameRoom := &GameRoom{
-		Room:      room,
-		OfflineAt: make(map[int]time.Time),
+		Room:             room,
+		OfflineAt:        make(map[int]time.Time),
+		ReplayEvents:     []map[string]interface{}{},
+		FastReactionUIDs: make(map[int]int),
 	}
 
 	// 如果是 PvE 模式，立即初始化 AI 玩家
@@ -705,8 +910,10 @@ func StartDuel(challengerUID int, challengerName string, targetUID int, targetNa
 	}
 
 	gameRoom := &GameRoom{
-		Room:      room,
-		OfflineAt: make(map[int]time.Time),
+		Room:             room,
+		OfflineAt:        make(map[int]time.Time),
+		ReplayEvents:     []map[string]interface{}{},
+		FastReactionUIDs: make(map[int]int),
 	}
 
 	roomMutex.Lock()
@@ -1136,12 +1343,29 @@ func (gr *GameRoom) checkInactivity() {
 	gr.mutex.Lock()
 	if gr.Room.Status == "waiting" {
 		gr.checkAutoStart()
-	} else if gr.shouldTerminateRoom() {
 		gr.mutex.Unlock()
-		gr.terminateRoom("由于玩家人数不足，房间已被关闭")
 		return
 	}
+
+	started, recovered, expired, remaining := gr.evaluateInvalidGameCountdownLocked(time.Now())
 	gr.mutex.Unlock()
+
+	if started {
+		seconds := int(remaining.Seconds())
+		if seconds <= 0 {
+			seconds = int(getPlayerKickTimeout().Seconds())
+		}
+		gr.BroadcastSystemMessage(fmt.Sprintf("警告：实验室内玩家数量不足，若在 %d 秒内未恢复，本局将被判定为无效对局。", seconds))
+	}
+
+	if recovered {
+		gr.BroadcastSystemMessage("提示：玩家数量已恢复，无效对局倒计时已取消。")
+	}
+
+	if expired {
+		gr.terminateAsInvalidGame("由于玩家数量持续不足并超过掉线超时时间，本局已判定为无效对局并自动结束")
+		return
+	}
 }
 
 // CheckNextTurnAI 检查并触发 AI 回合
@@ -1151,6 +1375,10 @@ func (gr *GameRoom) CheckNextTurnAI() {
 			log.Printf("[AI] ❌ CheckNextTurnAI panic recovered: %v", r)
 		}
 	}()
+
+	if !gr.isRoomLive() {
+		return
+	}
 
 	gr.mutex.RLock()
 	// 如果房间已结束或未开始，忽略
@@ -1270,11 +1498,13 @@ func (gr *GameRoom) kickPlayer(uid int, reason string) {
 		}
 	}
 
-	// 如果是正在游戏中且玩家少于2个，则解散
-	if gr.shouldTerminateRoom() {
-		gr.mutex.Unlock()
-		gr.terminateRoom("由于实验样本不足（少于2人），本次反应宣告失败，实验室已关闭")
-		return
+	startedInvalidCountdown, _, _, remainingInvalidDuration := gr.evaluateInvalidGameCountdownLocked(time.Now())
+	if startedInvalidCountdown {
+		seconds := int(remainingInvalidDuration.Seconds())
+		if seconds <= 0 {
+			seconds = int(getPlayerKickTimeout().Seconds())
+		}
+		gr.BroadcastSystemMessage(fmt.Sprintf("警告：玩家数量不足，若在 %d 秒内未恢复，本局将判定为无效对局。", seconds))
 	}
 
 	remainingPlayers := len(gr.Room.Players)
@@ -1313,6 +1543,62 @@ func (gr *GameRoom) terminateRoom(reason string) {
 			Message: reason,
 		})
 	}
+}
+
+func (gr *GameRoom) terminateAsInvalidGame(reason string) {
+	roomID := gr.Room.ID
+	var replayMeta *gameReplayMeta
+
+	gr.mutex.Lock()
+	if gr.Room.Status == "terminated" || gr.Room.Status == "finished" {
+		gr.mutex.Unlock()
+		return
+	}
+
+	playersSnapshot := append([]int(nil), gr.Room.Players...)
+	originalPlayerCount := len(playersSnapshot)
+	quittedCount := 0
+	if gr.GameState != nil {
+		originalPlayerCount = gr.GameState.OriginalPlayerCount
+		quittedCount = gr.GameState.QuittedCount
+		gr.GameState.Status = "terminated"
+	}
+	gr.appendReplayEventLocked("game_terminated_invalid", 0, map[string]interface{}{
+		"reason": reason,
+	})
+	replayLog, cheatUIDs, cheatDetected := gr.captureReplaySnapshotLocked(reason)
+	replayMeta = &gameReplayMeta{
+		ReplayLog:       replayLog,
+		ReplayPermanent: cheatDetected,
+		CheatDetected:   cheatDetected,
+		CheatUIDs:       cheatUIDs,
+		StartedAt:       gr.GameStartedAt,
+	}
+
+	gr.Room.Status = "terminated"
+	gr.InsufficientSince = nil
+	gr.mutex.Unlock()
+
+	saveGameHistory(roomID, 0, playersSnapshot, originalPlayerCount, quittedCount, nil, true, reason, replayMeta)
+
+	privateChatRepo := repository.NewPrivateChatRepository()
+	if err := privateChatRepo.DeleteGameInvitesByRoom(roomID); err != nil {
+		log.Printf("清理房间 %s 的游戏邀请失败: %v", roomID, err)
+	}
+
+	emitRoomClosed(roomID, reason, "invalid_game", len(playersSnapshot))
+	roomMutex.Lock()
+	delete(rooms, roomID)
+	roomMutex.Unlock()
+
+	if websocket.GlobalHub != nil {
+		websocket.GlobalHub.BroadcastToRoom(roomID, websocket.Message{
+			Type:    "room_terminated",
+			Message: reason,
+		})
+	}
+
+	log.Printf("[无效对局] 房间 %s 已标记为无效并结束", roomID)
 }
 
 // ToggleReady 切换玩家准备状态
@@ -1773,15 +2059,18 @@ func LeaveRoom(roomID string, uid int) error {
 		emitPlayerLeave(roomID, uid, len(gameRoom.Room.Players), "leave_room")
 	}
 
-	// 如果是正在游戏中且玩家少于2个，则解散
-	if gameRoom.shouldTerminateRoom() {
-		gameRoom.terminateRoom("由于实验样本不足（少于2人），本次反应宣告失败，实验室已关闭")
-		return nil
+	startedInvalidCountdown, _, _, remainingInvalidDuration := gameRoom.evaluateInvalidGameCountdownLocked(time.Now())
+	if startedInvalidCountdown {
+		seconds := int(remainingInvalidDuration.Seconds())
+		if seconds <= 0 {
+			seconds = int(getPlayerKickTimeout().Seconds())
+		}
+		gameRoom.BroadcastSystemMessage(fmt.Sprintf("警告：玩家数量不足，若在 %d 秒内未恢复，本局将判定为无效对局。", seconds))
 	}
 
 	// 检查游戏是否应该自动结算
-	// 当活跃玩家数 <= 1 时，自动结算游戏
-	if gameRoom.GameState != nil && gameRoom.GameState.Status == "playing" {
+	// 当活跃玩家数 <= 1 时自动结算，但“人数不足无效倒计时”场景不在此处结算
+	if gameRoom.GameState != nil && gameRoom.GameState.Status == "playing" && !gameRoom.shouldTerminateRoom() {
 		activeCount := 0
 		lastPlayerUID := 0
 		for _, p := range gameRoom.GameState.Players {
@@ -1892,6 +2181,7 @@ func StartGame(roomID string, uid int) error {
 		TutorialScriptMode:  gameRoom.Room.TutorialScript,
 		TutorialCurrentStep: 1, // 从第一步开始
 	}
+	gameRoom.resetReplayStateLocked()
 	setTurnEndTimeByMode(gameRoom.GameState)
 
 	// 脚本化教学模式：使用固定配置
@@ -2196,6 +2486,16 @@ func StartGame(roomID string, uid int) error {
 	log.Printf("[游戏开始] 牌堆剩余：%d张，弃牌堆：%d张，当前玩家索引：%d",
 		len(gameRoom.GameState.DrawPile), len(gameRoom.GameState.DiscardPile), gameRoom.GameState.CurrentPlayer)
 
+	replayInitialSubstance := ""
+	if gameRoom.GameState.LastCard != nil {
+		replayInitialSubstance = gameRoom.GameState.LastCard.Substance
+	}
+	gameRoom.appendReplayEventLocked("game_start", 0, map[string]interface{}{
+		"tutorial":          false,
+		"initial_substance": replayInitialSubstance,
+		"player_count":      len(gameRoom.GameState.Players),
+	})
+
 	// 检查第一位是否是 AI
 	emitGameStart(roomID, gameRoom.GameState)
 	emitTurnChanged(roomID, gameRoom.GameState, -1, "game_start")
@@ -2339,6 +2639,11 @@ func initTutorialGame(gameRoom *GameRoom, roomID string) error {
 	log.Printf("[教学脚本] 🤖 AI玩家: %s (UID:%d), 手牌: %v", aiName, aiUID, aiHand)
 	log.Printf("[教学脚本] 🎴 初始场上牌: %s", initialDiscard)
 	log.Printf("[教学脚本] 📊 牌堆剩余: %d张", len(gameRoom.GameState.DrawPile))
+	gameRoom.appendReplayEventLocked("game_start", 0, map[string]interface{}{
+		"tutorial":          true,
+		"initial_substance": initialDiscard,
+		"player_count":      len(gameRoom.GameState.Players),
+	})
 
 	// 检查第一位玩家（应该是人类）
 	go gameRoom.CheckNextTurnAI()
@@ -2599,6 +2904,11 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 	if currentPlayer.UID != uid {
 		return errors.New("还没轮到你")
 	}
+	actionAt := time.Now()
+	playLoggerName := currentPlayer.Nickname
+	if playLoggerName == "" {
+		playLoggerName = currentPlayer.Username
+	}
 
 	// 若未指定substance，说明玩家单击了元素手牌
 	// 直接使用元素符号，不进行单质转换
@@ -2819,6 +3129,17 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 	}
 	gameRoom.GameState.DiscardPile = append(gameRoom.GameState.DiscardPile, playedCard)
 	emitCardPlayed(roomID, gameRoom.GameState, uid, card.Type, substance, activeEffect, false)
+	fastReaction, fastReactionMs := maybeMarkFastHumanPlay(gameRoom, uid, playLoggerName, actionAt)
+	replayPayload := map[string]interface{}{
+		"card_type":      card.Type,
+		"substance":      substance,
+		"effect":         activeEffect,
+		"is_action_card": isActionCard,
+	}
+	if fastReaction {
+		replayPayload["fast_reaction_ms"] = fastReactionMs
+	}
+	gameRoom.appendReplayEventLocked("play_card", uid, replayPayload)
 
 	// 2. 检查并注册获胜（先注册，以便 getNextPlayer 能正确跳过已完成玩家）
 	isWinner := false
@@ -3249,6 +3570,11 @@ func DrawCard(roomID string, uid int, count int) error {
 	} else {
 		gameRoom.BroadcastSystemMessage(fmt.Sprintf("%s 进入库房寻找灵感（摸了 %d 张牌）。", displayName, actualCount))
 	}
+	gameRoom.appendReplayEventLocked("draw_card", uid, map[string]interface{}{
+		"requested_count":  count,
+		"actual_count":     actualCount,
+		"penalty_resolved": penaltyResolved,
+	})
 
 	// 行动进度更新
 	currentPlayer.ActionProgress++
@@ -3442,15 +3768,47 @@ func GetReactionHints(roomID string, uid int) ([]map[string]string, error) {
 	return hints, nil
 }
 
-func saveGameHistory(roomID string, winnerUID int, players []int, originalPlayerCount int, quittedCount int, finishedPlayers []int) {
+type gameReplayMeta struct {
+	ReplayLog       string
+	ReplayPermanent bool
+	CheatDetected   bool
+	CheatUIDs       []int
+	StartedAt       time.Time
+}
+
+func saveGameHistory(roomID string, winnerUID int, players []int, originalPlayerCount int, quittedCount int, finishedPlayers []int, isInvalid bool, invalidReason string, replayMeta *gameReplayMeta) {
 	// 创建游戏历史记录
 	playersJSON, _ := json.Marshal(players)
+	now := time.Now()
 	history := &database.GameHistory{
 		RoomID:              roomID,
+		IsInvalid:           isInvalid,
+		InvalidReason:       invalidReason,
 		Players:             playersJSON,
 		OriginalPlayerCount: originalPlayerCount,
 		QuittedCount:        quittedCount,
-		FinishedAt:          time.Now(),
+		StartedAt:           now,
+		FinishedAt:          now,
+	}
+
+	if replayMeta != nil {
+		if !replayMeta.StartedAt.IsZero() {
+			history.StartedAt = replayMeta.StartedAt
+		}
+		history.ReplayLog = replayMeta.ReplayLog
+		history.ReplayPermanent = replayMeta.ReplayPermanent
+		history.CheatDetected = replayMeta.CheatDetected
+
+		if len(replayMeta.CheatUIDs) > 0 {
+			if cheatUIDsJSON, err := json.Marshal(replayMeta.CheatUIDs); err == nil {
+				history.CheatUIDs = cheatUIDsJSON
+			}
+		}
+
+		if replayMeta.ReplayLog != "" && !replayMeta.ReplayPermanent {
+			expiresAt := now.Add(7 * 24 * time.Hour)
+			history.ReplayExpiresAt = &expiresAt
+		}
 	}
 
 	if winnerUID > 0 {
@@ -3461,6 +3819,12 @@ func saveGameHistory(roomID string, winnerUID int, players []int, originalPlayer
 	err := repository.GameRepo.Create(history)
 	if err != nil {
 		fmt.Printf("保存游戏历史失败: %v\n", err)
+		return
+	}
+
+	if isInvalid {
+		fmt.Println("无效对局历史已保存")
+		return
 	}
 
 	// 更新玩家的总场次
@@ -3623,6 +3987,11 @@ func DoublePlay(roomID string, uid int, sub1 string, sub2 string) error {
 		curIdx = gameRoom.GameState.AllowedAnyPlayer
 		currentPlayer = gameRoom.GameState.Players[curIdx]
 	}
+	actionAt := time.Now()
+	playLoggerName := currentPlayer.Nickname
+	if playLoggerName == "" {
+		playLoggerName = currentPlayer.Username
+	}
 
 	// 🎓 教学脚本模式：当前脚本不允许双联反应
 	if gameRoom.GameState.TutorialScriptMode {
@@ -3739,6 +4108,16 @@ func DoublePlay(roomID string, uid int, sub1 string, sub2 string) error {
 	gameRoom.GameState.LastCard = &playedCard
 	gameRoom.GameState.DiscardPile = append(gameRoom.GameState.DiscardPile, playedCard)
 	emitCardPlayed(roomID, gameRoom.GameState, uid, representCard.Type, playedCard.Substance, "", true)
+	fastReaction, fastReactionMs := maybeMarkFastHumanPlay(gameRoom, uid, playLoggerName, actionAt)
+	replayPayload := map[string]interface{}{
+		"substance_1": sub1,
+		"substance_2": sub2,
+		"reaction":    reaction.Display,
+	}
+	if fastReaction {
+		replayPayload["fast_reaction_ms"] = fastReactionMs
+	}
+	gameRoom.appendReplayEventLocked("double_play", uid, replayPayload)
 
 	// 处理特殊效果（如果双联中包含功能牌）
 	for _, c := range consumedCards {
@@ -3870,7 +4249,18 @@ func finalizeGame(gr *GameRoom) {
 	gr.Room.Status = "finished"
 
 	winnerUID := gr.GameState.FinishedPlayers[0]
-	saveGameHistory(gr.Room.ID, winnerUID, gr.Room.Players, gr.GameState.OriginalPlayerCount, gr.GameState.QuittedCount, gr.GameState.FinishedPlayers)
+	gr.appendReplayEventLocked("game_finished", winnerUID, map[string]interface{}{
+		"winner_uid":       winnerUID,
+		"finished_players": append([]int(nil), gr.GameState.FinishedPlayers...),
+	})
+	replayLog, cheatUIDs, cheatDetected := gr.captureReplaySnapshotLocked("game_finished")
+	saveGameHistory(gr.Room.ID, winnerUID, gr.Room.Players, gr.GameState.OriginalPlayerCount, gr.GameState.QuittedCount, gr.GameState.FinishedPlayers, false, "", &gameReplayMeta{
+		ReplayLog:       replayLog,
+		ReplayPermanent: cheatDetected,
+		CheatDetected:   cheatDetected,
+		CheatUIDs:       cheatUIDs,
+		StartedAt:       gr.GameStartedAt,
+	})
 
 	privateChatRepo := repository.NewPrivateChatRepository()
 	if err := privateChatRepo.DeleteGameInvitesByRoom(gr.Room.ID); err != nil {
@@ -3909,7 +4299,13 @@ func processRoomTimeout(roomID string) {
 		previousTurnIndex := gameRoom.GameState.CurrentPlayer
 		currentPlayer := gameRoom.GameState.Players[gameRoom.GameState.CurrentPlayer]
 		if !currentPlayer.IsAI {
-			log.Printf("[Game] ⚡ 玩家 %s (%d) 超时，自动摸牌并跳过本回合", currentPlayer.Nickname, currentPlayer.UID)
+			isOffline := false
+			if currentPlayer.UID > 0 && websocket.GlobalHub != nil {
+				isOffline = !websocket.GlobalHub.IsUIDInRoom(roomID, currentPlayer.UID)
+			}
+			if isOffline {
+				log.Printf("[Game] ⚡ 玩家 %s (%d) 离线超时，自动摸牌并跳过本回合", currentPlayer.Nickname, currentPlayer.UID)
+			}
 			gameRoom.BroadcastSystemMessage(fmt.Sprintf("研究员 %s 操作超时。出于实验室安全考虑（因为你太慢了），已自动摸牌并跳过回合。", currentPlayer.Nickname))
 		}
 
@@ -3922,6 +4318,10 @@ func processRoomTimeout(roomID string) {
 			penaltyResolved = true
 		}
 		drawCardsForPlayer(gameRoom, gameRoom.GameState.CurrentPlayer, drawCount)
+		gameRoom.appendReplayEventLocked("timeout_auto_draw", currentPlayer.UID, map[string]interface{}{
+			"draw_count":       drawCount,
+			"penalty_resolved": penaltyResolved,
+		})
 		gameRoom.GameState.CurrentPlayer = getNextPlayer(gameRoom.GameState)
 		gameRoom.recordTurnStart()
 		setTurnEndTimeByMode(gameRoom.GameState)

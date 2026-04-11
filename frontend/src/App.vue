@@ -275,7 +275,7 @@ onUnmounted(() => {
     </div>
   </div>
   <template v-else>
-    <div class="transition-colors duration-300 min-h-screen bg-slate-50 dark:bg-[#0a0a0c] text-slate-900 dark:text-slate-200">
+    <div class="app-viewport transition-colors duration-300 min-h-screen bg-slate-50 dark:bg-[#0a0a0c] text-slate-900 dark:text-slate-200">
       <Transition name="app-soft-enter" appear>
         <div>
           <AnnouncementTicker />
@@ -389,7 +389,7 @@ onUnmounted(() => {
 .app-loader-shell {
   position: relative;
   display: flex;
-  min-height: 100vh;
+  min-height: var(--app-height);
   align-items: center;
   justify-content: center;
   overflow: hidden;
@@ -399,6 +399,10 @@ onUnmounted(() => {
     linear-gradient(180deg, #f8fbff 0%, #eef6ff 52%, #e7f4f1 100%);
   color: #0f172a;
   transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.app-viewport {
+  min-height: var(--app-height);
 }
 
 :global(.dark) .app-loader-shell {

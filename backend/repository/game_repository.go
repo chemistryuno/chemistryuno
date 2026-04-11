@@ -121,6 +121,14 @@ type GameHistoryWithWinner struct {
 	RoomID              string        `json:"room_id"`
 	WinnerUID           *uint         `json:"winner_uid"`
 	WinnerName          string        `json:"winner_name"`
+	IsInvalid           bool          `json:"is_invalid"`
+	InvalidReason       string        `json:"invalid_reason"`
+	ReplayPermanent     bool          `json:"replay_permanent"`
+	ReplayExpiresAt     *time.Time    `json:"replay_expires_at"`
+	ReplayClearedAt     *time.Time    `json:"replay_cleared_at"`
+	CheatDetected       bool          `json:"cheat_detected"`
+	CheatUIDs           database.JSON `json:"cheat_uids"`
+	HasReplay           bool          `json:"has_replay"`
 	Players             database.JSON `json:"players"`
 	OriginalPlayerCount int           `json:"original_player_count"`
 	QuittedCount        int           `json:"quitted_count"`
@@ -133,7 +141,7 @@ func (r *GameRepository) FindAllWithWinner(limit int) ([]GameHistoryWithWinner, 
 	var results []GameHistoryWithWinner
 
 	query := r.db.Table("game_history").
-		Select("game_history.id, game_history.room_id, game_history.winner_uid, users.username as winner_name, game_history.players, game_history.original_player_count, game_history.quitted_count, game_history.started_at, game_history.finished_at").
+		Select("game_history.id, game_history.room_id, game_history.winner_uid, users.username as winner_name, game_history.is_invalid, game_history.invalid_reason, game_history.replay_permanent, game_history.replay_expires_at, game_history.replay_cleared_at, game_history.cheat_detected, game_history.cheat_uids, CASE WHEN game_history.replay_log IS NULL OR game_history.replay_log = '' THEN FALSE ELSE TRUE END as has_replay, game_history.players, game_history.original_player_count, game_history.quitted_count, game_history.started_at, game_history.finished_at").
 		Joins("LEFT JOIN users ON game_history.winner_uid = users.uid").
 		Order("game_history.created_at DESC")
 
@@ -143,4 +151,51 @@ func (r *GameRepository) FindAllWithWinner(limit int) ([]GameHistoryWithWinner, 
 
 	err := query.Scan(&results).Error
 	return results, err
+}
+
+// FindByID 按历史记录 ID 查询
+func (r *GameRepository) FindByID(id uint) (*database.GameHistory, error) {
+	var history database.GameHistory
+	err := r.db.First(&history, id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &history, nil
+}
+
+// ClearReplayByID 清空某条历史的回放内容（管理员手动消除）
+func (r *GameRepository) ClearReplayByID(id uint) error {
+	now := time.Now()
+	result := r.db.Model(&database.GameHistory{}).
+		Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"replay_log":        "",
+			"replay_permanent":  false,
+			"replay_expires_at": nil,
+			"replay_cleared_at": &now,
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
+// CleanupExpiredReplays 清理超过保留期限的普通回放（永久回放不受影响）
+func (r *GameRepository) CleanupExpiredReplays(now time.Time) (int64, error) {
+	result := r.db.Model(&database.GameHistory{}).
+		Where("replay_permanent = ?", false).
+		Where("replay_log IS NOT NULL AND replay_log != ''").
+		Where("replay_expires_at IS NOT NULL AND replay_expires_at < ?", now).
+		Updates(map[string]interface{}{
+			"replay_log":        "",
+			"replay_expires_at": nil,
+			"replay_cleared_at": &now,
+		})
+	if result.Error != nil {
+		return 0, result.Error
+	}
+	return result.RowsAffected, nil
 }

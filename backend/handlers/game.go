@@ -241,8 +241,17 @@ func GetMyGameHistory(c *gin.Context) {
 			players = []int{}
 		}
 
+		var cheatUIDs []int
+		if len(h.CheatUIDs) > 0 {
+			if err := json.Unmarshal([]byte(h.CheatUIDs), &cheatUIDs); err != nil {
+				cheatUIDs = []int{}
+			}
+		}
+
 		winnerName := "AI"
-		if h.WinnerUID != nil && int(*h.WinnerUID) > 0 {
+		if h.IsInvalid {
+			winnerName = "无效对局"
+		} else if h.WinnerUID != nil && int(*h.WinnerUID) > 0 {
 			if name, ok := winnerNames[*h.WinnerUID]; ok {
 				winnerName = name
 			} else {
@@ -255,6 +264,14 @@ func GetMyGameHistory(c *gin.Context) {
 			"room_id":               h.RoomID,
 			"winner_uid":            h.WinnerUID,
 			"winner_name":           winnerName,
+			"is_invalid":            h.IsInvalid,
+			"invalid_reason":        h.InvalidReason,
+			"has_replay":            h.ReplayLog != "",
+			"replay_permanent":      h.ReplayPermanent,
+			"replay_expires_at":     h.ReplayExpiresAt,
+			"replay_cleared_at":     h.ReplayClearedAt,
+			"cheat_detected":        h.CheatDetected,
+			"cheat_uids":            cheatUIDs,
 			"players":               players,
 			"original_player_count": h.OriginalPlayerCount,
 			"quitted_count":         h.QuittedCount,

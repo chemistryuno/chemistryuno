@@ -1,12 +1,14 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { usePing } from '../composables/usePing'
 
 const { pingStatus } = usePing()
+const shouldShowPingPrompt = computed(() => pingStatus.value.status !== 'disconnected' && pingStatus.value.latency > 1000)
 </script>
 
 <template>
   <!-- 调整位置：右上角但在公告栏下方，z-index降低避免遮挡重要内容 -->
-  <div class="fixed top-8 right-2 z-50 pointer-events-none animate-fade-in sm:top-10 sm:right-1">
+  <div v-if="shouldShowPingPrompt" class="fixed top-8 right-2 z-50 pointer-events-none animate-fade-in sm:top-10 sm:right-1">
     <div
       class="flex items-center gap-1.5 px-3 py-1.5 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200/50 dark:border-white/10 rounded-xl shadow-lg pointer-events-auto transition-all duration-300 cursor-pointer hover:bg-white dark:hover:bg-slate-900 hover:shadow-xl hover:scale-105 group sm:px-2 sm:py-1 sm:gap-1"
       :class="[pingStatus.statusColor]"

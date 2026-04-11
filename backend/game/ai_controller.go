@@ -10,9 +10,21 @@ import (
 	"time"
 )
 
+func (gr *GameRoom) isRoomLive() bool {
+	roomID := gr.Room.ID
+	roomMutex.RLock()
+	liveRoom, exists := rooms[roomID]
+	roomMutex.RUnlock()
+
+	return exists && liveRoom == gr
+}
+
 // TriggerAITurn 触发 AI 回合逻辑
 func (gr *GameRoom) TriggerAITurn() {
 	gameRoom := gr
+	if !gameRoom.isRoomLive() {
+		return
+	}
 
 	gr.mutex.RLock()
 	if gameRoom.GameState == nil || gameRoom.GameState.Status != "playing" {
@@ -24,6 +36,9 @@ func (gr *GameRoom) TriggerAITurn() {
 
 	// 增加 1 秒模拟思考/等待时间，让玩家看清操作
 	time.Sleep(1 * time.Second)
+	if !gameRoom.isRoomLive() {
+		return
+	}
 
 	gameRoom.mutex.Lock()
 
@@ -266,7 +281,7 @@ func (gr *GameRoom) aiTryDoublePlay(player *models.PlayerState) bool {
 					// 成功执行，已释放锁
 					return true
 				} else {
-					log.Printf("[AI] ⚠️ AI 双联执行失败: %v", err)
+					log.Printf("[AI] ⚠️ 双联出牌失败 房间=%s 时间=%s 玩家UID=%d 物质=%s+%s 错误=%v", gr.Room.ID, time.Now().Format(time.RFC3339), player.UID, s1, s2, err)
 					// 失败时重新获取锁，让调用者继续尝试其他策略
 					gr.mutex.Lock()
 					return false
@@ -633,13 +648,12 @@ func (gr *GameRoom) aiExecutePlay(uid int, card models.Card, substance string) {
 	err := PlayCard(gr.Room.ID, uid, card, substance)
 
 	if err != nil {
-		log.Printf("[AI] ⚠️ AI %d 出牌失败 (%s): %v", uid, substance, err)
+		log.Printf("[AI] ⚠️ 出牌失败 房间=%s 时间=%s 玩家UID=%d 物质=%s 错误=%v", gr.Room.ID, time.Now().Format(time.RFC3339), uid, substance, err)
 		// 失败时重新获取锁，然后摸牌
 		gr.mutex.Lock()
 		gr.aiDrawCard(uid)
 		// aiDrawCard 会释放锁
 	} else {
-		log.Printf("[AI] ✅ AI %d 成功出牌: %s (物质: %s)", uid, cardName, substance)
 		// 发送广播
 		nickname := "AI"
 		gr.mutex.RLock()
@@ -742,7 +756,7 @@ func (gr *GameRoom) executeTutorialScript() {
 		// 构造一张临时虚拟卡牌进行出牌
 		virtualCard := models.Card{Type: substance, Effect: getCardEffect(substance)}
 		if err := PlayCard(roomID, currentUID, virtualCard, substance); err != nil {
-			log.Printf("[教学脚本] ⚠️  AI脚本强制出牌失败(%s): %v", substance, err)
+			log.Printf("[教学脚本] ⚠️ AI脚本出牌失败 房间=%s 时间=%s 玩家UID=%d 物质=%s 错误=%v", roomID, time.Now().Format(time.RFC3339), currentUID, substance, err)
 			return
 		}
 		log.Printf("[教学脚本] ✅ AI强制打出了 %s", substance)

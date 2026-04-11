@@ -1,4 +1,4 @@
-const { existsSync } = require('node:fs')
+const { copyFileSync, existsSync, mkdirSync, readFileSync } = require('node:fs')
 const { join } = require('node:path')
 const { spawnSync } = require('node:child_process')
 
@@ -19,9 +19,19 @@ if (!existsSync(join(process.cwd(), 'android'))) {
   process.exit(1)
 }
 
+const packageJson = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf-8'))
+const releaseDir = join(process.cwd(), 'release', 'android')
+
 run('node', ['scripts/android-sync.cjs'])
 
 const gradleWrapper = process.platform === 'win32' ? 'gradlew.bat' : './gradlew'
 run(gradleWrapper, ['assembleDebug'], { cwd: join(process.cwd(), 'android') })
 
-console.log('[Android] Debug APK build completed: android/app/build/outputs/apk/debug/app-debug.apk')
+const sourceApk = join(process.cwd(), 'android', 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk')
+const targetApk = join(releaseDir, `ChemistryUNO-${packageJson.version}-android-debug.apk`)
+
+mkdirSync(releaseDir, { recursive: true })
+copyFileSync(sourceApk, targetApk)
+
+console.log(`[Android] Debug APK build completed: ${sourceApk}`)
+console.log(`[Android] Copied debug APK to: ${targetApk}`)

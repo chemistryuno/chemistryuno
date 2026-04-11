@@ -22,7 +22,12 @@ const readRuntimeConfig = (): RuntimeConfig => {
 
 const resolveApiOrigin = (): string => {
   const envOrigin = normalizeApiOrigin(
-    String(import.meta.env.VITE_API_ORIGIN || import.meta.env.VITE_API_BASE_URL || '')
+    String(
+      import.meta.env.VITE_SERVER_ORIGIN ||
+      import.meta.env.VITE_API_ORIGIN ||
+      import.meta.env.VITE_API_BASE_URL ||
+      ''
+    )
   )
   if (envOrigin) {
     return envOrigin

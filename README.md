@@ -49,7 +49,7 @@
 | 生产构建 | `pnpm build` | `http://localhost:8080` | `http://localhost:8080` | 前端静态资源嵌入后端单体运行 |
 | Electron 客户端（开发） | `pnpm electron:dev` | Electron 窗口 | `http://localhost:8080` | 使用 Electron 桌面壳加载 Vite 页面 |
 | Windows 客户端（安装包） | `pnpm electron:pack:win` | Electron 安装包 | `http://localhost:8080` | 生成 Windows 安装包（NSIS） |
-| Android 客户端（调试包） | `pnpm android:build:debug` | Android WebView | 通过 `CHEM_ANDROID_API_ORIGIN` 指定 | 生成 Android Debug APK |
+| Android 客户端（调试包） | `pnpm android:build:debug` | Android WebView | 通过 `CHEM_SERVER_ORIGIN` / `CHEM_ANDROID_API_ORIGIN` 指定 | 生成 Android Debug APK |
 
 ---
 
@@ -265,6 +265,7 @@ pnpm start
 - `pnpm android:add`：初始化 Android 工程（首次执行）
 - `pnpm android:sync`：用指定 API 地址构建前端并同步到 Android 工程
 - `pnpm android:build:debug`：生成 Android 调试 APK
+- `pnpm android:build:release`：生成 Android Release APK（未提供签名变量时输出 unsigned 包）
 - `pnpm go:test`：执行 Go 测试
 - `pnpm test`：项目测试脚本入口
 
@@ -288,6 +289,9 @@ pnpm start
 - `MYSQL_DSN`（MySQL）
 - `JWT_SECRET`
 - `REDIS_ADDR`（可选）
+- `VITE_SERVER_ORIGIN`：前端运行时和 Vite 开发代理使用的服务器地址，例如 `http://127.0.0.1:8080`
+- `CHEM_SERVER_ORIGIN`：Electron / Android 打包时共享使用的服务器地址；未单独指定平台变量时会回退到它
+- `CHEM_ANDROID_API_ORIGIN`：Android 专用服务器地址，优先级高于 `CHEM_SERVER_ORIGIN`
 
 ### 安全配置
 

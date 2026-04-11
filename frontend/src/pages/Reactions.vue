@@ -135,7 +135,7 @@
                 />
               </div>
               <div class="text-[8px] font-black text-blue-600 dark:text-white bg-blue-600/10 dark:bg-blue-600/20 px-2 py-1.5 rounded-lg border border-blue-600/20 dark:border-blue-600/30 whitespace-nowrap">
-                MATCHED: {{ filteredReactions.length }}
+                MATCHED: {{ pagination.total }}
               </div>
               <!-- 导出按钮 -->
               <button
@@ -332,6 +332,28 @@
               <div class="w-8 h-8 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mx-auto mb-4"></div>
               <p class="text-slate-500 font-medium">加载中...</p>
             </div>
+
+            <div class="mt-5 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-100 dark:border-white/5 pt-4">
+              <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                Page {{ pagination.page }} / {{ Math.max(pagination.totalPages, 1) }} · Total {{ pagination.total }}
+              </p>
+              <div class="flex items-center gap-2">
+                <button
+                  @click="goToPreviousPage"
+                  :disabled="loading || pagination.page <= 1"
+                  class="px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-300 transition-all hover:border-blue-500/40 hover:text-blue-600 dark:hover:text-blue-400 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Prev
+                </button>
+                <button
+                  @click="goToNextPage"
+                  :disabled="loading || pagination.page >= Math.max(pagination.totalPages, 1)"
+                  class="px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-300 transition-all hover:border-blue-500/40 hover:text-blue-600 dark:hover:text-blue-400 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -340,7 +362,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { reactionAPI, authAPI, adminAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
@@ -382,6 +404,13 @@ const loading = ref(false)
 const searchTerm = ref('')
 const fileInput = ref<HTMLInputElement | null>(null)
 const editorRef = ref<any>(null)
+const pagination = ref({
+  page: 1,
+  pageSize: 30,
+  total: 0,
+  totalPages: 0
+})
+let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
 
 // 编辑与反馈逻辑
 const editingReactionId = ref<number | null>(null)
@@ -439,6 +468,31 @@ onMounted(() => {
     console.error('解析用户信息失败', e)
   }
   loadReactions()
+})
+
+watch([filterStatus, filterInvalidElements], () => {
+  pagination.value.page = 1
+  void loadReactions()
+})
+
+watch(() => pagination.value.page, () => {
+  void loadReactions()
+})
+
+watch(searchTerm, () => {
+  pagination.value.page = 1
+  if (searchDebounceTimer) {
+    clearTimeout(searchDebounceTimer)
+  }
+  searchDebounceTimer = setTimeout(() => {
+    void loadReactions()
+  }, 250)
+})
+
+onUnmounted(() => {
+  if (searchDebounceTimer) {
+    clearTimeout(searchDebounceTimer)
+  }
 })
 
 // 权限检查
@@ -502,27 +556,7 @@ const handleFileUpload = async (event: Event) => {
 }
 
 const filteredReactions = computed(() => {
-  let filtered = reactions.value
-
-  // 1. 搜索词筛选
-  if (searchTerm.value) {
-    const term = searchTerm.value.toLowerCase()
-    filtered = filtered.filter(r => 
-      r.display.toLowerCase().includes(term)
-    )
-  }
-
-  // 2. 状态筛选
-  if (filterStatus.value !== 'all') {
-    filtered = filtered.filter(r => r.status === filterStatus.value)
-  }
-
-  // 3. 无效元素筛选
-  if (filterInvalidElements.value !== null) {
-    filtered = filtered.filter(r => (r.has_invalid_elements || false) === filterInvalidElements.value)
-  }
-
-  return filtered
+  return reactions.value
 })
 
 // 批量操作相关
@@ -618,31 +652,54 @@ const handleBatchRejectReactions = async () => {
 const loadReactions = async () => {
   loading.value = true
   try {
-    let response;
-    if (user.value.role === 'admin' || user.value.role === 'co-worker') {
-      // 管理员和协作者看到所有待审核和已审核的
-      response = await reactionAPI.getReactions()
-    } else {
-      // 普通用户看到公共Wiki库 + 自己的提交
-      const [wikiRes, myRes] = await Promise.all([
-        reactionAPI.getAllReactions(),
-        reactionAPI.getMyReactions()
-      ])
-      
-      const wikiData = (wikiRes.data || []).map((r: any) => ({
-        ...r,
-        status: 'approved',
-        creator_name: 'SYSTEM (Wiki)'
-      }))
-      
-      response = { data: [...wikiData, ...(myRes.data || [])] }
+    const params: Record<string, any> = {
+      paginated: 1,
+      page: pagination.value.page,
+      page_size: pagination.value.pageSize
     }
-    reactions.value = response.data || []
+
+    if (searchTerm.value.trim()) {
+      params.q = searchTerm.value.trim()
+    }
+
+    if (filterStatus.value !== 'all') {
+      params.status = filterStatus.value
+    }
+
+    if (filterInvalidElements.value !== null) {
+      params.has_invalid = filterInvalidElements.value
+    }
+
+    const response = await reactionAPI.getReactions(params)
+    reactions.value = response.data?.items || []
+    pagination.value.total = response.data?.pagination?.total || 0
+    pagination.value.totalPages = response.data?.pagination?.total_pages || 0
+    pagination.value.page = response.data?.pagination?.page || pagination.value.page
+    pagination.value.pageSize = response.data?.pagination?.page_size || pagination.value.pageSize
+
+    if (pagination.value.totalPages > 0 && pagination.value.page > pagination.value.totalPages) {
+      pagination.value.page = pagination.value.totalPages
+      return
+    }
+
+    selectedReactions.value.clear()
+    selectAllReactions.value = false
   } catch (error) {
     console.error('加载反应数据失败:', error)
   } finally {
     loading.value = false
   }
+}
+
+const goToPreviousPage = () => {
+  if (pagination.value.page <= 1 || loading.value) return
+  pagination.value.page -= 1
+}
+
+const goToNextPage = () => {
+  const totalPages = Math.max(pagination.value.totalPages, 1)
+  if (pagination.value.page >= totalPages || loading.value) return
+  pagination.value.page += 1
 }
 
 const handleApproveReaction = async (reaction: any, reject: boolean) => {

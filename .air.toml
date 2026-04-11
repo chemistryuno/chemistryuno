@@ -1,0 +1,37 @@
+root = "."
+tmp_dir = "tmp"
+env_files = [".env"]
+
+[build]
+cmd = "go build -o ./tmp/chemistryuno-dev.exe ./main.go"
+entrypoint = "./tmp/chemistryuno-dev.exe"
+include_ext = ["go", "tpl", "tmpl", "html"]
+include_dir = [
+  "backend/cache",
+  "backend/database",
+  "backend/deckcfg",
+  "backend/game",
+  "backend/handlers",
+  "backend/middleware",
+  "backend/models",
+  "backend/plugins",
+  "backend/repository",
+  "backend/router",
+  "backend/utils",
+  "backend/websocket",
+]
+include_file = [".env", "go.mod", "go.sum", "main.go", "backend/static/embed.go"]
+exclude_dir = [".git", ".venv", ".vscode", "__pycache__", "demo", "dist", "frontend", "logs", "node_modules", "tmp"]
+exclude_regex = ["_test\\.go"]
+exclude_unchanged = true
+delay = 500
+stop_on_error = true
+send_interrupt = true
+kill_delay = 500
+log = "air-errors.log"
+
+[log]
+time = true
+
+[misc]
+clean_on_exit = true

@@ -70,5 +70,6 @@ console.log('鉁?Initialization complete!');
 console.log('');
 console.log('Next steps:');
 console.log('  1. Review .env and update configuration if needed');
-console.log('  2. Run: pnpm start  (to start development servers)');
+console.log('  2. Run: pnpm run air:install  (installs backend hot reload tool)');
+console.log('  3. Run: pnpm start  (to start development servers)');
 console.log('鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣\n');

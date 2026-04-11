@@ -192,6 +192,87 @@ type ReactionWithCreator struct {
 	CreatedAt          time.Time `json:"created_at"`
 }
 
+type ReactionListFilter struct {
+	ViewerUID        *uint
+	IncludeApproved  bool
+	Search           string
+	Status           string
+	HasInvalid       *bool
+	Page             int
+	PageSize         int
+}
+
+func (r *ReactionRepository) applyReactionListFilter(query *gorm.DB, filter ReactionListFilter) *gorm.DB {
+	if filter.IncludeApproved && filter.ViewerUID != nil {
+		query = query.Where("(reactions.status = ? OR reactions.created_by_uid = ?)", "approved", *filter.ViewerUID)
+	}
+
+	if filter.ViewerUID != nil && !filter.IncludeApproved {
+		query = query.Where("reactions.created_by_uid = ?", *filter.ViewerUID)
+	}
+
+	if filter.Status != "" && filter.Status != "all" {
+		query = query.Where("reactions.status = ?", filter.Status)
+	}
+
+	if filter.HasInvalid != nil {
+		query = query.Where("reactions.has_invalid_elements = ?", *filter.HasInvalid)
+	}
+
+	if filter.Search != "" {
+		like := "%" + filter.Search + "%"
+		query = query.Where(
+			"(LOWER(reactions.display) LIKE LOWER(?) OR LOWER(reactions.r1) LIKE LOWER(?) OR LOWER(reactions.r2) LIKE LOWER(?))",
+			like, like, like,
+		)
+	}
+
+	return query
+}
+
+func (r *ReactionRepository) FindGroupedWithCreatorPage(filter ReactionListFilter) ([]ReactionWithCreator, int64, error) {
+	page := filter.Page
+	if page < 1 {
+		page = 1
+	}
+
+	pageSize := filter.PageSize
+	if pageSize <= 0 {
+		pageSize = 50
+	}
+
+	baseQuery := r.applyReactionListFilter(r.db.Table("reactions"), filter)
+	groupExpr := "COALESCE(reactions.group_id, reactions.id)"
+
+	idSubQuery := baseQuery.
+		Select("MIN(reactions.id) AS id").
+		Group(groupExpr)
+
+	countSubQuery := baseQuery.
+		Select(groupExpr + " AS grouped_id").
+		Group(groupExpr)
+
+	var total int64
+	if err := r.db.Table("(?) AS grouped_reactions", countSubQuery).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	var results []ReactionWithCreator
+	err := r.db.Table("reactions").
+		Select("reactions.id, reactions.display, reactions.r1, reactions.r2, reactions.status, reactions.group_id, reactions.has_invalid_elements, reactions.created_by_uid, users.username as creator_name, reactions.created_at").
+		Joins("LEFT JOIN users ON reactions.created_by_uid = users.uid").
+		Where("reactions.id IN (?)", idSubQuery).
+		Order("reactions.created_at DESC").
+		Limit(pageSize).
+		Offset((page - 1) * pageSize).
+		Scan(&results).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return results, total, nil
+}
+
 // FindAllGroupedWithCreator 获取所有反应（按组分组，带创建者信息）
 func (r *ReactionRepository) FindAllGroupedWithCreator() ([]ReactionWithCreator, error) {
 	var results []ReactionWithCreator

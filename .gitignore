@@ -60,3 +60,4 @@ android/
 demo/
 __pycache__/
 chemistryuno.db-shm
+tmp/

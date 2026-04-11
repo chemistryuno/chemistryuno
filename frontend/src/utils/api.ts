@@ -486,12 +486,12 @@ export const levelAPI = {
 
 // 反应管理API
 export const reactionAPI = {
-  getReactions: () =>
-    api.get('/reactions'),
-  getAllReactions: () =>
-    api.get('/reactions/all'),
-  getMyReactions: () =>
-    api.get('/reactions/my'),
+  getReactions: (params?: Record<string, any>) =>
+    api.get('/reactions', { params }),
+  getAllReactions: (params?: Record<string, any>) =>
+    api.get('/reactions/all', { params }),
+  getMyReactions: (params?: Record<string, any>) =>
+    api.get('/reactions/my', { params }),
   addReaction: (display: string) =>
     api.post('/reactions', { display }),
   batchAddReactions: (reactions: { display: string }[]) =>

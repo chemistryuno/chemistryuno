@@ -19,6 +19,92 @@ body {
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
+@keyframes app-enter {
+  from {
+    opacity: var(--enter-opacity, 0.01);
+    transform:
+      translate3d(var(--enter-x, 0), var(--enter-y, 0), 0)
+      scale(var(--enter-scale, 1));
+    filter: blur(var(--enter-blur, 0));
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@layer utilities {
+  .animate-in {
+    --enter-opacity: 0.01;
+    --enter-x: 0;
+    --enter-y: 0;
+    --enter-scale: 1;
+    --enter-blur: 0px;
+    animation: app-enter var(--enter-duration, 320ms) cubic-bezier(0.22, 1, 0.36, 1) both;
+    will-change: opacity, transform, filter;
+  }
+
+  .fade-in {
+    --enter-opacity: 0;
+  }
+
+  .zoom-in {
+    --enter-scale: 0.96;
+    --enter-blur: 4px;
+  }
+
+  .zoom-in-95 {
+    --enter-scale: 0.95;
+    --enter-blur: 4px;
+  }
+
+  .slide-in-from-top {
+    --enter-y: -0.75rem;
+  }
+
+  .slide-in-from-top-1 {
+    --enter-y: -0.25rem;
+  }
+
+  .slide-in-from-top-2 {
+    --enter-y: -0.5rem;
+  }
+
+  .slide-in-from-top-4 {
+    --enter-y: -1rem;
+  }
+
+  .slide-in-from-bottom {
+    --enter-y: 0.75rem;
+  }
+
+  .slide-in-from-bottom-1 {
+    --enter-y: 0.25rem;
+  }
+
+  .slide-in-from-bottom-2 {
+    --enter-y: 0.5rem;
+  }
+
+  .slide-in-from-bottom-4 {
+    --enter-y: 1rem;
+  }
+
+  .slide-in-from-bottom-10 {
+    --enter-y: 2.5rem;
+  }
+
+  .slide-in-from-left-4 {
+    --enter-x: -1rem;
+  }
+
+  .slide-in-from-right-4 {
+    --enter-x: 1rem;
+  }
+}
+
 @layer utilities {
 
   /* ========== 绉诲姩绔紭鍖栧伐鍏风被 ========== */
@@ -338,5 +424,14 @@ body {
     background: var(--card-bg-dark);
     color: var(--card-text-dark);
     border-color: var(--card-border-dark);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-in {
+    animation: none !important;
+    filter: none !important;
+    transform: none !important;
+    opacity: 1 !important;
   }
 }

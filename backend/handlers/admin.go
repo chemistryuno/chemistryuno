@@ -29,6 +29,38 @@ var (
 	deckRepo      *repository.DeckRepository
 )
 
+func parseReactionListFilter(c *gin.Context) (repository.ReactionListFilter, bool) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "50"))
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 50
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+
+	filter := repository.ReactionListFilter{
+		Search:   strings.TrimSpace(c.Query("q")),
+		Status:   strings.TrimSpace(c.Query("status")),
+		Page:     page,
+		PageSize: pageSize,
+	}
+
+	if raw := strings.TrimSpace(c.Query("has_invalid")); raw != "" {
+		parsed, err := strconv.ParseBool(raw)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid has_invalid value"})
+			return filter, false
+		}
+		filter.HasInvalid = &parsed
+	}
+
+	return filter, true
+}
+
 // InitAdminHandlers 初始化admin handlers的依赖
 func InitAdminHandlers() {
 	// 初始化Repository
@@ -503,6 +535,42 @@ func GetGameHistory(c *gin.Context) {
 
 // 获取所有化学反应 (Admin/Co-worker)
 func GetReactions(c *gin.Context) {
+	filter, ok := parseReactionListFilter(c)
+	if !ok {
+		return
+	}
+
+	role := c.GetString("role")
+	if role != "admin" && role != "co-worker" {
+		uid := uint(c.GetInt("uid"))
+		filter.ViewerUID = &uid
+		filter.IncludeApproved = true
+	}
+
+	if c.Query("paginated") == "1" {
+		reactionList, total, err := reactionRepo.FindGroupedWithCreatorPage(filter)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "鏁版嵁搴撻敊璇?"})
+			return
+		}
+
+		totalPages := 0
+		if total > 0 {
+			totalPages = int((total + int64(filter.PageSize) - 1) / int64(filter.PageSize))
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"items": reactionList,
+			"pagination": gin.H{
+				"page":        filter.Page,
+				"page_size":   filter.PageSize,
+				"total":       total,
+				"total_pages": totalPages,
+			},
+		})
+		return
+	}
+
 	reactionList, err := reactionRepo.FindAllGroupedWithCreator()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误"})
@@ -528,6 +596,36 @@ func GetReactions(c *gin.Context) {
 
 // 获取所有已批准的反应 (Wiki)
 func GetAllReactions(c *gin.Context) {
+	filter, ok := parseReactionListFilter(c)
+	if !ok {
+		return
+	}
+	filter.Status = "approved"
+
+	if c.Query("paginated") == "1" {
+		reactionList, total, err := reactionRepo.FindGroupedWithCreatorPage(filter)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "鏁版嵁搴撻敊璇?"})
+			return
+		}
+
+		totalPages := 0
+		if total > 0 {
+			totalPages = int((total + int64(filter.PageSize) - 1) / int64(filter.PageSize))
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"items": reactionList,
+			"pagination": gin.H{
+				"page":        filter.Page,
+				"page_size":   filter.PageSize,
+				"total":       total,
+				"total_pages": totalPages,
+			},
+		})
+		return
+	}
+
 	reactionList, err := reactionRepo.FindApprovedGrouped()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误"})
@@ -540,6 +638,37 @@ func GetAllReactions(c *gin.Context) {
 // 获取我提交的反应
 func GetMyReactions(c *gin.Context) {
 	uid := c.GetInt("uid")
+	filter, ok := parseReactionListFilter(c)
+	if !ok {
+		return
+	}
+	uidUint := uint(uid)
+	filter.ViewerUID = &uidUint
+
+	if c.Query("paginated") == "1" {
+		reactionList, total, err := reactionRepo.FindGroupedWithCreatorPage(filter)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "鏁版嵁搴撻敊璇?"})
+			return
+		}
+
+		totalPages := 0
+		if total > 0 {
+			totalPages = int((total + int64(filter.PageSize) - 1) / int64(filter.PageSize))
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"items": reactionList,
+			"pagination": gin.H{
+				"page":        filter.Page,
+				"page_size":   filter.PageSize,
+				"total":       total,
+				"total_pages": totalPages,
+			},
+		})
+		return
+	}
+
 	reactionList, err := reactionRepo.FindMyReactions(uint(uid))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误"})

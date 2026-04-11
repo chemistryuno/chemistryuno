@@ -392,7 +392,7 @@ onMounted(loadPlugins)
       <input ref="installFileInput" type="file" accept=".cumod" class="hidden" @change="installPlugin" />
     </div>
 
-    <div class="flex h-[calc(100vh-49px)]">
+    <div class="flex" style="height: calc(var(--app-height) - 49px);">
       <div class="w-72 border-r border-white/5 overflow-y-auto p-2 space-y-1.5">
         <div v-if="loading" class="text-center text-slate-500 text-xs py-8">加载中...</div>
         <div v-else-if="!plugins.length" class="text-center text-slate-500 text-xs py-8">暂无插件</div>

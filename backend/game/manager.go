@@ -1835,8 +1835,8 @@ func JoinRoomWithKey(roomID string, uid int, accessKey string) error {
 	return nil
 }
 
-// JoinRoomWithKeyAsSpectator 以观战者身份加入房间
-func JoinRoomWithKeyAsSpectator(roomID string, uid int, accessKey string, asSpectator bool) error {
+// JoinRoomWithKeyAsSpectator 以观战者身份加入房间（管理员可无密钥旁观私密房间）
+func JoinRoomWithKeyAsSpectator(roomID string, uid int, accessKey string, asSpectator bool, isAdmin bool) error {
 	// 如果不要求作为观战者加入，使用原有逻辑
 	if !asSpectator {
 		return JoinRoomWithKey(roomID, uid, accessKey)
@@ -1875,7 +1875,7 @@ func JoinRoomWithKeyAsSpectator(roomID string, uid int, accessKey string, asSpec
 	}
 
 	// 私密房间需要验证密钥
-	if gameRoom.Room.IsPrivate && gameRoom.Room.AccessKey != "" {
+	if gameRoom.Room.IsPrivate && gameRoom.Room.AccessKey != "" && !isAdmin {
 		isCreator := len(gameRoom.Room.Players) > 0 && gameRoom.Room.Players[0] == uid
 		alreadyInRoom := false
 		for _, pid := range gameRoom.Room.Players {

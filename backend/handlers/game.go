@@ -131,6 +131,7 @@ func CreateRoom(c *gin.Context) {
 func JoinRoom(c *gin.Context) {
 	roomID := c.Param("id")
 	uid := c.GetInt("uid")
+	isAdmin := c.GetBool("is_admin")
 
 	// 从查询参数获取访问密钥和观战模式
 	accessKey := c.Query("key")
@@ -148,7 +149,7 @@ func JoinRoom(c *gin.Context) {
 		}
 	}
 
-	err := game.JoinRoomWithKeyAsSpectator(roomID, uid, accessKey, asSpectator)
+	err := game.JoinRoomWithKeyAsSpectator(roomID, uid, accessKey, asSpectator, isAdmin)
 	if err != nil {
 		if err.Error() == "房间不存在" {
 			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})

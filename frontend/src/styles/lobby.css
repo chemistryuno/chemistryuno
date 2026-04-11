@@ -454,7 +454,7 @@
 
 /* Base Page Layout */
 .lobby-page {
-  min-height: 100vh;
+  min-height: var(--app-height);
   background-color: var(--bg-color, #f8fafc);
   color: var(--text-color, #0f172a);
   font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;

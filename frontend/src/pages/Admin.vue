@@ -570,94 +570,19 @@ const handleBanUser = async () => {
   }
 }
 
-// Replay state
-const showReplayModal = ref(false)
-const replayLoading = ref(false)
-const replayError = ref('')
-const replayHistoryItem = ref<any>(null)
-const replayDetail = ref<any>(null)
-
-const replayEvents = computed(() => {
-  const replay = replayDetail.value?.replay
-  if (!replay || !Array.isArray(replay.events)) return []
-  return replay.events
-})
-
-const formatReplayEventType = (type: string) => {
-  const labels: Record<string, string> = {
-    game_start: '对局开始',
-    play_card: '出牌',
-    double_play: '双联',
-    draw_card: '摸牌',
-    timeout_auto_draw: '超时自动摸牌',
-    game_finished: '对局结束',
-    game_terminated_invalid: '无效结算',
-    fast_reaction: '快速反应'
-  }
-  return labels[type] || type
+const openReplayRoom = (game: any) => {
+  router.push(`/replay/${game.id}?scope=admin`)
 }
 
-const describeReplayEvent = (evt: any) => {
-  const actorUID = evt?.actor_uid ?? evt?.uid
-  const actor = actorUID ? `UID ${actorUID}` : '系统'
-  const payload = evt?.payload || {}
-  const eventType = evt?.type || evt?.event || ''
-  if (eventType === 'play_card') {
-    const symbol = payload.card_symbol || payload.card_type || '未知卡'
-    const substance = payload.substance || '未知物质'
-    const speed = payload.fast_reaction_ms ? ` (${payload.fast_reaction_ms}ms)` : ''
-    return `${actor} 使用 ${symbol} -> ${substance}${speed}`
-  }
-  if (eventType === 'double_play') {
-    const sub1 = payload.sub1 || payload.substance_1 || '?'
-    const sub2 = payload.sub2 || payload.substance_2 || '?'
-    const speed = payload.fast_reaction_ms ? ` (${payload.fast_reaction_ms}ms)` : ''
-    return `${actor} 触发双联 ${sub1} + ${sub2}${speed}`
-  }
-  if (eventType === 'draw_card') {
-    return `${actor} 摸牌 ${payload.actual_count || payload.draw_count || 1} 张`
-  }
-  if (eventType === 'timeout_auto_draw') {
-    return `${actor} 超时自动摸牌 ${payload.draw_count || 1} 张`
-  }
-  return `${actor} ${formatReplayEventType(eventType)}`
-}
-
-const openReplayModal = async (game: any) => {
-  replayHistoryItem.value = game
-  replayDetail.value = null
-  replayError.value = ''
-  replayLoading.value = true
-  showReplayModal.value = true
-
-  try {
-    const response = await adminAPI.getGameReplay(game.id)
-    replayDetail.value = response.data
-  } catch (error: any) {
-    replayError.value = error.response?.data?.error || '回放加载失败'
-  } finally {
-    replayLoading.value = false
-  }
-}
-
-const closeReplayModal = () => {
-  showReplayModal.value = false
-}
-
-const handleClearReplay = async () => {
-  if (!replayHistoryItem.value) return
+const handleClearReplay = async (game: any) => {
   const ok = await showConfirm('确认清除该对局回放？该操作不可撤销。', '清除回放')
   if (!ok) return
 
   try {
-    await adminAPI.clearGameReplay(replayHistoryItem.value.id)
+    await adminAPI.clearGameReplay(game.id)
     await showAlert('回放已清除', '执行完成')
 
-    if (replayDetail.value) {
-      replayDetail.value.has_replay = false
-      replayDetail.value.replay = null
-    }
-    const index = gameHistory.value.findIndex((h: any) => h.id === replayHistoryItem.value.id)
+    const index = gameHistory.value.findIndex((h: any) => h.id === game.id)
     if (index >= 0) {
       gameHistory.value[index].has_replay = false
       gameHistory.value[index].replay_cleared_at = new Date().toISOString()
@@ -665,23 +590,6 @@ const handleClearReplay = async () => {
   } catch (error: any) {
     await showAlert(error.response?.data?.error || '清除回放失败', '错误')
   }
-}
-
-const openReplayBanModal = (profile: any) => {
-  openBanModal({
-    uid: profile.uid,
-    username: profile.username || `UID:${profile.uid}`,
-    nickname: profile.nickname || profile.username || `UID:${profile.uid}`,
-    avatar: profile.avatar || ''
-  })
-}
-
-const handleReplayKick = async (profile: any) => {
-  await handleKickPlayer({
-    uid: profile.uid,
-    username: profile.username || `UID:${profile.uid}`,
-    nickname: profile.nickname || profile.username || `UID:${profile.uid}`
-  })
 }
 
 const handleCreateAnnouncement = async () => {
@@ -1605,11 +1513,19 @@ const filteredHistory = computed(() => {
                           <div class="inline-flex items-center gap-2">
                             <button
                               v-if="game.has_replay"
-                              @click="openReplayModal(game)"
+                              @click="openReplayRoom(game)"
                               class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-blue-500/20 bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[10px] font-black uppercase tracking-widest hover:bg-blue-500 hover:text-white transition-all"
                             >
                               <Eye class="w-3.5 h-3.5" />
                               View
+                            </button>
+                            <button
+                              v-if="game.has_replay"
+                              @click="handleClearReplay(game)"
+                              class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-rose-500/20 bg-rose-500/10 text-rose-500 text-[10px] font-black uppercase tracking-widest hover:bg-rose-500/20 transition-all"
+                            >
+                              <Trash2 class="w-3.5 h-3.5" />
+                              Clear
                             </button>
                             <span v-else class="text-[10px] text-slate-400 font-black uppercase tracking-widest">No Replay</span>
                           </div>
@@ -1896,111 +1812,6 @@ const filteredHistory = computed(() => {
           </div>
         </div>
       </main>
-    </div>
-
-    <!-- 对局回放模态框 -->
-    <div v-if="showReplayModal" class="fixed inset-0 bg-slate-900/50 dark:bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
-      <div class="bg-white dark:bg-[#0c0c0e] border border-slate-200 dark:border-white/10 rounded-[1.5rem] w-full max-w-5xl max-h-[90vh] shadow-[0_50px_120px_-20px_rgba(59,130,246,0.2)] flex flex-col overflow-hidden">
-        <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-white/10 bg-slate-50/80 dark:bg-black/30">
-          <div>
-            <h3 class="text-base font-black text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
-              <History class="w-4 h-4 text-blue-500" />
-              回放审计 #{{ String(replayHistoryItem?.id || '').padStart(4, '0') }}
-            </h3>
-            <p class="text-[10px] text-slate-400 font-mono uppercase tracking-wider">/ REPLAY AUDIT CONSOLE</p>
-          </div>
-          <div class="flex items-center gap-2">
-            <button
-              v-if="replayDetail?.has_replay"
-              @click="handleClearReplay"
-              class="px-3 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
-            >
-              清除回放
-            </button>
-            <button @click="closeReplayModal" class="p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl transition-colors text-slate-400 hover:text-slate-900 dark:hover:text-white">
-              <X class="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-
-        <div class="p-5 overflow-y-auto space-y-4">
-          <div v-if="replayLoading" class="py-16 flex items-center justify-center">
-            <div class="w-8 h-8 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
-          </div>
-
-          <div v-else-if="replayError" class="rounded-xl border border-rose-200 dark:border-rose-500/30 bg-rose-50 dark:bg-rose-500/10 p-4 text-sm text-rose-600 dark:text-rose-300">
-            {{ replayError }}
-          </div>
-
-          <template v-else>
-            <div class="flex items-center gap-2 flex-wrap">
-              <span v-if="replayDetail?.cheat_detected" class="px-2.5 py-1 rounded-lg bg-rose-500/10 text-rose-500 text-[10px] font-black uppercase tracking-wider">CHEAT</span>
-              <span v-if="replayDetail?.replay_permanent" class="px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px] font-black uppercase tracking-wider">PERMANENT</span>
-              <span v-else-if="replayDetail?.replay_expires_at" class="px-2.5 py-1 rounded-lg bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 text-[10px] font-black uppercase tracking-wider">
-                EXPIRES {{ new Date(String(replayDetail.replay_expires_at).replace(' ', 'T')).toLocaleString() }}
-              </span>
-              <span v-if="replayDetail?.replay_cleared_at" class="px-2.5 py-1 rounded-lg bg-slate-500/10 text-slate-500 text-[10px] font-black uppercase tracking-wider">
-                CLEARED {{ new Date(String(replayDetail.replay_cleared_at).replace(' ', 'T')).toLocaleString() }}
-              </span>
-            </div>
-
-            <div v-if="replayDetail?.cheat_uids?.length" class="rounded-xl border border-rose-200 dark:border-rose-500/30 bg-rose-50 dark:bg-rose-500/10 p-4">
-              <p class="text-xs font-black text-rose-500 mb-2 uppercase tracking-wider">可疑 UID</p>
-              <div class="flex flex-wrap gap-2">
-                <span v-for="uid in replayDetail.cheat_uids" :key="uid" class="px-2 py-1 rounded-md text-xs font-black bg-rose-500/15 text-rose-600 dark:text-rose-300">
-                  UID {{ uid }}
-                </span>
-              </div>
-            </div>
-
-            <div class="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/60 dark:bg-black/20 p-4">
-              <p class="text-xs font-black text-slate-500 mb-3 uppercase tracking-wider">参与者处置</p>
-              <div class="space-y-2">
-                <div
-                  v-for="profile in (replayDetail?.player_profiles || [])"
-                  :key="profile.uid"
-                  class="flex items-center justify-between gap-3 rounded-xl border border-slate-100 dark:border-white/10 bg-white dark:bg-black/30 p-3"
-                >
-                  <div>
-                    <p class="text-sm font-black text-slate-900 dark:text-white">{{ profile.nickname || profile.username || `UID:${profile.uid}` }}</p>
-                    <p class="text-[10px] text-slate-400 font-mono">UID: {{ profile.uid }}</p>
-                  </div>
-                  <div class="flex items-center gap-2">
-                    <span v-if="profile.uid < 0 || profile.is_ai" class="text-[10px] px-2 py-1 rounded bg-slate-100 dark:bg-white/10 text-slate-500 font-black uppercase">AI</span>
-                    <template v-else>
-                      <button
-                        @click="handleReplayKick(profile)"
-                        class="px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 text-[10px] font-black uppercase tracking-wider"
-                      >
-                        踢出
-                      </button>
-                      <button
-                        @click="openReplayBanModal(profile)"
-                        class="px-3 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 text-[10px] font-black uppercase tracking-wider"
-                      >
-                        封禁
-                      </button>
-                    </template>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/60 dark:bg-black/20 p-4">
-              <p class="text-xs font-black text-slate-500 mb-3 uppercase tracking-wider">事件时间线</p>
-              <div v-if="replayEvents.length === 0" class="text-xs text-slate-400">暂无事件</div>
-              <div v-else class="space-y-2">
-                <div v-for="(event, idx) in replayEvents" :key="`${event.at || event.timestamp || 'evt'}-${idx}`" class="rounded-lg border border-slate-100 dark:border-white/10 px-3 py-2 bg-white dark:bg-black/30">
-                  <div class="flex items-center justify-between gap-2">
-                    <p class="text-xs font-semibold text-slate-700 dark:text-slate-200">{{ idx + 1 }}. {{ describeReplayEvent(event) }}</p>
-                    <p class="text-[10px] text-slate-400 font-mono">{{ new Date(String(event.at || event.timestamp || '').replace(' ', 'T')).toLocaleString() }}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </template>
-        </div>
-      </div>
     </div>
 
     <!-- 封禁用户模态框 -->

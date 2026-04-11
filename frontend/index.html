@@ -5,6 +5,23 @@
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>化学UNO - Chemistry UNO</title>
+    <script>
+      (function () {
+        function syncViewportHeight() {
+          var viewport = window.visualViewport;
+          var height = viewport && viewport.height ? viewport.height : window.innerHeight;
+          document.documentElement.style.setProperty('--app-height', height + 'px');
+        }
+
+        syncViewportHeight();
+        window.addEventListener('resize', syncViewportHeight, { passive: true });
+        window.addEventListener('orientationchange', syncViewportHeight, { passive: true });
+
+        if (window.visualViewport) {
+          window.visualViewport.addEventListener('resize', syncViewportHeight, { passive: true });
+        }
+      })();
+    </script>
     <style>
       :root {
         color-scheme: light dark;

@@ -4,9 +4,9 @@ import { useRouter } from 'vue-router'
 import websocket from './utils/websocket'
 import feedback from './utils/feedback'
 import { useDialog } from './utils/dialog'
+import AnnouncementTicker from './components/AnnouncementTicker.vue'
 
 const CustomDialog = defineAsyncComponent(() => import('./components/CustomDialog.vue'))
-const AnnouncementTicker = defineAsyncComponent(() => import('./components/AnnouncementTicker.vue'))
 const DuelInviteModal = defineAsyncComponent(() => import('./components/DuelInviteModal.vue'))
 
 // --- 服务器重启横幅状态 ---
@@ -276,11 +276,7 @@ onUnmounted(() => {
   </div>
   <template v-else>
     <div class="app-viewport transition-colors duration-300 min-h-screen bg-slate-50 dark:bg-[#0a0a0c] text-slate-900 dark:text-slate-200">
-      <Transition name="app-soft-enter" appear>
-        <div>
-          <AnnouncementTicker />
-        </div>
-      </Transition>
+      <AnnouncementTicker />
       <!-- 服务器重启横幅 -->
       <Transition name="slide-down">
         <div
@@ -295,7 +291,7 @@ onUnmounted(() => {
         </div>
       </Transition>
       <router-view v-slot="{ Component, route }">
-        <Transition name="app-route" mode="out-in" appear>
+        <Transition name="app-route" mode="out-in">
           <div :key="route.fullPath" class="app-route-shell">
             <component :is="Component" />
           </div>
@@ -312,39 +308,20 @@ onUnmounted(() => {
 <style>
 .app-route-shell {
   will-change: opacity, transform, filter;
+  min-height: var(--app-height);
 }
 
 .app-route-enter-active,
 .app-route-leave-active {
-  transition:
-    opacity 280ms cubic-bezier(0.22, 1, 0.36, 1),
-    transform 280ms cubic-bezier(0.22, 1, 0.36, 1),
-    filter 280ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition: opacity 220ms ease;
 }
 
 .app-route-enter-from {
   opacity: 0;
-  transform: translate3d(0, 14px, 0) scale(0.985);
-  filter: blur(6px);
 }
 
 .app-route-leave-to {
   opacity: 0;
-  transform: translate3d(0, -8px, 0) scale(0.992);
-  filter: blur(4px);
-}
-
-.app-soft-enter-enter-active,
-.app-soft-enter-leave-active {
-  transition:
-    opacity 220ms ease,
-    transform 220ms ease;
-}
-
-.app-soft-enter-enter-from,
-.app-soft-enter-leave-to {
-  opacity: 0;
-  transform: translate3d(0, -6px, 0);
 }
 
 .app-pop-enter-active,
@@ -365,8 +342,6 @@ onUnmounted(() => {
 @media (prefers-reduced-motion: reduce) {
   .app-route-enter-active,
   .app-route-leave-active,
-  .app-soft-enter-enter-active,
-  .app-soft-enter-leave-active,
   .app-pop-enter-active,
   .app-pop-leave-active {
     transition-duration: 1ms;
@@ -374,8 +349,6 @@ onUnmounted(() => {
 
   .app-route-enter-from,
   .app-route-leave-to,
-  .app-soft-enter-enter-from,
-  .app-soft-enter-leave-to,
   .app-pop-enter-from,
   .app-pop-leave-to {
     opacity: 1;

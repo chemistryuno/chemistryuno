@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import PhlogistonIcon from '../components/icons/PhlogistonIcon.vue'
-import { gameAPI, authAPI, commonAPI, friendAPI } from '../utils/api'
+import { gameAPI, authAPI, commonAPI, friendAPI, adminAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
 import UserAvatar from '../components/UserAvatar.vue'
 import websocket from '../utils/websocket'
@@ -25,10 +25,16 @@ const loadUserInfo = async () => {
     const res = await authAPI.getUserInfo()
     user.value = res.data
     localStorage.setItem('user', JSON.stringify(res.data))
+    if (!res.data?.is_admin) {
+      lobbyViewMode.value = 'player'
+    }
   } catch (e) {
     console.error('Failed to load user info:', e)
   }
 }
+
+const isAdminUser = computed(() => !!user.value?.is_admin)
+const isAdminView = computed(() => isAdminUser.value && lobbyViewMode.value === 'admin')
 
 try {
   const userData = JSON.parse(localStorage.getItem('user') || '{}')
@@ -68,6 +74,7 @@ const maxPlayers = ref(4)
 const deckID = ref(0)
 const isPointsMode = ref(false)
 const isPrivate = ref(false)
+const lobbyViewMode = ref<'player' | 'admin'>('player')
 
 // 等级匹配与排位
 const isRanked = ref(false)
@@ -336,6 +343,10 @@ const handleSystemAnnouncement = (msg: any) => {
 
 // WebSocket房间更新事件处理（后续支持）
 const handleRoomsUpdate = (msg: any) => {
+  if (isAdminView.value) {
+    loadRooms()
+    return
+  }
   if (msg.data && Array.isArray(msg.data)) {
     rooms.value = msg.data
     roomsFetchedAt.value = Date.now()
@@ -405,13 +416,17 @@ onUnmounted(() => {
 
 const loadRooms = async () => {
   try {
-    const response = await gameAPI.getRooms()
+    const response = isAdminView.value ? await adminAPI.getActiveRooms() : await gameAPI.getRooms()
     rooms.value = response.data || []
     roomsFetchedAt.value = Date.now()
   } catch (error) {
     console.error('加载房间列表失败:', error)
   }
 }
+
+watch(isAdminView, () => {
+  loadRooms()
+})
 
 const loadPendingFeedbacks = async () => {
   try {
@@ -704,7 +719,7 @@ const copyToClipboard = (text: string) => {
         leave-to-class="opacity-0 -translate-y-4"
       >
         <div v-if="isMobileMenuOpen" class="lg:hidden fixed inset-0 z-[45] pt-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-lg">
-          <div class="px-4 py-3 space-y-4 max-h-[calc(100vh-80px)] overflow-y-auto">
+          <div class="px-4 py-3 space-y-4 overflow-y-auto" style="max-height: calc(var(--app-height) - 80px);">
             <!-- 顶部装饰与统计 -->
             <div class="flex items-center justify-between p-3 bg-slate-50 dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/10">
                <div class="flex items-center gap-2">
@@ -919,6 +934,23 @@ const copyToClipboard = (text: string) => {
                </div>
             </div>
 
+            <div v-if="isAdminUser" class="mb-3 flex items-center justify-end">
+              <div class="inline-flex items-center gap-1 p-1 rounded-xl border border-slate-200 dark:border-white/10 bg-white/70 dark:bg-white/[0.03]">
+                <button
+                  @click="lobbyViewMode = 'player'"
+                  :class="cn('px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all', lobbyViewMode === 'player' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white')"
+                >
+                  玩家视图
+                </button>
+                <button
+                  @click="lobbyViewMode = 'admin'"
+                  :class="cn('px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all', lobbyViewMode === 'admin' ? 'bg-amber-500 text-white' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white')"
+                >
+                  管理员视图
+                </button>
+              </div>
+            </div>
+
             <!-- Experimental Nodes (Room List Cards) -->
             <div data-tutorial="room-list" class="room-grid">
               <!-- Empty State -->
@@ -999,8 +1031,26 @@ const copyToClipboard = (text: string) => {
 
                 <!-- Card Footer Action -->
                 <div class="room-card-footer">
+                  <template v-if="isAdminView">
+                    <button
+                      v-if="room.status !== 'playing' && !isRoomFull(room)"
+                      @click="handleJoinRoom(room.id, false)"
+                      class="btn-room-action btn-enter"
+                    >
+                      <Play class="w-3.5 h-3.5 fill-current" />
+                      加入
+                    </button>
+                    <button
+                      @click="handleJoinRoom(room.id, true)"
+                      class="btn-room-action btn-spectate"
+                    >
+                      <Shield class="w-3.5 h-3.5" />
+                      管理员旁观
+                    </button>
+                  </template>
+
                   <!-- 非私密房间：显示加入和旁观两个选项 -->
-                  <template v-if="!room.is_private">
+                  <template v-else-if="!room.is_private">
                     <button
                       v-if="room.status !== 'playing' && !isRoomFull(room)"
                       @click="handleJoinRoom(room.id, false)"
@@ -1021,7 +1071,7 @@ const copyToClipboard = (text: string) => {
                   <!-- 私密房间：仅显示加入或旁观 -->
                   <button
                     v-else
-                    @click="handleJoinRoom(room.id)"
+                    @click="handleJoinRoom(room.id, room.status === 'playing' || isRoomFull(room))"
                     :class="cn(
                       'btn-room-action',
                       room.status === 'playing' || isRoomFull(room) ? 'btn-spectate' : 'btn-enter'

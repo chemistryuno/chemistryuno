@@ -17,6 +17,7 @@ const DataConfig = () => import('./pages/DataConfig.vue')
 const Substances = () => import('./pages/Substances.vue')
 const Chat = () => import('./pages/Chat.vue')
 const UserSpace = () => import('./pages/UserSpace.vue')
+const ReplayRoom = () => import('./pages/ReplayRoom.vue')
 const OAuthCallback = () => import('./pages/OAuthCallback.vue')
 
 const routes = [
@@ -48,6 +49,12 @@ const routes = [
     path: '/room/:id',
     name: 'GameRoom',
     component: GameRoom,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/replay/:historyId',
+    name: 'ReplayRoom',
+    component: ReplayRoom,
     meta: { requiresAuth: true }
   },
   {

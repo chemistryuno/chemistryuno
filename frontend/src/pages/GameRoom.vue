@@ -23,6 +23,9 @@ const router = useRouter()
 const { showAlert, showConfirm, showPrompt, showToast } = useDialog()
 const gameToastRef = ref()
 const id = route.params.id as string
+const replayHistoryQueryID = computed(() => Number(route.query.replay_history_id || 0))
+const isReplayBridgeMode = computed(() => Number.isFinite(replayHistoryQueryID.value) && replayHistoryQueryID.value > 0)
+const replayScopeAdmin = computed(() => String(route.query.scope || '') === 'admin')
 
 const user = ref<any>({})
 try {
@@ -65,9 +68,22 @@ const substanceInput = ref('')
 const randomHints = ref<any[]>([])
 const reactionHints = ref<any[]>([])
 
+// 回放模拟播放状态
+const replayEvents = ref<any[]>([])
+const replayPlaybackIndex = ref(0)
+const replayIsPlaying = ref(false)
+const replaySpeed = ref(1)
+const replayGameOver = ref(false)
+const replayEndType = ref('')
+const replayPerspectiveUID = ref<number | null>(null)
+const replayInitialHands = ref<Record<number, any[]>>({})
+const replaySpeedOptions = [0.5, 1, 1.5, 2, 3, 4]
+let replayTimer: number | null = null
+const replayActionEventTypes = new Set(['play_card', 'double_play', 'draw_card', 'timeout_auto_draw'])
+
 // UI State
 const isMobile = ref(false)
-const showHints = ref(true)
+const showHints = ref(!isReplayBridgeMode.value)
 const showDeckDetailModal = ref(false)
 const showChemicalKeyboard = ref(false)
 const handContainer = ref<HTMLElement | null>(null)
@@ -515,6 +531,7 @@ const isSpectator = computed(() => {
 })
 
 const isMyTurn = computed(() => {
+  if (isReplayBridgeMode.value) return false
   if (!currentPlayerObj.value || !user.value || isSpectator.value) return false
   return Number(currentPlayerObj.value.uid) === Number(user.value.uid)
 })
@@ -524,12 +541,35 @@ const hasTurnLimit = computed(() => {
 })
 const tutorialStepDisplay = computed(() => Math.min(tutorialCurrentStep.value, TUTORIAL_TOTAL_STEPS))
 const tutorialProgressPercent = computed(() => Math.round((tutorialStepDisplay.value / TUTORIAL_TOTAL_STEPS) * 100))
+const replayPerspectivePlayer = computed(() => {
+  if (!isReplayBridgeMode.value || replayPerspectiveUID.value == null || !gameState.value?.players) {
+    return null
+  }
+  return (gameState.value.players || []).find((p: any) => Number(p.uid) === Number(replayPerspectiveUID.value)) || null
+})
+const replayPerspectiveName = computed(() => {
+  const player = replayPerspectivePlayer.value
+  if (player) {
+    return getPlayerDisplayName(player)
+  }
+  return '系统视角'
+})
 const myData = computed(() => {
-  if (!gameState.value || !user.value) return null
+  if (!gameState.value) return null
+  if (isReplayBridgeMode.value) {
+    if (replayPerspectiveUID.value == null) return null
+    return (gameState.value.players || []).find((p: any) => Number(p.uid) === Number(replayPerspectiveUID.value)) || null
+  }
+  if (!user.value) return null
   return (gameState.value.players || []).find((p: any) => Number(p.uid) === Number(user.value.uid))
 })
 const myIndex = computed(() => {
-  if (!gameState.value || !user.value) return -1
+  if (!gameState.value) return -1
+  if (isReplayBridgeMode.value) {
+    if (replayPerspectiveUID.value == null) return -1
+    return (gameState.value.players || []).findIndex((p: any) => Number(p.uid) === Number(replayPerspectiveUID.value))
+  }
+  if (!user.value) return -1
   return (gameState.value.players || []).findIndex((p: any) => Number(p.uid) === Number(user.value.uid))
 })
 const allowedAny = computed(() => {
@@ -810,6 +850,10 @@ watch(() => gameState.value?.last_card?.substance, () => {
 }, { immediate: true })
 
 const fetchTurnSubstances = async () => {
+  if (isReplayBridgeMode.value) {
+    turnReadySubstances.value = []
+    return
+  }
   if (!isMyTurn.value) {
     turnReadySubstances.value = []
     return
@@ -823,6 +867,10 @@ const fetchTurnSubstances = async () => {
 }
 
 watch(() => isMyTurn.value, (val) => {
+  if (isReplayBridgeMode.value) {
+    turnReadySubstances.value = []
+    return
+  }
   if (val) {
     fetchTurnSubstances()
     // 回合开始反馈
@@ -985,6 +1033,574 @@ const generateTutorialHint = () => {
   }
 }
 
+const parseReplayTimestampMs = (event: any): number | null => {
+  const timeStr = event?.at || event?.timestamp
+  if (!timeStr) return null
+  const normalized = String(timeStr).includes('T') ? String(timeStr) : String(timeStr).replace(' ', 'T')
+  const ms = new Date(normalized).getTime()
+  return Number.isFinite(ms) ? ms : null
+}
+
+const normalizeReplayEvents = (events: any[]) => {
+  return events
+    .map((event: any, index: number) => ({
+      ...event,
+      __index: index,
+      __type: event?.type || event?.event || '',
+      __actorUID: Number(event?.actor_uid ?? event?.uid ?? 0),
+      __payload: event?.payload || {},
+      __timeMs: parseReplayTimestampMs(event)
+    }))
+    .sort((a: any, b: any) => {
+      if (a.__timeMs == null && b.__timeMs == null) return a.__index - b.__index
+      if (a.__timeMs == null) return 1
+      if (b.__timeMs == null) return -1
+      if (a.__timeMs !== b.__timeMs) return a.__timeMs - b.__timeMs
+      return a.__index - b.__index
+    })
+}
+
+const resolveReplayCardKeyForPlay = (payload: any) => {
+  return payload?.card_symbol || payload?.card_type || '未知卡'
+}
+
+const resolveReplayCardKeysForDouble = (payload: any) => {
+  if (Array.isArray(payload?.cards) && payload.cards.length) {
+    return payload.cards.map((card: any) => card?.card_symbol || card?.card_type || card?.type || '未知卡')
+  }
+  const symbol = payload?.card_symbol || payload?.card_type
+  if (symbol) return [symbol, symbol]
+  return [payload?.sub1 || payload?.substance_1 || '未知卡', payload?.sub2 || payload?.substance_2 || '未知卡']
+}
+
+const replayEffectCardTypes = new Set(['+2', '+4', 'Au', 'He', 'Ne', 'Ar', 'Kr'])
+
+const makeReplayHandCard = (cardKey: string) => {
+  const normalized = String(cardKey || '?')
+  return {
+    type: normalized,
+    count: 1,
+    effect: replayEffectCardTypes.has(normalized) ? normalized : ''
+  }
+}
+
+const cloneReplayHandCards = (cards: any[]) => {
+  if (!Array.isArray(cards)) return []
+  return cards.map((card: any) => ({ ...card }))
+}
+
+const resolveReplayDrawCardKeys = (payload: any, drawCount: number) => {
+  if (drawCount <= 0) return []
+
+  if (Array.isArray(payload?.cards) && payload.cards.length) {
+    const keys = payload.cards
+      .map((card: any) => card?.card_symbol || card?.card_type || card?.type || '?')
+      .slice(0, drawCount)
+    if (keys.length === drawCount) {
+      return keys
+    }
+    return [...keys, ...Array.from({ length: drawCount - keys.length }, () => '?')]
+  }
+
+  const key = payload?.card_symbol || payload?.card_type || '?'
+  return Array.from({ length: drawCount }, () => String(key || '?'))
+}
+
+const removeReplayHandCard = (player: any, preferredKey: string) => {
+  const hand = Array.isArray(player?.hand_cards) ? player.hand_cards : []
+  let removeIndex = hand.findIndex((card: any) => String(card?.type || '') === String(preferredKey || ''))
+
+  if (removeIndex < 0) {
+    removeIndex = hand.findIndex((card: any) => String(card?.type || '') === '?')
+  }
+  if (removeIndex < 0 && hand.length > 0) {
+    removeIndex = 0
+  }
+
+  if (removeIndex >= 0) {
+    hand.splice(removeIndex, 1)
+  }
+
+  player.hand_cards = hand
+  player.card_count = hand.length
+}
+
+const addReplayHandCards = (player: any, cardKeys: string[]) => {
+  if (!Array.isArray(player?.hand_cards)) {
+    player.hand_cards = []
+  }
+  cardKeys.forEach((key: string) => {
+    player.hand_cards.push(makeReplayHandCard(key))
+  })
+  player.card_count = player.hand_cards.length
+}
+
+const buildReplayInitialHands = (players: any[], events: any[]) => {
+  const handsByUID: Record<number, string[]> = {}
+  const cardBalanceByUID: Record<number, number> = {}
+
+  players.forEach((player: any) => {
+    const uid = Number(player.uid)
+    handsByUID[uid] = []
+    cardBalanceByUID[uid] = 0
+  })
+
+  const ensurePlayableCard = (uid: number, cardKey: string) => {
+    if (cardBalanceByUID[uid] <= 0) {
+      handsByUID[uid].push(cardKey || '?')
+      cardBalanceByUID[uid] += 1
+    }
+    cardBalanceByUID[uid] -= 1
+  }
+
+  events.forEach((event: any) => {
+    const uid = Number(event.__actorUID || 0)
+    if (!(uid in handsByUID)) {
+      return
+    }
+
+    const eventType = event.__type
+    const payload = event.__payload || {}
+
+    if (eventType === 'play_card') {
+      ensurePlayableCard(uid, resolveReplayCardKeyForPlay(payload))
+      return
+    }
+
+    if (eventType === 'double_play') {
+      const keys = resolveReplayCardKeysForDouble(payload)
+      keys.forEach((key: string) => {
+        ensurePlayableCard(uid, key)
+      })
+      return
+    }
+
+    if (eventType === 'draw_card' || eventType === 'timeout_auto_draw') {
+      const drawCount = Number(payload.actual_count ?? payload.draw_count ?? payload.requested_count ?? 1)
+      if (Number.isFinite(drawCount) && drawCount > 0) {
+        cardBalanceByUID[uid] += drawCount
+      }
+    }
+  })
+
+  return handsByUID
+}
+
+const buildReplayLastCardFromEvent = (event: any) => {
+  const eventType = event?.__type || event?.type || event?.event
+  const payload = event?.__payload || event?.payload || {}
+
+  if (eventType === 'double_play') {
+    const reactants = [payload.sub1 || payload.substance_1, payload.sub2 || payload.substance_2].filter(Boolean)
+    const result = payload.substance || payload.result_substance || reactants.join(' + ')
+    return {
+      substance: result,
+      reactants,
+      card: {
+        type: payload.card_symbol || payload.card_type || reactants[0] || 'R',
+        effect: payload.card_effect || ''
+      }
+    }
+  }
+
+  if (eventType === 'play_card') {
+    const substance = payload.substance || payload.result_substance || payload.card_symbol || payload.card_type || 'R'
+    return {
+      substance,
+      card: {
+        type: payload.card_symbol || payload.card_type || substance,
+        effect: payload.card_effect || ''
+      }
+    }
+  }
+
+  return null
+}
+
+const clearReplayTimer = () => {
+  if (replayTimer != null) {
+    window.clearTimeout(replayTimer)
+    replayTimer = null
+  }
+}
+
+const normalizeReplaySpeedValue = (speed: number) => {
+  if (!Number.isFinite(speed) || speed <= 0) {
+    return 1
+  }
+  return speed
+}
+
+const replayStatusText = computed(() => {
+  if (!isReplayBridgeMode.value) return ''
+  if (replayGameOver.value) return '游戏结束'
+  return replayIsPlaying.value ? '播放中' : '已暂停'
+})
+
+const replayProgressText = computed(() => {
+  const total = replayEvents.value.length
+  const current = Math.min(replayPlaybackIndex.value, total)
+  return `${current}/${total}`
+})
+
+const replaySummary = computed(() => {
+  const cardCounts: Record<string, number> = {}
+  let roundCount = 0
+  let totalPlays = 0
+
+  for (const event of replayEvents.value) {
+    const eventType = event.__type
+    const payload = event.__payload || {}
+
+    if (replayActionEventTypes.has(eventType)) {
+      roundCount += 1
+    }
+
+    if (eventType === 'play_card') {
+      totalPlays += 1
+      const key = resolveReplayCardKeyForPlay(payload)
+      cardCounts[key] = (cardCounts[key] || 0) + 1
+    }
+
+    if (eventType === 'double_play') {
+      totalPlays += 2
+      const keys = resolveReplayCardKeysForDouble(payload)
+      keys.forEach((key: string) => {
+        cardCounts[key] = (cardCounts[key] || 0) + 1
+      })
+    }
+  }
+
+  return {
+    roundCount,
+    totalPlays,
+    cardCounts
+  }
+})
+
+const replayCardCountEntries = computed(() => {
+  return Object.entries(replaySummary.value.cardCounts).sort((a, b) => b[1] - a[1])
+})
+
+const handleReplayPerspectiveSwitch = (player: any) => {
+  if (!isReplayBridgeMode.value) return
+  const uid = Number(player?.uid)
+  if (!Number.isFinite(uid)) return
+  replayPerspectiveUID.value = uid
+}
+
+const resetReplaySimulationBoard = () => {
+  if (!gameState.value?.players) return
+
+  gameState.value.status = 'playing'
+  gameState.value.current_reaction = ''
+  gameState.value.last_card = null
+  gameState.value.discard_pile = []
+  gameState.value.pending_draw_count = 0
+  gameState.value.pending_forced_plays = 0
+  gameState.value.finished_players = []
+
+  gameState.value.players = gameState.value.players.map((player: any) => ({
+    ...player,
+    card_count: Array.isArray(replayInitialHands.value[Number(player.uid)])
+      ? replayInitialHands.value[Number(player.uid)].length
+      : 0,
+    hand_cards: cloneReplayHandCards(replayInitialHands.value[Number(player.uid)] || [])
+  }))
+}
+
+const applyReplayEventToBoard = (event: any) => {
+  if (!gameState.value?.players) return
+
+  const eventType = event.__type
+  const payload = event.__payload || {}
+  const actorUID = Number(event.__actorUID || 0)
+  const actorIndex = gameState.value.players.findIndex((player: any) => Number(player.uid) === actorUID)
+
+  if (actorIndex >= 0) {
+    gameState.value.current_player = actorIndex
+  }
+
+  if (eventType === 'play_card') {
+    gameState.value.last_card = buildReplayLastCardFromEvent(event)
+    gameState.value.current_reaction = payload.substance || payload.result_substance || payload.card_symbol || payload.card_type || ''
+    gameState.value.discard_pile = [...(gameState.value.discard_pile || []), { replay: true, event: eventType }]
+    if (actorIndex >= 0) {
+      const actor = gameState.value.players[actorIndex]
+      removeReplayHandCard(actor, resolveReplayCardKeyForPlay(payload))
+    }
+    return
+  }
+
+  if (eventType === 'double_play') {
+    gameState.value.last_card = buildReplayLastCardFromEvent(event)
+    const substance = payload.substance || payload.result_substance || payload.sub1 || payload.substance_1 || ''
+    gameState.value.current_reaction = substance
+    gameState.value.discard_pile = [...(gameState.value.discard_pile || []), { replay: true, event: eventType }]
+    if (actorIndex >= 0) {
+      const actor = gameState.value.players[actorIndex]
+      const keys = resolveReplayCardKeysForDouble(payload)
+      keys.forEach((key: string) => {
+        removeReplayHandCard(actor, key)
+      })
+    }
+    return
+  }
+
+  if (eventType === 'draw_card' || eventType === 'timeout_auto_draw') {
+    const drawCount = Number(payload.actual_count ?? payload.draw_count ?? payload.requested_count ?? 1)
+    if (actorIndex >= 0 && drawCount > 0) {
+      const actor = gameState.value.players[actorIndex]
+      addReplayHandCards(actor, resolveReplayDrawCardKeys(payload, drawCount))
+    }
+    return
+  }
+
+  if (eventType === 'game_finished' || eventType === 'game_terminated_invalid') {
+    const winnerUID = Number(payload.winner_uid || payload.uid || payload.winner || 0)
+    if (winnerUID) {
+      gameState.value.finished_players = [winnerUID]
+    }
+  }
+}
+
+const computeReplayDelayMs = (currentEvent: any, nextEvent: any) => {
+  const currentMs = currentEvent?.__timeMs
+  const nextMs = nextEvent?.__timeMs
+  if (Number.isFinite(currentMs) && Number.isFinite(nextMs)) {
+    const delta = Math.max(200, Math.min(5000, Number(nextMs) - Number(currentMs)))
+    return Math.max(120, Math.round(delta / replaySpeed.value))
+  }
+  return Math.max(150, Math.round(850 / replaySpeed.value))
+}
+
+const finishReplayPlayback = (endType: string) => {
+  replayIsPlaying.value = false
+  replayGameOver.value = true
+  replayEndType.value = endType
+  clearReplayTimer()
+}
+
+const scheduleReplayPlaybackStep = () => {
+  clearReplayTimer()
+  if (!replayIsPlaying.value || !isReplayBridgeMode.value) return
+
+  if (replayPlaybackIndex.value >= replayEvents.value.length) {
+    finishReplayPlayback('game_finished')
+    return
+  }
+
+  const currentEvent = replayEvents.value[replayPlaybackIndex.value]
+  applyReplayEventToBoard(currentEvent)
+  replayPlaybackIndex.value += 1
+
+  const currentType = currentEvent?.__type || ''
+  if (currentType === 'game_finished' || currentType === 'game_terminated_invalid') {
+    finishReplayPlayback(currentType)
+    return
+  }
+
+  if (replayPlaybackIndex.value >= replayEvents.value.length) {
+    finishReplayPlayback('game_finished')
+    return
+  }
+
+  const nextEvent = replayEvents.value[replayPlaybackIndex.value]
+  const delay = computeReplayDelayMs(currentEvent, nextEvent)
+  replayTimer = window.setTimeout(() => {
+    scheduleReplayPlaybackStep()
+  }, delay)
+}
+
+const startReplayPlayback = (restart = false) => {
+  if (!isReplayBridgeMode.value || !gameState.value) return
+
+  if (restart) {
+    replayPlaybackIndex.value = 0
+    replayGameOver.value = false
+    replayEndType.value = ''
+    resetReplaySimulationBoard()
+  }
+
+  if (!replayEvents.value.length) {
+    replayGameOver.value = true
+    replayEndType.value = 'game_finished'
+    replayIsPlaying.value = false
+    return
+  }
+
+  replayIsPlaying.value = true
+  clearReplayTimer()
+  replayTimer = window.setTimeout(() => {
+    scheduleReplayPlaybackStep()
+  }, Math.max(120, Math.round(240 / normalizeReplaySpeedValue(replaySpeed.value))))
+}
+
+const toggleReplayPlayback = () => {
+  if (!isReplayBridgeMode.value) return
+  if (replayGameOver.value) return
+
+  if (replayIsPlaying.value) {
+    replayIsPlaying.value = false
+    clearReplayTimer()
+    return
+  }
+
+  startReplayPlayback(false)
+}
+
+const setReplaySpeed = (speed: number) => {
+  const normalized = normalizeReplaySpeedValue(Number(speed))
+  replaySpeed.value = normalized
+
+  if (replayIsPlaying.value) {
+    clearReplayTimer()
+    replayTimer = window.setTimeout(() => {
+      scheduleReplayPlaybackStep()
+    }, Math.max(120, Math.round(220 / normalizeReplaySpeedValue(replaySpeed.value))))
+  }
+}
+
+const restartReplayPlayback = () => {
+  startReplayPlayback(true)
+}
+
+const loadReplaySimulationState = async () => {
+  loading.value = true
+  loadError.value = null
+  showChat.value = false
+  showHints.value = false
+  showPlayers.value = false
+  showChemicalKeyboard.value = false
+  clearReplayTimer()
+  replayEvents.value = []
+  replayPlaybackIndex.value = 0
+  replayIsPlaying.value = false
+  replayGameOver.value = false
+  replayEndType.value = ''
+  replayPerspectiveUID.value = null
+  replayInitialHands.value = {}
+
+  try {
+    await loadSubstanceNames()
+
+    if (!replayHistoryQueryID.value) {
+      throw new Error('无效的回放编号')
+    }
+
+    let response: any
+    try {
+      if (replayScopeAdmin.value && user.value?.is_admin) {
+        response = await adminAPI.getGameReplay(replayHistoryQueryID.value)
+      } else {
+        response = await gameAPI.getMyGameReplay(replayHistoryQueryID.value)
+      }
+    } catch (firstError) {
+      if (user.value?.is_admin) {
+        response = await adminAPI.getGameReplay(replayHistoryQueryID.value)
+      } else {
+        throw firstError
+      }
+    }
+
+    const replayPayload = response?.data || {}
+    const rawReplayEvents = Array.isArray(replayPayload?.replay?.events) ? replayPayload.replay.events : []
+    const normalizedReplayEvents = normalizeReplayEvents(rawReplayEvents)
+
+    const profiles = Array.isArray(replayPayload?.player_profiles)
+      ? replayPayload.player_profiles
+      : (Array.isArray(replayPayload?.players)
+        ? replayPayload.players.map((uid: number) => ({ uid, nickname: `UID ${uid}`, username: `UID ${uid}` }))
+        : [])
+
+    const players = profiles.map((p: any, index: number) => ({
+      uid: Number(p.uid),
+      username: p.nickname || p.username || `UID ${p.uid}`,
+      nickname: p.nickname || p.username || `UID ${p.uid}`,
+      avatar: p.avatar || '🧪',
+      card_count: 0,
+      hand_cards: [],
+      index,
+      is_ai: Number(p.uid) < 0,
+      is_offline: false,
+      points: 0,
+      exp: 0
+    }))
+
+    const initialHandsByUID = buildReplayInitialHands(players, normalizedReplayEvents)
+    players.forEach((player: any) => {
+      const initialHand = (initialHandsByUID[Number(player.uid)] || []).map((key: string) => makeReplayHandCard(key))
+      player.hand_cards = initialHand
+      player.card_count = initialHand.length
+    })
+
+    playersInfo.value = profiles.map((p: any) => ({
+      uid: Number(p.uid),
+      username: p.username || p.nickname || `UID ${p.uid}`,
+      nickname: p.nickname || p.username || `UID ${p.uid}`,
+      avatar: p.avatar || '🧪',
+      is_ai: Number(p.uid) < 0,
+      is_offline: false
+    }))
+
+    replayInitialHands.value = {}
+    players.forEach((player: any) => {
+      replayInitialHands.value[Number(player.uid)] = cloneReplayHandCards(player.hand_cards)
+    })
+
+    const preferredPerspective =
+      players.find((player: any) => Number(player.uid) === Number(user.value?.uid)) ||
+      players.find((player: any) => !player.is_ai) ||
+      players[0]
+    replayPerspectiveUID.value = preferredPerspective ? Number(preferredPerspective.uid) : null
+
+    roomInfo.value = {
+      id: `replay-${replayHistoryQueryID.value}`,
+      name: `回放模拟 #${String(replayHistoryQueryID.value).padStart(4, '0')}`,
+      players: players.map((p: any) => p.uid),
+      spectators: [Number(user.value?.uid)],
+      ready_uids: [],
+      countdown: 0,
+      max_players: Math.max(players.length, 2),
+      status: 'playing',
+      is_points_mode: false,
+      deck_config: {
+        name: 'Replay Simulation',
+        cards: {}
+      },
+      is_private: false,
+      access_key: '',
+      is_pve: false
+    }
+
+    gameState.value = {
+      status: 'playing',
+      players,
+      current_player: 0,
+      direction: 1,
+      turn_end_time: 0,
+      pending_draw_count: 0,
+      pending_forced_plays: 0,
+      allowed_any_player: -1,
+      current_reaction: '',
+      discard_pile: [],
+      last_card: null,
+      finished_players: [],
+      spectators: [Number(user.value?.uid)],
+      points_changes: {},
+      xp_changes: {}
+    }
+
+    replayEvents.value = normalizedReplayEvents
+    startReplayPlayback(true)
+  } catch (error: any) {
+    console.error('[GameRoom] 加载回放模拟失败:', error)
+    loadError.value = error?.response?.data?.error || error?.message || '回放模拟加载失败'
+  } finally {
+    loading.value = false
+  }
+}
+
 const loadGameState = async (silent = false) => {
   if (isRedirecting.value) {
     loading.value = false
@@ -1092,6 +1708,11 @@ onMounted(() => {
   // 重置状态，防止之前的错误状态影响
   isRedirecting.value = false
 
+  if (isReplayBridgeMode.value) {
+    loadReplaySimulationState()
+    return
+  }
+
   // 设置一个安全超时，如果15秒后还在loading状态，强制重置
   const safetyTimeout = setTimeout(() => {
     if (loading.value) {
@@ -1173,6 +1794,8 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  clearReplayTimer()
+
   // 清除教学模式标记，并记录已完成
   if (isTutorialMode.value) {
     localStorage.removeItem('chemistry-uno-tutorial-mode')
@@ -1416,6 +2039,12 @@ const handleKeyboardConfirm = async (formula: string) => {
 }
 
 const handleLeaveRoom = async () => {
+  if (isReplayBridgeMode.value) {
+    const scopeQuery = replayScopeAdmin.value ? '?scope=admin' : ''
+    router.push(`/replay/${replayHistoryQueryID.value}${scopeQuery}`)
+    return
+  }
+
   // 人机对战模式下，如果玩家已经完成（进入观战状态），点击退出改为“结算”
   if (roomInfo.value?.is_pve && isSpectator.value) {
     try {
@@ -1720,7 +2349,7 @@ watch(() => gameState.value?.current_player, () => {
         </div>
         <div class="flex items-center gap-3 mt-4">
           <button
-            @click="loadError = null; loading = true; loadGameState()"
+            @click="loadError = null; loading = true; isReplayBridgeMode ? loadReplaySimulationState() : loadGameState()"
             class="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-xl transition-all shadow-lg active:scale-95 uppercase tracking-widest text-xs flex items-center gap-2"
           >
             <RefreshCw class="w-4 h-4" />
@@ -1756,7 +2385,7 @@ watch(() => gameState.value?.current_player, () => {
           >
             <ArrowLeft v-if="!(roomInfo?.is_pve && isSpectator)" class="icon-touch" />
             <Trophy v-else class="w-4 h-4 text-amber-500" />
-            <span class="text-[10px] font-black uppercase tracking-widest">{{ (roomInfo?.is_pve && isSpectator) ? '结算实验' : '' }}</span>
+            <span class="text-[10px] font-black uppercase tracking-widest">{{ isReplayBridgeMode ? '返回时间线' : ((roomInfo?.is_pve && isSpectator) ? '结算实验' : '') }}</span>
           </button>
           <div class="hidden xs:block">
             <h2 class="text-xs-mobile font-black tracking-widest uppercase font-mono text-slate-400">Node: {{ roomInfo?.name || id.substring(0, 6) }}</h2>
@@ -1833,16 +2462,61 @@ watch(() => gameState.value?.current_player, () => {
              <span class="text-[10px] sm:text-xs-mobile font-black text-slate-400">{{ allPlayers.length }}</span>
           </button>
 
-          <button v-if="!roomInfo?.is_points_mode" @click="feedback.click(); showHints = !showHints" class="btn-touch flex items-center justify-center bg-slate-100 dark:bg-white/5 rounded-lg border border-slate-200 dark:border-white/10 text-slate-500 hover:text-blue-500 touch-feedback">
+           <button v-if="!roomInfo?.is_points_mode && !isReplayBridgeMode" @click="feedback.click(); showHints = !showHints" class="btn-touch flex items-center justify-center bg-slate-100 dark:bg-white/5 rounded-lg border border-slate-200 dark:border-white/10 text-slate-500 hover:text-blue-500 touch-feedback">
              <Sparkles class="icon-touch" :class="showHints && 'fill-current text-blue-500'" />
           </button>
 
-          <button @click="feedback.click(); showChat = !showChat; hasNewMessage = false" class="btn-touch relative flex items-center justify-center bg-slate-100 dark:bg-white/5 rounded-lg border border-slate-200 dark:border-white/10 text-slate-500 hover:text-blue-500 touch-feedback">
+           <button v-if="!isReplayBridgeMode" @click="feedback.click(); showChat = !showChat; hasNewMessage = false" class="btn-touch relative flex items-center justify-center bg-slate-100 dark:bg-white/5 rounded-lg border border-slate-200 dark:border-white/10 text-slate-500 hover:text-blue-500 touch-feedback">
              <MessageCircle class="icon-touch" :class="showChat && 'fill-current text-blue-500'" />
              <div v-if="hasNewMessage" class="absolute -top-1 -right-1 w-3 h-3 sm:w-2.5 sm:h-2.5 bg-rose-500 border-2 border-white dark:border-[#0d0d10] rounded-full animate-pulse"></div>
           </button>
         </div>
       </header>
+
+      <div v-if="isReplayBridgeMode" class="relative z-[80] px-3 py-2 bg-amber-500/10 border-b border-amber-500/20 pointer-events-auto">
+        <div class="max-w-[1400px] mx-auto flex flex-wrap items-center justify-between gap-2">
+          <div class="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-300">
+            <span>Replay Simulation</span>
+            <span class="px-2 py-0.5 rounded-md bg-amber-500/20">{{ replayStatusText }}</span>
+            <span class="px-2 py-0.5 rounded-md bg-cyan-500/20 text-cyan-700 dark:text-cyan-300">视角 {{ replayPerspectiveName }}</span>
+            <span class="text-amber-600/90 dark:text-amber-200">输入选项已禁用</span>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <span class="text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-300">倍速</span>
+            <div class="inline-flex items-center gap-1 p-1 rounded-lg border border-amber-500/20 bg-white/60 dark:bg-white/5">
+              <button
+                v-for="speed in replaySpeedOptions"
+                :key="`speed-${speed}`"
+                type="button"
+                @click.stop.prevent="setReplaySpeed(Number(speed))"
+                :class="cn('px-2 py-1 rounded text-[10px] font-black', replaySpeed === speed ? 'bg-amber-500 text-white' : 'text-amber-700 dark:text-amber-300 hover:bg-amber-500/15')"
+              >
+                {{ speed }}x
+              </button>
+            </div>
+
+            <button
+              type="button"
+              @click.stop.prevent="toggleReplayPlayback"
+              :disabled="replayGameOver"
+              :class="cn('px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest border', replayGameOver ? 'border-slate-300 text-slate-400 cursor-not-allowed' : 'border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/15')"
+            >
+              {{ replayIsPlaying ? '暂停' : '继续' }}
+            </button>
+
+            <button
+              type="button"
+              @click.stop.prevent="restartReplayPlayback"
+              class="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/15"
+            >
+              重新播放
+            </button>
+
+            <span class="text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-300">进度 {{ replayProgressText }}</span>
+          </div>
+        </div>
+      </div>
 
       <!-- PvE Experimental Dynamics Floating Window -->
       <div v-if="roomInfo?.is_pve && pveToasts.length > 0" class="fixed top-14 sm:top-20 left-1/2 -translate-x-1/2 z-[60] flex flex-col items-center gap-2 pointer-events-none">
@@ -2349,6 +3023,12 @@ watch(() => gameState.value?.current_player, () => {
 
         <div class="w-full max-w-7xl mx-auto flex justify-center items-end py-2 sm:py-1">
            <div ref="handContainer" class="hand-container-mobile w-full custom-scrollbar-hidden">
+            <div v-if="isReplayBridgeMode && replayPerspectivePlayer" class="mb-1 flex items-center justify-center">
+              <div class="inline-flex items-center gap-2 px-3 py-1 rounded-xl border border-cyan-500/20 bg-cyan-500/10 text-[10px] font-black uppercase tracking-widest text-cyan-700 dark:text-cyan-300">
+                <span>当前视角</span>
+                <span>{{ replayPerspectiveName }}</span>
+              </div>
+            </div>
             <div v-if="roomInfo?.status === 'waiting'" class="flex flex-col items-center justify-center opacity-30 pb-1 min-w-full">
               <Loader2 class="w-8 h-8 sm:w-6 sm:h-6 mb-1 animate-spin text-blue-500" />
               <p class="font-black uppercase tracking-widest text-xs-mobile text-slate-500 text-center">正在同步量子状态并等待开场就绪...</p>
@@ -2392,7 +3072,7 @@ watch(() => gameState.value?.current_player, () => {
       </div>
 
       <!-- Experimental Victory / Failure Protocol -->
-      <div v-if="gameState?.status === 'finished'" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xl transition-all duration-500">
+      <div v-if="gameState?.status === 'finished' && !isReplayBridgeMode" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xl transition-all duration-500">
         <!-- Cool Background Effects (Minimized for focus) -->
         <div class="absolute inset-0 pointer-events-none overflow-hidden opacity-30">
            <div v-for="i in 8" :key="i" 
@@ -2497,6 +3177,63 @@ watch(() => gameState.value?.current_player, () => {
                  <ChevronRight class="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </button>
            </div>
+        </div>
+      </div>
+
+      <div v-if="isReplayBridgeMode && replayGameOver" class="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/55 backdrop-blur-xl">
+        <div class="w-full max-w-xl bg-white dark:bg-[#121216] border border-slate-200 dark:border-white/10 rounded-[28px] shadow-2xl overflow-hidden">
+          <div class="px-6 py-5 border-b border-slate-200 dark:border-white/10 bg-slate-50/70 dark:bg-white/[0.03]">
+            <p class="text-[10px] font-black uppercase tracking-widest text-blue-500">Replay Result</p>
+            <h3 class="text-2xl font-black text-slate-900 dark:text-white mt-1">游戏结束</h3>
+            <p class="text-xs text-slate-500 mt-1">{{ replayEndType === 'game_terminated_invalid' ? '本次对局判定为无效结算' : '本次对局已完成回放' }}</p>
+          </div>
+
+          <div class="p-6 space-y-4">
+            <div class="grid grid-cols-3 gap-2">
+              <div class="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 px-3 py-3 text-center">
+                <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">回合数</p>
+                <p class="text-lg font-black text-slate-900 dark:text-white">{{ replaySummary.roundCount }}</p>
+              </div>
+              <div class="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 px-3 py-3 text-center">
+                <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">出牌总和</p>
+                <p class="text-lg font-black text-slate-900 dark:text-white">{{ replaySummary.totalPlays }}</p>
+              </div>
+              <div class="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 px-3 py-3 text-center">
+                <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">事件总数</p>
+                <p class="text-lg font-black text-slate-900 dark:text-white">{{ replayEvents.length }}</p>
+              </div>
+            </div>
+
+            <div class="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-3">
+              <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">各卡牌数目</p>
+              <div v-if="replayCardCountEntries.length > 0" class="max-h-40 overflow-y-auto space-y-1 pr-1">
+                <div
+                  v-for="entry in replayCardCountEntries"
+                  :key="`replay-card-stat-${entry[0]}`"
+                  class="flex items-center justify-between rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-black/20 px-3 py-2"
+                >
+                  <span class="text-xs font-semibold text-slate-700 dark:text-slate-200">{{ entry[0] }}</span>
+                  <span class="text-xs font-black text-blue-600 dark:text-blue-300">{{ entry[1] }}</span>
+                </div>
+              </div>
+              <div v-else class="text-xs text-slate-400">无可统计的出牌记录</div>
+            </div>
+
+            <div class="flex items-center gap-3 pt-1">
+              <button
+                @click="restartReplayPlayback"
+                class="flex-1 h-11 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black uppercase tracking-widest text-xs transition-all"
+              >
+                重新播放
+              </button>
+              <button
+                @click="router.push(`/replay/${replayHistoryQueryID}${replayScopeAdmin ? '?scope=admin' : ''}`)"
+                class="flex-1 h-11 rounded-xl border border-slate-300 dark:border-white/10 text-slate-700 dark:text-slate-200 font-black uppercase tracking-widest text-xs hover:bg-slate-100 dark:hover:bg-white/10 transition-all"
+              >
+                返回时间线
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </template>
@@ -2705,11 +3442,14 @@ watch(() => gameState.value?.current_player, () => {
             v-for="(player, index) in allPlayers"
             :key="player.uid || index"
             data-player-card
+            @click="isReplayBridgeMode && handleReplayPerspectiveSwitch(player)"
             :class="cn(
               'flex items-center gap-2.5 sm:gap-2 p-2.5 sm:p-2 rounded-2xl border transition-all duration-300 relative overflow-hidden',
               gameState?.current_player === index
                 ? 'bg-blue-600 border-blue-400 shadow-xl shadow-blue-500/20 active-player-card'
                 : (gameState ? 'bg-slate-50 dark:bg-white/[0.03] border-slate-200 dark:border-white/5' : 'bg-slate-50 dark:bg-white/[0.03] border-slate-200 dark:border-white/10'),
+              isReplayBridgeMode && 'cursor-pointer hover:border-cyan-400/50',
+              isReplayBridgeMode && replayPerspectiveUID === Number(player.uid) && 'ring-2 ring-cyan-400/70 border-cyan-400/70 bg-cyan-500/10 dark:bg-cyan-500/15',
               drawAnimatingUIDs.has(player.uid) && 'ring-2 ring-rose-500 animate-pulse',
               gameState?.finished_players?.includes(player.uid) && 'opacity-60 grayscale-[0.8] bg-slate-200/50 dark:bg-black/40 border-slate-300/30'
             )"
@@ -2771,6 +3511,7 @@ watch(() => gameState.value?.current_player, () => {
                <div class="flex items-center justify-between mt-0.5 h-3.5">
                   <div class="flex items-center gap-1">
                      <span class="text-[7px] font-mono opacity-40 shrink-0 uppercase tracking-tighter" :class="gameState?.current_player === index ? 'text-white/80' : 'text-slate-500'">UID: {{ player.uid }}</span>
+                    <span v-if="isReplayBridgeMode && replayPerspectiveUID === Number(player.uid)" class="text-[6px] font-black uppercase text-cyan-700 dark:text-cyan-300 px-1 py-0.5 bg-cyan-500/20 rounded-md border border-cyan-500/30 leading-none">POV</span>
                      <span v-if="player.is_offline" class="text-[6px] font-black uppercase text-rose-100 px-1 py-0.5 bg-rose-500/80 rounded-md border border-rose-500/20 leading-none">OFF</span>
                      <template v-if="!gameState">
                         <div :class="cn('px-1 py-0.5 rounded-md border text-[6px] font-black uppercase tracking-widest transition-all leading-none', 
@@ -2783,19 +3524,19 @@ watch(() => gameState.value?.current_player, () => {
                   </div>
                   
                   <div class="flex items-center gap-0.5">
-                     <button v-if="Number(player.uid) !== Number(user.uid) && !isFriend(player.uid)"
+                     <button v-if="Number(player.uid) !== Number(user.uid) && !isFriend(player.uid) && !isReplayBridgeMode"
                              @click.stop="handleAddFriend(player)"
                              :class="cn('p-0.5 rounded-md transition-all active:scale-90', gameState?.current_player === index ? 'bg-white/20 text-white' : 'bg-slate-200/50 dark:bg-white/5 text-slate-500')"
                      >
                        <UserPlus class="w-2.5 h-2.5" />
                      </button>
-                     <button v-if="Number(player.uid) !== Number(user.uid)"
+                     <button v-if="Number(player.uid) !== Number(user.uid) && !isReplayBridgeMode"
                              @click.stop="handleReportPlayer(player)"
                              :class="cn('p-0.5 rounded-md transition-all active:scale-90', gameState?.current_player === index ? 'bg-white/20 text-white' : 'bg-slate-200/50 dark:bg-white/5 text-slate-500')"
                      >
                        <Flag class="w-2.5 h-2.5" />
                      </button>
-                     <button v-if="user.is_admin && Number(player.uid) !== Number(user.uid)"
+                     <button v-if="user.is_admin && Number(player.uid) !== Number(user.uid) && !isReplayBridgeMode"
                              @click.stop="openAdminAction(player)"
                              :class="cn('p-0.5 rounded-md transition-all active:scale-90', gameState?.current_player === index ? 'bg-white/20 text-white' : 'bg-rose-500/20 text-rose-500')"
                      >
@@ -2834,7 +3575,7 @@ watch(() => gameState.value?.current_player, () => {
 
     <!-- Chat Floating Sidebar -->
     <div
-      v-if="showChat"
+      v-if="showChat && !isReplayBridgeMode"
       class="fixed right-0 top-0 bottom-0 w-full lg:w-80 z-[100] lg:top-6 lg:bottom-52 lg:right-6 flex flex-col"
     >
       <ChatBox
@@ -2850,14 +3591,14 @@ watch(() => gameState.value?.current_player, () => {
 
     <!-- Mobile Overlay for Chat -->
     <div
-      v-if="showChat"
+      v-if="showChat && !isReplayBridgeMode"
       class="fixed inset-0 bg-white/10 dark:bg-black/20 backdrop-blur-[2px] z-[95] lg:hidden clickable"
       @click="showChat = false"
     ></div>
 
     <!-- 化学键盘 -->
     <ChemicalKeyboard
-      v-if="showChemicalKeyboard"
+      v-if="showChemicalKeyboard && !isReplayBridgeMode"
       v-model="substanceInput"
       :deckCards="roomInfo?.deck_config?.cards || {}"
       :myHand="myData?.hand_cards || []"

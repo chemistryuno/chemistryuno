@@ -61,8 +61,8 @@ const closeTicker = () => {
 </script>
 
 <template>
-  <div v-if="isVisible && announcements.length > 0" 
-       class="relative w-full bg-blue-600/90 dark:bg-blue-900/40 backdrop-blur-md border-b border-blue-400/30 text-white overflow-hidden transition-all duration-500 ease-in-out">
+  <div v-if="isVisible && announcements.length > 0"
+       class="fixed top-0 left-0 right-0 z-[80] bg-blue-600/90 dark:bg-blue-900/40 backdrop-blur-md border-b border-blue-400/30 text-white overflow-hidden shadow-lg shadow-blue-950/20 transition-opacity duration-300 ease-out">
     <div class="container mx-auto px-4 py-1 flex items-center gap-2">
       <Bell class="w-3.5 h-3.5 animate-bounce flex-shrink-0" />
       

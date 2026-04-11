@@ -246,7 +246,7 @@ const clearAll = () => {
 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=JetBrains+Mono:wght@400;500;700&display=swap');
 
 .reaction-toast-demo {
-  min-height: 100vh;
+  min-height: var(--app-height);
   background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
   padding: 40px 20px;
   font-family: 'JetBrains Mono', monospace;

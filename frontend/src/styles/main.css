@@ -33,7 +33,7 @@ body {
   @apply font-sans;
   @apply text-slate-900 dark:text-slate-100;
   @apply bg-white dark:bg-slate-900;
-  min-height: 100vh;
+  min-height: var(--app-height);
 }
 
 /* ==================== 滚动行为 ==================== */

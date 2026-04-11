@@ -33,6 +33,30 @@ try {
 
 const isAdmin = computed(() => !!currentUser.value?.is_admin)
 const useAdminScope = computed(() => isAdmin.value && String(route.query.scope || '') === 'admin')
+const replayReturnPath = computed(() => {
+  const raw = String(route.query.from || '').trim()
+  if (/^\/admin(?:\/[a-zA-Z0-9_-]+)?$/.test(raw)) {
+    return raw
+  }
+  if (/^\/profile(?:\/[a-zA-Z0-9_-]+)?$/.test(raw)) {
+    return raw
+  }
+  return useAdminScope.value ? '/admin/users' : '/profile/history'
+})
+
+const buildReplayTimelineURL = (targetHistoryID: number) => {
+  const query = new URLSearchParams()
+  if (useAdminScope.value) {
+    query.set('scope', 'admin')
+  }
+  query.set('from', replayReturnPath.value)
+  const queryStr = query.toString()
+  return queryStr ? `/replay/${targetHistoryID}?${queryStr}` : `/replay/${targetHistoryID}`
+}
+
+const goBackToEntryPage = () => {
+  router.push(replayReturnPath.value)
+}
 
 const isGameRoomReplayRoute = computed(() => {
   const queryId = Number(route.query.replay_history_id)
@@ -82,6 +106,7 @@ const switchToGameView = () => {
   if (useAdminScope.value) {
     query.set('scope', 'admin')
   }
+  query.set('from', replayReturnPath.value)
   router.push(`/room/replay?${query.toString()}`)
 }
 
@@ -92,8 +117,7 @@ const switchToTimelineView = () => {
     return
   }
 
-  const query = useAdminScope.value ? '?scope=admin' : ''
-  router.push(`/replay/${historyId.value}${query}`)
+  router.push(buildReplayTimelineURL(historyId.value))
 }
 
 const participants = computed(() => {
@@ -430,7 +454,7 @@ onMounted(() => {
   <div class="h-screen w-full bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white overflow-hidden flex flex-col font-sans selection:bg-blue-500/30">
     <header class="px-4 py-3 border-b border-slate-200 dark:border-white/10 bg-white/90 dark:bg-black/30 backdrop-blur-md flex items-center justify-between">
       <div class="flex items-center gap-3">
-        <button @click="router.back()" class="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 transition-all text-xs font-black uppercase tracking-widest">
+        <button @click="goBackToEntryPage" class="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 transition-all text-xs font-black uppercase tracking-widest">
           <ArrowLeft class="w-4 h-4" />
           返回
         </button>

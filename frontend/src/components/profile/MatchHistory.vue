@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { gameAPI } from '../../utils/api'
 import { History, ChevronRight, Activity, Trophy, AlertTriangle, Eye } from 'lucide-vue-next'
 
 const history = ref<any[]>([])
 const loading = ref(true)
 const router = useRouter()
+const route = useRoute()
 
 const fetchHistory = async () => {
   try {
@@ -32,7 +33,9 @@ const formatDate = (dateStr: string) => {
 }
 
 const openReplay = (game: any) => {
-  router.push(`/replay/${game.id}`)
+  const query = new URLSearchParams()
+  query.set('from', route.path.startsWith('/profile') ? route.path : '/profile/history')
+  router.push(`/replay/${game.id}?${query.toString()}`)
 }
 </script>
 

@@ -395,6 +395,32 @@ func copyReplayPayload(payload map[string]interface{}) map[string]interface{} {
 	return cloned
 }
 
+func cloneReplayCardList(cards []models.Card) []map[string]interface{} {
+	if len(cards) == 0 {
+		return []map[string]interface{}{}
+	}
+	result := make([]map[string]interface{}, 0, len(cards))
+	for _, card := range cards {
+		result = append(result, map[string]interface{}{
+			"type":   card.Type,
+			"count":  card.Count,
+			"effect": card.Effect,
+		})
+	}
+	return result
+}
+
+func (gr *GameRoom) buildReplayInitialHandsLocked() map[string][]map[string]interface{} {
+	initialHands := make(map[string][]map[string]interface{})
+	if gr.GameState == nil {
+		return initialHands
+	}
+	for _, player := range gr.GameState.Players {
+		initialHands[fmt.Sprintf("%d", player.UID)] = cloneReplayCardList(player.HandCards)
+	}
+	return initialHands
+}
+
 func (gr *GameRoom) resetReplayStateLocked() {
 	gr.GameStartedAt = time.Now()
 	gr.ReplayEvents = []map[string]interface{}{}
@@ -2494,6 +2520,7 @@ func StartGame(roomID string, uid int) error {
 		"tutorial":          false,
 		"initial_substance": replayInitialSubstance,
 		"player_count":      len(gameRoom.GameState.Players),
+		"initial_hands":     gameRoom.buildReplayInitialHandsLocked(),
 	})
 
 	// 检查第一位是否是 AI
@@ -2643,6 +2670,7 @@ func initTutorialGame(gameRoom *GameRoom, roomID string) error {
 		"tutorial":          true,
 		"initial_substance": initialDiscard,
 		"player_count":      len(gameRoom.GameState.Players),
+		"initial_hands":     gameRoom.buildReplayInitialHandsLocked(),
 	})
 
 	// 检查第一位玩家（应该是人类）
@@ -3135,6 +3163,7 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 		"substance":      substance,
 		"effect":         activeEffect,
 		"is_action_card": isActionCard,
+		"cards":          cloneReplayCardList(consumedCards),
 	}
 	if fastReaction {
 		replayPayload["fast_reaction_ms"] = fastReactionMs
@@ -3465,8 +3494,9 @@ func reshuffleDeck(gameRoom *GameRoom) {
 	})
 }
 
-func drawCardsForPlayer(gameRoom *GameRoom, playerIndex int, count int) {
+func drawCardsForPlayer(gameRoom *GameRoom, playerIndex int, count int) []models.Card {
 	player := gameRoom.GameState.Players[playerIndex]
+	drawnCards := make([]models.Card, 0, count)
 	for i := 0; i < count; i++ {
 		// 如果摸牌堆空了，尝试洗牌
 		if len(gameRoom.GameState.DrawPile) == 0 {
@@ -3479,7 +3509,9 @@ func drawCardsForPlayer(gameRoom *GameRoom, playerIndex int, count int) {
 		gameRoom.GameState.DrawPile = gameRoom.GameState.DrawPile[1:]
 		player.HandCards = append(player.HandCards, card)
 		player.CardCount++
+		drawnCards = append(drawnCards, card)
 	}
+	return drawnCards
 }
 
 // 摸牌
@@ -3558,7 +3590,7 @@ func DrawCard(roomID string, uid int, count int) error {
 		penaltyResolved = true
 	}
 
-	drawCardsForPlayer(gameRoom, gameRoom.GameState.CurrentPlayer, actualCount)
+	drawnCards := drawCardsForPlayer(gameRoom, gameRoom.GameState.CurrentPlayer, actualCount)
 
 	displayName := currentPlayer.Nickname
 	if displayName == "" {
@@ -3574,6 +3606,7 @@ func DrawCard(roomID string, uid int, count int) error {
 		"requested_count":  count,
 		"actual_count":     actualCount,
 		"penalty_resolved": penaltyResolved,
+		"cards":            cloneReplayCardList(drawnCards),
 	})
 
 	// 行动进度更新
@@ -4113,6 +4146,7 @@ func DoublePlay(roomID string, uid int, sub1 string, sub2 string) error {
 		"substance_1": sub1,
 		"substance_2": sub2,
 		"reaction":    reaction.Display,
+		"cards":       cloneReplayCardList(consumedCards),
 	}
 	if fastReaction {
 		replayPayload["fast_reaction_ms"] = fastReactionMs
@@ -4317,10 +4351,11 @@ func processRoomTimeout(roomID string) {
 			gameRoom.GameState.PendingDrawTypes = nil
 			penaltyResolved = true
 		}
-		drawCardsForPlayer(gameRoom, gameRoom.GameState.CurrentPlayer, drawCount)
+		drawnCards := drawCardsForPlayer(gameRoom, gameRoom.GameState.CurrentPlayer, drawCount)
 		gameRoom.appendReplayEventLocked("timeout_auto_draw", currentPlayer.UID, map[string]interface{}{
 			"draw_count":       drawCount,
 			"penalty_resolved": penaltyResolved,
+			"cards":            cloneReplayCardList(drawnCards),
 		})
 		gameRoom.GameState.CurrentPlayer = getNextPlayer(gameRoom.GameState)
 		gameRoom.recordTurnStart()

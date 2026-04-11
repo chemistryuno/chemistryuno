@@ -64,6 +64,12 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/profile/:tab',
+    name: 'ProfileTab',
+    component: Profile,
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/feedbacks',
     name: 'Feedbacks',
     component: Feedbacks,
@@ -95,6 +101,12 @@ const routes = [
     path: '/admin/surveys/:id/responses',
     name: 'AdminSurveyResponses',
     component: AdminSurveyResponses,
+    meta: { requiresAuth: true, coWorkerOnly: true }
+  },
+  {
+    path: '/admin/:tab',
+    name: 'AdminTab',
+    component: Admin,
     meta: { requiresAuth: true, coWorkerOnly: true }
   },
   {

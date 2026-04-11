@@ -25,7 +25,37 @@ const gameToastRef = ref()
 const id = route.params.id as string
 const replayHistoryQueryID = computed(() => Number(route.query.replay_history_id || 0))
 const isReplayBridgeMode = computed(() => Number.isFinite(replayHistoryQueryID.value) && replayHistoryQueryID.value > 0)
+const isReplayRoomPath = computed(() => String(id) === 'replay')
 const replayScopeAdmin = computed(() => String(route.query.scope || '') === 'admin')
+const replayReturnPath = computed(() => {
+  const raw = String(route.query.from || '').trim()
+  if (/^\/admin(?:\/[a-zA-Z0-9_-]+)?$/.test(raw)) {
+    return raw
+  }
+  if (/^\/profile(?:\/[a-zA-Z0-9_-]+)?$/.test(raw)) {
+    return raw
+  }
+  return replayScopeAdmin.value ? '/admin/users' : '/profile/history'
+})
+
+const buildReplayTimelineURL = () => {
+  if (!(Number.isFinite(replayHistoryQueryID.value) && replayHistoryQueryID.value > 0)) {
+    return replayReturnPath.value
+  }
+  const query = new URLSearchParams()
+  if (replayScopeAdmin.value) {
+    query.set('scope', 'admin')
+  }
+  query.set('from', replayReturnPath.value)
+  const queryStr = query.toString()
+  return queryStr
+    ? `/replay/${replayHistoryQueryID.value}?${queryStr}`
+    : `/replay/${replayHistoryQueryID.value}`
+}
+
+const navigateBackFromReplay = () => {
+  router.push(buildReplayTimelineURL())
+}
 
 const user = ref<any>({})
 try {
@@ -80,6 +110,12 @@ const replayInitialHands = ref<Record<number, any[]>>({})
 const replaySpeedOptions = [0.5, 1, 1.5, 2, 3, 4]
 let replayTimer: number | null = null
 const replayActionEventTypes = new Set(['play_card', 'double_play', 'draw_card', 'timeout_auto_draw'])
+let forceAutoDrawEnabled = false
+let forceAutoDrawIntervalMs = 260
+let forceAutoDrawSilent = true
+let forceAutoDrawInFlight = false
+let forceAutoDrawSuccessCount = 0
+let forceAutoDrawTimer: number | null = null
 
 // UI State
 const isMobile = ref(false)
@@ -278,7 +314,7 @@ const playersCardState = computed(() => {
 })
 
 // 改为监听简化版本而不是deep watch
-watch(playersCardState, (newState) => {
+watch(playersCardState, (_newState) => {
   if (!gameState.value?.players) return
   gameState.value.players.forEach((p: any) => {
     const oldVal = playerCardCounts.value[p.uid]
@@ -584,6 +620,16 @@ const winner = computed(() => {
      return gameState.value.players.find((p: any) => p.uid === winnerUid)
   }
   return gameState.value.players?.find((p: any) => p.card_count === 0)
+})
+
+const showSettlementPanel = computed(() => {
+  if (isReplayBridgeMode.value) return false
+  const status = String(gameState.value?.status || '')
+  return status === 'finished' || status === 'terminated'
+})
+
+const isTerminatedSettlement = computed(() => {
+  return String(gameState.value?.status || '') === 'terminated'
 })
 
 const isManualSettlement = ref(false)
@@ -951,8 +997,23 @@ const handleActionToast = (msg: any) => {
 }
 
 const handleRoomTerminated = async (msg: any) => {
-  isRedirecting.value = true
   const reason = msg.message || '由于连接中断，实验室已关闭'
+
+  const hasSettlementData = Boolean(
+    (gameState.value?.finished_players && gameState.value.finished_players.length > 0) ||
+    (gameState.value?.points_changes && Object.keys(gameState.value.points_changes).length > 0) ||
+    (gameState.value?.xp_changes && Object.keys(gameState.value.xp_changes).length > 0)
+  )
+
+  if (hasSettlementData && !isReplayBridgeMode.value) {
+    if (gameState.value?.status !== 'finished') {
+      gameState.value.status = 'terminated'
+    }
+    showToast(reason, '实验结束', 'warning')
+    return
+  }
+
+  isRedirecting.value = true
   await showAlert(reason, '实验结束')
   router.push('/')
 }
@@ -1060,13 +1121,20 @@ const normalizeReplayEvents = (events: any[]) => {
     })
 }
 
+const resolveReplayCardKeyFromObject = (card: any) => {
+  return String(card?.card_symbol || card?.card_type || card?.type || '?')
+}
+
 const resolveReplayCardKeyForPlay = (payload: any) => {
+  if (Array.isArray(payload?.cards) && payload.cards.length) {
+    return resolveReplayCardKeyFromObject(payload.cards[0])
+  }
   return payload?.card_symbol || payload?.card_type || '未知卡'
 }
 
 const resolveReplayCardKeysForDouble = (payload: any) => {
   if (Array.isArray(payload?.cards) && payload.cards.length) {
-    return payload.cards.map((card: any) => card?.card_symbol || card?.card_type || card?.type || '未知卡')
+    return payload.cards.map((card: any) => resolveReplayCardKeyFromObject(card))
   }
   const symbol = payload?.card_symbol || payload?.card_type
   if (symbol) return [symbol, symbol]
@@ -1135,7 +1203,38 @@ const addReplayHandCards = (player: any, cardKeys: string[]) => {
   player.card_count = player.hand_cards.length
 }
 
+const parseReplayInitialHandsFromEvents = (events: any[]) => {
+  const gameStartEvent = events.find((event: any) => event?.__type === 'game_start' && event?.__payload?.initial_hands)
+  const initialHandsPayload = gameStartEvent?.__payload?.initial_hands
+  if (!initialHandsPayload || typeof initialHandsPayload !== 'object') {
+    return null
+  }
+
+  const result: Record<number, string[]> = {}
+  Object.entries(initialHandsPayload).forEach(([uidKey, cards]) => {
+    const uid = Number(uidKey)
+    if (!Number.isFinite(uid)) return
+    if (!Array.isArray(cards)) {
+      result[uid] = []
+      return
+    }
+    result[uid] = cards.map((card: any) => resolveReplayCardKeyFromObject(card))
+  })
+  return result
+}
+
 const buildReplayInitialHands = (players: any[], events: any[]) => {
+  const explicitInitialHands = parseReplayInitialHandsFromEvents(events)
+  if (explicitInitialHands) {
+    players.forEach((player: any) => {
+      const uid = Number(player.uid)
+      if (!Array.isArray(explicitInitialHands[uid])) {
+        explicitInitialHands[uid] = []
+      }
+    })
+    return explicitInitialHands
+  }
+
   const handsByUID: Record<number, string[]> = {}
   const cardBalanceByUID: Record<number, number> = {}
 
@@ -1191,24 +1290,26 @@ const buildReplayLastCardFromEvent = (event: any) => {
   const payload = event?.__payload || event?.payload || {}
 
   if (eventType === 'double_play') {
+    const doubleKeys = resolveReplayCardKeysForDouble(payload)
     const reactants = [payload.sub1 || payload.substance_1, payload.sub2 || payload.substance_2].filter(Boolean)
     const result = payload.substance || payload.result_substance || reactants.join(' + ')
     return {
       substance: result,
       reactants,
       card: {
-        type: payload.card_symbol || payload.card_type || reactants[0] || 'R',
+        type: doubleKeys[0] || reactants[0] || 'R',
         effect: payload.card_effect || ''
       }
     }
   }
 
   if (eventType === 'play_card') {
+    const playedKey = resolveReplayCardKeyForPlay(payload)
     const substance = payload.substance || payload.result_substance || payload.card_symbol || payload.card_type || 'R'
     return {
       substance,
       card: {
-        type: payload.card_symbol || payload.card_type || substance,
+        type: playedKey || substance,
         effect: payload.card_effect || ''
       }
     }
@@ -1521,7 +1622,7 @@ const loadReplaySimulationState = async () => {
       card_count: 0,
       hand_cards: [],
       index,
-      is_ai: Number(p.uid) < 0,
+      is_ai: typeof p.is_ai === 'boolean' ? p.is_ai : Number(p.uid) < 0,
       is_offline: false,
       points: 0,
       exp: 0
@@ -1539,7 +1640,7 @@ const loadReplaySimulationState = async () => {
       username: p.username || p.nickname || `UID ${p.uid}`,
       nickname: p.nickname || p.username || `UID ${p.uid}`,
       avatar: p.avatar || '🧪',
-      is_ai: Number(p.uid) < 0,
+      is_ai: typeof p.is_ai === 'boolean' ? p.is_ai : Number(p.uid) < 0,
       is_offline: false
     }))
 
@@ -1695,6 +1796,8 @@ const loadGameState = async (silent = false) => {
 }
 
 onMounted(() => {
+  exposeForceAutoDrawConsoleAPI()
+
   // 检测教学模式
   const tutorialMode = localStorage.getItem('chemistry-uno-tutorial-mode')
   if (tutorialMode === 'true') {
@@ -1794,6 +1897,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  cleanupForceAutoDrawConsoleAPI()
   clearReplayTimer()
 
   // 清除教学模式标记，并记录已完成
@@ -2031,6 +2135,95 @@ const handleDrawCard = async () => {
   }
 }
 
+const stopForceAutoDrawLoop = () => {
+  if (forceAutoDrawTimer != null) {
+    window.clearInterval(forceAutoDrawTimer)
+    forceAutoDrawTimer = null
+  }
+}
+
+const getForceAutoDrawStatus = () => {
+  return {
+    enabled: forceAutoDrawEnabled,
+    interval_ms: forceAutoDrawIntervalMs,
+    silent: forceAutoDrawSilent,
+    room_id: id,
+    in_flight: forceAutoDrawInFlight,
+    success_count: forceAutoDrawSuccessCount,
+    replay_mode: isReplayBridgeMode.value || isReplayRoomPath.value
+  }
+}
+
+const tryForceAutoDraw = async () => {
+  if (forceAutoDrawInFlight || !id) return
+  forceAutoDrawInFlight = true
+  try {
+    await gameAPI.drawCard(id)
+    forceAutoDrawSuccessCount += 1
+  } catch (error: any) {
+    if (!forceAutoDrawSilent) {
+      const message = error?.response?.data?.error || error?.message || 'unknown_error'
+      console.debug('[ForceAutoDraw] draw failed:', message)
+    }
+  } finally {
+    forceAutoDrawInFlight = false
+  }
+}
+
+const scheduleForceAutoDrawLoop = () => {
+  stopForceAutoDrawLoop()
+  if (!forceAutoDrawEnabled) return
+
+  forceAutoDrawTimer = window.setInterval(() => {
+    void tryForceAutoDraw()
+  }, forceAutoDrawIntervalMs)
+}
+
+const startForceAutoDrawFromConsole = (options?: { intervalMs?: number, silent?: boolean }) => {
+  if (typeof options?.intervalMs === 'number' && Number.isFinite(options.intervalMs)) {
+    forceAutoDrawIntervalMs = Math.max(80, Math.floor(options.intervalMs))
+  }
+  if (typeof options?.silent === 'boolean') {
+    forceAutoDrawSilent = options.silent
+  }
+
+  forceAutoDrawEnabled = true
+  scheduleForceAutoDrawLoop()
+  void tryForceAutoDraw()
+  console.info('[ForceAutoDraw] started', getForceAutoDrawStatus())
+  return getForceAutoDrawStatus()
+}
+
+const stopForceAutoDrawFromConsole = () => {
+  forceAutoDrawEnabled = false
+  stopForceAutoDrawLoop()
+  console.info('[ForceAutoDraw] stopped', getForceAutoDrawStatus())
+  return getForceAutoDrawStatus()
+}
+
+const exposeForceAutoDrawConsoleAPI = () => {
+  const win = window as Window & { __chemForceAutoDraw?: any }
+  win.__chemForceAutoDraw = {
+    start: (options?: { intervalMs?: number, silent?: boolean }) => startForceAutoDrawFromConsole(options),
+    stop: () => stopForceAutoDrawFromConsole(),
+    once: async () => {
+      await tryForceAutoDraw()
+      return getForceAutoDrawStatus()
+    },
+    status: () => getForceAutoDrawStatus()
+  }
+
+  console.info('[ForceAutoDraw] console API ready: window.__chemForceAutoDraw.start({ intervalMs: 200, silent: true })')
+}
+
+const cleanupForceAutoDrawConsoleAPI = () => {
+  stopForceAutoDrawFromConsole()
+  const win = window as Window & { __chemForceAutoDraw?: any }
+  if (win.__chemForceAutoDraw) {
+    delete win.__chemForceAutoDraw
+  }
+}
+
 // 化学键盘确认处理
 const handleKeyboardConfirm = async (formula: string) => {
   substanceInput.value = formula
@@ -2039,9 +2232,8 @@ const handleKeyboardConfirm = async (formula: string) => {
 }
 
 const handleLeaveRoom = async () => {
-  if (isReplayBridgeMode.value) {
-    const scopeQuery = replayScopeAdmin.value ? '?scope=admin' : ''
-    router.push(`/replay/${replayHistoryQueryID.value}${scopeQuery}`)
+  if (isReplayBridgeMode.value || isReplayRoomPath.value) {
+    navigateBackFromReplay()
     return
   }
 
@@ -3072,7 +3264,7 @@ watch(() => gameState.value?.current_player, () => {
       </div>
 
       <!-- Experimental Victory / Failure Protocol -->
-      <div v-if="gameState?.status === 'finished' && !isReplayBridgeMode" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xl transition-all duration-500">
+      <div v-if="showSettlementPanel" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xl transition-all duration-500">
         <!-- Cool Background Effects (Minimized for focus) -->
         <div class="absolute inset-0 pointer-events-none overflow-hidden opacity-30">
            <div v-for="i in 8" :key="i" 
@@ -3099,7 +3291,15 @@ watch(() => gameState.value?.current_player, () => {
                 </div>
 
                 <div class="px-2">
-                  <template v-if="winner?.uid === user.uid">
+                  <template v-if="isTerminatedSettlement">
+                    <h2 class="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tighter leading-tight mb-1">
+                      实验异常中止
+                    </h2>
+                    <p class="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                      对局已结束并进入终止结算，以下为当前可用实验数据。
+                    </p>
+                  </template>
+                  <template v-else-if="winner?.uid === user.uid">
                     <h2 class="text-3xl sm:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-b from-slate-900 to-slate-600 dark:from-white dark:to-blue-200 tracking-tighter leading-tight mb-1">
                       实验大成功
                     </h2>
@@ -3227,7 +3427,7 @@ watch(() => gameState.value?.current_player, () => {
                 重新播放
               </button>
               <button
-                @click="router.push(`/replay/${replayHistoryQueryID}${replayScopeAdmin ? '?scope=admin' : ''}`)"
+                @click="navigateBackFromReplay"
                 class="flex-1 h-11 rounded-xl border border-slate-300 dark:border-white/10 text-slate-700 dark:text-slate-200 font-black uppercase tracking-widest text-xs hover:bg-slate-100 dark:hover:bg-white/10 transition-all"
               >
                 返回时间线
@@ -3450,7 +3650,7 @@ watch(() => gameState.value?.current_player, () => {
                 : (gameState ? 'bg-slate-50 dark:bg-white/[0.03] border-slate-200 dark:border-white/5' : 'bg-slate-50 dark:bg-white/[0.03] border-slate-200 dark:border-white/10'),
               isReplayBridgeMode && 'cursor-pointer hover:border-cyan-400/50',
               isReplayBridgeMode && replayPerspectiveUID === Number(player.uid) && 'ring-2 ring-cyan-400/70 border-cyan-400/70 bg-cyan-500/10 dark:bg-cyan-500/15',
-              drawAnimatingUIDs.has(player.uid) && 'ring-2 ring-rose-500 animate-pulse',
+              drawAnimatingUIDs.has(player.uid) && 'ring-2 ring-rose-500 border-rose-500',
               gameState?.finished_players?.includes(player.uid) && 'opacity-60 grayscale-[0.8] bg-slate-200/50 dark:bg-black/40 border-slate-300/30'
             )"
           >

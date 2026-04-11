@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, onMounted, computed, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { authAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
 import { 
@@ -30,6 +30,7 @@ import LevelProgress from '../components/LevelProgress.vue'
 import { LayoutDashboard, ShieldCheck, FlaskConical, History, Sliders, Menu, X as CloseIcon, LogOut, User as UserIcon, FileText } from 'lucide-vue-next'
 
 const router = useRouter()
+const route = useRoute()
 const { showAlert, showConfirm, showPrompt } = useDialog()
 
 let initialUser: any = {}
@@ -56,6 +57,50 @@ const categories = [
   { id: 'history', name: '反应记录', icon: History, eng: 'Records' },
   { id: 'settings', name: '外观偏好', icon: Sliders, eng: 'Preferences' }
 ]
+
+const categoryIDs = categories.map(cat => cat.id)
+
+const resolveProfileCategory = (raw: string) => {
+  return categoryIDs.includes(raw) ? raw : 'overview'
+}
+
+const buildProfileCategoryPath = (category: string) => {
+  return `/profile/${resolveProfileCategory(category)}`
+}
+
+const switchCategory = (category: string, closeSidebar = false) => {
+  const nextCategory = resolveProfileCategory(String(category || ''))
+  if (currentCategory.value !== nextCategory) {
+    currentCategory.value = nextCategory
+  }
+
+  if (closeSidebar) {
+    isSidebarOpen.value = false
+  }
+
+  const targetPath = buildProfileCategoryPath(nextCategory)
+  if (route.path !== targetPath) {
+    router.push(targetPath)
+  }
+}
+
+const syncCategoryFromRoute = () => {
+  const routeTab = typeof route.params.tab === 'string' ? route.params.tab : ''
+  const nextCategory = resolveProfileCategory(routeTab)
+
+  if (currentCategory.value !== nextCategory) {
+    currentCategory.value = nextCategory
+  }
+
+  const canonicalPath = buildProfileCategoryPath(nextCategory)
+  if (route.path !== canonicalPath) {
+    router.replace(canonicalPath)
+  }
+}
+
+watch(() => route.params.tab, () => {
+  syncCategoryFromRoute()
+}, { immediate: true })
 
 const userStats = computed(() => {
   const total = user.value.total_games || 0
@@ -315,7 +360,7 @@ const handleOAuthUnbind = async (provider: 'github' | 'ms' | 'google' | 'apple')
         <button 
           v-for="cat in categories" 
           :key="cat.id" 
-          @click="currentCategory = cat.id; isSidebarOpen = false"
+          @click="switchCategory(cat.id, true)"
           class="w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all font-bold text-sm"
           :class="[
             currentCategory === cat.id 
@@ -361,7 +406,7 @@ const handleOAuthUnbind = async (provider: 'github' | 'ms' | 'google' | 'apple')
           <button 
             v-for="cat in categories" 
             :key="cat.id" 
-            @click="currentCategory = cat.id"
+            @click="switchCategory(cat.id)"
             class="flex flex-col items-center justify-center min-w-[90px] py-2 px-4 rounded-xl transition-all"
             :class="[
               currentCategory === cat.id 

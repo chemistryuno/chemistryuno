@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, watch, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { adminAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
 import UserAvatar from '../components/UserAvatar.vue'
@@ -39,6 +39,7 @@ import {
 import { cn } from '../utils/cn'
 
 const router = useRouter()
+const route = useRoute()
 const { showAlert, showConfirm, showPrompt } = useDialog()
 const users = ref<any[]>([])
 const gameHistory = ref<any[]>([])
@@ -285,25 +286,67 @@ const loading = ref(false)
 
 const stats = ref({ user_count: 0, history_count: 0, deck_card_types: 0, active_rooms: 0 })
 
+const adminAllTabs = [
+  { id: 'users', label: '研究员', icon: Users },
+  { id: 'deck', label: '核心库存', icon: Layers },
+  { id: 'special', label: '稀有元素', icon: Star },
+  { id: 'announcements', label: '广播推送', icon: Megaphone },
+  { id: 'surveys', label: '问卷调查', icon: FileText },
+  { id: 'feedbacks', label: '通讯报告', icon: MessageSquare },
+  { id: 'game-time', label: '时间配置', icon: Clock },
+  { id: 'logs', label: '系统日志', icon: Terminal },
+  { id: 'history', label: '实验日志', icon: History }
+]
+
 const tabs = computed(() => {
-  const allTabs = [
-    { id: 'users', label: '研究员', icon: Users },
-    { id: 'deck', label: '核心库存', icon: Layers },
-    { id: 'special', label: '稀有元素', icon: Star },
-    { id: 'announcements', label: '广播推送', icon: Megaphone },
-    { id: 'surveys', label: '问卷调查', icon: FileText },
-    { id: 'feedbacks', label: '通讯报告', icon: MessageSquare },
-    { id: 'game-time', label: '时间配置', icon: Clock },
-    { id: 'logs', label: '系统日志', icon: Terminal },
-    { id: 'history', label: '实验日志', icon: History }
-  ]
-  
   const user = JSON.parse(localStorage.getItem('user') || '{}')
   if (user.role === 'co-worker') {
-    return allTabs.filter(tab => tab.id === 'users')
+    return adminAllTabs.filter(tab => tab.id === 'users')
   }
-  return allTabs
+  return adminAllTabs
 })
+
+const resolveAdminTab = (raw: string) => {
+  const allowedTabIDs = tabs.value.map(tab => tab.id)
+  if (allowedTabIDs.includes(raw)) {
+    return raw
+  }
+  return allowedTabIDs[0] || 'users'
+}
+
+const buildAdminTabPath = (tabID: string) => {
+  return `/admin/${resolveAdminTab(tabID)}`
+}
+
+const switchAdminTab = (tabID: string) => {
+  const nextTab = resolveAdminTab(String(tabID || ''))
+  if (activeTab.value !== nextTab) {
+    activeTab.value = nextTab
+  }
+
+  const targetPath = buildAdminTabPath(nextTab)
+  if (route.path !== targetPath) {
+    router.push(targetPath)
+  }
+}
+
+const syncAdminTabFromRoute = () => {
+  const routeTab = typeof route.params.tab === 'string' ? route.params.tab : ''
+  const nextTab = resolveAdminTab(routeTab)
+
+  if (activeTab.value !== nextTab) {
+    activeTab.value = nextTab
+  }
+
+  const canonicalPath = buildAdminTabPath(nextTab)
+  if (route.path !== canonicalPath) {
+    router.replace(canonicalPath)
+  }
+}
+
+watch(() => [route.params.tab, tabs.value.map(tab => tab.id).join('|')], () => {
+  syncAdminTabFromRoute()
+}, { immediate: true })
 
 const searchTerm = ref('')
 const showCreateAnnouncementModal = ref(false)
@@ -571,7 +614,10 @@ const handleBanUser = async () => {
 }
 
 const openReplayRoom = (game: any) => {
-  router.push(`/replay/${game.id}?scope=admin`)
+  const query = new URLSearchParams()
+  query.set('scope', 'admin')
+  query.set('from', route.path.startsWith('/admin') ? route.path : '/admin/users')
+  router.push(`/replay/${game.id}?${query.toString()}`)
 }
 
 const handleClearReplay = async (game: any) => {
@@ -941,7 +987,7 @@ const filteredHistory = computed(() => {
           <button
             v-for="tab in tabs"
             :key="tab.id"
-            @click="activeTab = tab.id"
+            @click="switchAdminTab(tab.id)"
             class="flex items-center gap-1.5 md:gap-3 px-2.5 md:px-5 py-1.5 md:py-2.5 rounded-lg md:rounded-2xl transition-all shrink-0 group relative"
             :class="[
               activeTab === tab.id 

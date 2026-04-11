@@ -103,6 +103,153 @@ func buildReplayPlayerProfiles(uids []int) []map[string]interface{} {
 	return profiles
 }
 
+func asInt(value interface{}) (int, bool) {
+	switch v := value.(type) {
+	case int:
+		return v, true
+	case int32:
+		return int(v), true
+	case int64:
+		return int(v), true
+	case uint:
+		return int(v), true
+	case uint32:
+		return int(v), true
+	case uint64:
+		return int(v), true
+	case float32:
+		return int(v), true
+	case float64:
+		return int(v), true
+	default:
+		return 0, false
+	}
+}
+
+func parseReplayParticipants(replayData interface{}) []map[string]interface{} {
+	replayMap, ok := replayData.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+
+	rawParticipants, ok := replayMap["participants"].([]interface{})
+	if !ok || len(rawParticipants) == 0 {
+		return nil
+	}
+
+	participants := make([]map[string]interface{}, 0, len(rawParticipants))
+	for _, raw := range rawParticipants {
+		participant, ok := raw.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		uid, ok := asInt(participant["uid"])
+		if !ok {
+			continue
+		}
+		nickname, _ := participant["nickname"].(string)
+		isAI, ok := participant["is_ai"].(bool)
+		if !ok {
+			isAI = uid < 0
+		}
+		participants = append(participants, map[string]interface{}{
+			"uid":      uid,
+			"nickname": nickname,
+			"is_ai":    isAI,
+		})
+	}
+
+	if len(participants) == 0 {
+		return nil
+	}
+	return participants
+}
+
+func buildReplayProfilesFromParticipants(participants []map[string]interface{}) []map[string]interface{} {
+	if len(participants) == 0 {
+		return nil
+	}
+
+	ordered := make([]int, 0, len(participants))
+	seen := make(map[int]bool)
+	participantByUID := make(map[int]map[string]interface{}, len(participants))
+	positiveUIDs := make([]uint, 0)
+
+	for _, participant := range participants {
+		uid, ok := asInt(participant["uid"])
+		if !ok || seen[uid] {
+			continue
+		}
+		seen[uid] = true
+		ordered = append(ordered, uid)
+		participantByUID[uid] = participant
+		if uid > 0 {
+			positiveUIDs = append(positiveUIDs, uint(uid))
+		}
+	}
+
+	userMap := make(map[uint]*database.User)
+	if len(positiveUIDs) > 0 {
+		if loaded, err := repository.UserRepo.FindByUIDs(positiveUIDs); err == nil {
+			userMap = loaded
+		}
+	}
+
+	profiles := make([]map[string]interface{}, 0, len(ordered))
+	for _, uid := range ordered {
+		participant := participantByUID[uid]
+		nickname, _ := participant["nickname"].(string)
+		isAI, ok := participant["is_ai"].(bool)
+		if !ok {
+			isAI = uid < 0
+		}
+
+		if isAI {
+			if nickname == "" {
+				nickname = fmt.Sprintf("AI_%d", -uid)
+			}
+			profiles = append(profiles, map[string]interface{}{
+				"uid":      uid,
+				"username": nickname,
+				"nickname": nickname,
+				"avatar":   "AI",
+				"is_ai":    true,
+			})
+			continue
+		}
+
+		user := userMap[uint(uid)]
+		username := fmt.Sprintf("UID_%d", uid)
+		avatar := ""
+		if user != nil {
+			if user.Username != "" {
+				username = user.Username
+			}
+			avatar = user.Avatar
+		}
+		if nickname == "" {
+			if user != nil && user.Nickname != "" {
+				nickname = user.Nickname
+			} else {
+				nickname = username
+			}
+		}
+
+		profiles = append(profiles, map[string]interface{}{
+			"uid":      uid,
+			"username": username,
+			"nickname": nickname,
+			"avatar":   avatar,
+			"is_ai":    false,
+		})
+	}
+
+	if len(profiles) == 0 {
+		return nil
+	}
+	return profiles
+}
+
 func buildReplayResponse(history *database.GameHistory) map[string]interface{} {
 	players := parseIntSliceJSON(history.Players)
 	cheatUIDs := parseIntSliceJSON(history.CheatUIDs)
@@ -113,6 +260,13 @@ func buildReplayResponse(history *database.GameHistory) map[string]interface{} {
 			replayData = map[string]interface{}{
 				"raw": history.ReplayLog,
 			}
+		}
+	}
+
+	profiles := buildReplayPlayerProfiles(players)
+	if replayParticipants := parseReplayParticipants(replayData); len(replayParticipants) > 0 {
+		if replayProfiles := buildReplayProfilesFromParticipants(replayParticipants); len(replayProfiles) > 0 {
+			profiles = replayProfiles
 		}
 	}
 
@@ -128,7 +282,7 @@ func buildReplayResponse(history *database.GameHistory) map[string]interface{} {
 		"cheat_detected":    history.CheatDetected,
 		"cheat_uids":        cheatUIDs,
 		"players":           players,
-		"player_profiles":   buildReplayPlayerProfiles(players),
+		"player_profiles":   profiles,
 		"replay":            replayData,
 	}
 }

@@ -236,6 +236,20 @@ func (Reaction) TableName() string {
 	return "reactions"
 }
 
+func (r *Reaction) BeforeCreate(tx *gorm.DB) error {
+	if r.R1 > r.R2 {
+		r.R1, r.R2 = r.R2, r.R1
+	}
+	return nil
+}
+
+func (r *Reaction) BeforeSave(tx *gorm.DB) error {
+	if r.R1 > r.R2 {
+		r.R1, r.R2 = r.R2, r.R1
+	}
+	return nil
+}
+
 // Substance GORM模型 - 化学物质表
 type Substance struct {
 	ID                 uint       `gorm:"primaryKey;autoIncrement" json:"id"`

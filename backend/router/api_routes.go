@@ -191,6 +191,7 @@ func RegisterAPIRoutes(r *gin.Engine, startTime time.Time, wsHandler gin.Handler
 			admin.POST("/deck-config/reset", middleware.AdminMiddleware(), handlers.ResetGlobalDeckConfig)
 			admin.GET("/game-history", middleware.AdminMiddleware(), handlers.GetGameHistory)
 			admin.GET("/logs", middleware.AdminMiddleware(), handlers.GetLogs)
+			admin.GET("/logs/stream", middleware.AdminMiddleware(), handlers.GetLogsStream)
 			admin.POST("/logs/clear", middleware.AdminMiddleware(), handlers.ClearLogs)
 			admin.GET("/feedbacks", middleware.AdminMiddleware(), handlers.GetAllFeedbacks)
 			admin.PUT("/feedbacks/:id/status", middleware.AdminMiddleware(), handlers.UpdateFeedbackStatus)

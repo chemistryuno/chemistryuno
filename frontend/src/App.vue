@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { defineAsyncComponent, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import websocket from './utils/websocket'
-import CustomDialog from './components/CustomDialog.vue'
-import AnnouncementTicker from './components/AnnouncementTicker.vue'
-import DuelInviteModal from './components/DuelInviteModal.vue'
 import feedback from './utils/feedback'
 import { useDialog } from './utils/dialog'
-import { loadPluginScripts, dispatchPluginMessage } from './utils/plugin-runtime'
+
+const CustomDialog = defineAsyncComponent(() => import('./components/CustomDialog.vue'))
+const AnnouncementTicker = defineAsyncComponent(() => import('./components/AnnouncementTicker.vue'))
+const DuelInviteModal = defineAsyncComponent(() => import('./components/DuelInviteModal.vue'))
 
 // --- 服务器重启横幅状态 ---
 const restartBanner = ref<{ visible: boolean; countdown: number; reason: string }>({
@@ -22,6 +22,46 @@ const { showAlert } = useDialog()
 const router = useRouter()
 
 const activeDuelInvite = ref<any>(null)
+let pluginRuntimePromise: Promise<typeof import('./utils/plugin-runtime')> | null = null
+let themeMediaQuery: MediaQueryList | null = null
+let sessionStartupScheduled = false
+
+const getPluginRuntime = () => {
+  if (!pluginRuntimePromise) {
+    pluginRuntimePromise = import('./utils/plugin-runtime')
+  }
+  return pluginRuntimePromise
+}
+
+const scheduleNonCriticalTask = (task: () => void, timeout = 600) => {
+  const requestIdleCallback = (window as Window & typeof globalThis & {
+    requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number
+  }).requestIdleCallback
+
+  if (typeof requestIdleCallback === 'function') {
+    requestIdleCallback(task, { timeout })
+    return
+  }
+
+  window.setTimeout(task, timeout)
+}
+
+const scheduleSessionStartup = () => {
+  if (sessionStartupScheduled) return
+  sessionStartupScheduled = true
+
+  scheduleNonCriticalTask(() => {
+    sessionStartupScheduled = false
+    if (!localStorage.getItem('user')) return
+
+    websocket.connect()
+    void getPluginRuntime()
+      .then(({ loadPluginScripts }) => loadPluginScripts())
+      .catch((error) => {
+        console.warn('[Plugin] deferred runtime load failed', error)
+      })
+  }, 1200)
+}
 
 const handleFeedbackUpdate = (msg: any) => {
   if (msg && msg.status) {
@@ -128,6 +168,10 @@ const updateTheme = () => {
 // 立即运行一次以防止 FOUC
 updateTheme()
 
+const handleThemeStorage = (e: StorageEvent) => {
+  if (e.key === 'theme') updateTheme()
+}
+
 const handleGlobalClick = (e: MouseEvent) => {
   const target = e.target as HTMLElement
   // 检查点击目标或其祖先是否是可点击元素
@@ -141,36 +185,34 @@ const handleGlobalClick = (e: MouseEvent) => {
 }
 
 const handlePluginMessage = (msg: any) => {
-  dispatchPluginMessage(msg)
+  void getPluginRuntime()
+    .then(({ dispatchPluginMessage }) => dispatchPluginMessage(msg))
+    .catch((error) => {
+      console.warn('[Plugin] message dispatch failed', error)
+    })
 }
 
 const handleAuthChanged = () => {
-  // Token存储在HttpOnly Cookie中，检查user信息判断是否已登录
+  // Token?????ttpOnly Cookie???????ser??????????????
   const userData = localStorage.getItem('user')
   if (userData) {
-    loadPluginScripts()
+    scheduleSessionStartup()
   }
 }
 
 onMounted(() => {
   try {
-    // 监听主题变化
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
-    mediaQuery.addEventListener('change', updateTheme)
-    window.addEventListener('storage', (e) => {
-      if (e.key === 'theme') updateTheme()
-    })
+    // ?????????
+    themeMediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+    themeMediaQuery.addEventListener('change', updateTheme)
+    window.addEventListener('storage', handleThemeStorage)
     window.addEventListener('theme-changed', updateTheme)
     window.addEventListener('auth-changed', handleAuthChanged)
-    // Token存储在HttpOnly Cookie中，检查user信息判断是否已登录
+    // Token?????ttpOnly Cookie???????ser??????????????
     const userData = localStorage.getItem('user')
-    
+
     if (userData) {
-      // 用户已登录，异步建立 WebSocket 连接（不阻塞首屏）
-      setTimeout(() => {
-        websocket.connect()
-        loadPluginScripts()
-      }, 800)
+      scheduleSessionStartup()
     }
 
     websocket.on('feedback_update', handleFeedbackUpdate)
@@ -185,7 +227,7 @@ onMounted(() => {
     websocket.on('server_restart_cancelled', handleServerRestartCancelled)
     websocket.on('plugin_message', handlePluginMessage)
 
-    // 全局点击音效监听
+    // ????????????
     window.addEventListener('click', handleGlobalClick, true)
   } catch (err) {
     console.error('App initialization failed:', err)
@@ -195,8 +237,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  const mq = window.matchMedia('(prefers-color-scheme: dark)')
-  mq.removeEventListener('change', updateTheme)
+  themeMediaQuery?.removeEventListener('change', updateTheme)
   websocket.off('feedback_update', handleFeedbackUpdate)
   websocket.off('duel_start', handleDuelStart)
   websocket.off('duel_invite', handleDuelInvite)
@@ -210,8 +251,10 @@ onUnmounted(() => {
   websocket.off('plugin_message', handlePluginMessage)
   if (restartInterval) clearInterval(restartInterval)
 
-  // 移除全局监听
+  // ?????????
   window.removeEventListener('click', handleGlobalClick, true)
+  window.removeEventListener('storage', handleThemeStorage)
+  window.removeEventListener('theme-changed', updateTheme)
   window.removeEventListener('auth-changed', handleAuthChanged)
 })
 </script>

@@ -12,45 +12,45 @@ const path = require('path');
 const rootDir = __dirname;
 const args = process.argv.slice(2);
 
-console.log('🧪 Running Chemistry UNO tests...\n');
+console.log('馃И Running Chemistry UNO tests...\n');
 
 try {
   // Step 1: Run Go tests
-  console.log('🔍 Step 1: Running Go test suite...');
+  console.log('馃攳 Step 1: Running Go test suite...');
   try {
     execSync('pnpm go:test', { stdio: 'inherit', cwd: rootDir });
-    console.log('✅ Go tests passed\n');
+    console.log('鉁?Go tests passed\n');
   } catch (err) {
-    console.error('❌ Go tests failed');
+    console.error('鉂?Go tests failed');
     process.exit(1);
   }
 
   // Step 2: Optional frontend build test (if --build flag passed)
   if (args.includes('--build')) {
-    console.log('🔨 Step 2: Testing frontend build...');
+    console.log('馃敤 Step 2: Testing frontend build...');
     try {
       execSync('pnpm build:frontend', { stdio: 'inherit', cwd: rootDir });
-      console.log('✅ Frontend build successful\n');
+      console.log('鉁?Frontend build successful\n');
     } catch (err) {
-      console.error('❌ Frontend build failed');
+      console.error('鉂?Frontend build failed');
       process.exit(1);
     }
   }
 
   // Step 3: Optional frontend type check
-  console.log('📝 Step 3: Running frontend type check...');
+  console.log('馃摑 Step 3: Running frontend type check...');
   try {
     execSync('pnpm -C frontend type-check', { stdio: 'inherit', cwd: rootDir });
-    console.log('✅ Frontend type check passed\n');
+    console.log('鉁?Frontend type check passed\n');
   } catch (err) {
-    console.error('⚠️  Frontend type check warnings (non-blocking)');
+    console.error('鈿狅笍  Frontend type check warnings (non-blocking)');
   }
 
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('✨ All tests passed!');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+  console.log('鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣');
+  console.log('鉁?All tests passed!');
+  console.log('鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣\n');
 
 } catch (err) {
-  console.error('❌ Test suite failed');
+  console.error('鉂?Test suite failed');
   process.exit(1);
 }

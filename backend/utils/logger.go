@@ -2,8 +2,11 @@ package utils
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"os"
+	"regexp"
+	"strings"
 	"sync"
 	"time"
 )
@@ -17,11 +20,117 @@ type LogEntry struct {
 
 // LogBuffer 日志缓冲区管理器
 type LogBuffer struct {
-	entries   []LogEntry
-	maxSize   int
-	mutex     sync.RWMutex
-	logFile   *os.File
-	logWriter *log.Logger
+	entries          []LogEntry
+	maxSize          int
+	mutex            sync.RWMutex
+	logFile          *os.File
+	subscribers      map[int]chan LogEntry
+	nextSubscriberID int
+}
+
+type logCaptureWriter struct {
+	buffer *LogBuffer
+}
+
+var stdLogPrefixRe = regexp.MustCompile(`^(\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2})\s+(.*)$`)
+
+func parseLogLine(rawLine string) (LogEntry, bool) {
+	line := strings.TrimSpace(rawLine)
+	if line == "" {
+		return LogEntry{}, false
+	}
+
+	timestamp := time.Now().Format("2006-01-02 15:04:05")
+	message := line
+
+	if matches := stdLogPrefixRe.FindStringSubmatch(line); len(matches) == 3 {
+		if parsed, err := time.Parse("2006/01/02 15:04:05", matches[1]); err == nil {
+			timestamp = parsed.Format("2006-01-02 15:04:05")
+		}
+		message = strings.TrimSpace(matches[2])
+	}
+
+	level := "INFO"
+	for _, candidate := range []string{"ERROR", "WARNING", "INFO", "DEBUG"} {
+		if strings.HasPrefix(message, "["+candidate+"]") {
+			level = candidate
+			message = strings.TrimSpace(strings.TrimPrefix(message, "["+candidate+"]"))
+			break
+		}
+	}
+
+	return LogEntry{
+		Timestamp: timestamp,
+		Level:     level,
+		Message:   message,
+	}, true
+}
+
+func (w *logCaptureWriter) Write(p []byte) (int, error) {
+	if w == nil || w.buffer == nil {
+		return len(p), nil
+	}
+
+	lines := strings.Split(string(p), "\n")
+	w.buffer.mutex.Lock()
+	defer w.buffer.mutex.Unlock()
+
+	for _, line := range lines {
+		entry, ok := parseLogLine(line)
+		if !ok {
+			continue
+		}
+
+		w.buffer.entries = append(w.buffer.entries, entry)
+		if len(w.buffer.entries) > w.buffer.maxSize {
+			w.buffer.entries = w.buffer.entries[1:]
+		}
+
+		for _, subscriber := range w.buffer.subscribers {
+			select {
+			case subscriber <- entry:
+			default:
+				// 丢弃慢订阅者当前消息，避免阻塞日志主链路。
+			}
+		}
+	}
+
+	return len(p), nil
+}
+
+// SubscribeLogs 订阅实时日志流。
+func SubscribeLogs() (int, <-chan LogEntry) {
+	if globalLogger == nil {
+		ch := make(chan LogEntry)
+		close(ch)
+		return 0, ch
+	}
+
+	globalLogger.mutex.Lock()
+	defer globalLogger.mutex.Unlock()
+
+	id := globalLogger.nextSubscriberID
+	globalLogger.nextSubscriberID++
+
+	ch := make(chan LogEntry, 256)
+	globalLogger.subscribers[id] = ch
+
+	return id, ch
+}
+
+// UnsubscribeLogs 取消实时日志订阅。
+func UnsubscribeLogs(id int) {
+	if globalLogger == nil {
+		return
+	}
+
+	globalLogger.mutex.Lock()
+	defer globalLogger.mutex.Unlock()
+
+	if ch, ok := globalLogger.subscribers[id]; ok {
+		delete(globalLogger.subscribers, id)
+		close(ch)
+	}
 }
 
 var globalLogger *LogBuffer
@@ -39,11 +148,15 @@ func InitLogger(maxSize int) error {
 	}
 
 	globalLogger = &LogBuffer{
-		entries:   make([]LogEntry, 0, maxSize),
-		maxSize:   maxSize,
-		logFile:   logFile,
-		logWriter: log.New(logFile, "", log.LstdFlags),
+		entries:          make([]LogEntry, 0, maxSize),
+		maxSize:          maxSize,
+		logFile:          logFile,
+		subscribers:      make(map[int]chan LogEntry),
+		nextSubscriberID: 1,
 	}
+
+	// 将标准日志输出同时写入控制台、文件，并实时捕获到内存缓冲供 /admin/logs 使用。
+	log.SetOutput(io.MultiWriter(os.Stdout, logFile, &logCaptureWriter{buffer: globalLogger}))
 
 	return nil
 }
@@ -80,28 +193,7 @@ func LogDebug(message string) {
 
 // log 内部日志方法
 func (lb *LogBuffer) log(level, message string) {
-	entry := LogEntry{
-		Timestamp: time.Now().Format("2006-01-02 15:04:05"),
-		Level:     level,
-		Message:   message,
-	}
-
-	lb.mutex.Lock()
-	defer lb.mutex.Unlock()
-
-	// 写入文件
-	lb.logWriter.Printf("[%s] %s", entry.Level, entry.Message)
-
-	// 写入内存缓冲
-	lb.entries = append(lb.entries, entry)
-
-	// 如果超过最大大小，删除最旧的日志
-	if len(lb.entries) > lb.maxSize {
-		lb.entries = lb.entries[1:]
-	}
-
-	// 同时输出到标准日志
-	log.Printf("[%s] %s", level, message)
+	log.Printf("[%s] %s", strings.ToUpper(level), message)
 }
 
 // GetLogs 获取最近的日志（按时间倒序）

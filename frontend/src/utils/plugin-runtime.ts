@@ -51,6 +51,8 @@ const loadedPluginIds = new Set<number>()
 const loadedPluginMeta = new Map<number, PluginMeta>()
 const messageHandlers = new Map<number, Array<(payload: any, meta: any) => void>>()
 const pluginRoutes = new Map<number, Map<string, PluginRouteRecord>>() // key=path
+let pluginRuntimeReady = false
+let pluginRuntimeLoadPromise: Promise<void> | null = null
 
 function ensurePluginRouteMap(pluginID: number) {
   if (!pluginRoutes.has(pluginID)) {
@@ -399,21 +401,35 @@ async function loadOnePlugin(plugin: PluginMeta) {
 }
 
 export async function loadPluginScripts() {
-  try {
-    const res = await pluginAPI.getPluginsWithCards()
-    const plugins: PluginMeta[] = res.data || []
+  if (pluginRuntimeReady) return
+  if (pluginRuntimeLoadPromise) return pluginRuntimeLoadPromise
 
-    for (const plugin of plugins) {
-      try {
-        await loadOnePlugin(plugin)
-      } catch (err) {
-        console.warn(`[Plugin:${plugin.name || plugin.id}] failed to load`, err)
+  pluginRuntimeLoadPromise = (async () => {
+    try {
+      const res = await pluginAPI.getPluginsWithCards()
+      const plugins: PluginMeta[] = res.data || []
+
+      for (const plugin of plugins) {
+        try {
+          await loadOnePlugin(plugin)
+        } catch (err) {
+          console.warn(`[Plugin:${plugin.name || plugin.id}] failed to load`, err)
+        }
       }
+
+      pluginRuntimeReady = true
+    } catch (err) {
+      console.warn('[Plugin] failed to load plugins', err)
     }
-  } catch (err) {
-    console.warn('[Plugin] failed to load plugins', err)
+  })()
+
+  try {
+    await pluginRuntimeLoadPromise
+  } finally {
+    pluginRuntimeLoadPromise = null
   }
 }
+
 
 export async function initializePluginRuntime() {
   // Token存储在HttpOnly Cookie中，检查user信息判断是否已登录

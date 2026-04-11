@@ -1,7 +1,9 @@
 package repository
 
 import (
+	"chemistryuno/backend/cache"
 	"chemistryuno/backend/database"
+	"context"
 	"time"
 
 	"gorm.io/gorm"
@@ -22,54 +24,61 @@ func (r *ReactionRepository) FindApprovedReactions() ([]database.Reaction, error
 	return reactions, err
 }
 
-// FindDistinctSubstances 从已批准反应中返回所有不重复的物质列表（仅读 r1/r2 列，不加载完整行）
+// FindDistinctSubstances 从已批准反应中返回所有不重复的物质列表
 func (r *ReactionRepository) FindDistinctSubstances() ([]string, error) {
-	var r1s, r2s []string
-	if err := r.db.Model(&database.Reaction{}).
-		Where("status = ?", "approved").
-		Distinct("r1").
-		Pluck("r1", &r1s).Error; err != nil {
+	var substances []string
+	err := r.db.Raw(`
+		SELECT r1 FROM reactions WHERE status = 'approved'
+		UNION
+		SELECT r2 FROM reactions WHERE status = 'approved'
+	`).Scan(&substances).Error
+	if err != nil {
 		return nil, err
 	}
-	if err := r.db.Model(&database.Reaction{}).
-		Where("status = ?", "approved").
-		Distinct("r2").
-		Pluck("r2", &r2s).Error; err != nil {
-		return nil, err
-	}
-	set := make(map[string]bool, len(r1s)+len(r2s))
-	for _, s := range r1s {
+	result := make([]string, 0, len(substances))
+	for _, s := range substances {
 		if s != "" {
-			set[s] = true
+			result = append(result, s)
 		}
-	}
-	for _, s := range r2s {
-		if s != "" {
-			set[s] = true
-		}
-	}
-	result := make([]string, 0, len(set))
-	for s := range set {
-		result = append(result, s)
 	}
 	return result, nil
 }
 
-// CheckReactionExists 检查反应是否存在
+// CheckReactionExists 检查反应是否存在 (带 Redis 缓存)
 func (r *ReactionRepository) CheckReactionExists(r1, r2 string) (bool, error) {
+	// 1. 尝试从 Redis 缓存获取
+	ctx := context.Background()
+	if val, err := cache.GetReactionCache(ctx, r1, r2); err == nil && val != "" {
+		return val == "1", nil
+	}
+
+	// 2. 缓存未命中，查询数据库
+	if r1 > r2 {
+		r1, r2 = r2, r1
+	}
 	var count int64
 	err := r.db.Model(&database.Reaction{}).
-		Where("((r1 = ? AND r2 = ?) OR (r1 = ? AND r2 = ?)) AND status = ?",
-			r1, r2, r2, r1, "approved").
+		Where("r1 = ? AND r2 = ? AND status = ?", r1, r2, "approved").
 		Count(&count).Error
-	return count > 0, err
+	if err != nil {
+		return false, err
+	}
+
+	exists := count > 0
+
+	// 3. 将结果写回 Redis 缓存
+	_ = cache.SetReactionCache(ctx, r1, r2, exists)
+
+	return exists, nil
 }
 
 // GetReaction 获取反应详情
 func (r *ReactionRepository) GetReaction(r1, r2 string) (*database.Reaction, error) {
+	if r1 > r2 {
+		r1, r2 = r2, r1
+	}
 	var reaction database.Reaction
-	err := r.db.Where("((r1 = ? AND r2 = ?) OR (r1 = ? AND r2 = ?)) AND status = ?",
-		r1, r2, r2, r1, "approved").
+	err := r.db.Where("r1 = ? AND r2 = ? AND status = ?", r1, r2, "approved").
 		First(&reaction).Error
 	if err != nil {
 		return nil, err

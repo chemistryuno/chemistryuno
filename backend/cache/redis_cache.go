@@ -70,6 +70,49 @@ func userKey(uid uint) string {
 	return fmt.Sprintf("user:%d", uid)
 }
 
+// reactionKey 生成反应验证缓存 key，使用规范化的 r1, r2
+func reactionKey(r1, r2 string) string {
+	if r1 > r2 {
+		r1, r2 = r2, r1
+	}
+	return fmt.Sprintf("reaction:%s:%s", r1, r2)
+}
+
+// GetReactionCache 从缓存获取反应验证结果 (1 为存在, 0 为不存在, 空为 miss)
+func GetReactionCache(ctx context.Context, r1, r2 string) (string, error) {
+	if redisClient == nil {
+		return "", fmt.Errorf("redis client not initialized")
+	}
+
+	val, err := redisClient.Get(ctx, reactionKey(r1, r2)).Result()
+	if err == redis.Nil {
+		return "", nil // Cache miss
+	}
+	return val, err
+}
+
+// SetReactionCache 将反应验证结果缓存 1 小时 (status=1 存在, status=0 不存在)
+func SetReactionCache(ctx context.Context, r1, r2 string, exists bool) error {
+	if redisClient == nil {
+		return fmt.Errorf("redis client not initialized")
+	}
+
+	val := "0"
+	if exists {
+		val = "1"
+	}
+
+	return redisClient.Set(ctx, reactionKey(r1, r2), val, 1*time.Hour).Err()
+}
+
+// InvalidateReactionCache 失效特定的反应缓存
+func InvalidateReactionCache(ctx context.Context, r1, r2 string) error {
+	if redisClient == nil {
+		return fmt.Errorf("redis client not initialized")
+	}
+	return redisClient.Del(ctx, reactionKey(r1, r2)).Err()
+}
+
 // GetSessionCache 从缓存获取会话 (先 Redis，miss 则返回 nil)
 func GetSessionCache(ctx context.Context, sid string) (*SessionCache, error) {
 	if redisClient == nil {

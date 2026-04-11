@@ -1,7 +1,6 @@
 ﻿package middleware
 
 import (
-	"chemistryuno/backend/cache"
 	"chemistryuno/backend/repository"
 	"chemistryuno/backend/utils"
 	"context"
@@ -86,7 +85,7 @@ func AuthMiddleware() gin.HandlerFunc {
 		defer cancel()
 
 		// 使用缓存验证会话 - 先查Redis，miss后查DB
-		sessionValid, err := cache.ValidateSessionWithCache(ctx, claims.SID)
+		sessionValid, err := repository.ValidateSessionWithCache(ctx, claims.SID)
 		if err != nil {
 			log.Printf("❌ 会话验证失败 SID=%s: %v", claims.SID, err)
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "会话验证失败"})
@@ -101,7 +100,7 @@ func AuthMiddleware() gin.HandlerFunc {
 		}
 
 		// 验证会话是否属于该用户（防止会话劫持）
-		userValid, err := cache.ValidateSessionForUserWithCache(ctx, claims.SID, uint(claims.UID))
+		userValid, err := repository.ValidateSessionForUserWithCache(ctx, claims.SID, uint(claims.UID))
 		if err != nil {
 			log.Printf("❌ 会话用户验证失败 SID=%s, UID=%d: %v", claims.SID, claims.UID, err)
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "会话验证失败"})
@@ -126,7 +125,7 @@ func AuthMiddleware() gin.HandlerFunc {
 		c.Set("sid", claims.SID)
 
 		// 检查账号冻结/封禁状态 - 使用缓存
-		cachedUser, err := cache.GetUserWithCache(ctx, uint(claims.UID))
+		cachedUser, err := repository.GetUserWithCache(ctx, uint(claims.UID))
 		if err != nil {
 			// 降级到旧方式
 			log.Printf("⚠️  缓存查询失败，降级到数据库: %v", err)

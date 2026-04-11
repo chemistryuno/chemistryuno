@@ -12,31 +12,31 @@ const fs = require('fs');
 
 const rootDir = __dirname;
 
-console.log('🏗️  Building Chemistry UNO project...\n');
+console.log('馃彈锔? Building Chemistry UNO project...\n');
 
 try {
   // Step 1: Build frontend
-  console.log('📦 Step 1: Building frontend (Vite)...');
+  console.log('馃摝 Step 1: Building frontend (Vite)...');
   try {
     execSync('pnpm build:frontend', { stdio: 'inherit', cwd: rootDir });
-    console.log('✅ Frontend build complete\n');
+    console.log('鉁?Frontend build complete\n');
   } catch (err) {
-    console.error('❌ Frontend build failed:', err.message);
+    console.error('鉂?Frontend build failed:', err.message);
     process.exit(1);
   }
 
   // Step 2: Build backend
-  console.log('🔨 Step 2: Building backend (Go)...');
+  console.log('馃敤 Step 2: Building backend (Go)...');
   try {
     execSync('pnpm build:backend', { stdio: 'inherit', cwd: rootDir });
-    console.log('✅ Backend build complete\n');
+    console.log('鉁?Backend build complete\n');
   } catch (err) {
-    console.error('❌ Backend build failed:', err.message);
+    console.error('鉂?Backend build failed:', err.message);
     process.exit(1);
   }
 
   // Verify outputs
-  console.log('📋 Verifying build outputs...');
+  console.log('馃搵 Verifying build outputs...');
   const frontendDist = path.join(rootDir, 'frontend', 'dist');
   const binaryName = process.platform === 'win32' ? 'chemistryuno.exe' : 'chemistryuno';
   const binaryPath = path.join(rootDir, binaryName);
@@ -45,32 +45,32 @@ try {
   let binaryExists = false;
 
   if (fs.existsSync(frontendDist)) {
-    console.log(`✅ Frontend dist: ${frontendDist}`);
+    console.log(`鉁?Frontend dist: ${frontendDist}`);
     distExists = true;
   } else {
-    console.warn(`⚠️  Frontend dist not found at: ${frontendDist}`);
+    console.warn(`鈿狅笍  Frontend dist not found at: ${frontendDist}`);
   }
 
   if (fs.existsSync(binaryPath)) {
-    console.log(`✅ Binary: ${binaryPath}`);
+    console.log(`鉁?Binary: ${binaryPath}`);
     binaryExists = true;
   } else {
-    console.warn(`⚠️  Binary not found at: ${binaryPath}`);
+    console.warn(`鈿狅笍  Binary not found at: ${binaryPath}`);
   }
 
-  console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('\n鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣');
   if (distExists && binaryExists) {
-    console.log('✨ Build successful!');
+    console.log('鉁?Build successful!');
     console.log('\nNext steps:');
     console.log(`  Run: ./${binaryName} (or chemistryuno.exe on Windows)`);
     console.log('  Then visit: http://localhost:8080');
   } else {
-    console.log('⚠️  Build completed with warnings');
+    console.log('鈿狅笍  Build completed with warnings');
     console.log('Check output above for details');
   }
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+  console.log('鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣\n');
 
 } catch (err) {
-  console.error('❌ Build failed:', err.message);
+  console.error('鉂?Build failed:', err.message);
   process.exit(1);
 }

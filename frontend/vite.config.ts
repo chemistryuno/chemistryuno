@@ -9,7 +9,7 @@ export default defineConfig({
   ],
   server: {
     host: true,
-    allowedHosts: true, // true = 允许所有主机名
+    allowedHosts: true, // true = ???????????
     port: 5000,
     proxy: {
       '/api': {
@@ -35,24 +35,21 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: (id) => {
-          // 第三方库分离
           if (id.includes('node_modules')) {
-            if (id.includes('vue')) return 'framework'
-            if (id.includes('axios')) return 'http'
             if (id.includes('lucide-vue-next')) return 'icons'
+            if (id.includes('axios')) return 'http'
+            if (
+              id.includes('/vue/') ||
+              id.includes('\\\\vue\\\\') ||
+              id.includes('vue-router') ||
+              id.includes('@vue')
+            ) {
+              return 'framework'
+            }
             return 'vendor'
           }
-          
-          // 页面按功能分割
-          if (id.includes('pages')) {
-            if (id.includes('Admin')) return 'admin'
-            if (id.includes('Game') || id.includes('Lobby')) return 'game'
-            if (id.includes('Auth') || id.includes('Login')) return 'auth'
-            if (id.includes('Profile') || id.includes('UserSpace')) return 'profile'
-            return 'pages'
-          }
-          
-          if (id.includes('composables')) return 'composables'
+
+          return undefined
         },
         entryFileNames: 'js/[name]-[hash].js',
         chunkFileNames: 'js/[name]-[hash].js',

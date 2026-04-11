@@ -1674,6 +1674,96 @@ func GetLogs(c *gin.Context) {
 	})
 }
 
+// GetLogsStream 通过流式响应实时推送日志（管理员专用）
+func GetLogsStream(c *gin.Context) {
+	flusher, ok := c.Writer.(http.Flusher)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "当前环境不支持日志流式输出"})
+		return
+	}
+
+	level := strings.ToUpper(strings.TrimSpace(c.Query("level")))
+	if level == "ALL" {
+		level = ""
+	}
+
+	if level != "" && level != "INFO" && level != "WARNING" && level != "ERROR" && level != "DEBUG" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的日志级别过滤参数"})
+		return
+	}
+
+	count := 200 // 初次连接默认回放最近200条
+	if countStr := c.Query("count"); countStr != "" {
+		if parsedCount, err := strconv.Atoi(countStr); err == nil && parsedCount > 0 {
+			if parsedCount > 1000 {
+				count = 1000
+			} else {
+				count = parsedCount
+			}
+		}
+	}
+
+	c.Header("Content-Type", "text/event-stream")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("Connection", "keep-alive")
+	c.Header("X-Accel-Buffering", "no")
+
+	var initialLogs []utils.LogEntry
+	if level != "" {
+		initialLogs = utils.GetLogsByLevel(level, count)
+	} else {
+		initialLogs = utils.GetLogs(count)
+	}
+
+	// 先按时间正序回放最近日志，保证前端底部是最新。
+	for i := len(initialLogs) - 1; i >= 0; i-- {
+		payload, err := json.Marshal(initialLogs[i])
+		if err != nil {
+			continue
+		}
+		if _, err := fmt.Fprintf(c.Writer, "data: %s\n\n", payload); err != nil {
+			return
+		}
+	}
+	flusher.Flush()
+
+	subID, stream := utils.SubscribeLogs()
+	defer utils.UnsubscribeLogs(subID)
+
+	keepAliveTicker := time.NewTicker(20 * time.Second)
+	defer keepAliveTicker.Stop()
+
+	for {
+		select {
+		case <-c.Request.Context().Done():
+			return
+		case entry, ok := <-stream:
+			if !ok {
+				return
+			}
+
+			if level != "" && entry.Level != level {
+				continue
+			}
+
+			payload, err := json.Marshal(entry)
+			if err != nil {
+				continue
+			}
+
+			if _, err := fmt.Fprintf(c.Writer, "data: %s\n\n", payload); err != nil {
+				return
+			}
+			flusher.Flush()
+		case <-keepAliveTicker.C:
+			if _, err := fmt.Fprint(c.Writer, ": ping\n\n"); err != nil {
+				return
+			}
+			flusher.Flush()
+		}
+	}
+}
+
 // ClearLogs 清空日志缓冲（管理员专用）
 func ClearLogs(c *gin.Context) {
 	utils.ClearLogs()

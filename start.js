@@ -1,106 +1,90 @@
 #!/usr/bin/env node
 
-/**
- * Start both frontend and backend development servers concurrently
- * Frontend: pnpm -C frontend dev (Vite on port 5000)
- * Backend: go run main.go (server on port 8080)
- */
-
 const { spawn } = require('child_process');
 const path = require('path');
+const readline = require('readline');
 
 const rootDir = __dirname;
 
-console.log('🚀 Starting Chemistry UNO development environment...\n');
-console.log('Frontend: http://localhost:5000');
-console.log('Backend:  http://localhost:8080');
-console.log('\nPress Ctrl+C to stop both servers\n');
-console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+// Simple color function (ANSI escape codes)
+const colors = {
+  reset: "\x1b[0m",
+  bright: "\x1b[1m",
+  dim: "\x1b[2m",
+  green: "\x1b[32m",
+  blue: "\x1b[34m",
+  cyan: "\x1b[36m",
+  yellow: "\x1b[33m",
+  magenta: "\x1b[35m",
+  red: "\x1b[31b",
+};
+
+function log(module, message, color = colors.reset) {
+  const timestamp = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+  const prefix = `${colors.dim}[${timestamp}]${colors.reset} ${color}${colors.bright}[${module}]${colors.reset}`;
+  console.log(`${prefix} ${message}`);
+}
+
+console.clear();
+console.log(`${colors.cyan}${colors.bright}==================================================${colors.reset}`);
+console.log(`${colors.cyan}${colors.bright}   Chemistry UNO - Mendeleev Development Shell    ${colors.reset}`);
+console.log(`${colors.cyan}${colors.bright}==================================================${colors.reset}\n`);
 
 let frontendProcess = null;
 let backendProcess = null;
-let hasError = false;
 
-// Start frontend (Vite dev server)
-console.log('[FRONTEND] Starting Vite dev server...');
+// Helper to pipe and prefix child process output
+function createModuleLogger(moduleName, color) {
+  return (data) => {
+    const lines = data.toString().split('\n');
+    lines.forEach(line => {
+      if (line.trim()) {
+        log(moduleName, line, color);
+      }
+    });
+  };
+}
+
+log("SYSTEM", "Starting services...", colors.yellow);
+
+// Start frontend
 frontendProcess = spawn('pnpm', ['-C', 'frontend', 'dev'], {
   cwd: rootDir,
-  stdio: ['inherit', 'inherit', 'inherit'],
-  shell: process.platform === 'win32',
+  shell: true,
+  env: { ...process.env, FORCE_COLOR: 'true' }
 });
 
-frontendProcess.on('error', (err) => {
-  console.error('[FRONTEND] ❌ Failed to start:', err.message);
-  hasError = true;
-  process.exit(1);
-});
+frontendProcess.stdout.on('data', createModuleLogger("FRONTEND", colors.green));
+frontendProcess.stderr.on('data', createModuleLogger("FRONTEND", colors.red));
+
+// Start backend
+setTimeout(() => {
+  log("SYSTEM", "Launching Go backend...", colors.yellow);
+  backendProcess = spawn('go', ['run', 'main.go'], {
+    cwd: rootDir,
+    shell: true,
+    env: { ...process.env, FORCE_COLOR: 'true' }
+  });
+
+  backendProcess.stdout.on('data', createModuleLogger("BACKEND", colors.blue));
+  backendProcess.stderr.on('data', createModuleLogger("BACKEND", colors.red));
+
+  backendProcess.on('exit', (code) => {
+    if (code !== 0) log("BACKEND", `Service stopped with code ${code}`, colors.red);
+    process.exit(code || 0);
+  });
+}, 1500);
 
 frontendProcess.on('exit', (code) => {
-  if (code !== 0 && !hasError) {
-    console.error(`[FRONTEND] ❌ Exited with code ${code}`);
-    hasError = true;
-  }
-  // Cleanup: kill backend when frontend exits
-  if (backendProcess) {
-    backendProcess.kill();
-  }
+  if (code !== 0) log("FRONTEND", `Service stopped with code ${code}`, colors.red);
+  if (backendProcess) backendProcess.kill();
   process.exit(code || 0);
 });
 
-// Give frontend time to start, then start backend
-setTimeout(() => {
-  console.log('[BACKEND]  Starting Go server...');
-  backendProcess = spawn('go', ['run', 'main.go'], {
-    cwd: rootDir,
-    stdio: ['inherit', 'inherit', 'inherit'],
-  });
-
-  backendProcess.on('error', (err) => {
-    console.error('[BACKEND] ❌ Failed to start:', err.message);
-    if (frontendProcess) {
-      frontendProcess.kill();
-    }
-    process.exit(1);
-  });
-
-  backendProcess.on('exit', (code) => {
-    if (code !== 0 && !hasError) {
-      console.error(`[BACKEND] ❌ Exited with code ${code}`);
-      hasError = true;
-    }
-    // Cleanup: kill frontend when backend exits
-    if (frontendProcess) {
-      frontendProcess.kill();
-    }
-    process.exit(code || 0);
-  });
-}, 500);
-
-// Handle Ctrl+C gracefully
 process.on('SIGINT', () => {
-  console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('⏸️  Shutting down servers...');
-  
-  if (frontendProcess) {
-    frontendProcess.kill('SIGINT');
-  }
-  if (backendProcess) {
-    backendProcess.kill('SIGINT');
-  }
-
-  // Force exit after timeout if processes don't terminate
-  setTimeout(() => {
-    console.log('⚠️  Force closing servers');
-    process.exit(0);
-  }, 3000);
-});
-
-process.on('SIGTERM', () => {
-  if (frontendProcess) {
-    frontendProcess.kill('SIGTERM');
-  }
-  if (backendProcess) {
-    backendProcess.kill('SIGTERM');
-  }
+  console.log("\n");
+  log("SYSTEM", "Shutting down services...", colors.magenta);
+  if (frontendProcess) frontendProcess.kill();
+  if (backendProcess) backendProcess.kill();
   process.exit(0);
 });

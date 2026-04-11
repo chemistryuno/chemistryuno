@@ -2,6 +2,7 @@ package repository
 
 import (
 	"chemistryuno/backend/database"
+	"math/rand"
 	"time"
 
 	"gorm.io/gorm"
@@ -22,11 +23,27 @@ func (r *SubstanceRepository) FindApproved() ([]database.Substance, error) {
 	return substances, err
 }
 
+// CountApproved 获取已批准物质的总数
+func (r *SubstanceRepository) CountApproved() (int64, error) {
+	var count int64
+	err := r.db.Model(&database.Substance{}).Where("status = ?", "approved").Count(&count).Error
+	return count, err
+}
+
 // FindRandomApproved 随机获取一个已批准的物质
 func (r *SubstanceRepository) FindRandomApproved() (*database.Substance, error) {
+	var count int64
+	if err := r.db.Model(&database.Substance{}).Where("status = ?", "approved").Count(&count).Error; err != nil {
+		return nil, err
+	}
+	if count == 0 {
+		return nil, gorm.ErrRecordNotFound
+	}
+
+	offset := rand.Intn(int(count))
+
 	var substance database.Substance
-	// 使用 SQLite 的 RANDOM() 函数
-	err := r.db.Where("status = ?", "approved").Order(randomOrder(r.db)).First(&substance).Error
+	err := r.db.Where("status = ?", "approved").Offset(offset).First(&substance).Error
 	if err != nil {
 		return nil, err
 	}

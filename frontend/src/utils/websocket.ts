@@ -10,17 +10,18 @@ class WebSocketService {
   private readonly maxReconnectAttempts: number = 5
   private pendingMessages: WebSocketMessage[] = []
   private isConnecting: boolean = false
+  private networkEventsBound: boolean = false
 
-  constructor() {
-    // 监听浏览器离线事件
+  private bindNetworkEvents(): void {
+    if (this.networkEventsBound) return
+    this.networkEventsBound = true
+
     window.addEventListener('offline', () => {
-      console.log('🔴 网络已离线，WebSocket 将自动重连')
+      console.log('[WebSocket] Browser offline, connection will retry when network returns')
     })
 
-    // 监听浏览器在线事件
     window.addEventListener('online', () => {
-      console.log('🟢 网络已恢复')
-      // 网络恢复后立即尝试重连
+      console.log('[WebSocket] Browser back online')
       if (!this.isConnected() && this.reconnectAttempts < this.maxReconnectAttempts) {
         this.connect()
       }
@@ -28,24 +29,22 @@ class WebSocketService {
   }
 
   connect(): void {
-    // Cookie会自动由浏览器发送给WebSocket连接，无需手动处理
-    // 避免重复连接
     if (this.isConnecting || (this.ws && this.ws.readyState === WebSocket.OPEN)) {
       return
     }
 
+    this.bindNetworkEvents()
     this.isConnecting = true
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const wsUrl = `${protocol}//${window.location.host}/api/ws`
-    
+
     this.ws = new WebSocket(wsUrl)
 
     this.ws.onopen = () => {
-      console.log('🟢 WebSocket 连接已建立')
+      console.log('[WebSocket] connected')
       this.reconnectAttempts = 0
       this.isConnecting = false
-      
-      // 发送待发送的消息
+
       while (this.pendingMessages.length > 0) {
         const msg = this.pendingMessages.shift()
         if (msg) this.send(msg)
@@ -57,18 +56,18 @@ class WebSocketService {
         const message: WebSocketMessage = JSON.parse(event.data)
         this.handleMessage(message)
       } catch (error) {
-        console.error('❌ 消息解析失败:', error)
+        console.error('[WebSocket] failed to parse message:', error)
       }
     }
 
     this.ws.onclose = () => {
-      console.log('🔴 WebSocket 连接已关闭')
+      console.log('[WebSocket] disconnected')
       this.isConnecting = false
       this.attemptReconnect()
     }
 
     this.ws.onerror = (error: Event) => {
-      console.error('❌ WebSocket 错误:', error)
+      console.error('[WebSocket] error:', error)
       this.isConnecting = false
     }
   }
@@ -76,13 +75,13 @@ class WebSocketService {
   private attemptReconnect(): void {
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
       this.reconnectAttempts++
-      console.log(`🔄 尝试重连 (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`)
+      console.log(`[WebSocket] reconnect attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts}`)
       setTimeout(() => this.connect(), 3000)
     }
   }
 
   disconnect(): void {
-    this.reconnectAttempts = this.maxReconnectAttempts // 阻止自动重连
+    this.reconnectAttempts = this.maxReconnectAttempts
     if (this.ws) {
       this.ws.close()
       this.ws = null
@@ -94,10 +93,8 @@ class WebSocketService {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(message))
     } else {
-      // 如果连接未建立，将消息加入队列
-      console.log('WebSocket未连接，消息已加入队列')
+      console.log('[WebSocket] queueing message until the connection is ready')
       this.pendingMessages.push(message)
-      // 尝试建立连接
       if (!this.isConnecting) {
         this.connect()
       }

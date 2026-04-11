@@ -2,6 +2,7 @@
 import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import websocket from '../utils/websocket'
+import { buildApiURL } from '../utils/runtimeConfig'
 
 const router = useRouter()
 
@@ -9,7 +10,7 @@ onMounted(async () => {
   // Token已由后端通过HttpOnly Cookie设置，直接调用API获取用户信息
   try {
     // 调用 /api/user/info 获取用户信息，cookie会自动被发送
-    const res = await fetch('/api/user/info', {
+    const res = await fetch(buildApiURL('/user/info'), {
       credentials: 'include', // 确保cookie被发送
     })
     

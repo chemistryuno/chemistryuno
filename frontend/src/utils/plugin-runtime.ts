@@ -2,6 +2,7 @@ import { defineComponent, h, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import router from '../router'
 import { pluginAPI } from './api'
+import { API_BASE_URL } from './runtimeConfig'
 
 type PluginMeta = {
   id: number
@@ -190,7 +191,7 @@ function buildRouteComponent(plugin: PluginMeta, routeDef: PluginRouteDefinition
 }
 
 function createPluginApi() {
-  const baseURL = '/api'
+  const baseURL = API_BASE_URL
   const pluginCache = new Map<string, { data: any, expire: number }>()
 
   const request = async (method: string, path: string, data?: any, extraHeaders?: Record<string, string>, cacheTTL: number = 0) => {

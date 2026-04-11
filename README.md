@@ -47,6 +47,9 @@
 | 开发 | `pnpm start` | `http://localhost:5000` | `http://localhost:8080` | 前后端分离开发、热更新 |
 | 测试 | `pnpm test` | `http://localhost:5000` | `http://localhost:8080` | 独立测试数据环境 |
 | 生产构建 | `pnpm build` | `http://localhost:8080` | `http://localhost:8080` | 前端静态资源嵌入后端单体运行 |
+| Electron 客户端（开发） | `pnpm electron:dev` | Electron 窗口 | `http://localhost:8080` | 使用 Electron 桌面壳加载 Vite 页面 |
+| Windows 客户端（安装包） | `pnpm electron:pack:win` | Electron 安装包 | `http://localhost:8080` | 生成 Windows 安装包（NSIS） |
+| Android 客户端（调试包） | `pnpm android:build:debug` | Android WebView | 通过 `CHEM_ANDROID_API_ORIGIN` 指定 | 生成 Android Debug APK |
 
 ---
 
@@ -256,6 +259,12 @@ pnpm start
 - `pnpm build`：一体化构建
 - `pnpm build:frontend`：仅构建前端
 - `pnpm build:backend`：仅构建后端
+- `pnpm electron:dev`：启动 Electron 客户端（开发模式）
+- `pnpm electron:run`：构建前端后启动 Electron 客户端（生产渲染资源）
+- `pnpm electron:pack:win`：构建并打包 Windows 客户端安装包（输出到 `frontend/release`）
+- `pnpm android:add`：初始化 Android 工程（首次执行）
+- `pnpm android:sync`：用指定 API 地址构建前端并同步到 Android 工程
+- `pnpm android:build:debug`：生成 Android 调试 APK
 - `pnpm go:test`：执行 Go 测试
 - `pnpm test`：项目测试脚本入口
 

@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { adminAPI, gameAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
-import { ArrowLeft, Ban, Eye, Shield, UserMinus } from 'lucide-vue-next'
+import { ArrowLeft, Ban, Eye, UserMinus } from 'lucide-vue-next'
 import { cn } from '../utils/cn'
 
 const route = useRoute()
@@ -43,6 +43,46 @@ const replayReturnPath = computed(() => {
   }
   return useAdminScope.value ? '/admin/users' : '/profile/history'
 })
+
+let pageScrollLockSnapshot: {
+  htmlOverflow: string
+  bodyOverflow: string
+  bodyWidth: string
+  appOverflow: string
+} | null = null
+
+const lockPageScroll = () => {
+  if (pageScrollLockSnapshot) return
+
+  const appRoot = document.getElementById('app')
+  pageScrollLockSnapshot = {
+    htmlOverflow: document.documentElement.style.overflow,
+    bodyOverflow: document.body.style.overflow,
+    bodyWidth: document.body.style.width,
+    appOverflow: appRoot?.style.overflow || ''
+  }
+
+  document.documentElement.style.overflow = 'hidden'
+  document.body.style.overflow = 'hidden'
+  document.body.style.width = '100%'
+  if (appRoot) {
+    appRoot.style.overflow = 'hidden'
+  }
+}
+
+const unlockPageScroll = () => {
+  if (!pageScrollLockSnapshot) return
+
+  const appRoot = document.getElementById('app')
+  document.documentElement.style.overflow = pageScrollLockSnapshot.htmlOverflow
+  document.body.style.overflow = pageScrollLockSnapshot.bodyOverflow
+  document.body.style.width = pageScrollLockSnapshot.bodyWidth
+  if (appRoot) {
+    appRoot.style.overflow = pageScrollLockSnapshot.appOverflow
+  }
+
+  pageScrollLockSnapshot = null
+}
 
 const buildReplayTimelineURL = (targetHistoryID: number) => {
   const query = new URLSearchParams()
@@ -94,15 +134,18 @@ const historyId = computed(() => {
   return 0
 })
 
-const switchToGameView = () => {
+const switchToGameView = (startIndex?: number | null) => {
   if (!historyId.value) return
-  if (isGameRoomReplayRoute.value) {
+  if (isGameRoomReplayRoute.value && (startIndex == null || !Number.isFinite(startIndex))) {
     replayViewMode.value = 'game'
     return
   }
 
   const query = new URLSearchParams()
   query.set('replay_history_id', String(historyId.value))
+  if (startIndex != null && Number.isFinite(startIndex) && startIndex >= 0) {
+    query.set('replay_start_index', String(Math.floor(startIndex)))
+  }
   if (useAdminScope.value) {
     query.set('scope', 'admin')
   }
@@ -180,7 +223,7 @@ const events = computed(() => {
 
   const previousTimedByUID = new Map<number, number>()
 
-  return sortedEvents.map((evt: any) => {
+  return sortedEvents.map((evt: any, sortedIndex: number) => {
     const isAIActor = aiParticipantUIDSet.value.has(Number(evt.actorUID || 0))
     let operationMs: number | null = null
     let operationSource: 'payload' | 'delta' | null = null
@@ -208,12 +251,18 @@ const events = computed(() => {
 
     return {
       ...evt,
+      __sortedIndex: sortedIndex,
       operationMs,
       operationSource,
       isFastOperation: operationMs != null && operationMs < OPERATION_FAST_THRESHOLD_MS
     }
   })
 })
+
+const startReplayFromEvent = (evt: any) => {
+  const startIndex = Number(evt?.__sortedIndex)
+  switchToGameView(Number.isFinite(startIndex) && startIndex >= 0 ? startIndex : 0)
+}
 
 const visibleEvents = computed(() => {
   if (!focusPerspectiveOnly.value || selectedPerspectiveUID.value == null) {
@@ -263,7 +312,7 @@ const operationStats = computed(() => {
         totalCount: opValues.length
       }
     })
-    .sort((a, b) => b.fastCount - a.fastCount)
+    .sort((a: { fastCount: number }, b: { fastCount: number }) => b.fastCount - a.fastCount)
 })
 
 const formatDate = (dateStr: string) => {
@@ -446,7 +495,12 @@ const kickFromReplay = async (profile: any) => {
 }
 
 onMounted(() => {
+  lockPageScroll()
   loadReplay()
+})
+
+onUnmounted(() => {
+  unlockPageScroll()
 })
 </script>
 
@@ -467,16 +521,16 @@ onMounted(() => {
       <div class="flex items-center gap-2">
         <div class="inline-flex items-center gap-1 p-1 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5">
           <button
-            @click="switchToGameView"
+            @click="switchToGameView()"
             :class="cn('px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all', replayViewMode === 'game' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white')"
           >
-            游戏界面方式
+            游戏视角
           </button>
           <button
             @click="switchToTimelineView"
             :class="cn('px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all', replayViewMode === 'timeline' ? 'bg-cyan-600 text-white' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white')"
           >
-            当前回放方式
+            时间线
           </button>
         </div>
 
@@ -643,6 +697,13 @@ onMounted(() => {
                   <div class="flex items-center justify-between gap-2 mb-1">
                     <span class="text-[10px] px-2 py-1 rounded-md bg-slate-100 dark:bg-white/10 text-slate-500 uppercase font-black tracking-wider">{{ formatEventType(evt.eventType) }}</span>
                     <div class="flex items-center gap-2">
+                      <button
+                        type="button"
+                        @click="startReplayFromEvent(evt)"
+                        class="px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-widest border border-cyan-500/20 bg-cyan-500/10 text-cyan-600 dark:text-cyan-300 hover:bg-cyan-500/20 transition-all"
+                      >
+                        从此处开始
+                      </button>
                       <span
                         v-if="evt.operationMs != null"
                         :class="cn('text-[10px] px-2 py-1 rounded-md font-black', evt.isFastOperation ? 'bg-rose-500/20 text-rose-500' : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400')"
@@ -682,6 +743,13 @@ onMounted(() => {
               <div class="flex items-center justify-between gap-3 mb-1">
                 <span class="text-[10px] px-2 py-1 rounded-md bg-slate-100 dark:bg-white/10 text-slate-500 uppercase font-black tracking-wider">{{ formatEventType(evt.eventType) }}</span>
                 <div class="flex items-center gap-2">
+                  <button
+                    type="button"
+                    @click="startReplayFromEvent(evt)"
+                    class="px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-widest border border-cyan-500/20 bg-cyan-500/10 text-cyan-600 dark:text-cyan-300 hover:bg-cyan-500/20 transition-all"
+                  >
+                    从此处开始
+                  </button>
                   <span
                     v-if="evt.operationMs != null"
                     :class="cn('text-[10px] px-2 py-1 rounded-md font-black', evt.isFastOperation ? 'bg-rose-500/20 text-rose-500' : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400')"

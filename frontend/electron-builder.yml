@@ -1,0 +1,25 @@
+appId: com.chemistryuno.client
+productName: Chemistry UNO
+directories:
+  output: release
+  buildResources: public
+files:
+  - dist/**
+  - electron/**
+  - package.json
+asar: true
+npmRebuild: false
+publish: null
+win:
+  signAndEditExecutable: false
+  target:
+    - target: nsis
+      arch:
+        - x64
+  artifactName: ChemistryUNO-${version}-Setup-${arch}.${ext}
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  perMachine: false
+  createDesktopShortcut: true
+  createStartMenuShortcut: true

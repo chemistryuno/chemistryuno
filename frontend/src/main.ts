@@ -1,6 +1,7 @@
 import { createApp } from 'vue'
 import App from './App.vue'
 import router from './router'
+import { buildApiURL } from './utils/runtimeConfig'
 import './index.css'
 
 const syncViewportHeight = () => {
@@ -40,7 +41,7 @@ const ensureStartupSession = async () => {
   }
 
   try {
-    const userInfoResp = await fetch('/api/user/info', {
+    const userInfoResp = await fetch(buildApiURL('/user/info'), {
       method: 'GET',
       credentials: 'include'
     })
@@ -53,7 +54,7 @@ const ensureStartupSession = async () => {
       return
     }
 
-    const refreshResp = await fetch('/api/auth/refresh', {
+    const refreshResp = await fetch(buildApiURL('/auth/refresh'), {
       method: 'POST',
       credentials: 'include'
     })
@@ -63,7 +64,7 @@ const ensureStartupSession = async () => {
       return
     }
 
-    const verifyResp = await fetch('/api/user/info', {
+    const verifyResp = await fetch(buildApiURL('/user/info'), {
       method: 'GET',
       credentials: 'include'
     })

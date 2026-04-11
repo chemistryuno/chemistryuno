@@ -24,6 +24,13 @@ const { showAlert, showConfirm, showPrompt, showToast } = useDialog()
 const gameToastRef = ref()
 const id = route.params.id as string
 const replayHistoryQueryID = computed(() => Number(route.query.replay_history_id || 0))
+const replayStartIndexQuery = computed(() => {
+  const raw = Number(route.query.replay_start_index || 0)
+  if (!Number.isFinite(raw) || raw < 0) {
+    return 0
+  }
+  return Math.floor(raw)
+})
 const isReplayBridgeMode = computed(() => Number.isFinite(replayHistoryQueryID.value) && replayHistoryQueryID.value > 0)
 const isReplayRoomPath = computed(() => String(id) === 'replay')
 const replayScopeAdmin = computed(() => String(route.query.scope || '') === 'admin')
@@ -37,6 +44,46 @@ const replayReturnPath = computed(() => {
   }
   return replayScopeAdmin.value ? '/admin/users' : '/profile/history'
 })
+
+let pageScrollLockSnapshot: {
+  htmlOverflow: string
+  bodyOverflow: string
+  bodyWidth: string
+  appOverflow: string
+} | null = null
+
+const lockPageScroll = () => {
+  if (pageScrollLockSnapshot) return
+
+  const appRoot = document.getElementById('app')
+  pageScrollLockSnapshot = {
+    htmlOverflow: document.documentElement.style.overflow,
+    bodyOverflow: document.body.style.overflow,
+    bodyWidth: document.body.style.width,
+    appOverflow: appRoot?.style.overflow || ''
+  }
+
+  document.documentElement.style.overflow = 'hidden'
+  document.body.style.overflow = 'hidden'
+  document.body.style.width = '100%'
+  if (appRoot) {
+    appRoot.style.overflow = 'hidden'
+  }
+}
+
+const unlockPageScroll = () => {
+  if (!pageScrollLockSnapshot) return
+
+  const appRoot = document.getElementById('app')
+  document.documentElement.style.overflow = pageScrollLockSnapshot.htmlOverflow
+  document.body.style.overflow = pageScrollLockSnapshot.bodyOverflow
+  document.body.style.width = pageScrollLockSnapshot.bodyWidth
+  if (appRoot) {
+    appRoot.style.overflow = pageScrollLockSnapshot.appOverflow
+  }
+
+  pageScrollLockSnapshot = null
+}
 
 const buildReplayTimelineURL = () => {
   if (!(Number.isFinite(replayHistoryQueryID.value) && replayHistoryQueryID.value > 0)) {
@@ -1344,6 +1391,53 @@ const replayProgressText = computed(() => {
   return `${current}/${total}`
 })
 
+const normalizeReplaySeekIndex = (targetIndex: number) => {
+  if (!Number.isFinite(targetIndex)) {
+    return 0
+  }
+  return Math.max(0, Math.min(Math.floor(targetIndex), replayEvents.value.length))
+}
+
+const seekReplayToIndex = (targetIndex: number) => {
+  if (!isReplayBridgeMode.value || !gameState.value) return
+
+  clearReplayTimer()
+  replayIsPlaying.value = false
+  replayGameOver.value = false
+  replayEndType.value = ''
+
+  const clampedIndex = normalizeReplaySeekIndex(targetIndex)
+  replayPlaybackIndex.value = 0
+  resetReplaySimulationBoard()
+
+  for (let index = 0; index < clampedIndex; index += 1) {
+    const event = replayEvents.value[index]
+    applyReplayEventToBoard(event)
+    replayPlaybackIndex.value = index + 1
+
+    const eventType = event?.__type || ''
+    if (eventType === 'game_finished' || eventType === 'game_terminated_invalid') {
+      replayGameOver.value = true
+      replayEndType.value = eventType
+      return
+    }
+  }
+
+  if (clampedIndex >= replayEvents.value.length && replayEvents.value.length > 0) {
+    replayGameOver.value = true
+    replayEndType.value = replayEvents.value[replayEvents.value.length - 1]?.__type || 'game_finished'
+  }
+}
+
+const jumpReplayByStep = (delta: number) => {
+  seekReplayToIndex(replayPlaybackIndex.value + delta)
+}
+
+const handleReplaySeekInput = (event: Event) => {
+  const nextIndex = Number((event.target as HTMLInputElement | null)?.value ?? 0)
+  seekReplayToIndex(nextIndex)
+}
+
 const replaySummary = computed(() => {
   const cardCounts: Record<string, number> = {}
   let roundCount = 0
@@ -1513,19 +1607,21 @@ const scheduleReplayPlaybackStep = () => {
   }, delay)
 }
 
-const startReplayPlayback = (restart = false) => {
+const startReplayPlayback = (restart = false, restartIndex = 0) => {
   if (!isReplayBridgeMode.value || !gameState.value) return
 
   if (restart) {
-    replayPlaybackIndex.value = 0
-    replayGameOver.value = false
-    replayEndType.value = ''
-    resetReplaySimulationBoard()
+    seekReplayToIndex(restartIndex)
   }
 
   if (!replayEvents.value.length) {
     replayGameOver.value = true
     replayEndType.value = 'game_finished'
+    replayIsPlaying.value = false
+    return
+  }
+
+  if (replayGameOver.value || replayPlaybackIndex.value >= replayEvents.value.length) {
     replayIsPlaying.value = false
     return
   }
@@ -1562,8 +1658,8 @@ const setReplaySpeed = (speed: number) => {
   }
 }
 
-const restartReplayPlayback = () => {
-  startReplayPlayback(true)
+const restartReplayPlayback = (startIndex = 0) => {
+  startReplayPlayback(true, startIndex)
 }
 
 const loadReplaySimulationState = async () => {
@@ -1693,7 +1789,7 @@ const loadReplaySimulationState = async () => {
     }
 
     replayEvents.value = normalizedReplayEvents
-    startReplayPlayback(true)
+    restartReplayPlayback(replayStartIndexQuery.value)
   } catch (error: any) {
     console.error('[GameRoom] 加载回放模拟失败:', error)
     loadError.value = error?.response?.data?.error || error?.message || '回放模拟加载失败'
@@ -1796,6 +1892,7 @@ const loadGameState = async (silent = false) => {
 }
 
 onMounted(() => {
+  lockPageScroll()
   exposeForceAutoDrawConsoleAPI()
 
   // 检测教学模式
@@ -1897,6 +1994,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  unlockPageScroll()
   cleanupForceAutoDrawConsoleAPI()
   clearReplayTimer()
 
@@ -2688,6 +2786,38 @@ watch(() => gameState.value?.current_player, () => {
               </button>
             </div>
 
+            <div class="inline-flex items-center gap-1 p-1 rounded-lg border border-amber-500/20 bg-white/60 dark:bg-white/5">
+              <button
+                type="button"
+                @click.stop.prevent="jumpReplayByStep(-1)"
+                :disabled="replayPlaybackIndex === 0"
+                :class="cn('px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest', replayPlaybackIndex === 0 ? 'text-slate-400 cursor-not-allowed' : 'text-amber-700 dark:text-amber-300 hover:bg-amber-500/15')"
+              >
+                上一步
+              </button>
+              <button
+                type="button"
+                @click.stop.prevent="jumpReplayByStep(1)"
+                :disabled="replayPlaybackIndex >= replayEvents.length"
+                :class="cn('px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest', replayPlaybackIndex >= replayEvents.length ? 'text-slate-400 cursor-not-allowed' : 'text-amber-700 dark:text-amber-300 hover:bg-amber-500/15')"
+              >
+                下一步
+              </button>
+            </div>
+
+            <div class="flex items-center gap-2 px-2 py-1 rounded-lg border border-amber-500/20 bg-white/60 dark:bg-white/5">
+              <span class="text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-300">定位</span>
+              <input
+                type="range"
+                min="0"
+                :max="replayEvents.length"
+                :value="replayPlaybackIndex"
+                @input="handleReplaySeekInput"
+                class="w-28 accent-amber-500"
+              />
+              <span class="text-[10px] font-black text-amber-700 dark:text-amber-300">{{ replayPlaybackIndex }}</span>
+            </div>
+
             <button
               type="button"
               @click.stop.prevent="toggleReplayPlayback"
@@ -2699,7 +2829,7 @@ watch(() => gameState.value?.current_player, () => {
 
             <button
               type="button"
-              @click.stop.prevent="restartReplayPlayback"
+              @click.stop.prevent="restartReplayPlayback()"
               class="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/15"
             >
               重新播放
@@ -3421,7 +3551,7 @@ watch(() => gameState.value?.current_player, () => {
 
             <div class="flex items-center gap-3 pt-1">
               <button
-                @click="restartReplayPlayback"
+                @click="restartReplayPlayback()"
                 class="flex-1 h-11 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black uppercase tracking-widest text-xs transition-all"
               >
                 重新播放

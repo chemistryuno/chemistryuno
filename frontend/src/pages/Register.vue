@@ -6,6 +6,7 @@ import { useDialog } from '../utils/dialog'
 import { Lock, FlaskConical, ShieldCheck, Loader2, Mail, User, HelpCircle, AtSign, FileText } from 'lucide-vue-next'
 import OAuthLogos from '../components/icons/OAuthLogos.vue'
 import websocket from '../utils/websocket'
+import { API_BASE_URL } from '../utils/runtimeConfig'
 
 // 注册模式: 'username' | 'email'
 const registerMode = ref<'username' | 'email'>('username')
@@ -82,7 +83,7 @@ const handleOAuthLogin = (provider: 'github' | 'ms' | 'google' | 'apple') => {
   const left = window.screen.width / 2 - width / 2
   const top = window.screen.height / 2 - height / 2
 
-  const url = `${import.meta.env.VITE_API_BASE_URL || '/api'}/auth/${provider}/login`
+  const url = `${API_BASE_URL}/auth/${provider}/login`
   const popup = window.open(url, 'OAuth Login', `width=${width},height=${height},left=${left},top=${top}`)
 
   if (!popup) {

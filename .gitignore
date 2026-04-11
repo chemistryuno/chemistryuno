@@ -5,6 +5,8 @@ pnpm-lock.yaml
 # Build outputs
 dist/
 build/
+frontend/release/
+frontend/android-sdk/
 bin/
 backend/static/dist/
 *.exe
@@ -32,6 +34,7 @@ Thumbs.db
 
 # Logs
 *.log
+logs/
 npm-debug.log*
 pnpm-debug.log*
 yarn-debug.log*
@@ -61,3 +64,9 @@ demo/
 __pycache__/
 chemistryuno.db-shm
 tmp/
+
+# Frontend local artifacts
+frontend/dev.log
+frontend/.vite/
+frontend/.capacitor/
+coverage/

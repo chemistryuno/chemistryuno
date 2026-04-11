@@ -1,3 +1,5 @@
+import { WS_URL } from './runtimeConfig'
+
 interface WebSocketMessage {
   type: string
   [key: string]: any
@@ -35,8 +37,7 @@ class WebSocketService {
 
     this.bindNetworkEvents()
     this.isConnecting = true
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const wsUrl = `${protocol}//${window.location.host}/api/ws`
+    const wsUrl = WS_URL
 
     this.ws = new WebSocket(wsUrl)
 

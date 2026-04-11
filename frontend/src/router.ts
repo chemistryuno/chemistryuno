@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory, type RouteLocationNormalized } from 'vue-router'
+import { buildApiURL } from './utils/runtimeConfig'
 
 const Login = () => import('./pages/Login.vue')
 const Register = () => import('./pages/Register.vue')
@@ -162,7 +163,7 @@ const isDataRoute = (path: string): boolean => path === '/data' || path.startsWi
 
 const findActiveRoomId = async (_token: string | null, uid: number): Promise<string | null> => {
   try {
-    const res = await fetch('/api/rooms', {
+    const res = await fetch(buildApiURL('/rooms'), {
       credentials: 'include', // 自动发送cookie中的token
     })
     if (!res.ok) return null

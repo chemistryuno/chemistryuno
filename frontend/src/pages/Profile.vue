@@ -28,6 +28,7 @@ import ChangeEmailModal from '../components/profile/ChangeEmailModal.vue'
 import SetEmailModal from '../components/profile/SetEmailModal.vue'
 import LevelProgress from '../components/LevelProgress.vue'
 import { LayoutDashboard, ShieldCheck, FlaskConical, History, Sliders, Menu, X as CloseIcon, LogOut, User as UserIcon, FileText } from 'lucide-vue-next'
+import { API_BASE_URL } from '../utils/runtimeConfig'
 
 const router = useRouter()
 const route = useRoute()
@@ -293,7 +294,7 @@ const handleOAuthBind = (provider: 'github' | 'ms' | 'google' | 'apple') => {
   const top = window.screen.height / 2 - height / 2
   
   // Token已由浏览器自动通过Cookie发送，不需要在URL中传递
-  const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api'
+  const baseUrl = API_BASE_URL
   const url = `${baseUrl}/auth/${provider}/bind`
   
   const popup = window.open(url, 'OAuth Bind', `width=${width},height=${height},left=${left},top=${top}`)

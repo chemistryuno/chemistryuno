@@ -1,5 +1,6 @@
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosResponse } from 'axios'
 import router from '../router'
+import { API_BASE_URL, buildApiURL } from './runtimeConfig'
 
 // 简单的API响应缓存系统
 interface CacheEntry {
@@ -78,7 +79,7 @@ const redirectToLogin = () => {
 const refreshAccessToken = async (): Promise<string | null> => {
   try {
     // Cookie会自动发送给服务器，不需要手动获取refresh_token
-    await axios.post('/api/auth/refresh', {}, {
+    await axios.post(buildApiURL('/auth/refresh'), {}, {
       withCredentials: true // 确保cookie被发送
     })
 
@@ -91,7 +92,7 @@ const refreshAccessToken = async (): Promise<string | null> => {
 }
 
 const api: AxiosInstance = axios.create({
-  baseURL: '/api',
+  baseURL: API_BASE_URL,
   timeout: 10000,
   withCredentials: true, // 启用cookie自动发送
 })

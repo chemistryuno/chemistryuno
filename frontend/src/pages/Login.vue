@@ -8,6 +8,7 @@ import { Beaker, Lock, Loader2, Fingerprint, Shield, Cpu, Mail, Eye, EyeOff } fr
 import ResetPassword2FAModal from '../components/ResetPassword2FAModal.vue'
 import OAuthLogos from '../components/icons/OAuthLogos.vue'
 import websocket from '../utils/websocket'
+import { API_BASE_URL } from '../utils/runtimeConfig'
 import { get } from '@github/webauthn-json'
 
 const identifier = ref(localStorage.getItem('last_email') || '')
@@ -236,7 +237,7 @@ const handleOAuthLogin = (provider: 'github' | 'ms' | 'google' | 'apple') => {
   const left = window.screen.width / 2 - width / 2
   const top = window.screen.height / 2 - height / 2
   
-  const url = `${import.meta.env.VITE_API_BASE_URL || '/api'}/auth/${provider}/login`
+  const url = `${API_BASE_URL}/auth/${provider}/login`
   const popup = window.open(url, 'OAuth Login', `width=${width},height=${height},left=${left},top=${top}`)
   
   if (!popup) {

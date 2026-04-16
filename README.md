@@ -413,7 +413,7 @@ pnpm start
 
 ### 5) 生产环境推荐怎么跑？
 
-- 使用 `pnpm build` 生成产物后运行 `dist` 内启动脚本。
+- 使用 `pnpm build` 生成产物后，前端静态文件会输出到 `dist/frontend/`，后端可执行文件会输出到 `dist/`，直接运行 `dist` 内启动脚本即可。
 - 生产建议前置 Nginx/Caddy，并启用 HTTPS（尤其 WebAuthn/OAuth）。
 
 ---

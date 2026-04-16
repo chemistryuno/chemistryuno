@@ -18,8 +18,7 @@
     "android:build:debug": "node scripts/android-build-debug.cjs",
     "android:build:release": "node scripts/android-build-release.cjs",
     "preview": "vite preview",
-    "type-check": "tsc --noEmit",
-    "copy-dist": "node -e \"const fs=require('fs'),path=require('path');const src='dist',dst='../backend/static/dist';if(fs.existsSync(dst))fs.rmSync(dst,{recursive:true});fs.mkdirSync(path.dirname(dst),{recursive:true});fs.cpSync(src,dst,{recursive:true});console.log('✓ 前端文件已复制到 backend/static/dist')\""
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "@capacitor/core": "^7.4.3",

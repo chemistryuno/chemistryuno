@@ -53,8 +53,8 @@ func (j *JSON) UnmarshalJSON(b []byte) error {
 // User GORM模型 - 用户表
 type User struct {
 	UID                uint           `gorm:"primaryKey;autoIncrement" json:"uid"`
-	Username           string         `gorm:"size:50;uniqueIndex;not null;default:''" json:"username"` // 主要登录标识符，唯一
-	Email              string         `gorm:"size:100;index;default:''" json:"email"`                  // 可选，允许空值（多用户无邮箱）
+	Username           string         `gorm:"size:50;uniqueIndex:idx_users_username;not null;default:''" json:"username"` // 主要登录标识符，唯一
+	Email              string         `gorm:"size:100;index:idx_users_email;default:''" json:"email"`                  // 可选，允许空值（多用户无邮箱）
 	Nickname           string         `gorm:"not null;size:50;default:''" json:"nickname"`
 	Password           string         `gorm:"not null;default:''" json:"-"`
 	Avatar             string         `gorm:"type:longtext" json:"avatar"`
@@ -68,9 +68,9 @@ type User struct {
 	XP                 int            `gorm:"default:0" json:"xp"`
 	TotalXP            int            `gorm:"default:0" json:"total_xp"`
 	NegativePlayCount  int            `gorm:"default:0" json:"negative_play_count"`
-	BannedUntil        *time.Time     `json:"banned_until"`
+	BannedUntil        *time.Time     `gorm:"index:idx_users_banned_until" json:"banned_until"`
 	BanReason          string         `gorm:"size:255" json:"ban_reason"`
-	FrozenUntil        *time.Time     `json:"frozen_until"`
+	FrozenUntil        *time.Time     `gorm:"index:idx_users_frozen_until" json:"frozen_until"`
 	TotalGames         int            `gorm:"default:0" json:"total_games"`
 	WinCount           int            `gorm:"default:0" json:"win_count"`
 	TurnStartedAt      *time.Time     `json:"turn_started_at"`
@@ -122,10 +122,10 @@ func (VerificationCode) TableName() string {
 // UserSession GORM模型 - 用户会话表
 type UserSession struct {
 	ID         string    `gorm:"primaryKey;size:64" json:"id"`
-	UserUID    uint      `gorm:"not null;index" json:"user_uid"`
+	UserUID    uint      `gorm:"not null;index:idx_user_sessions_user_uid" json:"user_uid"`
 	UserAgent  string    `gorm:"type:text" json:"user_agent"`
 	IPAddress  string    `gorm:"size:45" json:"ip_address"`
-	LastActive time.Time `gorm:"autoCreateTime" json:"last_active"`
+	LastActive time.Time `gorm:"autoCreateTime;index:idx_user_sessions_last_active" json:"last_active"`
 	CreatedAt  time.Time `gorm:"autoCreateTime" json:"created_at"`
 }
 

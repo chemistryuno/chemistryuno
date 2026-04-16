@@ -26,7 +26,7 @@
     "android:open": "pnpm -C frontend android:open",
     "android:build:debug": "pnpm -C frontend android:build:debug",
     "android:build:release": "pnpm -C frontend android:build:release",
-    "frontend": "pnpm -C frontend install --prefer-offline --silent && pnpm build:frontend && pnpm -C frontend copy-dist && echo \"✅ 前端打包部署完成！\"",
+    "frontend": "pnpm -C frontend install --prefer-offline --silent && pnpm build:frontend && echo \"✅ 前端打包完成！\"",
     "backend": "node -e \"const {execSync} = require('child_process'); process.env.CGO_ENABLED='0'; execSync('go run main.go', {stdio:'inherit'})\"",
     "db:init": "go run -tags scripts backend/scripts/init_db.go",
     "db:init-test": "go run -tags scripts backend/scripts/setup_test_env.go",

@@ -512,24 +512,15 @@ func (r *UserRepository) DeleteNonAdmin(uid uint) error {
 	return r.db.Unscoped().Where("uid = ?", uid).Delete(&database.User{}).Error
 }
 
-// UpdateRole 更新用户角色和管理员状态
-func (r *UserRepository) UpdateRole(uid uint, role string, isAdmin bool) error {
+// UpdateRole 更新用户角色，并同步兼容 is_admin 字段
+func (r *UserRepository) UpdateRole(uid uint, role string) error {
+	normalizedRole := models.NormalizeRole(role)
 	return r.db.Model(&database.User{}).
 		Where("uid = ?", uid).
 		Updates(map[string]interface{}{
-			"role":     role,
-			"is_admin": isAdmin,
+			"role":     normalizedRole,
+			"is_admin": models.RoleHasAdminAccess(normalizedRole),
 		}).Error
-}
-
-// FindIsAdminByUID 根据UID查找是否是管理员
-func (r *UserRepository) FindIsAdminByUID(uid uint) (bool, error) {
-	var isAdmin bool
-	err := r.db.Model(&database.User{}).
-		Select("is_admin").
-		Where("uid = ?", uid).
-		Scan(&isAdmin).Error
-	return isAdmin, err
 }
 
 // SearchUsers 搜索用户 (通过UID或用户名)

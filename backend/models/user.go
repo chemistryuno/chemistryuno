@@ -1,6 +1,7 @@
 package models
 
 import (
+	"strings"
 	"time"
 
 	"github.com/go-webauthn/webauthn/webauthn"
@@ -13,7 +14,6 @@ type User struct {
 	Nickname           string                `json:"nickname" db:"nickname"`
 	PasswordHash       string                `json:"-" db:"password"` // 不返回给前端
 	Avatar             string                `json:"avatar" db:"avatar"`
-	IsAdmin            bool                  `json:"is_admin" db:"is_admin"`
 	Role               string                `json:"role" db:"role"` // admin, co-worker, user
 	TwoFactorEnabled   bool                  `json:"two_factor_enabled" db:"two_factor_enabled"`
 	TwoFactorSecret    string                `json:"-" db:"two_factor_secret"`
@@ -43,6 +43,38 @@ type User struct {
 	EnableElementInput bool                  `json:"enable_element_input" db:"enable_element_input"`
 	CustomContact      string                `json:"custom_contact" db:"custom_contact"`
 	Credentials        []webauthn.Credential `json:"-" db:"-"`
+}
+
+func NormalizeRole(role string) string {
+	switch strings.TrimSpace(strings.ToLower(role)) {
+	case "admin":
+		return "admin"
+	case "co-worker", "coworker", "co_worker":
+		return "co-worker"
+	default:
+		return "user"
+	}
+}
+
+func RoleHasAdminAccess(role string) bool {
+	return NormalizeRole(role) == "admin"
+}
+
+func RoleHasCoWorkerAccess(role string) bool {
+	normalized := NormalizeRole(role)
+	return normalized == "admin" || normalized == "co-worker"
+}
+
+func (u *User) NormalizedRole() string {
+	return NormalizeRole(u.Role)
+}
+
+func (u *User) HasAdminAccess() bool {
+	return RoleHasAdminAccess(u.Role)
+}
+
+func (u *User) HasCoWorkerAccess() bool {
+	return RoleHasCoWorkerAccess(u.Role)
 }
 
 func (u *User) WebAuthnID() []byte {

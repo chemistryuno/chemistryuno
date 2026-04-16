@@ -2,6 +2,7 @@ package database
 
 import (
 	"chemistryuno/backend/deckcfg"
+	"chemistryuno/backend/models"
 	"encoding/json"
 	"log"
 	"os"
@@ -235,9 +236,14 @@ func initDefaultData() error {
 	// 设置 UID 起始值
 	setInitialUID()
 
+	// 先回填历史角色/管理员数据，避免权限双轨漂移
+	if err := normalizeUserRoles(); err != nil {
+		log.Printf("⚠️  用户角色归一化失败: %v", err)
+	}
+
 	// 检查是否已有管理员账户
 	var count int64
-	DB.Model(&User{}).Where("email = ? OR username = ? OR is_admin = ?", "admin@chemistryuno.com", "admin", true).Count(&count)
+	DB.Model(&User{}).Where("email = ? OR username = ? OR role = ?", "admin@chemistryuno.com", "admin", "admin").Count(&count)
 
 	if count == 0 {
 		log.Println("👤 创建默认管理员账户...")
@@ -409,6 +415,36 @@ func CheckInvalidElements() error {
 // 	log.Println("✅ 默认实验情报提示初始化成功")
 // 	return nil
 // }
+
+func normalizeUserRoles() error {
+	updates := []struct {
+		where string
+		args  []interface{}
+		role  string
+	}{
+		{where: "is_admin = ? AND (role IS NULL OR role = '' OR role <> ?)", args: []interface{}{true, "admin"}, role: "admin"},
+		{where: "(role IS NULL OR role = '') AND is_admin = ?", args: []interface{}{false}, role: "user"},
+		{where: "role IN ?", args: []interface{}{[]string{"coworker", "co_worker"}}, role: "co-worker"},
+	}
+
+	for _, update := range updates {
+		if err := DB.Model(&User{}).Where(update.where, update.args...).Updates(map[string]interface{}{
+			"role":     update.role,
+			"is_admin": models.RoleHasAdminAccess(update.role),
+		}).Error; err != nil {
+			return err
+		}
+	}
+
+	if err := DB.Model(&User{}).Where("role NOT IN ?", []string{"admin", "co-worker", "user"}).Updates(map[string]interface{}{
+		"role":     "user",
+		"is_admin": false,
+	}).Error; err != nil {
+		return err
+	}
+
+	return nil
+}
 
 // createDefaultAdmin 创建默认管理员账户
 func createDefaultAdmin() error {

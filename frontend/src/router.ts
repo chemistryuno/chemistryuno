@@ -96,7 +96,7 @@ const routes = [
     path: '/admin/plugins',
     name: 'AdminPlugins',
     component: AdminPlugins,
-    meta: { requiresAuth: true, adminOnly: true }
+    meta: { requiresAuth: true, coWorkerOnly: true }
   },
   {
     path: '/admin/surveys/:id/responses',
@@ -205,7 +205,7 @@ router.beforeEach(async (to: RouteLocationNormalized, _from: RouteLocationNormal
       return redirect
     }
     return '/'
-  } else if (to.meta.adminOnly && (!user || !user.is_admin)) {
+  } else if (to.meta.adminOnly && (!user || user.role !== 'admin')) {
     return '/'
   } else if (to.meta.coWorkerOnly && (!user || (user.role !== 'admin' && user.role !== 'co-worker'))) {
     return '/'

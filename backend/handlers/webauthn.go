@@ -338,7 +338,7 @@ func FinishLogin(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建会话失败"})
 		return
 	}
-	token, err := utils.GenerateToken(int(user.UID), user.Email, user.IsAdmin, user.Role, sid)
+	token, err := utils.GenerateToken(int(user.UID), user.Email, models.NormalizeRole(user.Role), sid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成token失败"})
 		return
@@ -368,8 +368,8 @@ func FinishLogin(c *gin.Context) {
 			"username":           user.Username,
 			"email":              user.Email,
 			"avatar":             user.Avatar,
-			"is_admin":           user.IsAdmin,
-			"role":               user.Role,
+			"is_admin":           models.RoleHasAdminAccess(user.Role),
+			"role":               models.NormalizeRole(user.Role),
 			"two_factor_enabled": user.TwoFactorEnabled,
 		},
 		"announcements": announcements,

@@ -437,13 +437,13 @@ func AdminChangePassword(c *gin.Context) {
 	}
 
 	// 检查用户是否存在且不是管理员
-	isAdmin, err := userRepo.FindIsAdminByUID(uint(uid))
+	targetUser, err := userRepo.FindByUID(uint(uid))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
 		return
 	}
 
-	if isAdmin {
+	if models.RoleHasAdminAccess(targetUser.Role) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "无法修改管理员密码"})
 		return
 	}
@@ -479,9 +479,18 @@ func PromoteUser(c *gin.Context) {
 		return
 	}
 
+	requesterRole, _ := c.Get("role")
+	requesterRoleStr, _ := requesterRole.(string)
+	normalizedRequesterRole := models.NormalizeRole(requesterRoleStr)
+	normalizedTargetRole := models.NormalizeRole(req.Role)
+
+	if !models.RoleHasAdminAccess(normalizedRequesterRole) && normalizedTargetRole != "user" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "只有管理员可以授予协作者或管理员权限"})
+		return
+	}
+
 	// 更新用户角色
-	isAdmin := req.Role == "admin"
-	err = userRepo.UpdateRole(uint(uid), req.Role, isAdmin)
+	err = userRepo.UpdateRole(uint(uid), normalizedTargetRole)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "权限修改失败"})
 		return

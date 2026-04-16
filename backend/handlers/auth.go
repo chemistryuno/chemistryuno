@@ -246,8 +246,7 @@ func Login(c *gin.Context) {
 		Nickname:         dbUser.Nickname,
 		PasswordHash:     dbUser.Password,
 		Avatar:           dbUser.Avatar,
-		IsAdmin:          dbUser.IsAdmin,
-		Role:             dbUser.Role,
+		Role:             models.NormalizeRole(dbUser.Role),
 		TwoFactorEnabled: dbUser.TwoFactorEnabled,
 		TwoFactorSecret:  dbUser.TwoFactorSecret,
 		BannedUntil:      dbUser.BannedUntil,
@@ -301,7 +300,7 @@ func Login(c *gin.Context) {
 	}
 
 	// 生成access token（15分钟）和refresh token（7天）
-	accessToken, err := utils.GenerateAccessToken(int(user.UID), user.Email, user.IsAdmin, user.Role, sid)
+	accessToken, err := utils.GenerateAccessToken(int(user.UID), user.Email, user.Role, sid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate access token"})
 		return
@@ -373,8 +372,8 @@ func Login(c *gin.Context) {
 			"email":              user.Email,
 			"nickname":           user.Nickname,
 			"avatar":             user.Avatar,
-			"is_admin":           user.IsAdmin,
-			"role":               user.Role,
+			"is_admin":           user.HasAdminAccess(),
+			"role":               user.NormalizedRole(),
 			"two_factor_enabled": user.TwoFactorEnabled,
 		},
 		"announcements":         announcements,
@@ -438,7 +437,7 @@ func RefreshToken(c *gin.Context) {
 	}
 
 	// 生成新的access token
-	accessToken, err := utils.GenerateAccessToken(claims.UID, user.Email, user.IsAdmin, user.Role, claims.SID)
+	accessToken, err := utils.GenerateAccessToken(claims.UID, user.Email, models.NormalizeRole(user.Role), claims.SID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate access token"})
 		return

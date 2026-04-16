@@ -561,7 +561,7 @@ interface User {
   username?: string;
   nickname?: string;
   avatar?: string;
-  is_admin?: boolean;
+  role?: string;
 }
 
 const user = ref<User>(initialUser)

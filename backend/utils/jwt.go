@@ -39,7 +39,6 @@ func initJWTSecret() {
 type Claims struct {
 	UID       int    `json:"uid"`
 	Email     string `json:"email"`
-	IsAdmin   bool   `json:"is_admin"`
 	Role      string `json:"role"`
 	SID       string `json:"sid,omitempty"`
 	TokenType string `json:"token_type"` // "access" 或 "refresh"
@@ -47,18 +46,17 @@ type Claims struct {
 }
 
 // GenerateToken 生成JWT Token（兼容旧版本，内部调用GenerateAccessToken）
-func GenerateToken(uid int, email string, isAdmin bool, role string, sid string) (string, error) {
-	return GenerateAccessToken(uid, email, isAdmin, role, sid)
+func GenerateToken(uid int, email string, role string, sid string) (string, error) {
+	return GenerateAccessToken(uid, email, role, sid)
 }
 
 // GenerateAccessToken 生成短期访问令牌（15分钟）
-func GenerateAccessToken(uid int, email string, isAdmin bool, role string, sid string) (string, error) {
+func GenerateAccessToken(uid int, email string, role string, sid string) (string, error) {
 	initJWTSecret()
 
 	claims := Claims{
 		UID:       uid,
 		Email:     email,
-		IsAdmin:   isAdmin,
 		Role:      role,
 		SID:       sid,
 		TokenType: "access",

@@ -2,6 +2,7 @@ package repository
 
 import (
 	"chemistryuno/backend/cache"
+	"chemistryuno/backend/models"
 	"context"
 	"log"
 	"time"
@@ -111,8 +112,8 @@ func GetUserWithCache(ctx context.Context, uid uint) (*cache.UserCache, error) {
 		UID:         user.UID,
 		Username:    user.Username,
 		Email:       user.Email,
-		IsAdmin:     user.IsAdmin,
-		Role:        user.Role,
+		IsAdmin:     models.RoleHasAdminAccess(user.Role),
+		Role:        models.NormalizeRole(user.Role),
 		BannedUntil: user.BannedUntil,
 		FrozenUntil: user.FrozenUntil,
 		BanReason:   user.BanReason,

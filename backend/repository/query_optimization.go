@@ -82,7 +82,6 @@ type UserListEntry struct {
 	Nickname    string  `json:"nickname" gorm:"column:nickname"`
 	Email       string  `json:"email" gorm:"column:email"`
 	Avatar      string  `json:"avatar" gorm:"column:avatar"`
-	IsAdmin     bool    `json:"is_admin" gorm:"column:is_admin"`
 	Role        string  `json:"role" gorm:"column:role"`
 	Level       int     `json:"level" gorm:"column:level"`
 	Points      float64 `json:"points" gorm:"column:points"`
@@ -99,7 +98,7 @@ func (r *UserRepository) GetAllUsersOptimized() ([]UserListEntry, error) {
 	var users []UserListEntry
 
 	err := r.db.
-		Select("uid, username, nickname, email, avatar, is_admin, role, level, points, total_games, banned_until, created_at").
+		Select("uid, username, nickname, email, avatar, role, level, points, total_games, banned_until, created_at").
 		Order("created_at DESC").
 		Find(&users).Error
 

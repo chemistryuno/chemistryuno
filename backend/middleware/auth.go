@@ -1,6 +1,7 @@
-﻿package middleware
+package middleware
 
 import (
+	"chemistryuno/backend/models"
 	"chemistryuno/backend/repository"
 	"chemistryuno/backend/utils"
 	"context"
@@ -71,12 +72,14 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
+		normalizedRole := models.NormalizeRole(claims.Role)
+
 		// AI账号（UID < 0）的会话永不过期，跳过会话验证
 		if claims.UID < 0 {
 			// 将用户信息存入上下文
 			c.Set("uid", claims.UID)
-			c.Set("is_admin", claims.IsAdmin)
-			c.Set("role", claims.Role)
+			c.Set("is_admin", models.RoleHasAdminAccess(normalizedRole))
+			c.Set("role", normalizedRole)
 			c.Next()
 			return
 		}
@@ -120,8 +123,8 @@ func AuthMiddleware() gin.HandlerFunc {
 		// 将用户信息存入上下文
 		c.Set("uid", claims.UID)
 		c.Set("email", claims.Email)
-		c.Set("is_admin", claims.IsAdmin)
-		c.Set("role", claims.Role)
+		c.Set("is_admin", models.RoleHasAdminAccess(normalizedRole))
+		c.Set("role", normalizedRole)
 		c.Set("sid", claims.SID)
 
 		// 检查账号冻结/封禁状态 - 使用缓存
@@ -174,8 +177,9 @@ func AuthMiddleware() gin.HandlerFunc {
 // 管理员权限中间件
 func AdminMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		isAdmin, exists := c.Get("is_admin")
-		if !exists || !isAdmin.(bool) {
+		roleValue, exists := c.Get("role")
+		role, ok := roleValue.(string)
+		if !exists || !ok || !models.RoleHasAdminAccess(role) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "需要管理员权限"})
 			c.Abort()
 			return
@@ -187,15 +191,15 @@ func AdminMiddleware() gin.HandlerFunc {
 // Co-worker权限中间件（co-worker或admin）
 func CoWorkerMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		role, exists := c.Get("role")
-		if !exists {
+		roleValue, exists := c.Get("role")
+		role, ok := roleValue.(string)
+		if !exists || !ok {
 			c.JSON(http.StatusForbidden, gin.H{"error": "权限不足"})
 			c.Abort()
 			return
 		}
 
-		roleStr := role.(string)
-		if roleStr != "admin" && roleStr != "co-worker" {
+		if !models.RoleHasCoWorkerAccess(role) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "需要co-worker或管理员权限"})
 			c.Abort()
 			return

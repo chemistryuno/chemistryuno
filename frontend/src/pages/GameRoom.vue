@@ -510,7 +510,7 @@ watch(() => gameState.value?.status, (newStatus, oldStatus) => {
 })
 
 const openAdminAction = (player: any) => {
-  if (!user.value.is_admin || player.uid === user.value.uid) return
+  if (user.value.role !== 'admin' || player.uid === user.value.uid) return
   adminTargetUser.value = player
   adminActionType.value = 'kick'
   banReason.value = '你由于违规游戏而被踢出'
@@ -1687,13 +1687,13 @@ const loadReplaySimulationState = async () => {
 
     let response: any
     try {
-      if (replayScopeAdmin.value && user.value?.is_admin) {
+      if (replayScopeAdmin.value && user.value?.role === 'admin') {
         response = await adminAPI.getGameReplay(replayHistoryQueryID.value)
       } else {
         response = await gameAPI.getMyGameReplay(replayHistoryQueryID.value)
       }
     } catch (firstError) {
-      if (user.value?.is_admin) {
+      if (user.value?.role === 'admin') {
         response = await adminAPI.getGameReplay(replayHistoryQueryID.value)
       } else {
         throw firstError
@@ -3866,7 +3866,7 @@ watch(() => gameState.value?.current_player, () => {
                      >
                        <Flag class="w-2.5 h-2.5" />
                      </button>
-                     <button v-if="user.is_admin && Number(player.uid) !== Number(user.uid) && !isReplayBridgeMode"
+                     <button v-if="user.role === 'admin' && Number(player.uid) !== Number(user.uid) && !isReplayBridgeMode"
                              @click.stop="openAdminAction(player)"
                              :class="cn('p-0.5 rounded-md transition-all active:scale-90', gameState?.current_player === index ? 'bg-white/20 text-white' : 'bg-rose-500/20 text-rose-500')"
                      >

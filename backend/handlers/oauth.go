@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"chemistryuno/backend/database"
+	"chemistryuno/backend/models"
 	"chemistryuno/backend/repository"
 	"chemistryuno/backend/utils"
 	"context"
@@ -695,7 +696,7 @@ func handleOAuthUser(c *gin.Context, provider, providerID, username, email, nick
 	}
 
 	// 生成 Token，现在包含有效的 sid
-	accessToken, err := utils.GenerateAccessToken(int(user.UID), user.Email, user.IsAdmin, user.Role, sid)
+	accessToken, err := utils.GenerateAccessToken(int(user.UID), user.Email, models.NormalizeRole(user.Role), sid)
 	if err != nil {
 		sendOAuthError(c, http.StatusInternalServerError, "实验室访问令牌签署失败")
 		return

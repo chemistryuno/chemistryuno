@@ -1081,7 +1081,7 @@ const filteredHistory = computed(() => {
                       </td>
                       <td class="hidden md:table-cell px-4 py-2.5 text-[9px] text-slate-500 uppercase font-bold">{{ new Date(u.created_at).toLocaleDateString() }}</td>
                       <td class="px-1.5 md:px-4 py-1.5 md:py-2.5 text-right">
-                        <div v-if="!u.is_admin" class="flex items-center gap-1.5 md:gap-2 justify-end transition-all">
+                        <div v-if="u.role !== 'admin'" class="flex items-center gap-1.5 md:gap-2 justify-end transition-all">
                           <button
                             v-if="tabs.length > 1"
                             @click="handlePromoteUser(u.uid, u.role)"

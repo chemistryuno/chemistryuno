@@ -71,7 +71,7 @@ onMounted(() => {
           </button>
         </div>
         <div class="flex items-center justify-center gap-2 pt-1">
-          <span v-if="user.is_admin" class="bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[8px] font-black px-2 py-0.5 rounded-full border border-blue-500/20 flex items-center gap-1 uppercase tracking-widest">
+          <span v-if="user.role === 'admin'" class="bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[8px] font-black px-2 py-0.5 rounded-full border border-blue-500/20 flex items-center gap-1 uppercase tracking-widest">
             <Shield class="w-2 h-2" /> CORE ADMIN 
           </span>
           <span v-else class="bg-slate-500/10 text-slate-600 dark:text-slate-400 text-[8px] font-black px-2 py-0.5 rounded-full border border-slate-500/20 flex items-center gap-1 uppercase tracking-widest">

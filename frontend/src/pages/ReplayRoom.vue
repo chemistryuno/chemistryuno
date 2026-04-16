@@ -31,7 +31,7 @@ try {
   currentUser.value = {}
 }
 
-const isAdmin = computed(() => !!currentUser.value?.is_admin)
+const isAdmin = computed(() => currentUser.value?.role === 'admin')
 const useAdminScope = computed(() => isAdmin.value && String(route.query.scope || '') === 'admin')
 const replayReturnPath = computed(() => {
   const raw = String(route.query.from || '').trim()

@@ -25,7 +25,7 @@ const loadUserInfo = async () => {
     const res = await authAPI.getUserInfo()
     user.value = res.data
     localStorage.setItem('user', JSON.stringify(res.data))
-    if (!res.data?.is_admin) {
+    if (!res.data?.role === 'admin') {
       lobbyViewMode.value = 'player'
     }
   } catch (e) {
@@ -33,7 +33,7 @@ const loadUserInfo = async () => {
   }
 }
 
-const isAdminUser = computed(() => !!user.value?.is_admin)
+const isAdminUser = computed(() => user.value?.role === 'admin')
 const isAdminView = computed(() => isAdminUser.value && lobbyViewMode.value === 'admin')
 
 try {
@@ -647,7 +647,7 @@ const copyToClipboard = (text: string) => {
                <div class="hidden sm:flex flex-col">
                  <span class="text-xs-mobile font-black text-slate-900 dark:text-white">{{ user.nickname || user.username }}</span>
                  <span class="text-[9px] sm:text-[8px] text-slate-500 font-mono uppercase">
-                   {{ user.is_admin ? '管理员' : '研究员' }}
+                   {{ user.role === 'admin' ? '管理员' : '研究员' }}
                  </span>
                </div>
             </div>
@@ -684,7 +684,7 @@ const copyToClipboard = (text: string) => {
               <router-link to="/plugins" class="lobby-nav-link lobby-nav-link-purple" title="插件市场">
                 <Puzzle class="w-4 h-4" />
               </router-link>
-              <router-link v-if="user.is_admin || user.role === 'co-worker'" to="/admin" class="lobby-nav-link lobby-nav-link-amber" title="管理面板">
+              <router-link v-if="user.role === 'admin' || user.role === 'co-worker'" to="/admin" class="lobby-nav-link lobby-nav-link-amber" title="管理面板">
                 <Shield class="w-4 h-4 text-yellow-500" />
               </router-link>
               <div class="w-px h-5 bg-white/10 mx-1"></div>
@@ -789,7 +789,7 @@ const copyToClipboard = (text: string) => {
                 <span class="text-[9px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300 text-center leading-tight">插件扩展市场</span>
               </router-link>
 
-              <router-link v-if="user.is_admin || user.role === 'co-worker'" @click="isMobileMenuOpen = false" to="/admin" class="flex flex-col items-center justify-center p-3 bg-slate-50 dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/10 shadow-sm active:scale-95 transition-all col-span-2">
+              <router-link v-if="user.role === 'admin' || user.role === 'co-worker'" @click="isMobileMenuOpen = false" to="/admin" class="flex flex-col items-center justify-center p-3 bg-slate-50 dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/10 shadow-sm active:scale-95 transition-all col-span-2">
                 <div class="flex items-center gap-3">
                   <div class="w-8 h-8 bg-rose-500/10 rounded-lg flex items-center justify-center text-rose-500 shrink-0">
                     <Shield class="w-4 h-4" />

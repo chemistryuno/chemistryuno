@@ -131,7 +131,7 @@ func CreateRoom(c *gin.Context) {
 func JoinRoom(c *gin.Context) {
 	roomID := c.Param("id")
 	uid := c.GetInt("uid")
-	isAdmin := c.GetBool("is_admin")
+	isAdmin := models.RoleHasAdminAccess(c.GetString("role"))
 
 	// 从查询参数获取访问密钥和观战模式
 	accessKey := c.Query("key")

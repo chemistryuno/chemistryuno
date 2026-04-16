@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { adminAPI, pluginAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
 import { listRegisteredPluginRoutes, refreshPluginConfiguredRoutes } from '../utils/plugin-runtime'
+import { cn } from '../utils/cn'
 import { ArrowLeft, Power, Puzzle, RefreshCw, Save, ToggleLeft, ToggleRight, Trash2, Upload } from 'lucide-vue-next'
 
 type Plugin = {

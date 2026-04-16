@@ -183,8 +183,7 @@ func Verify2FALogin(c *gin.Context) {
 		Email:            dbUser.Email,
 		PasswordHash:     dbUser.Password,
 		Avatar:           dbUser.Avatar,
-		IsAdmin:          dbUser.IsAdmin,
-		Role:             dbUser.Role,
+		Role:             models.NormalizeRole(dbUser.Role),
 		TwoFactorEnabled: dbUser.TwoFactorEnabled,
 		TwoFactorSecret:  dbUser.TwoFactorSecret,
 		BannedUntil:      dbUser.BannedUntil,
@@ -240,7 +239,7 @@ func Verify2FALogin(c *gin.Context) {
 	}
 
 	// 生成access token（15分钟）和refresh token（7天）
-	accessToken, err := utils.GenerateAccessToken(int(user.UID), user.Email, user.IsAdmin, user.Role, sid)
+	accessToken, err := utils.GenerateAccessToken(int(user.UID), user.Email, user.Role, sid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成access token失败"})
 		return
@@ -276,8 +275,8 @@ func Verify2FALogin(c *gin.Context) {
 			"username": user.Username,
 			"email":    user.Email,
 			"avatar":   user.Avatar,
-			"is_admin": user.IsAdmin,
-			"role":     user.Role,
+			"is_admin": user.HasAdminAccess(),
+			"role":     user.NormalizedRole(),
 		},
 		"announcements": announcements,
 	})

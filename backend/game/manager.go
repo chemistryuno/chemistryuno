@@ -80,6 +80,15 @@ func (gr *GameRoom) cancelStartTimer() {
 	gr.Room.Countdown = 0
 }
 
+func (gr *GameRoom) hasHumanPlayersLocked() bool {
+	for _, pid := range gr.Room.Players {
+		if pid > 0 {
+			return true
+		}
+	}
+	return false
+}
+
 func (gr *GameRoom) shouldTerminateRoom() bool {
 	if gr.Room.Status != "playing" {
 		return false
@@ -88,7 +97,7 @@ func (gr *GameRoom) shouldTerminateRoom() bool {
 	totalPlayers := len(gr.Room.Players)
 	humanPlayers := 0
 	for _, pid := range gr.Room.Players {
-		if pid >= 0 {
+		if pid > 0 {
 			humanPlayers++
 		}
 	}
@@ -1524,6 +1533,12 @@ func (gr *GameRoom) kickPlayer(uid int, reason string) {
 		}
 	}
 
+	if gr.GameState != nil && gr.GameState.Status == "playing" && !gr.hasHumanPlayersLocked() {
+		gr.mutex.Unlock()
+		gr.terminateAsInvalidGame("房间内已无真人玩家，本局已自动结束，相关 AI 进程已停止")
+		return
+	}
+
 	startedInvalidCountdown, _, _, remainingInvalidDuration := gr.evaluateInvalidGameCountdownLocked(time.Now())
 	if startedInvalidCountdown {
 		seconds := int(remainingInvalidDuration.Seconds())
@@ -1941,7 +1956,6 @@ func LeaveRoom(roomID string, uid int) error {
 	}
 
 	gameRoom.mutex.Lock()
-	defer gameRoom.mutex.Unlock()
 
 	// 移除玩家
 	newPlayers := []int{}
@@ -2085,6 +2099,12 @@ func LeaveRoom(roomID string, uid int) error {
 		emitPlayerLeave(roomID, uid, len(gameRoom.Room.Players), "leave_room")
 	}
 
+	if gameRoom.GameState != nil && gameRoom.GameState.Status == "playing" && !gameRoom.hasHumanPlayersLocked() {
+		gameRoom.mutex.Unlock()
+		gameRoom.terminateAsInvalidGame("房间内已无真人玩家，本局已自动结束，相关 AI 进程已停止")
+		return nil
+	}
+
 	startedInvalidCountdown, _, _, remainingInvalidDuration := gameRoom.evaluateInvalidGameCountdownLocked(time.Now())
 	if startedInvalidCountdown {
 		seconds := int(remainingInvalidDuration.Seconds())
@@ -2119,6 +2139,7 @@ func LeaveRoom(roomID string, uid int) error {
 				gameRoom.GameState.FinishedPlayers = append(gameRoom.GameState.FinishedPlayers, lastPlayerUID)
 			}
 			finalizeGame(gameRoom)
+			gameRoom.mutex.Unlock()
 			return nil
 		}
 	}
@@ -2126,12 +2147,14 @@ func LeaveRoom(roomID string, uid int) error {
 	// 如果所有玩家和观战者均已离开，销毁房间
 	if len(gameRoom.Room.Players) == 0 && len(gameRoom.Room.Spectators) == 0 {
 		gameRoom.cancelStartTimer()
+		gameRoom.mutex.Unlock()
 		emitRoomClosed(roomID, "房间无人，自动关闭", "empty_room", 0)
 		roomMutex.Lock()
 		delete(rooms, roomID)
 		roomMutex.Unlock()
 		log.Printf("房间 %s 已空，已自动关闭并清理资源", roomID)
 	} else {
+		gameRoom.mutex.Unlock()
 		// 检查下一位是否是 AI
 		go gameRoom.CheckNextTurnAI()
 		// 广播更新

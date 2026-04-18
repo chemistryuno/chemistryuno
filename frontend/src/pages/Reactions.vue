@@ -387,14 +387,25 @@ import {
 const router = useRouter()
 const { showAlert, showConfirm, showPrompt } = useDialog()
 
-const user = ref<any>({})
-try {
+const normalizeRole = (role?: string) => {
+  const normalized = String(role || '').trim().toLowerCase()
+  if (normalized === 'admin') return 'admin'
+  if (normalized === 'co-worker' || normalized === 'coworker' || normalized === 'co_worker') return 'co-worker'
+  return 'user'
+}
+
+const parseStoredUser = () => {
   const userData = JSON.parse(localStorage.getItem('user') || '{}')
-  // 兼容旧版本的 id 字段
   if (userData.id && !userData.uid) {
     userData.uid = userData.id
   }
-  user.value = userData
+  userData.role = normalizeRole(userData.role)
+  return userData
+}
+
+const user = ref<any>({})
+try {
+  user.value = parseStoredUser()
 } catch (e) {
   console.error('Failed to parse user in Reactions:', e)
 }
@@ -462,7 +473,7 @@ onMounted(() => {
   try {
     const savedUser = localStorage.getItem('user')
     if (savedUser) {
-      user.value = JSON.parse(savedUser)
+      user.value = parseStoredUser()
     }
   } catch (e) {
     console.error('解析用户信息失败', e)
@@ -663,14 +674,21 @@ const loadReactions = async () => {
     }
 
     if (filterStatus.value !== 'all') {
-      params.status = filterStatus.value
+      params.status = filterStatus.value === 'pending'
+        ? 'pending_coworker,pending_admin'
+        : filterStatus.value
     }
 
     if (filterInvalidElements.value !== null) {
       params.has_invalid = filterInvalidElements.value
     }
 
-    const response = await reactionAPI.getReactions(params)
+    const role = normalizeRole(user.value?.role)
+    const request = role === 'admin' || role === 'co-worker'
+      ? reactionAPI.getReactions(params)
+      : reactionAPI.getAllReactions(params)
+
+    const response = await request
     reactions.value = response.data?.items || []
     pagination.value.total = response.data?.pagination?.total || 0
     pagination.value.totalPages = response.data?.pagination?.total_pages || 0
@@ -684,8 +702,12 @@ const loadReactions = async () => {
 
     selectedReactions.value.clear()
     selectAllReactions.value = false
-  } catch (error) {
+  } catch (error: any) {
     console.error('加载反应数据失败:', error)
+    reactions.value = []
+    pagination.value.total = 0
+    pagination.value.totalPages = 0
+    await showAlert(error?.response?.data?.error || '加载反应数据失败', '错误')
   } finally {
     loading.value = false
   }

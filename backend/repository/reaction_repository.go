@@ -4,6 +4,7 @@ import (
 	"chemistryuno/backend/cache"
 	"chemistryuno/backend/database"
 	"context"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -212,7 +213,18 @@ func (r *ReactionRepository) applyReactionListFilter(query *gorm.DB, filter Reac
 	}
 
 	if filter.Status != "" && filter.Status != "all" {
-		query = query.Where("reactions.status = ?", filter.Status)
+		statuses := make([]string, 0)
+		for _, status := range strings.Split(filter.Status, ",") {
+			status = strings.TrimSpace(status)
+			if status != "" {
+				statuses = append(statuses, status)
+			}
+		}
+		if len(statuses) == 1 {
+			query = query.Where("reactions.status = ?", statuses[0])
+		} else if len(statuses) > 1 {
+			query = query.Where("reactions.status IN ?", statuses)
+		}
 	}
 
 	if filter.HasInvalid != nil {

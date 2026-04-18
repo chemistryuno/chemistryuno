@@ -256,25 +256,21 @@ func (r *ReactionRepository) FindGroupedWithCreatorPage(filter ReactionListFilte
 	baseQuery := r.applyReactionListFilter(r.db.Table("reactions"), filter)
 	groupExpr := "COALESCE(reactions.group_id, reactions.id)"
 
-	idSubQuery := baseQuery.
-		Select("MIN(reactions.id) AS id").
-		Group(groupExpr)
-
-	countSubQuery := baseQuery.
-		Select(groupExpr + " AS grouped_id").
+	groupedSubQuery := baseQuery.
+		Select("MIN(reactions.id) AS id, MAX(reactions.created_at) AS latest_created_at").
 		Group(groupExpr)
 
 	var total int64
-	if err := r.db.Table("(?) AS grouped_reactions", countSubQuery).Count(&total).Error; err != nil {
+	if err := r.db.Table("(?) AS grouped_reactions", groupedSubQuery).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
 	var results []ReactionWithCreator
 	err := r.db.Table("reactions").
 		Select("reactions.id, reactions.display, reactions.r1, reactions.r2, reactions.status, reactions.group_id, reactions.has_invalid_elements, reactions.created_by_uid, users.username as creator_name, reactions.created_at").
+		Joins("JOIN (?) AS grouped_reactions ON reactions.id = grouped_reactions.id", groupedSubQuery).
 		Joins("LEFT JOIN users ON reactions.created_by_uid = users.uid").
-		Where("reactions.id IN (?)", idSubQuery).
-		Order("reactions.created_at DESC").
+		Order("grouped_reactions.latest_created_at DESC, reactions.id DESC").
 		Limit(pageSize).
 		Offset((page - 1) * pageSize).
 		Scan(&results).Error

@@ -156,18 +156,18 @@
             
             <!-- 状态过滤器 -->
             <div class="flex items-center bg-slate-50 dark:bg-white/5 p-1 rounded-xl border border-slate-200 dark:border-white/10 overflow-x-auto custom-scrollbar no-scrollbar">
-              <button 
-                v-for="status in ['all', 'pending', 'approved', 'rejected']" 
+              <button
+                v-for="status in ['all', 'pending_coworker', 'pending_admin', 'approved', 'rejected']"
                 :key="status"
                 @click="filterStatus = status"
                 :class="[
                   'px-3 py-1.5 rounded-lg text-[8px] sm:text-[10px] font-black uppercase tracking-tight transition-all whitespace-nowrap',
-                  filterStatus === status 
-                    ? 'bg-white dark:bg-blue-500 text-blue-600 dark:text-white shadow-sm' 
+                  filterStatus === status
+                    ? 'bg-white dark:bg-blue-500 text-blue-600 dark:text-white shadow-sm'
                     : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
                 ]"
               >
-                {{ status === 'all' ? 'All' : status === 'pending' ? 'Pending' : status.toUpperCase() }}
+                {{ status === 'all' ? 'All' : status === 'pending_coworker' ? 'Pending Co-worker' : status === 'pending_admin' ? 'Pending Admin' : status.toUpperCase() }}
               </button>
             </div>
 
@@ -674,21 +674,14 @@ const loadReactions = async () => {
     }
 
     if (filterStatus.value !== 'all') {
-      params.status = filterStatus.value === 'pending'
-        ? 'pending_coworker,pending_admin'
-        : filterStatus.value
+      params.status = filterStatus.value
     }
 
     if (filterInvalidElements.value !== null) {
       params.has_invalid = filterInvalidElements.value
     }
 
-    const role = normalizeRole(user.value?.role)
-    const request = role === 'admin' || role === 'co-worker'
-      ? reactionAPI.getReactions(params)
-      : reactionAPI.getAllReactions(params)
-
-    const response = await request
+    const response = await reactionAPI.getReactions(params)
     reactions.value = response.data?.items || []
     pagination.value.total = response.data?.pagination?.total || 0
     pagination.value.totalPages = response.data?.pagination?.total_pages || 0

@@ -211,6 +211,42 @@ func KickPlayer(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "玩家已被踢出服务器"})
 }
 
+// TerminateRoom 管理员强制结束任意活跃房间
+func TerminateRoom(c *gin.Context) {
+	roomID := c.Param("id")
+	if roomID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "房间ID不能为空"})
+		return
+	}
+
+	reason := ""
+	if c.Request.ContentLength > 0 {
+		var req struct {
+			Reason string `json:"reason"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+			return
+		}
+		reason = strings.TrimSpace(req.Reason)
+	}
+	if reason == "" {
+		reason = "管理员已强制结束该房间"
+	}
+
+	if err := game.AdminTerminateRoom(roomID, reason); err != nil {
+		if err.Error() == "房间不存在" {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		}
+		return
+	}
+
+	game.BroadcastRoomsUpdate()
+	c.JSON(http.StatusOK, gin.H{"message": "房间已结束"})
+}
+
 // 管理员封禁用户
 func BanUser(c *gin.Context) {
 	var req struct {

@@ -1033,6 +1033,24 @@ func GetAllRoomsAdmin() []*models.Room {
 	return result
 }
 
+// AdminTerminateRoom 管理员强制终止任意活跃房间
+func AdminTerminateRoom(roomID string, reason string) error {
+	roomMutex.RLock()
+	gr, exists := rooms[roomID]
+	roomMutex.RUnlock()
+
+	if !exists {
+		return errors.New("房间不存在")
+	}
+
+	if reason == "" {
+		reason = "管理员已强制结束该房间"
+	}
+
+	gr.terminateRoom(reason)
+	return nil
+}
+
 // BroadcastRoomsUpdate 广播房间列表更新到所有在线玩家（实时推送）
 func BroadcastRoomsUpdate() {
 	ws := websocket.GlobalHub

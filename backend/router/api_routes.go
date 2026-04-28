@@ -231,6 +231,7 @@ func RegisterAPIRoutes(r *gin.Engine, startTime time.Time, wsHandler gin.Handler
 			admin.POST("/server/restart/cancel", handlers.CancelServerRestart)
 			admin.POST("/broadcast", handlers.AdminBroadcast)
 			admin.GET("/rooms/active", handlers.GetActiveRooms)
+			admin.POST("/rooms/:id/terminate", middleware.AdminMiddleware(), handlers.TerminateRoom)
 			admin.GET("/surveys", handlers.GetSurveys)
 			admin.POST("/surveys", handlers.CreateSurvey)
 			admin.PUT("/surveys/:id", handlers.UpdateSurvey)

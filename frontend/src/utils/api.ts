@@ -469,6 +469,8 @@ export const adminAPI = {
     api.post('/admin/broadcast', data),
   getActiveRooms: () =>
     api.get('/admin/rooms/active'),
+  terminateRoom: (roomId: string, reason?: string) =>
+    api.post(`/admin/rooms/${roomId}/terminate`, { reason }),
 
   // 公告管理
   getAnnouncements: () =>

@@ -396,6 +396,19 @@
   box-shadow: 0 8px 16px rgba(245, 158, 11, 0.2);
 }
 
+.btn-terminate {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+}
+
+.btn-terminate:hover {
+  background: #ef4444;
+  color: white;
+  transform: scale(1.02);
+  box-shadow: 0 8px 16px rgba(239, 68, 68, 0.2);
+}
+
 /* Empty State */
 .lobby-empty-state {
   grid-column: 1 / -1;

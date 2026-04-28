@@ -506,22 +506,7 @@
        </div>
     </div>
 
-    <!-- Floating Chat Toggle -->
-    <button 
-      @click="showChat = !showChat" 
-      class="fixed bottom-6 right-6 z-50 w-14 h-14 bg-blue-600 hover:bg-blue-500 text-white rounded-[24px] shadow-2xl shadow-blue-500/30 flex items-center justify-center transition-all hover:scale-110 active:scale-95 group"
-    >
-      <MessageCircle class="w-6 h-6 group-hover:rotate-12 transition-transform" />
-      <div v-if="hasNewMessage" class="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 border-2 border-white dark:border-[#0a0a0c] rounded-full animate-pulse"></div>
-    </button>
 
-    <!-- Chat Sidebar/Modal -->
-    <div 
-      v-show="showChat"
-      class="fixed bottom-24 right-6 z-50 w-[calc(100vw-3rem)] sm:w-[400px] shadow-2xl animate-in slide-in-from-bottom-10 duration-300 pointer-events-auto"
-    >
-      <ChatBox title="全球通信频率" maxHeight="500px" />
-    </div>
 
     <UserSpaceModal
       :show="showProfileModal"
@@ -533,7 +518,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { pointsAPI, gameAPI, friendAPI, authAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
@@ -541,9 +526,7 @@ import { Trophy, ArrowLeft, Loader2, Target, RefreshCw, ShieldCheck, Crosshair, 
 import PhlogistonIcon from '../components/icons/PhlogistonIcon.vue'
 import { cn } from '../utils/cn'
 import { formatLastOfflineForRanking } from '../utils/timeFormat'
-import ChatBox from '../components/ChatBox.vue'
 import LevelBadge from '../components/LevelBadge.vue'
-import websocket from '../utils/websocket'
 import UserAvatar from '../components/UserAvatar.vue'
 import UserSpaceModal from '../components/UserSpaceModal.vue'
 
@@ -658,21 +641,15 @@ const handleAddFriend = async (player: any) => {
   }
 }
 
-const showChat = ref(false)
-const hasNewMessage = ref(false)
-
 const startPrivateChat = (player: any) => {
   if (!isFriend(player.uid)) {
     showAlert('只有互为好友的研究员才能开启单向加密传输。', '权限受限')
     return
   }
-  showChat.value = true
-  hasNewMessage.value = false
-  const displayName = player.nickname || player.username
-  nextTick(() => {
-    window.dispatchEvent(new CustomEvent('start-private-chat', {
-      detail: { uid: player.uid, username: displayName, nickname: player.nickname }
-    }))
+  // 导航到聊天页面并指定对话用户
+  router.push({
+    name: 'Chat',
+    query: { uid: player.uid }
   })
 }
 
@@ -761,21 +738,12 @@ const handleDuel = async (player: any) => {
   }
 }
 
-const onChatMessage = () => {
-  if (!showChat.value) {
-    hasNewMessage.value = true
-  }
-}
-
 onMounted(() => {
   loadLeaderboard()
-  websocket.on('chat', onChatMessage)
-  websocket.on('private_chat', onChatMessage)
 })
 
 onUnmounted(() => {
-  websocket.off('chat', onChatMessage)
-  websocket.off('private_chat', onChatMessage)
+  // cleanup if needed
 })
 </script>
 

@@ -485,6 +485,7 @@ func main() {
 			// 广播系统（全局 / 房间 / 用户）
 			admin.POST("/broadcast", handlers.AdminBroadcast)
 			admin.GET("/rooms/active", handlers.GetActiveRooms)
+			admin.POST("/rooms/:id/terminate", middleware.AdminMiddleware(), handlers.TerminateRoom)
 
 			admin.GET("/surveys", handlers.GetSurveys)
 			admin.POST("/surveys", handlers.CreateSurvey)

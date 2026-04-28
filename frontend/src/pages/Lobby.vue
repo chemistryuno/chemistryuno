@@ -578,6 +578,24 @@ const handleLeaveRoom = async (roomId: string) => {
   }
 }
 
+const handleTerminateRoom = async (roomId: string) => {
+  const ok = await showConfirm('确定要强制结束这个房间吗？房间内所有玩家都会被移除。')
+  if (!ok) return
+
+  try {
+    await adminAPI.terminateRoom(roomId)
+    loadRooms()
+    showAlert('已强制结束该房间。', '操作成功')
+  } catch (error: any) {
+    if (error.response?.data?.error === '房间不存在') {
+      loadRooms()
+      showAlert('房间已不存在，正在刷新状态。', '操作成功')
+    } else {
+      showAlert(error.response?.data?.error || '结束房间失败', '链路故障')
+    }
+  }
+}
+
 const handleLogout = () => {
   // Token已存储在HttpOnly Cookie中，浏览器会自动处理
   localStorage.removeItem('user')
@@ -1032,6 +1050,13 @@ const copyToClipboard = (text: string) => {
                 <!-- Card Footer Action -->
                 <div class="room-card-footer">
                   <template v-if="isAdminView">
+                    <button
+                      @click="handleTerminateRoom(room.id)"
+                      class="btn-room-action btn-terminate"
+                    >
+                      <X class="w-3.5 h-3.5" />
+                      结束
+                    </button>
                     <button
                       v-if="room.status !== 'playing' && !isRoomFull(room)"
                       @click="handleJoinRoom(room.id, false)"

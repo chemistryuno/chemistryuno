@@ -127,7 +127,62 @@ func GetAllUsers(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, users)
+	playingUIDs := make(map[uint]bool)
+	for _, room := range game.GetAllRoomsAdmin() {
+		if room == nil || room.Status != "playing" {
+			continue
+		}
+		for _, pid := range room.Players {
+			if pid > 0 {
+				playingUIDs[uint(pid)] = true
+			}
+		}
+	}
+
+	now := time.Now()
+	result := make([]map[string]interface{}, 0, len(users))
+	for _, user := range users {
+		status := "idle"
+		statusLabel := "空闲"
+		if user.BannedUntil != nil && now.Before(*user.BannedUntil) {
+			status = "banned"
+			statusLabel = "封禁中"
+		} else if playingUIDs[user.UID] {
+			status = "playing"
+			statusLabel = "游戏中"
+		}
+
+		entry := map[string]interface{}{
+			"uid":                 user.UID,
+			"username":            user.Username,
+			"email":               user.Email,
+			"nickname":            user.Nickname,
+			"avatar":              user.Avatar,
+			"is_admin":            user.IsAdmin,
+			"role":                user.Role,
+			"points":              user.Points,
+			"monthly_points":      user.MonthlyPoints,
+			"level":               user.Level,
+			"xp":                  user.XP,
+			"total_xp":            user.TotalXP,
+			"negative_play_count": user.NegativePlayCount,
+			"banned_until":        user.BannedUntil,
+			"ban_reason":          user.BanReason,
+			"frozen_until":        user.FrozenUntil,
+			"total_games":         user.TotalGames,
+			"win_count":           user.WinCount,
+			"turn_started_at":     user.TurnStartedAt,
+			"room_ready":          user.RoomReady,
+			"last_offline_at":     user.LastOfflineAt,
+			"created_at":          user.CreatedAt,
+			"updated_at":          user.UpdatedAt,
+			"status":              status,
+			"status_label":        statusLabel,
+		}
+		result = append(result, entry)
+	}
+
+	c.JSON(http.StatusOK, result)
 }
 
 // GetAdminStats 返回管理员面板所需的汇总统计数据

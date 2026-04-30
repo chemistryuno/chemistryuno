@@ -315,14 +315,8 @@ func FinishLogin(c *gin.Context) {
 	// 更新签名计数（使用 base64 URL-safe 编码）
 	repository.WebAuthnRepo.UpdateSignCount(base64.RawURLEncoding.EncodeToString(credential.ID), credential.Authenticator.SignCount)
 
-	// 检查封禁状态
+	// 封禁状态已不再阻止登录
 	now := time.Now()
-	if user.BannedUntil != nil && now.Before(*user.BannedUntil) {
-		c.JSON(http.StatusForbidden, gin.H{
-			"error": "您的账号已被封禁，直到 " + user.BannedUntil.Format("2006-01-02 15:04:05"),
-		})
-		return
-	}
 
 	// 检查冻结状态
 	if user.FrozenUntil != nil && now.Before(*user.FrozenUntil) {

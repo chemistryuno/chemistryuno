@@ -6,6 +6,7 @@ import { useDialog } from '../utils/dialog'
 import feedback from '../utils/feedback'
 import { Beaker, Lock, Loader2, Fingerprint, Shield, Cpu, Mail, Eye, EyeOff } from 'lucide-vue-next'
 import ResetPassword2FAModal from '../components/ResetPassword2FAModal.vue'
+import FeedbackButton from '../components/FeedbackButton.vue'
 import OAuthLogos from '../components/icons/OAuthLogos.vue'
 import websocket from '../utils/websocket'
 import { API_BASE_URL } from '../utils/runtimeConfig'
@@ -306,8 +307,11 @@ const handleOAuthLogin = (provider: 'github' | 'ms' | 'google' | 'apple') => {
             <p class="text-slate-400 dark:text-slate-500 text-[10px] sm:text-xs font-black uppercase tracking-[0.2em] mt-0.5 font-mono">LABORATORY ACCESS</p>
           </div>
 
-          <div v-if="error" class="bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 text-red-500 px-2.5 py-2 rounded-xl mb-2.5 sm:mb-3 text-center text-xs font-bold animate-shake">
+          <div v-if="error" class="bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 text-red-500 px-2.5 py-2 rounded-xl mb-2.5 sm:mb-3 text-center text-xs font-bold animate-shake relative">
             {{ error }}
+            <div v-if="error.includes('禁止操作') || error.includes('封禁') || error.includes('冷冻')" class="mt-2 flex justify-center">
+              <FeedbackButton />
+            </div>
           </div>
 
           <div v-if="!show2FA" class="space-y-2.5 sm:space-y-3">
@@ -488,10 +492,14 @@ const handleOAuthLogin = (provider: 'github' | 'ms' | 'google' | 'apple') => {
           </div>
 
           <div class="mt-4 sm:mt-5 pt-4 sm:pt-5 border-t border-slate-100 dark:border-white/5 text-center">
-            <p class="text-[10px] sm:text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+            <p class="text-[10px] sm:text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">
               还不是正式研究员？
               <router-link to="/register" class="text-blue-600 hover:text-blue-500">提交申请</router-link>
             </p>
+            <div class="flex justify-center mt-2">
+              <!-- 提供账号申诉/通用反馈入口 -->
+              <FeedbackButton />
+            </div>
           </div>
         </div>
       </div>

@@ -370,8 +370,8 @@ const loadData = async () => {
   loading.value = true
   try {
     if (activeTab.value === 'users') {
-      const response = await adminAPI.getAllUsers()
-      users.value = response.data || []
+      const usersResponse = await adminAPI.getAllUsers()
+      users.value = usersResponse.data || []
     } else if (activeTab.value === 'history') {
       const response = await adminAPI.getGameHistory()
       gameHistory.value = response.data || []
@@ -825,6 +825,49 @@ const isBanned = (u: any) => {
   return u.banned_until && new Date(u.banned_until) > new Date()
 }
 
+const getUserStatus = (u: any) => {
+  const status = String(u?.status || '').toLowerCase()
+  if (status === 'banned') {
+    return {
+      label: '封禁中',
+      tone: 'banned',
+      icon: Ban,
+    }
+  }
+
+  if (status === 'playing') {
+    return {
+      label: '游戏中',
+      tone: 'playing',
+      icon: Activity,
+    }
+  }
+
+  if (isBanned(u)) {
+    return {
+      label: '封禁中',
+      tone: 'banned',
+      icon: Ban,
+    }
+  }
+
+  return {
+    label: '空闲',
+    tone: 'idle',
+    icon: Cpu,
+  }
+}
+
+const getStatusBadgeClass = (tone: string) => {
+  if (tone === 'banned') {
+    return 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20'
+  }
+  if (tone === 'playing') {
+    return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+  }
+  return 'bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-white/10'
+}
+
 const filteredUsers = computed(() => {
   const q = searchTerm.value.toLowerCase()
   return users.value.filter(u =>
@@ -1054,6 +1097,7 @@ const filteredHistory = computed(() => {
                     <tr class="text-slate-400 dark:text-slate-600 text-[7px] md:text-[9px] font-black uppercase tracking-[0.3em] border-b border-slate-100 dark:border-white/5">
                       <th class="px-1.5 md:px-4 py-1.5 md:py-2.5">Researcher</th>
                       <th class="px-1.5 md:px-4 py-1.5 md:py-2.5">UID</th>
+                      <th class="px-1.5 md:px-4 py-1.5 md:py-2.5">State</th>
                       <th class="px-1.5 md:px-4 py-1.5 md:py-2.5">Auth</th>
                       <th class="hidden md:table-cell px-4 py-2.5">Join Date</th>
                       <th class="px-1.5 md:px-4 py-1.5 md:py-2.5 text-right">Actions</th>
@@ -1074,6 +1118,19 @@ const filteredHistory = computed(() => {
                         </div>
                       </td>
                       <td class="px-1.5 md:px-4 py-1.5 md:py-2.5 text-[8px] md:text-[10px] text-slate-500 tracking-widest">{{ u.uid }}</td>
+                      <td class="px-1.5 md:px-4 py-1.5 md:py-2.5">
+                        <div class="flex items-center gap-1.5">
+                          <span
+                            :class="cn(
+                              'inline-flex items-center gap-1 px-1.5 md:px-2 py-0.5 rounded-md border text-[6px] md:text-[8px] font-black tracking-widest uppercase whitespace-nowrap',
+                              getStatusBadgeClass(getUserStatus(u).tone)
+                            )"
+                          >
+                            <component :is="getUserStatus(u).icon" class="w-2.5 h-2.5 md:w-3 md:h-3 shrink-0" />
+                            {{ getUserStatus(u).label }}
+                          </span>
+                        </div>
+                      </td>
                       <td class="px-1.5 md:px-4 py-1.5 md:py-2.5">
                         <span v-if="u.role === 'admin'" class="text-[6px] md:text-[8px] px-1 md:px-2 py-0.5 bg-rose-500/10 text-rose-600 dark:text-rose-400 rounded-md border border-rose-500/20 font-black tracking-widest uppercase">CORE</span>
                         <span v-else-if="u.role === 'co-worker'" class="text-[6px] md:text-[8px] px-1 md:px-2 py-0.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-md border border-amber-500/20 font-black tracking-widest uppercase">CO-W</span>

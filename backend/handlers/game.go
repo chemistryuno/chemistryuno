@@ -15,6 +15,20 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// 检查用户是否被封禁（适用于拦截创建房间、加入房间、观战、决斗等）
+func checkBanForGame(c *gin.Context, uid int) bool {
+	cachedUser, err := repository.GetUserWithCache(c.Request.Context(), uint(uid))
+	if err == nil && cachedUser != nil && cachedUser.BannedUntil != nil && cachedUser.BannedUntil.After(time.Now()) {
+		reason := cachedUser.BanReason
+		if reason == "" {
+			reason = "账号已被封禁"
+		}
+		c.JSON(http.StatusForbidden, gin.H{"error": reason + "，无法进行游戏相关操作"})
+		return true
+	}
+	return false
+}
+
 func broadcastUpdate(roomID string) {
 	if websocket.GlobalHub != nil {
 		log.Printf("📡 广播游戏更新到房间 %s", roomID)
@@ -72,6 +86,10 @@ func CreateRoom(c *gin.Context) {
 	}
 
 	uid := c.GetInt("uid")
+
+	if checkBanForGame(c, uid) {
+		return
+	}
 
 	// 玩家限购检查：每人同时只能在一个房间
 	if !game.IsPlayerIdle(uid) {
@@ -131,6 +149,11 @@ func CreateRoom(c *gin.Context) {
 func JoinRoom(c *gin.Context) {
 	roomID := c.Param("id")
 	uid := c.GetInt("uid")
+
+	if checkBanForGame(c, uid) {
+		return
+	}
+
 	isAdmin := models.RoleHasAdminAccess(c.GetString("role"))
 
 	// 从查询参数获取访问密钥和观战模式
@@ -450,6 +473,11 @@ func InitiateDuel(c *gin.Context) {
 	}
 
 	challengerUID := c.GetInt("uid")
+
+	if checkBanForGame(c, challengerUID) {
+		return
+	}
+
 	challengerName := ""
 	challengerNickname := "玩家"
 
@@ -528,6 +556,11 @@ func RespondToDuel(c *gin.Context) {
 	}
 
 	responderUID := c.GetInt("uid")
+
+	if checkBanForGame(c, responderUID) {
+		return
+	}
+
 	responderName := ""
 	responderNickname := "玩家" // 默认
 

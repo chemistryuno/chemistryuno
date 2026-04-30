@@ -254,17 +254,10 @@ func Login(c *gin.Context) {
 	}
 
 	now := time.Now()
-	if user.BannedUntil != nil && now.Before(*user.BannedUntil) {
-		banReason := dbUser.BanReason
-		if banReason == "" {
-			banReason = "account is banned due to policy violations"
-		}
-		c.JSON(http.StatusForbidden, gin.H{
-			"error":        fmt.Sprintf("account banned: %s", banReason),
-			"banned_until": user.BannedUntil.Format(time.RFC3339),
-		})
-		return
-	}
+	// 封禁用户不再被禁止登录
+	// if user.BannedUntil != nil && now.Before(*user.BannedUntil) {
+	// ... 
+	// }
 
 	if user.FrozenUntil != nil && now.Before(*user.FrozenUntil) {
 		c.JSON(http.StatusForbidden, gin.H{
@@ -427,10 +420,7 @@ func RefreshToken(c *gin.Context) {
 
 	// 检查账户状态
 	now := time.Now()
-	if user.BannedUntil != nil && now.Before(*user.BannedUntil) {
-		c.JSON(http.StatusForbidden, gin.H{"error": "account is banned"})
-		return
-	}
+	// 注意：封禁用户不再阻断刷新 token，这样他们可以继续留在系统中
 	if user.FrozenUntil != nil && now.Before(*user.FrozenUntil) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "account is frozen"})
 		return

@@ -133,17 +133,11 @@ func AuthMiddleware() gin.HandlerFunc {
 			// 降级到旧方式
 			log.Printf("⚠️  缓存查询失败，降级到数据库: %v", err)
 			userRepo := repository.NewUserRepository()
-			bannedUntil, frozenUntil, reason, err := userRepo.CheckBanStatus(uint(claims.UID))
+			bannedUntil, frozenUntil, _, err := userRepo.CheckBanStatus(uint(claims.UID))
 			if err == nil {
 				now := time.Now()
 				if bannedUntil != nil && bannedUntil.After(now) {
-					msg := "账号已被封禁"
-					if reason != "" {
-						msg = reason
-					}
-					c.JSON(http.StatusForbidden, gin.H{"error": msg + " (截至 " + bannedUntil.Format("2006-01-02 15:04:05") + ")"})
-					c.Abort()
-					return
+					// 封禁状态已不再阻止请求
 				}
 				if frozenUntil != nil && frozenUntil.After(now) {
 					c.JSON(http.StatusForbidden, gin.H{"error": "账号已被冻结至 " + frozenUntil.Format("2006-01-02 15:04:05")})
@@ -155,13 +149,7 @@ func AuthMiddleware() gin.HandlerFunc {
 			// 使用缓存的用户信息
 			now := time.Now()
 			if cachedUser.BannedUntil != nil && cachedUser.BannedUntil.After(now) {
-				msg := "账号已被封禁"
-				if cachedUser.BanReason != "" {
-					msg = cachedUser.BanReason
-				}
-				c.JSON(http.StatusForbidden, gin.H{"error": msg + " (截至 " + cachedUser.BannedUntil.Format("2006-01-02 15:04:05") + ")"})
-				c.Abort()
-				return
+				// 封禁状态已不再阻止请求
 			}
 			if cachedUser.FrozenUntil != nil && cachedUser.FrozenUntil.After(now) {
 				c.JSON(http.StatusForbidden, gin.H{"error": "账号已被冻结至 " + cachedUser.FrozenUntil.Format("2006-01-02 15:04:05")})

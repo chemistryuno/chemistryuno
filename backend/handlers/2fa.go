@@ -202,16 +202,9 @@ func Verify2FALogin(c *gin.Context) {
 		return
 	}
 
-	// 安全检查3: 检查封禁状态
+	// 封禁状态已不再阻止登录
 	now := time.Now()
-	if user.BannedUntil != nil && now.Before(*user.BannedUntil) {
-		c.JSON(http.StatusForbidden, gin.H{
-			"error": fmt.Sprintf("您的账号已被封禁，直到 %s", user.BannedUntil.Format("2006-01-02 15:04:05")),
-		})
-		return
-	}
-
-	// 安全检查4: 检查冻结状态
+	// 检查冻结状态
 	if user.FrozenUntil != nil && now.Before(*user.FrozenUntil) {
 		c.JSON(http.StatusForbidden, gin.H{
 			"error": fmt.Sprintf("您的账号当前处于冷冻状态，直到 %s", user.FrozenUntil.Format("2006-01-02 15:04:05")),

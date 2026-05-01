@@ -329,8 +329,43 @@ pnpm start
 ```text
 .
 ├── backend/
+│   ├── anticheat/            # 反作弊系统（检测、处罚、申诉、审计）
+│   ├── cache/                # 缓存层（Redis）
+│   ├── config/               # 配置文件（包含反作弊配置）
+│   ├── database/             # 数据库模型与迁移
+│   ├── deckcfg/              # 卡组配置管理
 │   ├── game/                 # 游戏核心逻辑（规则、AI、回合、房间）
 │   ├── handlers/             # HTTP 处理器（auth/game/admin/plugin...）
+│   ├── middleware/           # 中间件（认证、CORS、速率限制）
+│   ├── models/               # 数据结构定义
+│   ├── plugins/              # 插件系统（脚本运行时）
+│   ├── repository/           # 数据访问层（DAO）
+│   ├── router/               # 路由注册
+│   ├── scripts/              # 工具脚本（初始化、迁移等）
+│   ├── static/               # 静态资源、法律文档
+│   ├── utils/                # 工具函数库
+│   └── websocket/            # WebSocket 连接管理
+├── docs/                     # 📚 集中式文档库
+│   ├── anticheat/            # 反作弊系统文档
+│   ├── api/                  # API 文档
+│   ├── guides/               # 用户与开发指南
+│   ├── architecture/         # 架构设计文档
+│   └── legal/                # 法律文档（隐私政策等）
+├── frontend/                 # Vue 3 前端应用
+│   ├── src/
+│   │   ├── components/       # Vue 组件
+│   │   ├── views/            # 页面组件
+│   │   ├── stores/           # Pinia 状态管理
+│   │   ├── api/              # API 请求层
+│   │   └── utils/            # 工具函数
+│   ├── electron/             # Electron 桌面壳
+│   └── public/               # 公开资源
+├── scripts/                  # 项目级工具脚本
+├── tools/                    # Go 工具集（数据库初始化等）
+├── main.go                   # 后端入口
+├── package.json              # 项目元数据与脚本
+└── README.md                 # 本文档
+```
 │   ├── router/               # 路由装配层（分组、鉴权绑定、路径注册）
 │   ├── middleware/           # 鉴权、权限、CORS
 │   ├── repository/           # 数据访问层
@@ -432,6 +467,220 @@ pnpm start
 ## 📄 许可证
 
 MIT License
+
+---
+
+## 🏗️ 文件职责与分层约定
+
+详见 [docs/architecture/FILE_RESPONSIBILITIES.md](docs/architecture/FILE_RESPONSIBILITIES.md)
+
+**核心原则**：
+
+- `handlers`：HTTP 请求解析、应答塑形、认证检验，禁止直接操作 SQL
+- `repository`：数据访问与查询组合，禁止 HTTP 相关逻辑
+- `game`：游戏引擎、规则、AI 决策、房间生命周期
+- `middleware`：跨层请求过滤（认证、速率限制、CORS）
+- `websocket`：Socket 生命周期与消息发布
+- `scripts`：后端数据库/数据迁移脚本
+- `tools/cmd/*`：独立 Go 工具模块与一次性维护工具
+
+---
+
+## 🧪 测试建议
+
+### 后端测试
+
+```bash
+# 运行所有 Go 测试
+pnpm run go:test
+
+# 特定包测试
+go test ./backend/game -v
+go test ./backend/anticheat -v
+
+# 覆盖率统计
+go test -cover ./...
+```
+
+### 前端测试
+
+```bash
+# 运行前端单元测试（如配置）
+pnpm -C frontend test
+
+# 类型检查
+pnpm -C frontend type-check
+```
+
+### E2E 测试
+
+```bash
+# 启动测试环境
+pnpm test
+
+# 后续可集成 Playwright / Cypress
+```
+
+### 反作弊系统测试
+
+关键测试覆盖：
+- 风险评分计算精度
+- 多维度检测准确性
+- 处罚等级映射
+- 申诉工作流
+- 审计日志完整性
+
+详见 `backend/anticheat/anticheat_test.go` 和集成测试。
+
+---
+
+## 📚 文档索引
+
+### 核心文档
+
+| 文档 | 位置 | 用途 |
+|-----|-----|-----|
+| **反作弊系统指南** | [docs/anticheat/ANTICHEAT_GUIDE.md](docs/anticheat/ANTICHEAT_GUIDE.md) | 完整的反作弊系统参考（架构、检测、配置、运维） |
+| **文件职责** | [docs/architecture/FILE_RESPONSIBILITIES.md](docs/architecture/FILE_RESPONSIBILITIES.md) | 代码分层约定与文件所有权规则 |
+| **隐私政策** | [docs/legal/PRIVACY_POLICY.md](docs/legal/PRIVACY_POLICY.md) | 用户隐私相关 |
+| **用户协议** | [docs/legal/USER_AGREEMENT.md](docs/legal/USER_AGREEMENT.md) | 用户服务条款 |
+
+### 在线资源与参考
+
+- **API 文档**：启动后端后访问 `http://localhost:8080/swagger`（如配置 Swagger）
+- **数据库模型**：见 `backend/database/models.go`
+- **游戏规则**：见 `backend/game/judge.go` 和 `backend/game/chemistry.go`
+- **插件开发**：见 `backend/plugins/runtime.go` 和管理员文档
+
+---
+
+## ❓ FAQ / 排障
+
+### Q1: 启动时提示"数据库连接失败"
+
+**原因**：未初始化数据库或配置错误
+
+**解决**：
+```bash
+pnpm run init
+# 或手动初始化
+pnpm run db:init
+```
+
+### Q2: 前端无法连接后端（CORS 错误）
+
+**原因**：VITE_SERVER_ORIGIN 配置错误或后端未启动
+
+**解决**：
+```bash
+# 确认后端在运行
+curl http://localhost:8080/api/health
+
+# 检查 .env 中的 VITE_SERVER_ORIGIN 设置
+# 应为 http://127.0.0.1:8080（开发环境）
+```
+
+### Q3: Electron 打包后白屏
+
+**原因**：CHEM_SERVER_ORIGIN 配置指向本地开发服务器
+
+**解决**：
+```bash
+# 设置正确的生产服务器地址
+export CHEM_SERVER_ORIGIN=https://your-production-server.com
+pnpm electron:pack:win
+```
+
+### Q4: 反作弊系统检测量偏低
+
+**原因**：配置阈值过高或检测维度权重不合理
+
+**解决**：
+1. 查看 [docs/anticheat/ANTICHEAT_GUIDE.md](docs/anticheat/ANTICHEAT_GUIDE.md) 的配置示例
+2. 通过管理后台逐步调整权重和阈值
+3. 持续监控申诉率，确保误判率可接受
+
+### Q5: 如何在 Android 上运行游戏
+
+**解决**：
+```bash
+pnpm android:add              # 首次初始化 Android 工程
+pnpm android:sync             # 构建前端并同步到 Android
+pnpm android:build:debug      # 生成调试 APK
+# 然后用 ADB 安装：adb install release/app-debug.apk
+```
+
+---
+
+## 🤝 贡献
+
+欢迎贡献代码、报告问题、改进文档！
+
+### 贡献流程
+
+1. **创建 Issue** - 讨论计划的功能或问题修复
+2. **Fork & Branch** - 从 `main` 创建特性分支（如 `feature/xxx` 或 `fix/xxx`）
+3. **开发与测试** - 确保代码通过测试并遵循分层约定
+4. **创建 Pull Request** - 详细描述改动内容
+5. **代码审查** - 参与讨论并根据反馈调整
+6. **合并** - 由项目维护者合并至主分支
+
+### 编码规范
+
+- **Go**：遵循 [Effective Go](https://golang.org/doc/effective_go) 和 [Go Code Review Comments](https://github.com/golang/go/wiki/CodeReviewComments)
+- **Vue/TypeScript**：
+  - 使用 Composition API
+  - 启用 TypeScript 严格模式
+  - 遵循 ESLint 规则
+  - 每行不超过 120 字符
+
+### 分支命名
+
+- `feature/xxx` - 新功能
+- `fix/xxx` - Bug 修复
+- `refactor/xxx` - 代码重构
+- `docs/xxx` - 文档改进
+- `chore/xxx` - 构建、依赖更新等
+
+### 提交消息规范
+
+```
+<type>(<scope>): <subject>
+
+<body>
+
+<footer>
+```
+
+示例：
+```
+feat(anticheat): add pattern detection dimension
+
+Implements a new detection strategy based on operation pattern analysis.
+Adds periodic pattern checks during game end processing.
+
+Closes #123
+```
+
+### 测试要求
+
+- 新功能必须有对应的单元测试
+- 修复 Bug 时应添加回归测试
+- 确保所有测试通过：`pnpm test` 和 `pnpm go:test`
+
+---
+
+## 📞 支持与反馈
+
+- **Issue 追踪**：使用 GitHub Issues 报告 Bug 和功能请求
+- **讨论**：在 Discussions 中参与社区讨论
+- **安全问题**：请勿在 Issue 中公开，改为私密报告给维护者
+
+---
+
+## 📄 许可证
+
+本项目采用 MIT License 开源。详见 [LICENSE](LICENSE) 文件。
 
 ---
 

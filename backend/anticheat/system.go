@@ -22,6 +22,7 @@ type System struct {
 // NewSystem 创建反作弊系统实例
 func NewSystem(db *gorm.DB, configPath string) (*System, error) {
 	repo := repository.NewCheatRepository(db)
+	userRepo := repository.NewUserRepository()
 
 	// 初始化配置管理器
 	configMgr, err := NewConfigManager(configPath)
@@ -49,7 +50,7 @@ func NewSystem(db *gorm.DB, configPath string) (*System, error) {
 
 	// 初始化其他组件
 	decider := NewSanctionDecider(config, repo)
-	appealMgr := NewAppealManager(repo)
+	appealMgr := NewAppealManager(repo, userRepo)
 	auditLog := NewAuditLogger(repo)
 
 	system := &System{

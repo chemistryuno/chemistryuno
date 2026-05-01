@@ -230,3 +230,12 @@ func (cr *CheatRepository) GetRiskScoreDistribution(startTime, endTime time.Time
 
 	return distribution, nil
 }
+
+// UpdateAppealCompensation 更新申诉的补偿状态
+func (cr *CheatRepository) UpdateAppealCompensation(appealID uint, status string, amount int, note string) error {
+	return cr.db.Model(&database.CheatAppeal{}).Where("id = ?", appealID).Updates(map[string]interface{}{
+		"compensation_status": status,
+		"compensation_amount": amount,
+		"compensation_note":   note,
+	}).Error
+}

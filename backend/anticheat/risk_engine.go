@@ -38,6 +38,13 @@ type RiskScoringConfig struct {
 	Dimensions      map[string]DimensionConfig `json:"dimensions"`
 	SanctionThresholds SanctionThresholds       `json:"sanction_thresholds"`
 	EnabledStrategies  []string                 `json:"enabled_strategies"`
+	UnbanConfig        UnbanConfig              `json:"unban_config"`
+}
+
+// UnbanConfig 解封补偿配置
+type UnbanConfig struct {
+	CompensationAmount int    `json:"compensation_amount"`       // 默认补偿燃素数量
+	DefaultMessage     string `json:"default_message"`           // 默认解封消息文案
 }
 
 // DimensionConfig 维度配置
@@ -243,6 +250,10 @@ func NewDefaultConfig() *RiskScoringConfig {
 			"win_rate",
 			"pattern",
 			"account_age",
+		},
+		UnbanConfig: UnbanConfig{
+			CompensationAmount: 100,
+			DefaultMessage:     "由于反作弊系统将您误封，在此，ChemistryUNO开发组向受到影响的研究员提供100燃素补偿，感谢研究员对维护纯净游戏环境做出的贡献",
 		},
 	}
 }

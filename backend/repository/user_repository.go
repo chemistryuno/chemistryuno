@@ -98,6 +98,16 @@ func (r *UserRepository) ExistsByEmail(email string) (bool, error) {
 	return count > 0, err
 }
 
+// ExistsByNickname 检查昵称是否存在
+func (r *UserRepository) ExistsByNickname(nickname string) (bool, error) {
+	if nickname == "" {
+		return false, nil
+	}
+	var count int64
+	err := r.db.Model(&database.User{}).Where("nickname = ?", nickname).Count(&count).Error
+	return count > 0, err
+}
+
 // FindByEmail 按邮箱或用户名查找用户
 func (r *UserRepository) FindByEmailOrUsername(identifier string) (*database.User, error) {
 	var user database.User
@@ -622,3 +632,47 @@ func (r *UserRepository) UpdateSecurityQuestion(uid uint, question, hashedAnswer
 func (r *UserRepository) UpdateEmail(uid uint, email string) error {
 	return r.db.Model(&database.User{}).Where("uid = ?", uid).Update("email", email).Error
 }
+
+// AddFuel 向用户账户添加燃素（幂等操作）
+// compensationID 用于幂等性检查，防止重复发放
+func (r *UserRepository) AddFuel(uid uint, amount int, compensationID string) (int, error) {
+	if amount <= 0 {
+		return 0, errors.New("燃素金额必须大于0")
+	}
+
+	// 检查是否已经为该补偿ID发放过燃素
+	if compensationID != "" {
+		var count int64
+		err := r.db.Model(&database.FuelCompensationRecord{}).
+			Where("user_uid = ? AND compensation_id = ?", uid, compensationID).
+			Count(&count).Error
+		if err != nil {
+			return 0, fmt.Errorf("检查燃素补偿记录失败: %w", err)
+		}
+		if count > 0 {
+			return 0, errors.New("该补偿已经发放过")
+		}
+	}
+
+	// 在事务中执行燃素添加和记录
+	return amount, r.db.Transaction(func(tx *gorm.DB) error {
+		// 更新用户燃素余额
+		if err := tx.Model(&database.User{}).Where("uid = ?", uid).Update("fuel", gorm.Expr("fuel + ?", amount)).Error; err != nil {
+			return fmt.Errorf("更新燃素余额失败: %w", err)
+		}
+
+		// 记录燃素补偿历史
+		record := &database.FuelCompensationRecord{
+			UserUID:        uid,
+			Amount:         amount,
+			CompensationID: compensationID,
+			CreatedAt:      time.Now(),
+		}
+		if err := tx.Create(record).Error; err != nil {
+			return fmt.Errorf("记录燃素补偿失败: %w", err)
+		}
+
+		return nil
+	})
+}
+

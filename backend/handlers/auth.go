@@ -185,6 +185,24 @@ func Register(c *gin.Context) {
 		newUID = 100000000
 	}
 
+	// 如果昵称为空，生成随机昵称并确保在数据库中不存在（尝试若干次）
+	if strings.TrimSpace(req.Nickname) == "" {
+		base := "研究员"
+		candidate := utils.GenerateRandomNickname(base)
+		for i := 0; i < 8; i++ {
+			exists, _ := userRepo.ExistsByNickname(candidate)
+			if !exists {
+				req.Nickname = candidate
+				break
+			}
+			candidate = utils.GenerateRandomNickname(base)
+		}
+		if req.Nickname == "" {
+			// 最后回退到用户名作为昵称
+			req.Nickname = req.Username
+		}
+	}
+
 	user := &database.User{
 		UID:              newUID,
 		Username:         req.Username,

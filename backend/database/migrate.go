@@ -50,6 +50,7 @@ func autoMigrate() error {
 		&SurveyQuestion{},
 		&SurveyResponse{},
 		&SurveyAnswer{},
+		&FuelCompensationRecord{},
 	)
 
 	if err != nil {

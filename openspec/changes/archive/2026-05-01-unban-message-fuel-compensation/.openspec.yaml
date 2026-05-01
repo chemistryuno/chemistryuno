@@ -1,0 +1,16 @@
+id: unban-message-fuel-compensation
+title: Unban message and fuel compensation
+author: chemistryuno dev
+status: draft
+apply:
+  requires:
+    - tasks
+artifacts:
+  - id: proposal
+    type: proposal
+  - id: design
+    type: design
+    depends_on: [proposal]
+  - id: tasks
+    type: tasks
+    depends_on: [design]

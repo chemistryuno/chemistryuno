@@ -127,7 +127,8 @@ func (h *AnticheatHandler) ApproveAppeal(c *gin.Context) {
 	}
 
 	var req struct {
-		Remark string `json:"remark"`
+		Remark             string `json:"remark"`
+		CompensationAmount *int   `json:"compensation_amount"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -138,7 +139,12 @@ func (h *AnticheatHandler) ApproveAppeal(c *gin.Context) {
 	// TODO: 获取当前用户ID
 	reviewerUID := uint(1)
 
-	if err := h.acSystem.AppealManager.ApproveAppeal(uint(appealID), reviewerUID, req.Remark, h.acSystem.Decider); err != nil {
+	config := h.acSystem.Config.GetConfig()
+	if req.CompensationAmount != nil {
+		config.UnbanConfig.CompensationAmount = *req.CompensationAmount
+	}
+
+	if err := h.acSystem.AppealManager.ApproveAppeal(uint(appealID), reviewerUID, req.Remark, h.acSystem.Decider, config); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

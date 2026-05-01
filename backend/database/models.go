@@ -95,6 +95,7 @@ type User struct {
 	CustomContact      string         `gorm:"size:255;default:''" json:"custom_contact"`
 	SecurityQuestion   string         `gorm:"size:500;default:''" json:"security_question"`
 	SecurityAnswer     string         `gorm:"size:255;default:''" json:"-"` // 存储bcrypt哈希
+	Fuel               int            `gorm:"default:0" json:"fuel"`
 	CreatedAt          time.Time      `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt          time.Time      `gorm:"autoUpdateTime" json:"updated_at"`
 	DeletedAt          gorm.DeletedAt `gorm:"index" json:"-"`
@@ -493,20 +494,23 @@ func (CheatSanction) TableName() string {
 
 // CheatAppeal GORM模型 - 作弊申诉表
 type CheatAppeal struct {
-	ID            uint       `gorm:"primaryKey;autoIncrement" json:"id"`
-	RoomID        string     `gorm:"not null;size:50;index" json:"room_id"`
-	PlayerUID     uint       `gorm:"not null;index" json:"player_uid"`
-	RiskScoreID   uint       `gorm:"index" json:"risk_score_id"`
-	SanctionID    uint       `gorm:"index" json:"sanction_id"`
-	Reason        string     `gorm:"not null;type:text" json:"reason"`
-	Evidence      string     `gorm:"type:text" json:"evidence"`
-	Status        string     `gorm:"not null;default:pending;size:20;index" json:"status"` // "pending", "under_review", "approved", "rejected"
-	ReviewerUID   *uint      `gorm:"index" json:"reviewer_uid"`
-	ReviewedAt    *time.Time `json:"reviewed_at"`
-	ReviewRemark  string     `gorm:"type:text" json:"review_remark"`
-	SubmittedAt   time.Time  `gorm:"not null;autoCreateTime" json:"submitted_at"`
-	CreatedAt     time.Time  `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt     time.Time  `gorm:"autoUpdateTime" json:"updated_at"`
+	ID                    uint       `gorm:"primaryKey;autoIncrement" json:"id"`
+	RoomID                string     `gorm:"not null;size:50;index" json:"room_id"`
+	PlayerUID             uint       `gorm:"not null;index" json:"player_uid"`
+	RiskScoreID           uint       `gorm:"index" json:"risk_score_id"`
+	SanctionID            uint       `gorm:"index" json:"sanction_id"`
+	Reason                string     `gorm:"not null;type:text" json:"reason"`
+	Evidence              string     `gorm:"type:text" json:"evidence"`
+	Status                string     `gorm:"not null;default:pending;size:20;index" json:"status"` // "pending", "under_review", "approved", "rejected"
+	ReviewerUID           *uint      `gorm:"index" json:"reviewer_uid"`
+	ReviewedAt            *time.Time `json:"reviewed_at"`
+	ReviewRemark          string     `gorm:"type:text" json:"review_remark"`
+	CompensationAmount    int        `gorm:"default:0" json:"compensation_amount"`
+	CompensationStatus    string     `gorm:"size:20;default:'pending'" json:"compensation_status"` // "pending", "completed", "failed"
+	CompensationNote      string     `gorm:"type:text" json:"compensation_note"`
+	SubmittedAt           time.Time  `gorm:"not null;autoCreateTime" json:"submitted_at"`
+	CreatedAt             time.Time  `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt             time.Time  `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
 func (CheatAppeal) TableName() string {
@@ -535,3 +539,18 @@ type CheatAuditLog struct {
 func (CheatAuditLog) TableName() string {
 	return "cheat_audit_logs"
 }
+
+// FuelCompensationRecord 燃素补偿记录表
+type FuelCompensationRecord struct {
+	ID             uint      `gorm:"primaryKey;autoIncrement" json:"id"`
+	UserUID        uint      `gorm:"not null;index" json:"user_uid"`
+	Amount         int       `gorm:"not null" json:"amount"`
+	CompensationID string    `gorm:"size:100;index" json:"compensation_id"`
+	Reason         string    `gorm:"size:255;default:''" json:"reason"`
+	CreatedAt      time.Time `gorm:"not null;autoCreateTime;index" json:"created_at"`
+}
+
+func (FuelCompensationRecord) TableName() string {
+	return "fuel_compensation_records"
+}
+

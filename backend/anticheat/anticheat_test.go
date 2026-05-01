@@ -179,3 +179,36 @@ func TestCheatReportManager(t *testing.T) {
 		t.Errorf("Expected reason 'Fast reaction', but got %s", reports[0].Reason)
 	}
 }
+
+// TestUnbanConfig_Defaults 测试解封补偿配置默认值
+func TestUnbanConfig_Defaults(t *testing.T) {
+	config := NewDefaultConfig()
+
+	if config.UnbanConfig.CompensationAmount != 100 {
+		t.Errorf("Expected default compensation amount 100, got %d", config.UnbanConfig.CompensationAmount)
+	}
+
+	if config.UnbanConfig.DefaultMessage == "" {
+		t.Error("Expected non-empty default unban message")
+	}
+}
+
+// TestUnbanConfig_Serialization 测试解封配置序列化
+func TestUnbanConfig_Serialization(t *testing.T) {
+	config := NewDefaultConfig()
+	config.UnbanConfig.CompensationAmount = 200
+
+	data, err := json.Marshal(config)
+	if err != nil {
+		t.Fatalf("Failed to marshal config: %v", err)
+	}
+
+	var restored RiskScoringConfig
+	if err := json.Unmarshal(data, &restored); err != nil {
+		t.Fatalf("Failed to unmarshal config: %v", err)
+	}
+
+	if restored.UnbanConfig.CompensationAmount != 200 {
+		t.Errorf("Expected compensation amount 200 after round-trip, got %d", restored.UnbanConfig.CompensationAmount)
+	}
+}

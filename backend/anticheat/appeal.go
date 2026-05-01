@@ -3,6 +3,7 @@ package anticheat
 import (
 	"chemistryuno/backend/database"
 	"chemistryuno/backend/repository"
+	"fmt"
 	"log"
 	"time"
 )
@@ -10,12 +11,14 @@ import (
 // AppealManager 申诉管理器
 type AppealManager struct {
 	repository *repository.CheatRepository
+	userRepo   *repository.UserRepository
 }
 
 // NewAppealManager 创建申诉管理器
-func NewAppealManager(repo *repository.CheatRepository) *AppealManager {
+func NewAppealManager(repo *repository.CheatRepository, userRepo *repository.UserRepository) *AppealManager {
 	return &AppealManager{
 		repository: repo,
+		userRepo:   userRepo,
 	}
 }
 
@@ -53,8 +56,8 @@ func (am *AppealManager) GetPendingAppeals(limit int) ([]database.CheatAppeal, e
 	return appeals, nil
 }
 
-// ApproveAppeal 批准申诉
-func (am *AppealManager) ApproveAppeal(appealID uint, reviewerUID uint, remark string, sanctionDecider *SanctionDecider) error {
+// ApproveAppeal 批准申诉并发放补偿燃素
+func (am *AppealManager) ApproveAppeal(appealID uint, reviewerUID uint, remark string, sanctionDecider *SanctionDecider, config *RiskScoringConfig) error {
 	appeal, err := am.repository.GetAppealByID(appealID)
 	if err != nil {
 		log.Printf("[申诉] 查询申诉失败: %v", err)
@@ -73,6 +76,26 @@ func (am *AppealManager) ApproveAppeal(appealID uint, reviewerUID uint, remark s
 			log.Printf("[申诉] 撤销处罚失败: %v", err)
 			return err
 		}
+	}
+
+	// 发放燃素补偿
+	compensationAmount := config.UnbanConfig.CompensationAmount
+	compensationID := fmt.Sprintf("appeal_%d", appealID)
+
+	if _, err := am.userRepo.AddFuel(appeal.PlayerUID, compensationAmount, compensationID); err != nil {
+		// 记录补偿失败但不中断解封流程
+		log.Printf("[申诉] 燃素补偿失败 (玩家: %d, 金额: %d): %v", appeal.PlayerUID, compensationAmount, err)
+
+		// 更新申诉记录的补偿状态为失败
+		if updateErr := am.repository.UpdateAppealCompensation(appealID, "failed", compensationAmount, fmt.Sprintf("补偿失败: %v", err)); updateErr != nil {
+			log.Printf("[申诉] 更新补偿状态失败: %v", updateErr)
+		}
+	} else {
+		// 补偿成功，更新申诉记录
+		if updateErr := am.repository.UpdateAppealCompensation(appealID, "completed", compensationAmount, "补偿成功"); updateErr != nil {
+			log.Printf("[申诉] 更新补偿状态失败: %v", updateErr)
+		}
+		log.Printf("[申诉] 已发放燃素补偿 (玩家: %d, 金额: %d)", appeal.PlayerUID, compensationAmount)
 	}
 
 	log.Printf("[申诉] 已批准申诉 ID: %d (玩家: %d，审核人: %d)", appealID, appeal.PlayerUID, reviewerUID)

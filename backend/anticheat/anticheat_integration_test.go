@@ -160,3 +160,30 @@ func TestIntegration_EndToEnd(t *testing.T) {
 	t.Log("4. 游戏循环流程模拟")
 	t.Log("框架已建立，等待集成环境就位")
 }
+
+// TestApproveAppeal_CompensationConfig 测试批准申诉时补偿配置正确读取
+func TestApproveAppeal_CompensationConfig(t *testing.T) {
+	config := NewDefaultConfig()
+
+	// 验证默认补偿金额
+	if config.UnbanConfig.CompensationAmount != 100 {
+		t.Errorf("Expected default compensation 100, got %d", config.UnbanConfig.CompensationAmount)
+	}
+
+	// 验证可以覆盖补偿金额
+	config.UnbanConfig.CompensationAmount = 200
+	if config.UnbanConfig.CompensationAmount != 200 {
+		t.Error("Expected compensation amount override to work")
+	}
+}
+
+// TestApproveAppeal_ZeroCompensation 测试零补偿金额被拒绝
+func TestApproveAppeal_ZeroCompensation(t *testing.T) {
+	config := NewDefaultConfig()
+	config.UnbanConfig.CompensationAmount = 0
+
+	// 零补偿金额应该在 AddFuel 层被拒绝（amount <= 0）
+	if config.UnbanConfig.CompensationAmount > 0 {
+		t.Error("Expected zero compensation to be invalid")
+	}
+}

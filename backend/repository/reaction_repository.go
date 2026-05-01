@@ -194,13 +194,13 @@ type ReactionWithCreator struct {
 }
 
 type ReactionListFilter struct {
-	ViewerUID        *uint
-	IncludeApproved  bool
-	Search           string
-	Status           string
-	HasInvalid       *bool
-	Page             int
-	PageSize         int
+	ViewerUID       *uint
+	IncludeApproved bool
+	Search          string
+	Status          string
+	HasInvalid      *bool
+	Page            int
+	PageSize        int
 }
 
 func (r *ReactionRepository) applyReactionListFilter(query *gorm.DB, filter ReactionListFilter) *gorm.DB {

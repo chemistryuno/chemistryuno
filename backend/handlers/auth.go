@@ -256,7 +256,7 @@ func Login(c *gin.Context) {
 	now := time.Now()
 	// 封禁用户不再被禁止登录
 	// if user.BannedUntil != nil && now.Before(*user.BannedUntil) {
-	// ... 
+	// ...
 	// }
 
 	if user.FrozenUntil != nil && now.Before(*user.FrozenUntil) {

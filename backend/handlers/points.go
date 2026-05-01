@@ -22,12 +22,16 @@ func GetLeaderboard(c *gin.Context) {
 		orderBy = "monthly_points"
 	}
 
-	// 包含所有用户（封禁用户会标记 CHEATER 标签）
-	db := database.DB
+	// 使用缓存获取排行榜
+	leaderboardData, err := repository.GetLeaderboardWithCache(c.Request.Context(), orderBy, 100)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取排行榜失败"})
+		return
+	}
 
 	// 预先获取等级配置以避免循环查询
-	var levelConfigs []database.LevelConfig
-	if err := db.Find(&levelConfigs).Error; err != nil {
+	levelConfigs, err := repository.GetLevelConfigsWithCache(c.Request.Context())
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取排行榜失败"})
 		return
 	}
@@ -36,49 +40,46 @@ func GetLeaderboard(c *gin.Context) {
 		configMap[conf.Level] = conf
 	}
 
-	var users []database.User
-	err := db.Order(orderBy + " DESC, uid ASC").Limit(100).Find(&users).Error
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取排行榜失败"})
-		return
-	}
-
 	var leaderboard []map[string]interface{}
 	foundSelf := false
-	for _, user := range users {
-		if int(user.UID) == uid {
+	for _, entry := range leaderboardData {
+		if int(entry.UID) == uid {
 			foundSelf = true
 		}
 
-		conf := configMap[user.Level]
-		totalBounty, _ := repository.BountyRepo.GetTotalBounty(user.UID)
+		conf := configMap[entry.Level]
+		totalBounty, _ := repository.GetBountyTotalWithCache(c.Request.Context(), entry.UID)
 		isOnline := false
 		if websocket.GlobalHub != nil {
-			isOnline = websocket.GlobalHub.IsUIDOnline(int(user.UID))
+			isOnline = websocket.GlobalHub.IsUIDOnline(int(entry.UID))
 		}
 
-		isBanned := user.BannedUntil != nil && time.Now().Before(*user.BannedUntil)
+		// 获取用户完整信息以检查封禁状态
+		user, _ := repository.UserRepo.FindByUID(entry.UID)
+		isBanned := false
+		if user != nil {
+			isBanned = user.BannedUntil != nil && time.Now().Before(*user.BannedUntil)
+		}
 
 		leaderboard = append(leaderboard, map[string]interface{}{
-			"uid":             user.UID,
-			"username":        user.Username,
-			"nickname":        user.Nickname,
-			"avatar":          user.Avatar,
-			"points":          user.Points,
-			"monthly_points":  user.MonthlyPoints,
-			"level":           user.Level,
-			"tier":            conf.Tier,
-			"tier_name":       conf.TierName,
-			"win_count":       user.WinCount,
-			"total_games":     user.TotalGames,
-			"bounty":          totalBounty,
-			"is_online":       isOnline,
-			"is_banned":       isBanned,
-			"last_offline_at": user.LastOfflineAt,
+			"uid":            entry.UID,
+			"username":       entry.Username,
+			"nickname":       entry.Nickname,
+			"avatar":         entry.Avatar,
+			"points":         entry.Points,
+			"monthly_points": entry.MonthlyPoints,
+			"level":          entry.Level,
+			"tier":           conf.Tier,
+			"tier_name":      conf.TierName,
+			"win_count":      entry.WinCount,
+			"total_games":    entry.TotalGames,
+			"bounty":         totalBounty,
+			"is_online":      isOnline,
+			"is_banned":      isBanned,
 		})
 	}
 
-	// 如果自己不在前100名中，则单独获取并追加（或作为额外信息返回）
+	// 如果自己不在前100名中，则单独获取并追加
 	var selfInfo map[string]interface{}
 	if !foundSelf && uid > 0 {
 		var user database.User
@@ -96,7 +97,7 @@ func GetLeaderboard(c *gin.Context) {
 			}
 
 			conf := configMap[user.Level]
-			totalBounty, _ := repository.BountyRepo.GetTotalBounty(user.UID)
+			totalBounty, _ := repository.GetBountyTotalWithCache(c.Request.Context(), user.UID)
 			isOnline := false
 			if websocket.GlobalHub != nil {
 				isOnline = websocket.GlobalHub.IsUIDOnline(int(user.UID))
@@ -104,22 +105,21 @@ func GetLeaderboard(c *gin.Context) {
 			isBanned := user.BannedUntil != nil && time.Now().Before(*user.BannedUntil)
 
 			selfInfo = map[string]interface{}{
-				"uid":             user.UID,
-				"username":        user.Username,
-				"nickname":        user.Nickname,
-				"avatar":          user.Avatar,
-				"points":          user.Points,
-				"monthly_points":  user.MonthlyPoints,
-				"level":           user.Level,
-				"tier":            conf.Tier,
-				"tier_name":       conf.TierName,
-				"win_count":       user.WinCount,
-				"total_games":     user.TotalGames,
-				"bounty":          totalBounty,
-				"is_online":       isOnline,
-				"is_banned":       isBanned,
-				"rank":            rank + 1,
-				"last_offline_at": user.LastOfflineAt,
+				"uid":            user.UID,
+				"username":       user.Username,
+				"nickname":       user.Nickname,
+				"avatar":         user.Avatar,
+				"points":         user.Points,
+				"monthly_points": user.MonthlyPoints,
+				"level":          user.Level,
+				"tier":           conf.Tier,
+				"tier_name":      conf.TierName,
+				"win_count":      user.WinCount,
+				"total_games":    user.TotalGames,
+				"bounty":         totalBounty,
+				"is_online":      isOnline,
+				"is_banned":      isBanned,
+				"rank":           rank + 1,
 			}
 		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})

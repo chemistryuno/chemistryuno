@@ -118,9 +118,9 @@ func initializeLevelConfigs(db *gorm.DB) error {
 	}
 
 	// 经验计算参数（增强版 - 升级更难）
-	const baseXP = 100.0         // 基础经验
-	const growthRate = 0.12      // 增长系数（每级增长12%，原8%）
-	const scaleFactor = 2.0      // 高等级缩放因子（原1.5，现2.0更陡峭）
+	const baseXP = 100.0    // 基础经验
+	const growthRate = 0.12 // 增长系数（每级增长12%，原8%）
+	const scaleFactor = 2.0 // 高等级缩放因子（原1.5，现2.0更陡峭）
 
 	tx := db.Begin()
 	defer func() {

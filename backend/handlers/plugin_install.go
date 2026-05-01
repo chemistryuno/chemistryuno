@@ -1,4 +1,4 @@
-﻿package handlers
+package handlers
 
 import (
 	"archive/zip"
@@ -595,4 +595,3 @@ func CancelServerRestart(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "重启已取消"})
 }
-

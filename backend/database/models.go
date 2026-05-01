@@ -54,7 +54,7 @@ func (j *JSON) UnmarshalJSON(b []byte) error {
 type User struct {
 	UID                uint           `gorm:"primaryKey;autoIncrement" json:"uid"`
 	Username           string         `gorm:"size:50;uniqueIndex:idx_users_username;not null;default:''" json:"username"` // 主要登录标识符，唯一
-	Email              string         `gorm:"size:100;index:idx_users_email;default:''" json:"email"`                  // 可选，允许空值（多用户无邮箱）
+	Email              string         `gorm:"size:100;index:idx_users_email;default:''" json:"email"`                     // 可选，允许空值（多用户无邮箱）
 	Nickname           string         `gorm:"not null;size:50;default:''" json:"nickname"`
 	Password           string         `gorm:"not null;default:''" json:"-"`
 	Avatar             string         `gorm:"type:longtext" json:"avatar"`

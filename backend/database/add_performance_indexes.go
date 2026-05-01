@@ -40,6 +40,15 @@ func AddPerformanceIndexes(db *gorm.DB) error {
 	ensureIndex(db, &User{}, "idx_users_banned_until", "banned_until", "users(banned_until)")
 	ensureIndex(db, &User{}, "idx_users_frozen_until", "frozen_until", "users(frozen_until)")
 
+	// 4. Users 表 - 排行榜查询（缓存miss时的数据库查询）
+	ensureIndex(db, &User{}, "idx_users_points_desc", "points", "users(points) - 排行榜排序")
+	ensureIndex(db, &User{}, "idx_users_monthly_points_desc", "monthly_points", "users(monthly_points) - 月度排行榜排序")
+	ensureIndex(db, &User{}, "idx_users_level", "level", "users(level) - 等级查询")
+	ensureIndex(db, &User{}, "idx_users_total_xp", "total_xp", "users(total_xp) - 总经验排行榜")
+
+	// 5. Bounty 表索引 - 赏金查询
+	ensureIndex(db, &Bounty{}, "idx_bounty_uid", "uid", "bounty(uid) - 用户赏金查询")
+
 	log.Println("✅ 性能索引添加完成")
 	return nil
 }

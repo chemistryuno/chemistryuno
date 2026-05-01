@@ -227,4 +227,3 @@ func GetFriendsListWithRemarks(c *gin.Context) {
 
 	c.JSON(http.StatusOK, friends)
 }
-

@@ -1,4 +1,4 @@
-﻿package websocket
+package websocket
 
 import (
 	"chemistryuno/backend/repository"
@@ -231,7 +231,7 @@ func (c *Client) handleMessage(msg *Message) {
 			privateChatRepo := repository.NewPrivateChatRepository()
 			err = privateChatRepo.SavePrivateMessage(uint(c.uid), uint(msg.TargetUID), msg.Message, isGameInvite, roomID)
 			if err != nil {
-					log.Printf("❌ 保存私聊消息失败: %v", err)
+				log.Printf("❌ 保存私聊消息失败: %v", err)
 			}
 
 			// 发送给目标用户

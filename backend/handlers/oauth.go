@@ -709,7 +709,7 @@ func handleOAuthUser(c *gin.Context, provider, providerID, username, email, nick
 	}
 
 	// 设置安全的HttpOnly Cookie存储token
-	setSecureAuthCookie(c, "access_token", accessToken, 900)       // 15分钟
+	setSecureAuthCookie(c, "access_token", accessToken, 900)         // 15分钟
 	setSecureAuthCookie(c, "refresh_token", refreshToken, 7*24*3600) // 7天
 
 	// 将 user 序列化为 JSON，以便在 JS 中安全嵌入（防止特殊字符破坏脚本）

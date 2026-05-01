@@ -107,10 +107,10 @@ func main() {
 	for i := 1; i <= 4; i++ {
 		u := database.User{
 			Username: fmt.Sprintf("test%d", i),
-			Email: fmt.Sprintf("test%d@example.com", i),
+			Email:    fmt.Sprintf("test%d@example.com", i),
 			Nickname: fmt.Sprintf("测试用户%d", i),
 			Password: batchHash,
-			Avatar: "🧪", IsAdmin: false, Role: "user",
+			Avatar:   "🧪", IsAdmin: false, Role: "user",
 			Points: 1000, MonthlyPoints: 1000,
 		}
 		if err := database.DB.Create(&u).Error; err != nil {

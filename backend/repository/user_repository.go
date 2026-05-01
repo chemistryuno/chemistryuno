@@ -1,8 +1,10 @@
 package repository
 
 import (
+	"chemistryuno/backend/cache"
 	"chemistryuno/backend/database"
 	"chemistryuno/backend/models"
+	"context"
 	"errors"
 	"fmt"
 	"strconv"
@@ -241,9 +243,18 @@ func (r *UserRepository) UpdateBanStatusWithReason(uid uint, bannedUntil *time.T
 
 // AddPoints 增加用户积分
 func (r *UserRepository) AddPoints(uid uint, points int) error {
-	return r.db.Model(&database.User{}).
+	err := r.db.Model(&database.User{}).
 		Where("uid = ?", uid).
 		Update("points", gorm.Expr("points + ?", points)).Error
+
+	if err == nil {
+		// 失效排行榜缓存
+		_ = cache.InvalidateAllLeaderboardCache(context.Background())
+		// 失效用户统计缓存
+		_ = cache.InvalidateUserStatsCache(context.Background(), uid)
+	}
+
+	return err
 }
 
 // UpdateFreezeStatus 更新冻结状态
@@ -258,11 +269,20 @@ func (r *UserRepository) UpdateRoomReadyStatus(uid uint, ready bool) error {
 
 // IncrementPoints 增加积分
 func (r *UserRepository) IncrementPoints(uid uint, points int) error {
-	return r.db.Model(&database.User{}).Where("uid = ?", uid).
+	err := r.db.Model(&database.User{}).Where("uid = ?", uid).
 		Updates(map[string]interface{}{
 			"points":         gorm.Expr("points + ?", points),
 			"monthly_points": gorm.Expr("monthly_points + ?", points),
 		}).Error
+
+	if err == nil {
+		// 失效排行榜缓存
+		_ = cache.InvalidateAllLeaderboardCache(context.Background())
+		// 失效用户统计缓存
+		_ = cache.InvalidateUserStatsCache(context.Background(), uid)
+	}
+
+	return err
 }
 
 // IncrementMonthlyPoints 增加月度积分

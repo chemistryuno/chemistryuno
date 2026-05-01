@@ -1,6 +1,7 @@
 package game
 
 import (
+	"chemistryuno/backend/anticheat"
 	"chemistryuno/backend/database"
 	"chemistryuno/backend/models"
 	"chemistryuno/backend/plugins"
@@ -16,13 +17,28 @@ import (
 	"sort"
 	"sync"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 var (
-	rooms      = make(map[string]*GameRoom)
-	roomMutex  sync.RWMutex
-	configRepo *repository.ConfigRepository
+	rooms           = make(map[string]*GameRoom)
+	roomMutex       sync.RWMutex
+	configRepo      *repository.ConfigRepository
+	anticheatSystem *anticheat.System
 )
+
+// InitializeAnticheatSystem 初始化反作弊系统
+func InitializeAnticheatSystem(db *gorm.DB) error {
+	var err error
+	anticheatSystem, err = anticheat.NewSystem(db, "backend/config/anticheat.yaml")
+	if err != nil {
+		log.Printf("[游戏] 反作弊系统初始化失败: %v", err)
+		return err
+	}
+	log.Printf("[游戏] 反作弊系统初始化成功")
+	return nil
+}
 
 // scientistNames AI 玩家姓名库
 var scientistNames = []string{
@@ -562,6 +578,65 @@ func (gr *GameRoom) captureReplaySnapshotLocked(reason string) (string, []int, b
 	}
 
 	return string(encoded), cheatUIDs, len(cheatUIDs) > 0
+}
+
+// collectAnticheatDataLocked 收集反作弊检测所需的数据
+func (gr *GameRoom) collectAnticheatDataLocked() map[int]*anticheat.DetectionContext {
+	if gr == nil || gr.GameState == nil {
+		return nil
+	}
+
+	dataMap := make(map[int]*anticheat.DetectionContext)
+
+	// 遍历所有参与的玩家
+	for _, uid := range gr.Room.Players {
+		if uid <= 0 {
+			continue
+		}
+
+		context := &anticheat.DetectionContext{
+			PlayerUID:       uid,
+			RoomID:          gr.Room.ID,
+			ResponseTimes:   []int64{},
+			OperationCount:  0,
+			TimestampOffset: 10 * time.Second,
+			WinCount:        0,
+			TotalGames:      0,
+			AccountAgeDays:  0,
+			OperationTimes:  []time.Time{},
+		}
+
+		// 收集该玩家的快速反应数据
+		if gr.FastReactionUIDs != nil {
+			if count, exists := gr.FastReactionUIDs[uid]; exists {
+				context.ResponseTimes = append(context.ResponseTimes, int64(count*50)) // 估计响应时间
+			}
+		}
+
+		// 统计该玩家的操作次数
+		for _, event := range gr.ReplayEvents {
+			if eventUID, ok := event["uid"].(int); ok && eventUID == uid {
+				context.OperationCount++
+				if eventTime, ok := event["timestamp"].(time.Time); ok {
+					context.OperationTimes = append(context.OperationTimes, eventTime)
+				}
+			}
+		}
+
+		// 从数据库获取玩家的历史胜率数据
+		userRepo := repository.NewUserRepository()
+		if user, err := userRepo.FindByUID(uint(uid)); err == nil && user != nil {
+			context.WinCount = user.WinCount
+			context.TotalGames = user.TotalGames
+			// 计算账号年龄（天数）
+			daysSinceCreation := int(time.Since(user.CreatedAt).Hours() / 24)
+			context.AccountAgeDays = daysSinceCreation
+		}
+
+		dataMap[uid] = context
+	}
+
+	return dataMap
 }
 
 func maybeMarkFastHumanPlay(gr *GameRoom, uid int, nickname string, actionAt time.Time) (bool, int64) {
@@ -4328,7 +4403,46 @@ func finalizeGame(gr *GameRoom) {
 		"winner_uid":       winnerUID,
 		"finished_players": append([]int(nil), gr.GameState.FinishedPlayers...),
 	})
+
+	// 收集反作弊检测数据
+	var anticheatResults map[int]bool
+	anticheatResults = make(map[int]bool)
+
+	if anticheatSystem != nil {
+		dataMap := gr.collectAnticheatDataLocked()
+		for playerUID, context := range dataMap {
+			result, decision, err := anticheatSystem.ProcessGameEnd(gr.Room.ID, uint(playerUID), context)
+			if err != nil {
+				log.Printf("[反作弊] 处理游戏结束失败 (玩家 %d): %v", playerUID, err)
+				anticheatResults[playerUID] = false
+			} else if result != nil {
+				anticheatResults[playerUID] = result.RiskScore > 20 // 是否被标记为异常
+				if decision != nil && decision.SanctionType != "none" {
+					log.Printf("[反作弊] 玩家 %d 收到处罚: %s (分数: %.1f)",
+						playerUID, decision.SanctionType, result.RiskScore)
+				}
+			}
+		}
+	}
+
+	// 获取原有的快速反应检测结果
 	replayLog, cheatUIDs, cheatDetected := gr.captureReplaySnapshotLocked("game_finished")
+
+	// 如果反作弊系统有更强的检测结果，则使用反作弊系统的结果
+	if len(anticheatResults) > 0 {
+		newCheatUIDs := []int{}
+		for playerUID, isCheat := range anticheatResults {
+			if isCheat {
+				newCheatUIDs = append(newCheatUIDs, playerUID)
+			}
+		}
+		if len(newCheatUIDs) > 0 {
+			sort.Ints(newCheatUIDs)
+			cheatUIDs = newCheatUIDs
+			cheatDetected = true
+		}
+	}
+
 	saveGameHistory(gr.Room.ID, winnerUID, gr.Room.Players, gr.GameState.OriginalPlayerCount, gr.GameState.QuittedCount, gr.GameState.FinishedPlayers, false, "", &gameReplayMeta{
 		ReplayLog:       replayLog,
 		ReplayPermanent: cheatDetected,

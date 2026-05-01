@@ -450,3 +450,88 @@ type SystemConfig struct {
 func (SystemConfig) TableName() string {
 	return "system_configs"
 }
+
+// CheatRiskScore GORM模型 - 作弊风险评分表
+type CheatRiskScore struct {
+	ID                 uint          `gorm:"primaryKey;autoIncrement" json:"id"`
+	RoomID             string        `gorm:"not null;size:50;index" json:"room_id"`
+	PlayerUID          uint          `gorm:"not null;index" json:"player_uid"`
+	RiskScore          float64       `gorm:"not null;default:0;index" json:"risk_score"`
+	ResponseTimeDim    float64       `gorm:"not null;default:0" json:"response_time_dim"`
+	FrequencyDim       float64       `gorm:"not null;default:0" json:"frequency_dim"`
+	WinRateDim         float64       `gorm:"not null;default:0" json:"win_rate_dim"`
+	PatternDim         float64       `gorm:"not null;default:0" json:"pattern_dim"`
+	AccountAgeDim      float64       `gorm:"not null;default:0" json:"account_age_dim"`
+	DetectionTime      time.Time     `gorm:"not null;autoCreateTime" json:"detection_time"`
+	CreatedAt          time.Time     `gorm:"autoCreateTime" json:"created_at"`
+}
+
+func (CheatRiskScore) TableName() string {
+	return "cheat_risk_scores"
+}
+
+// CheatSanction GORM模型 - 作弊处罚表
+type CheatSanction struct {
+	ID             uint       `gorm:"primaryKey;autoIncrement" json:"id"`
+	RoomID         string     `gorm:"not null;size:50;index" json:"room_id"`
+	PlayerUID      uint       `gorm:"not null;index" json:"player_uid"`
+	RiskScoreID    uint       `gorm:"index" json:"risk_score_id"`
+	SanctionType   string     `gorm:"not null;size:20;index" json:"sanction_type"` // "observe", "warning", "mute", "ban"
+	RiskScore      float64    `gorm:"not null" json:"risk_score"`
+	Reason         string     `gorm:"type:text" json:"reason"`
+	Duration       *int       `gorm:"comment:禁言/封号时长(分钟)" json:"duration"`
+	AppliedAt      time.Time  `gorm:"not null;autoCreateTime" json:"applied_at"`
+	EffectiveUntil *time.Time `json:"effective_until"`
+	Status         string     `gorm:"default:active;size:20" json:"status"` // "active", "revoked", "expired"
+	CreatedAt      time.Time  `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt      time.Time  `gorm:"autoUpdateTime" json:"updated_at"`
+}
+
+func (CheatSanction) TableName() string {
+	return "cheat_sanctions"
+}
+
+// CheatAppeal GORM模型 - 作弊申诉表
+type CheatAppeal struct {
+	ID            uint       `gorm:"primaryKey;autoIncrement" json:"id"`
+	RoomID        string     `gorm:"not null;size:50;index" json:"room_id"`
+	PlayerUID     uint       `gorm:"not null;index" json:"player_uid"`
+	RiskScoreID   uint       `gorm:"index" json:"risk_score_id"`
+	SanctionID    uint       `gorm:"index" json:"sanction_id"`
+	Reason        string     `gorm:"not null;type:text" json:"reason"`
+	Evidence      string     `gorm:"type:text" json:"evidence"`
+	Status        string     `gorm:"not null;default:pending;size:20;index" json:"status"` // "pending", "under_review", "approved", "rejected"
+	ReviewerUID   *uint      `gorm:"index" json:"reviewer_uid"`
+	ReviewedAt    *time.Time `json:"reviewed_at"`
+	ReviewRemark  string     `gorm:"type:text" json:"review_remark"`
+	SubmittedAt   time.Time  `gorm:"not null;autoCreateTime" json:"submitted_at"`
+	CreatedAt     time.Time  `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt     time.Time  `gorm:"autoUpdateTime" json:"updated_at"`
+}
+
+func (CheatAppeal) TableName() string {
+	return "cheat_appeals"
+}
+
+// CheatAuditLog GORM模型 - 作弊审计日志表
+type CheatAuditLog struct {
+	ID             uint          `gorm:"primaryKey;autoIncrement" json:"id"`
+	EventType      string        `gorm:"not null;size:50;index" json:"event_type"` // "detection", "sanction", "appeal", "review", "revoke"
+	RoomID         string        `gorm:"size:50;index" json:"room_id"`
+	PlayerUID      uint          `gorm:"index" json:"player_uid"`
+	OperatorUID    *uint         `gorm:"index" json:"operator_uid"` // 操作人(审核人或系统)
+	RiskScoreID    *uint         `json:"risk_score_id"`
+	SanctionID     *uint         `json:"sanction_id"`
+	AppealID       *uint         `json:"appeal_id"`
+	RiskScore      *float64      `json:"risk_score"`
+	SanctionType   string        `gorm:"size:20" json:"sanction_type"`
+	OldStatus      string        `gorm:"size:50" json:"old_status"`
+	NewStatus      string        `gorm:"size:50" json:"new_status"`
+	Details        JSON          `gorm:"type:json" json:"details"`
+	Remark         string        `gorm:"type:text" json:"remark"`
+	CreatedAt      time.Time     `gorm:"not null;autoCreateTime;index" json:"created_at"`
+}
+
+func (CheatAuditLog) TableName() string {
+	return "cheat_audit_logs"
+}

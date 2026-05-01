@@ -1,0 +1,105 @@
+# 反作弊系统配置文件
+
+# 检测维度配置
+dimensions:
+  response_time:
+    # 维度权重（总权重应约为 1.0）
+    weight: 0.25
+    # 异常响应时间阈值（毫秒）
+    threshold: 100
+    # 用于异常检测的百分位数
+    percentile: 0.05
+
+  frequency:
+    weight: 0.25
+    # 最大操作数（时间窗口内）
+    threshold: 20
+    percentile: 0.95
+
+  win_rate:
+    weight: 0.20
+    # 胜率阈值（百分比，0-100）
+    threshold: 85
+    percentile: 0.99
+
+  pattern:
+    weight: 0.15
+    # 最小操作间隔（毫秒）
+    threshold: 50
+    percentile: 0.10
+
+  account_age:
+    weight: 0.15
+    # 新账号天数阈值
+    threshold: 7
+    percentile: 1.0
+
+# 处罚阈值配置
+sanction_thresholds:
+  # 观察 (系统标记但不处罚)
+  observe_min: 20
+  observe_max: 40
+
+  # 警告 (向玩家发送警告)
+  warning_min: 40
+  warning_max: 60
+
+  # 禁言 (限制聊天功能)
+  mute_min: 60
+  mute_max: 80
+
+  # 封号 (触发账号封禁)
+  ban_min: 80
+  ban_max: 100
+
+# 启用的检测策略
+enabled_strategies:
+  - response_time
+  - frequency
+  - win_rate
+  - pattern
+  - account_age
+
+# 检测参数微调
+detection:
+  # 响应时间异常的相对标准差倍数
+  response_time_std_multiplier: 2.0
+
+  # 胜率异常的最小样本量
+  win_rate_min_games: 10
+
+  # 操作模式异常的最小样本量
+  pattern_min_operations: 5
+
+  # 账号新旧程度的额外权重倍数
+  new_account_weight_multiplier: 1.5
+
+# 处罚相关配置
+sanctions:
+  # 禁言时长（分钟）
+  mute_duration: 60
+
+  # 封号时长（分钟，-1表示永久）
+  ban_duration: 10080  # 7天
+
+  # 处罚有效期检查间隔（分钟）
+  check_interval: 60
+
+# 日志相关配置
+logging:
+  # 是否启用详细日志
+  verbose: true
+
+  # 日志级别: debug, info, warn, error
+  level: info
+
+# 性能优化
+performance:
+  # 是否启用缓存
+  enable_cache: true
+
+  # 风险评分的缓存时间（秒）
+  cache_ttl: 300
+
+  # 批量处理审计日志的大小
+  batch_size: 100

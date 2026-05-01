@@ -15,8 +15,11 @@ func GetLeaderboardWithCache(ctx context.Context, orderBy string, limit int) ([]
 	cached, err := cache.GetLeaderboardCache(ctx, orderBy, limit)
 	if err != nil && err.Error() != "redis client not initialized" {
 		log.Printf("⚠️  Redis leaderboard 查询异常: %v", err)
-	} else if cached != nil && len(cached) > 0 {
-		return cached, nil
+	} else if cached != "" {
+		var cacheEntries []cache.LeaderboardCache
+		if err := json.Unmarshal([]byte(cached), &cacheEntries); err == nil && len(cacheEntries) > 0 {
+			return cacheEntries, nil
+		}
 	}
 
 	// 缓存 miss，查询数据库
@@ -45,7 +48,9 @@ func GetLeaderboardWithCache(ctx context.Context, orderBy string, limit int) ([]
 	}
 
 	// 缓存到 Redis
-	_ = cache.SetLeaderboardCache(ctx, orderBy, limit, cacheEntries)
+	if data, err := json.Marshal(cacheEntries); err == nil {
+		_ = cache.SetLeaderboardCache(ctx, orderBy, limit, string(data))
+	}
 
 	return cacheEntries, nil
 }
@@ -56,8 +61,11 @@ func GetBountyTotalWithCache(ctx context.Context, uid uint) (int, error) {
 	cached, err := cache.GetBountyTotalCache(ctx, uid)
 	if err != nil && err.Error() != "redis client not initialized" {
 		log.Printf("⚠️  Redis bounty 查询异常: %v", err)
-	} else if cached > 0 {
-		return int(cached), nil
+	} else if cached != "" {
+		amount, err := strconv.ParseFloat(cached, 64)
+		if err == nil && amount > 0 {
+			return int(amount), nil
+		}
 	}
 
 	// 缓存 miss，查询数据库

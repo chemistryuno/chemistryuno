@@ -438,6 +438,35 @@ export const adminAPI = {
   updateGameTimeConfig: (data: any) =>
     api.put('/admin/game-time-configs', data),
 
+  // 反作弊系统 API
+  // 检测管理
+  getDetectionList: (params?: { page?: number; limit?: number; player_id?: string; status?: string }) =>
+    api.get('/admin/anticheat/detection-list', { params }),
+  getDetectionDetail: (id: string) =>
+    api.get(`/admin/anticheat/detection/${id}`),
+  reviewDetection: (id: string, data: { decision: string; note?: string }) =>
+    api.post(`/admin/anticheat/detection/${id}/review`, data),
+
+  // 申诉管理
+  getAppealsList: (params?: { page?: number; limit?: number; status?: string }) =>
+    api.get('/admin/anticheat/appeals', { params }),
+  approveAppeal: (id: string, data?: { note?: string }) =>
+    api.post(`/admin/anticheat/appeals/${id}/approve`, data || {}),
+  rejectAppeal: (id: string, data?: { note?: string }) =>
+    api.post(`/admin/anticheat/appeals/${id}/reject`, data || {}),
+
+  // 配置管理
+  getAnticheatConfig: () =>
+    api.get('/admin/anticheat/config'),
+  updateAnticheatConfig: (config: any) =>
+    api.post('/admin/anticheat/config', config),
+
+  // 审计日志
+  getAuditLog: (params?: { page?: number; limit?: number; player_id?: string; start_date?: string; end_date?: string }) =>
+    api.get('/admin/anticheat/audit-log', { params }),
+  exportAuditLog: (params?: { start_date?: string; end_date?: string }) =>
+    api.get('/admin/anticheat/audit-log/export', { params, responseType: 'blob' }),
+
   // Excel导出
   exportSubstances: () =>
     api.get('/admin/export/substances', { responseType: 'blob' }),

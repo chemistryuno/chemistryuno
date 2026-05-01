@@ -9,6 +9,7 @@ const Profile = () => import('./pages/Profile.vue')
 const Admin = () => import('./pages/Admin.vue')
 const AdminPlugins = () => import('./pages/AdminPlugins.vue')
 const AdminSurveyResponses = () => import('./pages/AdminSurveyResponses.vue')
+const AdminAnticheat = () => import('./pages/AdminAnticheat.vue')
 const Plugins = () => import('./pages/Plugins.vue')
 const Reactions = () => import('./pages/Reactions.vue')
 const Feedbacks = () => import('./pages/Feedbacks.vue')
@@ -102,6 +103,12 @@ const routes = [
     path: '/admin/surveys/:id/responses',
     name: 'AdminSurveyResponses',
     component: AdminSurveyResponses,
+    meta: { requiresAuth: true, coWorkerOnly: true }
+  },
+  {
+    path: '/admin/anticheat',
+    name: 'AdminAnticheat',
+    component: AdminAnticheat,
     meta: { requiresAuth: true, coWorkerOnly: true }
   },
   {

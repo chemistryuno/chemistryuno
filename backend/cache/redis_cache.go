@@ -259,8 +259,26 @@ func InvalidateUserCacheMultiple(ctx context.Context, uids ...uint) error {
 	return nil
 }
 
+// validLeaderboardOrderBy 验证排行榜排序方式白名单
+func validLeaderboardOrderBy(orderBy string) bool {
+	validValues := map[string]bool{
+		"points":         true,
+		"monthly_points": true,
+		"total_xp":       true,
+		"win_count":      true,
+		"total_games":    true,
+		"created_at":     true,
+		"uid":            true,
+	}
+	return validValues[orderBy]
+}
+
 // leaderboardKey 生成排行榜缓存 key
 func leaderboardKey(orderBy string, limit int) string {
+	if !validLeaderboardOrderBy(orderBy) {
+		log.Printf("⚠️  非法的排行榜排序方式: %s, 使用默认值 'points'", orderBy)
+		orderBy = "points"
+	}
 	return fmt.Sprintf("leaderboard:%s:%d", orderBy, limit)
 }
 
@@ -296,6 +314,12 @@ func SetLeaderboardCache(ctx context.Context, orderBy string, limit int, data st
 func InvalidateLeaderboardCache(ctx context.Context, orderBy string) error {
 	if redisClient == nil {
 		return fmt.Errorf("redis client not initialized")
+	}
+
+	// 验证排序方式白名单
+	if !validLeaderboardOrderBy(orderBy) {
+		log.Printf("⚠️  尝试使用非法的排行榜排序方式进行缓存失效: %s", orderBy)
+		return fmt.Errorf("invalid leaderboard orderBy value: %s", orderBy)
 	}
 
 	// 删除所有该排序方式的排行榜缓存（支持多个limit值）

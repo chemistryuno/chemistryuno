@@ -10,8 +10,28 @@ import (
 	"github.com/xuri/excelize/v2"
 )
 
+// verifyAdminRole 验证用户是否具有管理员角色（纵深防御）
+func verifyAdminRole(c *gin.Context) bool {
+	roleValue, exists := c.Get("role")
+	if !exists {
+		return false
+	}
+	role, ok := roleValue.(string)
+	if !ok {
+		return false
+	}
+	// 仅允许 admin 角色访问导出功能
+	return role == "admin"
+}
+
 // ExportSubstancesToExcel 导出物质百科到Excel
 func ExportSubstancesToExcel(c *gin.Context) {
+	// 纵深防御：验证管理员角色
+	if !verifyAdminRole(c) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "需要管理员权限"})
+		return
+	}
+
 	substanceRepo := repository.NewSubstanceRepository()
 
 	// 获取所有已批准的物质（按组分组）
@@ -84,6 +104,12 @@ func ExportSubstancesToExcel(c *gin.Context) {
 
 // ExportReactionsToExcel 导出反应方程式到Excel
 func ExportReactionsToExcel(c *gin.Context) {
+	// 纵深防御：验证管理员角色
+	if !verifyAdminRole(c) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "需要管理员权限"})
+		return
+	}
+
 	reactionRepo := repository.NewReactionRepository()
 
 	// 获取所有已批准的反应（按组分组）
@@ -155,6 +181,12 @@ func ExportReactionsToExcel(c *gin.Context) {
 
 // ExportAllDataToExcel 导出物质和反应到同一个Excel文件（多工作表）
 func ExportAllDataToExcel(c *gin.Context) {
+	// 纵深防御：验证管理员角色
+	if !verifyAdminRole(c) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "需要管理员权限"})
+		return
+	}
+
 	substanceRepo := repository.NewSubstanceRepository()
 	reactionRepo := repository.NewReactionRepository()
 

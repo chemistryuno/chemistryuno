@@ -186,6 +186,7 @@ func RegisterAPIRoutes(r *gin.Engine, startTime time.Time, wsHandler gin.Handler
 			admin.PUT("/users/:uid/password", middleware.AdminMiddleware(), handlers.AdminChangePassword)
 			admin.PUT("/users/:uid/role", handlers.PromoteUser)
 			admin.POST("/users/ban", handlers.BanUser)
+			admin.POST("/users/unban", handlers.UnbanUser)
 			admin.POST("/users/kick", handlers.KickPlayer)
 			admin.GET("/deck-config", middleware.AdminMiddleware(), handlers.GetGlobalDeckConfig)
 			admin.PUT("/deck-config", middleware.AdminMiddleware(), handlers.UpdateGlobalDeckConfig)

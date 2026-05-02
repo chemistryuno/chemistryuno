@@ -378,6 +378,43 @@ func BanUser(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("用户已被封禁至 %s", bannedUntil.Format("2006-01-02 15:04:05"))})
 }
 
+// 管理员解封用户
+func UnbanUser(c *gin.Context) {
+	var req struct {
+		TargetUID int `json:"target_uid" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+
+	targetUser, err := userRepo.FindByUID(uint(req.TargetUID))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "目标用户不存在"})
+		return
+	}
+
+	if targetUser.Role == "admin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "无法操作管理人员"})
+		return
+	}
+
+	if err := userRepo.UpdateBanStatusWithReason(uint(req.TargetUID), nil, ""); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "解封失败"})
+		return
+	}
+
+	if websocket.GlobalHub != nil {
+		websocket.GlobalHub.SendToUID(req.TargetUID, websocket.Message{
+			Type:    "unban_notification",
+			Message: "您的账号已被解封，欢迎回来",
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "用户已解封"})
+}
+
 // 获取全局牌组配置
 func GetGlobalDeckConfig(c *gin.Context) {
 	deck, err := deckRepo.FindGlobalDeck()

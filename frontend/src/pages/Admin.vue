@@ -30,6 +30,7 @@ import {
   Megaphone,
   Clock,
   Ban,
+  ShieldCheck,
   UserMinus,
   X,
   Puzzle,
@@ -613,6 +614,18 @@ const handleBanUser = async () => {
   }
 }
 
+const handleUnbanUser = async (user: any) => {
+  const confirmed = await showConfirm(`确认解封 ${user.nickname || user.username}？`, '解封确认')
+  if (!confirmed) return
+  try {
+    await adminAPI.unbanUser(user.uid)
+    await showAlert(`已解封 ${user.nickname || user.username}`, '解封完成')
+    await loadData()
+  } catch (error: any) {
+    await showAlert(error.response?.data?.error || '解封失败', '操作失败')
+  }
+}
+
 const openReplayRoom = (game: any) => {
   const query = new URLSearchParams()
   query.set('scope', 'admin')
@@ -1160,6 +1173,14 @@ const filteredHistory = computed(() => {
                             title="BAN_USER"
                           >
                             <Ban class="w-3 md:w-4 h-3 md:h-4" />
+                          </button>
+                          <button
+                            v-if="isBanned(u)"
+                            @click="handleUnbanUser(u)"
+                            class="p-1.5 md:p-2.5 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-600 hover:text-white rounded-lg md:rounded-xl transition-all active:scale-90"
+                            title="UNBAN_USER"
+                          >
+                            <ShieldCheck class="w-3 md:w-4 h-3 md:h-4" />
                           </button>
                         </div>
                       </td>

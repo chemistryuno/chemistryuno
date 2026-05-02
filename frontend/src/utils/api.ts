@@ -411,6 +411,8 @@ export const adminAPI = {
     api.put(`/admin/users/${uid}/role`, { role }),
   banUser: (targetUID: number, bannedUntil: string, reason: string) =>
     api.post('/admin/users/ban', { target_uid: targetUID, banned_until: bannedUntil, reason }),
+  unbanUser: (targetUID: number) =>
+    api.post('/admin/users/unban', { target_uid: targetUID }),
   kickPlayer: (targetUID: number, reason: string) =>
     api.post('/admin/users/kick', { target_uid: targetUID, reason }),
   getGlobalDeckConfig: () =>

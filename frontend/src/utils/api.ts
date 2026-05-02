@@ -452,7 +452,11 @@ export const adminAPI = {
   // 申诉管理
   getAppealsList: (params?: { page?: number; limit?: number; status?: string }) =>
     api.get('/admin/anticheat/appeals', { params }),
-  approveAppeal: (id: string, data?: { note?: string }) =>
+  approveAppeal: (id: string, data?: { 
+    note?: string
+    compensation_amount?: number
+    compensation_message?: string
+  }) =>
     api.post(`/admin/anticheat/appeals/${id}/approve`, data || {}),
   rejectAppeal: (id: string, data?: { note?: string }) =>
     api.post(`/admin/anticheat/appeals/${id}/reject`, data || {}),

@@ -2,7 +2,6 @@
 import { ref, onMounted, computed, watch } from 'vue'
 import { useDialog } from '../utils/dialog'
 import { adminAPI } from '../utils/api'
-import UserAvatar from '../components/UserAvatar.vue'
 import {
   Shield,
   Search as SearchIcon,
@@ -10,19 +9,14 @@ import {
   ChevronRight,
   CheckCircle,
   XCircle,
-  Clock,
   Eye,
-  MessageSquare,
   Save,
-  AlertTriangle,
   Settings,
-  BarChart3,
   Download,
   Filter,
 } from 'lucide-vue-next'
-import { cn } from '../utils/cn'
 
-const { showAlert, showConfirm, showPrompt } = useDialog()
+const { showAlert, showPrompt } = useDialog()
 const activeTab = ref<'detection' | 'appeals' | 'config' | 'audit'>('detection')
 const loading = ref(false)
 
@@ -140,16 +134,42 @@ const loadAppeals = async () => {
   }
 }
 
+// ==================== Appeal Approval with Compensation ====================
+const showApprovalModal = ref(false)
+const pendingAppealId = ref<string>('')
+const approvalNote = ref('')
+const compensationAmount = ref(100) // 默认补偿金额
+const compensationMessage = ref('') // 自定义补偿文案
+const defaultCompensationMessage = ref('由于反作弊系统将您误封，在此，ChemistryUNO开发组向受到影响的研究员提供燃素补偿，感谢研究员对维护纯净游戏环境做出的贡献')
+
 const handleApproveAppeal = async (appealId: string) => {
-  if (!await showConfirm('确认批准此申诉吗？')) return
+  pendingAppealId.value = appealId
+  approvalNote.value = ''
+  compensationAmount.value = 100
+  compensationMessage.value = defaultCompensationMessage.value
+  showApprovalModal.value = true
+}
+
+const confirmApproval = async () => {
+  if (!pendingAppealId.value) return
   
   try {
-    await adminAPI.approveAppeal(appealId, { note: '通过审核' })
-    showAlert('申诉已批准', '成功')
+    await adminAPI.approveAppeal(pendingAppealId.value, { 
+      note: approvalNote.value || '通过审核',
+      compensation_amount: compensationAmount.value,
+      compensation_message: compensationMessage.value || defaultCompensationMessage.value
+    })
+    showAlert('申诉已批准，补偿已发放', '成功')
+    showApprovalModal.value = false
     loadAppeals()
   } catch (error: any) {
     showAlert(error.response?.data?.error || '批准申诉失败', '错误')
   }
+}
+
+const cancelApproval = () => {
+  showApprovalModal.value = false
+  pendingAppealId.value = ''
 }
 
 const handleRejectAppeal = async (appealId: string) => {
@@ -240,7 +260,7 @@ const exportAuditLog = async () => {
       start_date: auditStartDate.value || undefined,
       end_date: auditEndDate.value || undefined,
     })
-    const url = window.URL.createObjectURL(new Blob([response]))
+    const url = window.URL.createObjectURL(new Blob([response.data]))
     const link = document.createElement('a')
     link.href = url
     link.setAttribute('download', `anticheat_audit_log_${new Date().toISOString().split('T')[0]}.xlsx`)
@@ -293,6 +313,15 @@ const getStatusBadge = (status: string) => {
     pending: { color: 'bg-gray-100 text-gray-800', label: '待审核' },
     approved: { color: 'bg-green-100 text-green-800', label: '已批准' },
     rejected: { color: 'bg-red-100 text-red-800', label: '已拒绝' },
+  }
+  return badges[status] || { color: 'bg-gray-100 text-gray-800', label: status }
+}
+
+const getCompensationBadge = (status: string) => {
+  const badges: Record<string, { color: string; label: string }> = {
+    pending: { color: 'bg-yellow-100 text-yellow-800', label: '待发放' },
+    ok: { color: 'bg-green-100 text-green-800', label: '已发放' },
+    failed: { color: 'bg-red-100 text-red-800', label: '发放失败' },
   }
   return badges[status] || { color: 'bg-gray-100 text-gray-800', label: status }
 }
@@ -549,9 +578,79 @@ const getStatusBadge = (status: string) => {
           下一页 <ChevronRight class="icon" />
         </button>
       </div>
-    </div>
 
-    <!-- Config Tab -->
+      <!-- Approval Modal with Compensation -->
+      <div v-if="showApprovalModal" class="modal-overlay" @click.self="cancelApproval">
+        <div class="modal-content modal-approval">
+          <h2>批准申诉并发放补偿</h2>
+          
+          <div class="approval-content">
+            <!-- 主要内容：消息和补偿 -->
+            <div class="main-info">
+              <div class="info-section">
+                <h3>向玩家发送的消息</h3>
+                <div class="message-display">
+                  <div class="message-box">
+                    {{ compensationMessage }}
+                  </div>
+                </div>
+              </div>
+
+              <div class="info-section">
+                <h3>补偿数额</h3>
+                <div class="compensation-display">
+                  <div class="compensation-badge">
+                    <span class="amount">{{ compensationAmount }}</span>
+                    <span class="unit">燃素</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 可选调整 -->
+            <div class="adjustment-section">
+              <details>
+                <summary>调整补偿配置</summary>
+                <div class="adjustment-form">
+                  <div class="form-group">
+                    <label>补偿金额（燃素）:</label>
+                    <div class="input-with-hint">
+                      <input v-model.number="compensationAmount" type="number" min="0" step="1" />
+                      <span class="hint">默认: 100</span>
+                    </div>
+                  </div>
+
+                  <div class="form-group">
+                    <label>补偿文案:</label>
+                    <textarea 
+                      v-model="compensationMessage" 
+                      placeholder="输入自定义补偿文案..."
+                      rows="4"
+                    ></textarea>
+                    <button class="btn-reset-text" @click="compensationMessage = defaultCompensationMessage">
+                      恢复默认文案
+                    </button>
+                  </div>
+                </div>
+              </details>
+            </div>
+
+            <!-- 审核备注 -->
+            <div class="form-group">
+              <label>审核备注（可选）:</label>
+              <textarea v-model="approvalNote" placeholder="输入审核备注..."></textarea>
+            </div>
+          </div>
+
+          <div class="modal-actions">
+            <button class="btn btn-primary" @click="confirmApproval">
+              <CheckCircle class="icon" /> 确认批准
+            </button>
+            <button class="btn btn-secondary" @click="cancelApproval">取消</button>
+          </div>
+        </div>
+      </div>
+    </div>
     <div v-if="activeTab === 'config'" class="tab-content">
       <div v-if="!editingConfig && configData" class="config-view">
         <button class="btn btn-primary" @click="startEditConfig">
@@ -600,6 +699,20 @@ const getStatusBadge = (status: string) => {
             <div class="config-item">
               <label>封号阈值:</label>
               <span>{{ configData.sanctions?.ban || 80 }}-100</span>
+            </div>
+          </div>
+
+          <div class="config-section">
+            <h3>解封补偿</h3>
+            <div class="config-item">
+              <label>补偿金额:</label>
+              <span>{{ configData.unban?.compensation_amount || 100 }} 燃素</span>
+            </div>
+            <div class="config-item config-item-wide">
+              <label>默认文案:</label>
+            </div>
+            <div class="config-message">
+              {{ configData.unban?.default_message || '由于反作弊系统将您误封，在此，ChemistryUNO开发组向受到影响的研究员提供燃素补偿，感谢研究员对维护纯净游戏环境做出的贡献' }}
             </div>
           </div>
         </div>
@@ -667,6 +780,32 @@ const getStatusBadge = (status: string) => {
           </div>
         </div>
 
+        <!-- Unban Compensation -->
+        <div class="edit-section">
+          <h4>解封补偿配置</h4>
+          <div class="form-group">
+            <label>补偿金额（燃素）:</label>
+            <input 
+              v-model.number="tempConfig.unban.compensation_amount" 
+              type="number" 
+              min="0" 
+              step="1"
+            />
+          </div>
+          <div class="form-group">
+            <label>默认补偿文案:</label>
+            <textarea 
+              v-model="tempConfig.unban.default_message"
+              rows="4"
+              placeholder="输入默认补偿文案..."
+            ></textarea>
+            <div class="message-preview" v-if="tempConfig.unban.default_message">
+              <div class="preview-label">预览：</div>
+              <div class="preview-content">{{ tempConfig.unban.default_message }}</div>
+            </div>
+          </div>
+        </div>
+
         <div class="modal-actions">
           <button class="btn btn-primary" @click="saveConfig">
             <Save class="icon" /> 保存配置
@@ -716,17 +855,29 @@ const getStatusBadge = (status: string) => {
               <th>玩家ID</th>
               <th>操作类型</th>
               <th>详情</th>
+              <th>补偿状态</th>
               <th>时间</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="auditLogs.length === 0">
-              <td colspan="4" class="empty">暂无审计日志</td>
+              <td colspan="5" class="empty">暂无审计日志</td>
             </tr>
             <tr v-for="log in auditLogs" :key="log.id">
               <td>{{ log.player_id }}</td>
               <td>{{ log.action_type }}</td>
               <td class="log-detail">{{ log.details }}</td>
+              <td>
+                <div v-if="log.compensation_status" class="compensation-info">
+                  <span :class="['badge', getCompensationBadge(log.compensation_status).color]">
+                    {{ getCompensationBadge(log.compensation_status).label }}
+                  </span>
+                  <span v-if="log.compensation_amount" class="compensation-amount">
+                    {{ log.compensation_amount }}燃素
+                  </span>
+                </div>
+                <span v-else class="text-muted">-</span>
+              </td>
               <td>{{ new Date(log.created_at).toLocaleString('zh-CN') }}</td>
             </tr>
           </tbody>
@@ -1231,6 +1382,28 @@ const getStatusBadge = (status: string) => {
   font-weight: 600;
 }
 
+.config-item-wide {
+  border-bottom: none;
+  padding-bottom: 0;
+  margin-bottom: 0;
+}
+
+.config-message {
+  padding: 12px;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 13px;
+  color: #333;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  margin-top: 8px;
+  border-top: none;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
 .config-edit {
   padding: 20px;
 }
@@ -1280,6 +1453,258 @@ const getStatusBadge = (status: string) => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.compensation-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.compensation-amount {
+  font-size: 12px;
+  color: #666;
+  font-weight: 500;
+}
+
+.text-muted {
+  color: #999;
+}
+
+/* Approval and Compensation Styles */
+.approval-form {
+  margin-bottom: 20px;
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: #333;
+  font-size: 14px;
+}
+
+.form-group input[type="text"],
+.form-group input[type="number"],
+.form-group textarea,
+.form-group select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.form-group input[type="text"]:focus,
+.form-group input[type="number"]:focus,
+.form-group textarea:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: #0066cc;
+  box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
+}
+
+.form-group textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.input-with-hint {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-with-hint input {
+  flex: 1;
+}
+
+.input-with-hint .hint {
+  position: absolute;
+  right: 12px;
+  font-size: 12px;
+  color: #999;
+}
+
+.compensation-section {
+  background: #f9f9f9;
+  padding: 16px;
+  border-radius: 6px;
+  margin: 16px 0;
+}
+
+.compensation-section h3 {
+  margin: 0 0 16px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+}
+
+.btn-reset-text {
+  display: inline-block;
+  padding: 4px 12px;
+  background: #e8e8e8;
+  color: #333;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  margin-top: 8px;
+  transition: all 0.2s ease;
+}
+
+.btn-reset-text:hover {
+  background: #d0d0d0;
+}
+
+.message-preview {
+  margin-top: 16px;
+  padding: 12px;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.preview-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #666;
+  margin-bottom: 8px;
+}
+
+.preview-content {
+  font-size: 13px;
+  color: #333;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid #e0e0e0;
+}
+
+/* Approval Modal Specific Styles */
+.modal-approval {
+  max-width: 700px;
+}
+
+.approval-content {
+  margin-bottom: 20px;
+}
+
+.main-info {
+  background: linear-gradient(135deg, #f0f8ff 0%, #f5f5ff 100%);
+  border: 2px solid #0066cc;
+  border-radius: 8px;
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.info-section {
+  margin-bottom: 16px;
+}
+
+.info-section:last-child {
+  margin-bottom: 0;
+}
+
+.info-section h3 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #0066cc;
+  text-transform: uppercase;
+}
+
+.message-display {
+  background: white;
+  border-radius: 6px;
+  padding: 4px;
+}
+
+.message-box {
+  background: white;
+  padding: 16px;
+  border-radius: 4px;
+  border-left: 4px solid #0066cc;
+  font-size: 14px;
+  color: #333;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  min-height: 80px;
+}
+
+.compensation-display {
+  background: white;
+  border-radius: 6px;
+  padding: 4px;
+}
+
+.compensation-badge {
+  background: linear-gradient(135deg, #0066cc 0%, #0052a3 100%);
+  color: white;
+  padding: 20px;
+  border-radius: 4px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.compensation-badge .amount {
+  font-size: 32px;
+  font-weight: 700;
+}
+
+.compensation-badge .unit {
+  font-size: 14px;
+  font-weight: 600;
+  opacity: 0.9;
+}
+
+.adjustment-section {
+  margin: 20px 0;
+}
+
+.adjustment-section details {
+  background: #f9f9f9;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 12px;
+}
+
+.adjustment-section summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: #666;
+  padding: 8px;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.adjustment-section summary:hover {
+  color: #0066cc;
+}
+
+.adjustment-form {
+  padding: 16px 0;
+  margin-top: 12px;
+  border-top: 1px solid #e0e0e0;
 }
 
 @media (max-width: 768px) {

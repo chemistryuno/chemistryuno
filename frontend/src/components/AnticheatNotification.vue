@@ -160,8 +160,9 @@ defineExpose({
 
 .anticheat-notification-container {
   position: fixed;
-  top: 100px;
-  left: 20px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   z-index: 9998;
   display: flex;
   flex-direction: column;
@@ -172,10 +173,12 @@ defineExpose({
 
 @media (max-width: 640px) {
   .anticheat-notification-container {
-    top: 80px;
-    left: 12px;
-    right: 12px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    right: auto;
     max-width: none;
+    width: 90vw;
   }
 }
 
@@ -189,13 +192,24 @@ defineExpose({
   border: 1.5px solid rgba(255, 255, 255, 0.2);
   overflow: hidden;
   pointer-events: auto;
-  animation: notification-slide-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  animation: notification-scale-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
   transition: transform 0.2s ease;
   cursor: pointer;
 }
 
 .anticheat-notification:hover {
-  transform: translateX(4px);
+  transform: scale(1.02);
+}
+
+@keyframes notification-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 /* ==================== 严重级别配色 ==================== */

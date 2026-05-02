@@ -136,8 +136,8 @@ const handleReset = async () => {
 </script>
 
 <template>
-  <div v-if="show" class="fixed inset-0 z-[100] flex items-center justify-center p-4 backdrop-blur-2xl bg-slate-900/60 dark:bg-black/90">
-    <div class="bg-white/90 dark:bg-slate-900/90 border border-white dark:border-white/10 rounded-[3rem] p-6 md:p-8 max-w-md w-full shadow-[0_0_50px_rgba(0,0,0,0.5)] relative animate-in fade-in zoom-in duration-300 backdrop-blur-3xl">
+  <div v-if="show" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md">
+    <div class="bg-white/90 dark:bg-slate-900/90 border border-white dark:border-white/10 rounded-[3rem] p-6 md:p-8 max-w-md w-full shadow-[0_0_50px_rgba(0,0,0,0.5)] relative animate-in fade-in zoom-in duration-300 backdrop-blur-3xl pointer-events-auto">
       <div class="flex flex-col items-center mb-6">
         <div class="relative group">
           <div class="absolute -inset-2 bg-cyan-500/20 rounded-full blur animate-pulse"></div>

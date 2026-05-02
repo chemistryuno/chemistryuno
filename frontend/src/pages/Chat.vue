@@ -670,7 +670,7 @@ const formatTime = (date: Date) => {
     </main>
 
     <!-- 搜索研究员模态框 -->
-    <div v-if="showSearchModal" @click="showSearchModal = false" class="fixed inset-0 z-[140] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm">
+    <div v-if="showSearchModal" @click="showSearchModal = false" class="fixed inset-0 z-[140] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 dark:bg-black/70 backdrop-blur-sm">
       <div @click.stop class="w-full max-w-md sm:max-w-lg bg-white dark:bg-[#0f0f12] rounded-2xl sm:rounded-3xl border border-slate-200 dark:border-white/10 shadow-2xl flex flex-col overflow-hidden max-h-[90vh]">
         <div class="p-3 sm:p-4 border-b border-slate-100 dark:border-white/5 flex items-center justify-between">
           <div class="min-w-0 flex-1">
@@ -765,7 +765,7 @@ const formatTime = (date: Date) => {
     </div>
 
     <!-- 好友请求模态框 -->
-    <div v-if="showRequestsModal" @click="showRequestsModal = false" class="fixed inset-0 z-[150] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm">
+    <div v-if="showRequestsModal" @click="showRequestsModal = false" class="fixed inset-0 z-[150] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 dark:bg-black/70 backdrop-blur-sm">
       <div @click.stop class="w-full max-w-md sm:max-w-lg bg-white dark:bg-[#0f0f12] rounded-2xl sm:rounded-3xl border border-slate-200 dark:border-white/10 shadow-2xl flex flex-col overflow-hidden max-h-[90vh]">
         <div class="p-3 sm:p-4 border-b border-slate-100 dark:border-white/5 flex items-center justify-between">
           <div>

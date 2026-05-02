@@ -42,10 +42,9 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="fixed inset-0 z-[1000] flex items-center justify-center p-4">
-    <div class="absolute inset-0 bg-slate-900/40 dark:bg-black/80 backdrop-blur-md" @click="handleResponse(false)"></div>
-    
-    <div class="relative w-full max-w-sm bg-white dark:bg-[#121216] border border-slate-200 dark:border-white/10 rounded-[40px] shadow-2xl overflow-hidden animate-in zoom-in duration-300">
+  <div class="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md" @click="handleResponse(false)">
+
+    <div class="relative w-full max-w-sm bg-white dark:bg-[#121216] border border-slate-200 dark:border-white/10 rounded-[40px] shadow-2xl overflow-hidden animate-in zoom-in duration-300 pointer-events-auto">
       <!-- Decoration -->
       <div class="absolute top-0 right-0 p-8 opacity-5">
         <Swords class="w-24 h-24 -mr-8 -mt-8" />

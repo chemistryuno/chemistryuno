@@ -140,8 +140,8 @@ const getPresetIcon = (id: string) => AVATAR_PRESETS[id] ?? avatarOptions[0].ico
 </script>
 
 <template>
-  <div v-if="show" class="fixed inset-0 z-[100] flex items-center justify-center p-4 backdrop-blur-xl bg-slate-900/40 dark:bg-black/80">
-    <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 rounded-[3rem] p-10 max-w-2xl w-full shadow-2xl relative animate-in fade-in zoom-in duration-300">
+  <div v-if="show" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md" @click="$emit('close')">
+    <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 rounded-[3rem] p-10 max-w-2xl w-full shadow-2xl relative animate-in fade-in zoom-in duration-300 pointer-events-auto" @click.stop>
       <h3 class="text-2xl font-black mb-8 italic uppercase text-center text-slate-900 dark:text-white">选择新的身份标识 / Select Avatar</h3>
       
       <div class="flex flex-col items-center gap-8 mb-10">
@@ -233,8 +233,8 @@ const getPresetIcon = (id: string) => AVATAR_PRESETS[id] ?? avatarOptions[0].ico
     </div>
 
     <!-- 独立裁剪弹窗 -->
-    <div v-if="showCropperModal" class="fixed inset-0 z-[110] flex items-center justify-center p-2 sm:p-4 backdrop-blur-3xl bg-black/95 animate-in fade-in duration-300">
-      <div class="bg-white dark:bg-[#111114] border border-white/10 rounded-[2rem] sm:rounded-[3rem] p-4 sm:p-8 max-w-xl w-full shadow-2xl relative flex flex-col h-full max-h-[85vh] sm:h-auto">
+    <div v-if="showCropperModal" class="fixed inset-0 z-[110] flex items-center justify-center p-2 sm:p-4 bg-black/80 dark:bg-black/95 backdrop-blur-2xl animate-in fade-in duration-300">
+      <div class="bg-white dark:bg-[#111114] border border-white/10 rounded-[2rem] sm:rounded-[3rem] p-4 sm:p-8 max-w-xl w-full shadow-2xl relative flex flex-col h-full max-h-[85vh] sm:h-auto pointer-events-auto">
         <h4 class="text-lg sm:text-xl font-black mb-4 sm:mb-6 text-center text-slate-900 dark:text-white uppercase italic flex items-center justify-center gap-2">
           <Crop class="w-5 h-5 text-blue-500" />
           裁切头像 / CROP

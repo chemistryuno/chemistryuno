@@ -18,7 +18,7 @@ const currentPassword = ref('')
 </script>
 
 <template>
-  <div v-if="show" class="fixed inset-0 z-[100] flex items-center justify-center p-4 backdrop-blur-xl bg-slate-900/40 dark:bg-black/80">
+  <div v-if="show" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md">
     <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 rounded-[3rem] p-10 max-w-md w-full shadow-2xl relative animate-in fade-in zoom-in duration-300 overflow-y-auto max-h-[90vh]">
       <h3 class="text-2xl font-black mb-4 italic uppercase text-center text-slate-900 dark:text-white">配置双重验证 / 2FA Config</h3>
       <p class="text-slate-500 text-xs text-center mb-8">请使用手机验证器应用扫描下方二维码，并在下方输入当前账户密码以确认身份</p>

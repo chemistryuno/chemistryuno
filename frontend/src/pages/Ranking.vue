@@ -433,7 +433,7 @@
     </div>
 
     <!-- Bounty Issue Modal -->
-    <div v-if="showBountyModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
+    <div v-if="showBountyModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md">
        <div class="absolute inset-0 bg-slate-900/40 dark:bg-black/80 backdrop-blur-md" @click="showBountyModal = false"></div>
        <div class="relative w-full max-w-sm bg-white dark:bg-[#121216] border border-slate-200 dark:border-rose-500/30 rounded-[32px] shadow-2xl overflow-hidden animate-in zoom-in duration-300">
           <div class="p-6 border-b border-slate-100 dark:border-white/5 flex items-center justify-between bg-rose-500/5">

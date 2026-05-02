@@ -55,7 +55,7 @@ const submitFeedback = async () => {
 </script>
 
 <template>
-  <div v-if="isOpen" class="fixed inset-0 z-[999] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" @click.self="isOpen = false">
+  <div v-if="isOpen" class="fixed inset-0 z-[999] flex items-center justify-center bg-slate-900/60 dark:bg-black/80 backdrop-blur-md p-4" @click.self="isOpen = false">
     <!-- Feedback Panel -->
     <div 
       class="relative w-full max-w-sm max-h-[90vh] overflow-y-auto custom-scrollbar bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-3xl shadow-2xl p-6 animate-in zoom-in-95 fade-in duration-200"

@@ -27,51 +27,56 @@ type DetectionContext struct {
 
 // RiskScoringEngine 风险评分引擎
 type RiskScoringEngine struct {
-	strategies    map[string]DetectionStrategy
-	config        *RiskScoringConfig
-	strategyLock  sync.RWMutex
-	configLock    sync.RWMutex
+	strategies   map[string]DetectionStrategy
+	config       *RiskScoringConfig
+	strategyLock sync.RWMutex
+	configLock   sync.RWMutex
 }
 
 // RiskScoringConfig 风险评分配置
 type RiskScoringConfig struct {
-	Dimensions      map[string]DimensionConfig `json:"dimensions"`
-	SanctionThresholds SanctionThresholds       `json:"sanction_thresholds"`
-	EnabledStrategies  []string                 `json:"enabled_strategies"`
-	UnbanConfig        UnbanConfig              `json:"unban_config"`
+	Dimensions         map[string]DimensionConfig `json:"dimensions" yaml:"dimensions"`
+	SanctionThresholds SanctionThresholds         `json:"sanction_thresholds" yaml:"sanction_thresholds"`
+	EnabledStrategies  []string                   `json:"enabled_strategies" yaml:"enabled_strategies"`
+	UnbanConfig        UnbanConfig                `json:"unban" yaml:"unban"`
 }
 
 // UnbanConfig 解封补偿配置
 type UnbanConfig struct {
-	CompensationAmount int    `json:"compensation_amount"`       // 默认补偿燃素数量
-	DefaultMessage     string `json:"default_message"`           // 默认解封消息文案
+	Enabled            bool   `json:"enabled" yaml:"enabled"`                         // 是否启用补偿功能
+	CompensationAmount int    `json:"compensation_amount" yaml:"compensation_amount"` // 默认补偿燃素数量
+	DefaultMessage     string `json:"default_message" yaml:"default_message"`         // 默认解封消息文案
+	MessageMaxLength   int    `json:"message_max_length" yaml:"message_max_length"`   // 补偿消息字符限制
+	MinAmount          int    `json:"min_amount" yaml:"min_amount"`                   // 补偿金额最小值
+	MaxAmount          int    `json:"max_amount" yaml:"max_amount"`                   // 补偿金额最大值
+	IdempotencyTTL     int    `json:"idempotency_ttl" yaml:"idempotency_ttl"`         // 幂等性缓存TTL（分钟）
 }
 
 // DimensionConfig 维度配置
 type DimensionConfig struct {
 	Weight     float64 `json:"weight"`
-	Threshold  int64   `json:"threshold"` // 毫秒或其他单位
+	Threshold  int64   `json:"threshold"`  // 毫秒或其他单位
 	Percentile float64 `json:"percentile"` // 用于异常检测的百分位数
 }
 
 // SanctionThresholds 处罚阈值
 type SanctionThresholds struct {
-	ObserveMin  float64 `json:"observe_min"`
-	ObserveMax  float64 `json:"observe_max"`
-	WarningMin  float64 `json:"warning_min"`
-	WarningMax  float64 `json:"warning_max"`
-	MuteMin     float64 `json:"mute_min"`
-	MuteMax     float64 `json:"mute_max"`
-	BanMin      float64 `json:"ban_min"`
-	BanMax      float64 `json:"ban_max"`
+	ObserveMin float64 `json:"observe_min"`
+	ObserveMax float64 `json:"observe_max"`
+	WarningMin float64 `json:"warning_min"`
+	WarningMax float64 `json:"warning_max"`
+	MuteMin    float64 `json:"mute_min"`
+	MuteMax    float64 `json:"mute_max"`
+	BanMin     float64 `json:"ban_min"`
+	BanMax     float64 `json:"ban_max"`
 }
 
 // RiskScoringResult 风险评分结果
 type RiskScoringResult struct {
-	RiskScore      float64
-	Dimensions     map[string]float64
-	SanctionType   string // "none", "observe", "warning", "mute", "ban"
-	Timestamp      time.Time
+	RiskScore    float64
+	Dimensions   map[string]float64
+	SanctionType string // "none", "observe", "warning", "mute", "ban"
+	Timestamp    time.Time
 }
 
 // NewRiskScoringEngine 创建风险评分引擎
@@ -210,39 +215,39 @@ func NewDefaultConfig() *RiskScoringConfig {
 		Dimensions: map[string]DimensionConfig{
 			"response_time": {
 				Weight:     0.25,
-				Threshold:  100,      // 100ms
-				Percentile: 0.05,     // 5%百分位
+				Threshold:  100,  // 100ms
+				Percentile: 0.05, // 5%百分位
 			},
 			"frequency": {
 				Weight:     0.25,
-				Threshold:  20,       // 每10秒20个操作
-				Percentile: 0.95,     // 95%百分位
+				Threshold:  20,   // 每10秒20个操作
+				Percentile: 0.95, // 95%百分位
 			},
 			"win_rate": {
 				Weight:     0.20,
-				Threshold:  85,       // 85%胜率
+				Threshold:  85, // 85%胜率
 				Percentile: 0.99,
 			},
 			"pattern": {
 				Weight:     0.15,
-				Threshold:  50,       // 50ms最小操作间隔
+				Threshold:  50, // 50ms最小操作间隔
 				Percentile: 0.10,
 			},
 			"account_age": {
 				Weight:     0.15,
-				Threshold:  7,        // 7天新账号
+				Threshold:  7, // 7天新账号
 				Percentile: 1.0,
 			},
 		},
 		SanctionThresholds: SanctionThresholds{
-			ObserveMin:  20,
-			ObserveMax:  40,
-			WarningMin:  40,
-			WarningMax:  60,
-			MuteMin:     60,
-			MuteMax:     80,
-			BanMin:      80,
-			BanMax:      100,
+			ObserveMin: 20,
+			ObserveMax: 40,
+			WarningMin: 40,
+			WarningMax: 60,
+			MuteMin:    60,
+			MuteMax:    80,
+			BanMin:     80,
+			BanMax:     100,
 		},
 		EnabledStrategies: []string{
 			"response_time",
@@ -252,8 +257,13 @@ func NewDefaultConfig() *RiskScoringConfig {
 			"account_age",
 		},
 		UnbanConfig: UnbanConfig{
+			Enabled:            true,
 			CompensationAmount: 100,
-			DefaultMessage:     "由于反作弊系统将您误封，在此，ChemistryUNO开发组向受到影响的研究员提供100燃素补偿，感谢研究员对维护纯净游戏环境做出的贡献",
+			DefaultMessage:     "由于反作弊系统将您误封，在此，ChemistryUNO开发组向受到影响的研究员提供燃素补偿，感谢研究员对维护纯净游戏环境做出的贡献",
+			MessageMaxLength:   500,
+			MinAmount:          1,
+			MaxAmount:          10000,
+			IdempotencyTTL:     60,
 		},
 	}
 }

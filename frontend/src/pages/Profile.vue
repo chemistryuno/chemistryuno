@@ -14,6 +14,7 @@ import {
 // Components
 import ProfileHeader from '../components/profile/ProfileHeader.vue'
 import StatsGrid from '../components/profile/StatsGrid.vue'
+import PlayerAnticheatStatsWidget from '../components/profile/PlayerAnticheatStatsWidget.vue'
 import SecurityPanel from '../components/profile/SecurityPanel.vue'
 import SettingsPanel from '../components/profile/SettingsPanel.vue'
 import CustomDecks from '../components/profile/CustomDecks.vue'
@@ -438,6 +439,7 @@ const handleOAuthUnbind = async (provider: 'github' | 'ms' | 'google' | 'apple')
             @change-nickname="handleUpdateNickname"
           />
           <StatsGrid :stats="userStats" />
+          <PlayerAnticheatStatsWidget />
         </div>
 
         <!-- Dynamic Content Area -->

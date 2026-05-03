@@ -11,12 +11,13 @@ import (
 
 // System 反作弊系统总管
 type System struct {
-	Engine          *RiskScoringEngine
-	Config          *ConfigManager
-	Decider         *SanctionDecider
-	AppealManager   *AppealManager
-	AuditLogger     *AuditLogger
-	Repository      *repository.CheatRepository
+	Engine        *RiskScoringEngine
+	Config        *ConfigManager
+	Decider       *SanctionDecider
+	AppealManager *AppealManager
+	AuditLogger   *AuditLogger
+	Repository    *repository.CheatRepository
+	StartedAt     time.Time
 }
 
 // NewSystem 创建反作弊系统实例
@@ -60,10 +61,19 @@ func NewSystem(db *gorm.DB, configPath string) (*System, error) {
 		AppealManager: appealMgr,
 		AuditLogger:   auditLog,
 		Repository:    repo,
+		StartedAt:     time.Now(),
 	}
 
 	log.Printf("[反作弊系统] 初始化成功")
 	return system, nil
+}
+
+// UptimeDays returns elapsed whole days since the anticheat system started.
+func (s *System) UptimeDays(now time.Time) int {
+	if s == nil || s.StartedAt.IsZero() || now.Before(s.StartedAt) {
+		return 0
+	}
+	return int(now.Sub(s.StartedAt).Hours() / 24)
 }
 
 // ProcessGameEnd 处理游戏结束的反作弊检测和处罚
@@ -77,14 +87,14 @@ func (s *System) ProcessGameEnd(roomID string, playerUID uint, context *Detectio
 
 	// 2. 保存风险分数
 	riskScore := &database.CheatRiskScore{
-		RoomID:         roomID,
-		PlayerUID:      playerUID,
-		RiskScore:      result.RiskScore,
+		RoomID:          roomID,
+		PlayerUID:       playerUID,
+		RiskScore:       result.RiskScore,
 		ResponseTimeDim: result.Dimensions["response_time"],
-		FrequencyDim:   result.Dimensions["frequency"],
-		WinRateDim:     result.Dimensions["win_rate"],
-		PatternDim:     result.Dimensions["pattern"],
-		AccountAgeDim:  result.Dimensions["account_age"],
+		FrequencyDim:    result.Dimensions["frequency"],
+		WinRateDim:      result.Dimensions["win_rate"],
+		PatternDim:      result.Dimensions["pattern"],
+		AccountAgeDim:   result.Dimensions["account_age"],
 	}
 
 	if err := s.Repository.SaveRiskScore(riskScore); err != nil {
@@ -139,9 +149,9 @@ func (s *System) GetPlayerStats(playerUID uint) map[string]interface{} {
 
 	// 统计申诉结果
 	appealStats := map[string]int{
-		"pending":     0,
-		"approved":    0,
-		"rejected":    0,
+		"pending":      0,
+		"approved":     0,
+		"rejected":     0,
 		"under_review": 0,
 	}
 	for _, appeal := range appeals {

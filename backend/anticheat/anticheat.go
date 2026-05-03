@@ -12,6 +12,7 @@ var (
 	ErrDimensionNotFound   = fmt.Errorf("维度不存在")
 	ErrInvalidSanctionType = fmt.Errorf("无效的处罚类型")
 	ErrStrategyNotFound    = fmt.Errorf("策略不存在")
+	ErrInvalidConfig       = fmt.Errorf("无效的反作弊配置")
 )
 
 // CheatDetectionResult 作弊检测结果
@@ -64,19 +65,19 @@ func (f *FastReactionChecker) DetectCheat() CheatDetectionResult {
 
 // ReplaySnapshot 回放快照（用于记录游戏过程）
 type ReplaySnapshot struct {
-	Version              int                   `json:"version"`
-	RoomID               int64                 `json:"room_id"`
-	GeneratedAt          string                `json:"generated_at"`
-	Participants         json.RawMessage       `json:"participants"`
-	Events               []map[string]interface{} `json:"events"`
-	CheatDetected        bool                  `json:"cheat_detected"`
-	CheatUIDs            []int                 `json:"cheat_uids"`
-	Reason               string                `json:"reason,omitempty"`
-	StartedAt            string                `json:"started_at,omitempty"`
-	Status               string                `json:"status,omitempty"`
-	FinishedPlayers      []int                 `json:"finished_players,omitempty"`
-	OriginalPlayerCount  int                   `json:"original_player_count,omitempty"`
-	QuittedCount         int                   `json:"quitted_count,omitempty"`
+	Version             int                      `json:"version"`
+	RoomID              int64                    `json:"room_id"`
+	GeneratedAt         string                   `json:"generated_at"`
+	Participants        json.RawMessage          `json:"participants"`
+	Events              []map[string]interface{} `json:"events"`
+	CheatDetected       bool                     `json:"cheat_detected"`
+	CheatUIDs           []int                    `json:"cheat_uids"`
+	Reason              string                   `json:"reason,omitempty"`
+	StartedAt           string                   `json:"started_at,omitempty"`
+	Status              string                   `json:"status,omitempty"`
+	FinishedPlayers     []int                    `json:"finished_players,omitempty"`
+	OriginalPlayerCount int                      `json:"original_player_count,omitempty"`
+	QuittedCount        int                      `json:"quitted_count,omitempty"`
 }
 
 // SnapshotBuilder 回放快照构建器
@@ -208,9 +209,9 @@ func (crm *CheatReportManager) GetReportsByUID(uid int) []*CheatReport {
 
 // SuspiciousActivityDetector 可疑活动检测器
 type SuspiciousActivityDetector struct {
-	windowSize           time.Duration // 时间窗口大小
-	maxActionsInWindow   int          // 时间窗口内的最大动作数
-	userActivityLog      map[int][]time.Time // uid -> 动作时间列表
+	windowSize         time.Duration       // 时间窗口大小
+	maxActionsInWindow int                 // 时间窗口内的最大动作数
+	userActivityLog    map[int][]time.Time // uid -> 动作时间列表
 }
 
 // NewSuspiciousActivityDetector 创建可疑活动检测器

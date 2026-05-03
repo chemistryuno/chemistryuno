@@ -174,6 +174,10 @@ func RegisterAPIRoutes(r *gin.Engine, startTime time.Time, wsHandler gin.Handler
 				surveys.POST("/:id/submit", handlers.SubmitSurveyResponse)
 				surveys.POST("/:id/dismiss", handlers.DismissSurvey)
 			}
+
+			// 反作弊系统 - 玩家端统计
+			auth.GET("/player/anticheat/stats", handlers.GetPlayerAnticheatStats)
+			auth.GET("/anticheat/stats", handlers.GetPlayerAnticheatStats)
 		}
 
 		admin := api.Group("/admin")
@@ -243,6 +247,18 @@ func RegisterAPIRoutes(r *gin.Engine, startTime time.Time, wsHandler gin.Handler
 			admin.GET("/surveys/:id/export", middleware.AdminMiddleware(), handlers.ExportSurveyResponses)
 			admin.GET("/surveys/:id/config", handlers.GetSurveyConfig)
 			admin.POST("/surveys/import", handlers.ImportSurveyConfig)
+
+			admin.GET("/anticheat/stats", handlers.GetAnticheatStats)
+			admin.GET("/anticheat/config", handlers.GetConfig)
+			admin.POST("/anticheat/config", handlers.UpdateConfig)
+			admin.GET("/anticheat/detection-list", handlers.GetDetectionList)
+			admin.GET("/anticheat/detection/:id", handlers.GetDetectionDetail)
+			admin.POST("/anticheat/detection/:id/review", handlers.ReviewDetection)
+			admin.GET("/anticheat/appeals", handlers.GetAppealsList)
+			admin.POST("/anticheat/appeals/:id/approve", handlers.ApproveAppeal)
+			admin.POST("/anticheat/appeals/:id/reject", handlers.RejectAppeal)
+			admin.GET("/anticheat/audit-log", handlers.GetAuditLog)
+			admin.GET("/anticheat/audit-log/export", handlers.ExportAuditLog)
 		}
 
 		points := api.Group("/points")

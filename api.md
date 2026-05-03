@@ -159,6 +159,11 @@ backend/
 - `GET /rooms/:id/substances` - 获取可用物质
 - `POST /game/check-reaction` - 验证化学反应
 
+#### 反作弊透明度
+
+- `GET /player/anticheat/stats` - 获取玩家可见反作弊统计，返回 `{ bans_today, system_uptime_days }`
+- `GET /anticheat/stats` - 玩家统计兼容别名
+
 #### 积分系统
 
 - `GET /points/leaderboard` - 获取排行榜
@@ -202,6 +207,30 @@ backend/
 - `POST /admin/announcements` - 创建公告
 - `PUT /admin/announcements/:id/status` - 更新公告状态
 - `DELETE /admin/announcements/:id` - 删除公告
+
+#### 反作弊管理
+
+- `GET /admin/anticheat/stats` - 获取管理员检测统计和规则概览
+- `GET /admin/anticheat/config` - 获取当前反作弊配置和解封补偿默认值
+- `POST /admin/anticheat/config` - 更新反作弊配置，包含 `unban.compensation_amount`、`unban.default_message`、`unban.enabled`
+- `GET /admin/anticheat/detection-list` - 查询检测记录，支持分页和状态过滤
+- `GET /admin/anticheat/detection/:id` - 查询检测详情
+- `POST /admin/anticheat/detection/:id/review` - 提交人工审核结果
+- `GET /admin/anticheat/appeals` - 查询申诉列表
+- `POST /admin/anticheat/appeals/:id/approve` - 批准申诉并提交补偿参数
+- `POST /admin/anticheat/appeals/:id/reject` - 拒绝申诉
+- `GET /admin/anticheat/audit-log` - 查询审计日志，支持 player_id、日期、action、compensation_status 过滤
+- `GET /admin/anticheat/audit-log/export` - 导出审计日志 CSV，包含补偿列
+
+批准申诉请求体示例：
+
+```json
+{
+  "note": "Reviewed clean replay",
+  "compensation_amount": 100,
+  "compensation_message": "message sent to player"
+}
+```
 
 ---
 

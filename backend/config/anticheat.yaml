@@ -98,6 +98,28 @@ performance:
   # 是否启用缓存
   enable_cache: true
 
+# 解封补偿配置
+unban:
+  # 是否启用补偿功能
+  enabled: true
+
+  # 默认补偿燃素数量
+  compensation_amount: 100
+
+  # 默认补偿文案
+  default_message: "由于反作弊系统将您误封，在此，ChemistryUNO开发组向受到影响的研究员提供燃素补偿，感谢研究员对维护纯净游戏环境做出的贡献"
+
+  # 补偿消息字符限制
+  message_max_length: 500
+
+  # 补偿金额范围
+  min_amount: 1
+  max_amount: 10000
+
+  # 幂等性缓存TTL（分钟）
+  idempotency_ttl: 60
+
+
   # 风险评分的缓存时间（秒）
   cache_ttl: 300
 

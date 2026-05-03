@@ -42,3 +42,14 @@ jobs:
 
       - name: Run CI tests
         run: pnpm test:ci
+
+      - name: Upload coverage and test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-test-artifacts
+          path: |
+            tmp/coverage/
+            frontend/coverage/
+            frontend/test-results/
+          if-no-files-found: ignore

@@ -26,6 +26,7 @@ var (
 	roomMutex       sync.RWMutex
 	configRepo      *repository.ConfigRepository
 	anticheatSystem *anticheat.System
+	systemStartTime time.Time
 )
 
 // InitializeAnticheatSystem 初始化反作弊系统
@@ -36,8 +37,25 @@ func InitializeAnticheatSystem(db *gorm.DB) error {
 		log.Printf("[游戏] 反作弊系统初始化失败: %v", err)
 		return err
 	}
-	log.Printf("[游戏] 反作弊系统初始化成功")
+	// 记录系统启动时间
+	systemStartTime = time.Now()
+	log.Printf("[游戏] 反作弊系统初始化成功, 启动时间: %v", systemStartTime)
 	return nil
+}
+ 
+// GetGlobalAnticheatSystem 获取全局反作弊系统实例
+func GetGlobalAnticheatSystem() *anticheat.System {
+	return anticheatSystem
+}
+
+// GetSystemUptimeDays 获取系统运行天数
+func GetSystemUptimeDays() int {
+	if systemStartTime.IsZero() {
+		return 0
+	}
+	duration := time.Since(systemStartTime)
+	days := int(duration.Hours() / 24)
+	return days
 }
 
 // scientistNames AI 玩家姓名库

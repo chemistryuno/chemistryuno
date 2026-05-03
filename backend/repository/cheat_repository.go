@@ -12,6 +12,17 @@ type CheatRepository struct {
 	db *gorm.DB
 }
 
+// AuditLogFilter describes admin audit search criteria.
+type AuditLogFilter struct {
+	PlayerUID            *uint
+	StartTime            *time.Time
+	EndTime              *time.Time
+	ActionType           string
+	CompensationStatuses []string
+	Limit                int
+	Offset               int
+}
+
 // NewCheatRepository 创建反作弊仓库
 func NewCheatRepository(db *gorm.DB) *CheatRepository {
 	return &CheatRepository{db: db}
@@ -86,6 +97,17 @@ func (cr *CheatRepository) UpdateSanctionStatus(sanctionID uint, status string) 
 		Update("status", status).Error
 }
 
+// CountBansInRange counts ban sanctions issued during a time range.
+func (cr *CheatRepository) CountBansInRange(startTime, endTime time.Time) (int64, error) {
+	var count int64
+	if err := cr.db.Model(&database.CheatSanction{}).
+		Where("sanction_type = ? AND applied_at BETWEEN ? AND ?", "ban", startTime, endTime).
+		Count(&count).Error; err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
 // SaveAppeal 保存申诉
 func (cr *CheatRepository) SaveAppeal(appeal *database.CheatAppeal) error {
 	return cr.db.Create(appeal).Error
@@ -126,8 +148,8 @@ func (cr *CheatRepository) GetAppealsByPlayer(playerUID uint) ([]database.CheatA
 // UpdateAppealStatus 更新申诉状态
 func (cr *CheatRepository) UpdateAppealStatus(appealID uint, status string, reviewerUID *uint, remark string) error {
 	updates := map[string]interface{}{
-		"status":       status,
-		"reviewed_at":  time.Now(),
+		"status":        status,
+		"reviewed_at":   time.Now(),
 		"review_remark": remark,
 	}
 	if reviewerUID != nil {
@@ -190,6 +212,71 @@ func (cr *CheatRepository) GetAuditLogsByEventType(eventType string, limit int) 
 	return logs, nil
 }
 
+func (cr *CheatRepository) auditLogQuery(filter AuditLogFilter) *gorm.DB {
+	query := cr.db.Model(&database.CheatAuditLog{})
+	if filter.PlayerUID != nil {
+		query = query.Where("player_uid = ?", *filter.PlayerUID)
+	}
+	if filter.StartTime != nil {
+		query = query.Where("created_at >= ?", *filter.StartTime)
+	}
+	if filter.EndTime != nil {
+		query = query.Where("created_at <= ?", *filter.EndTime)
+	}
+	if filter.ActionType != "" {
+		query = query.Where("event_type = ? OR sanction_type = ?", filter.ActionType, filter.ActionType)
+	}
+	if len(filter.CompensationStatuses) > 0 {
+		query = query.Where("compensation_status IN ?", filter.CompensationStatuses)
+	}
+	return query
+}
+
+// QueryAuditLogs returns filtered audit logs and a total count before pagination.
+func (cr *CheatRepository) QueryAuditLogs(filter AuditLogFilter) ([]database.CheatAuditLog, int64, error) {
+	if filter.Limit <= 0 {
+		filter.Limit = 20
+	}
+	if filter.Limit > 1000 {
+		filter.Limit = 1000
+	}
+	if filter.Offset < 0 {
+		filter.Offset = 0
+	}
+
+	var total int64
+	countQuery := cr.auditLogQuery(filter)
+	if err := countQuery.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	var logs []database.CheatAuditLog
+	if err := cr.auditLogQuery(filter).
+		Order("created_at DESC").
+		Limit(filter.Limit).
+		Offset(filter.Offset).
+		Find(&logs).Error; err != nil {
+		return nil, 0, err
+	}
+	return logs, total, nil
+}
+
+// ExportAuditLogs returns filtered audit logs for CSV export.
+func (cr *CheatRepository) ExportAuditLogs(filter AuditLogFilter, limit int) ([]database.CheatAuditLog, error) {
+	if limit <= 0 || limit > 10000 {
+		limit = 10000
+	}
+
+	var logs []database.CheatAuditLog
+	if err := cr.auditLogQuery(filter).
+		Order("created_at DESC").
+		Limit(limit).
+		Find(&logs).Error; err != nil {
+		return nil, err
+	}
+	return logs, nil
+}
+
 // CountRiskScoresInRange 统计时间范围内的风险评分数
 func (cr *CheatRepository) CountRiskScoresInRange(startTime, endTime time.Time) (int64, error) {
 	var count int64
@@ -237,5 +324,15 @@ func (cr *CheatRepository) UpdateAppealCompensation(appealID uint, status string
 		"compensation_status": status,
 		"compensation_amount": amount,
 		"compensation_note":   note,
+	}).Error
+}
+
+// UpdateAuditCompensation records the final compensation status on an audit row.
+func (cr *CheatRepository) UpdateAuditCompensation(auditLogID uint, status string, note string) error {
+	now := time.Now()
+	return cr.db.Model(&database.CheatAuditLog{}).Where("id = ?", auditLogID).Updates(map[string]interface{}{
+		"compensation_status": status,
+		"compensation_note":   note,
+		"compensation_date":   now,
 	}).Error
 }

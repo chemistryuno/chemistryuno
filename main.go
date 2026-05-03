@@ -145,6 +145,18 @@ func main() {
 		log.Printf("ℹ️  游戏配置初始化略过: %v | 使用默认配置", err)
 	}
 
+	// 初始化反作弊系统
+	if err := game.InitializeAnticheatSystem(database.DB); err != nil {
+		log.Printf("⚠️  反作弊系统初始化失败: %v", err)
+	} else {
+		// 设置handlers包中的全局反作弊系统
+		if acSystem := game.GetGlobalAnticheatSystem(); acSystem != nil {
+			handlers.SetGlobalAnticheatSystem(acSystem)
+			// 设置handlers包中的全局反作弊处理程序
+			handlers.InitializeAnticheatHandler(acSystem)
+		}
+	}
+
 	// 初始化合法物质缓存
 	game.RebuildSubstanceCache()
 
@@ -417,6 +429,10 @@ func main() {
 				surveys.POST("/:id/dismiss", handlers.DismissSurvey)
 			}
 
+			// 反作弊系统 - 玩家端统计
+			auth.GET("/player/anticheat/stats", handlers.GetPlayerAnticheatStats)
+			auth.GET("/anticheat/stats", handlers.GetPlayerAnticheatStats)
+
 		}
 
 		// 管理员路由
@@ -498,6 +514,21 @@ func main() {
 			admin.GET("/surveys/:id/export", middleware.AdminMiddleware(), handlers.ExportSurveyResponses)
 			admin.GET("/surveys/:id/config", handlers.GetSurveyConfig) // 导出配置
 			admin.POST("/surveys/import", handlers.ImportSurveyConfig) // 导入配置
+
+			// 反作弊系统 - 管理员端
+			admin.GET("/anticheat/stats", handlers.GetAnticheatStats)
+			admin.GET("/anticheat/config", handlers.GetConfig)
+			admin.POST("/anticheat/config", handlers.UpdateConfig)
+			admin.GET("/anticheat/detection-list", handlers.GetDetectionList)
+			admin.GET("/anticheat/detection/:id", handlers.GetDetectionDetail)
+			admin.POST("/anticheat/detection/:id/review", handlers.ReviewDetection)
+			admin.GET("/anticheat/appeals", handlers.GetAppealsList)
+			admin.POST("/anticheat/appeals/:id/approve", handlers.ApproveAppeal)
+			admin.POST("/anticheat/appeals/:id/reject", handlers.RejectAppeal)
+			admin.GET("/anticheat/audit-log", handlers.GetAuditLog)
+			admin.GET("/anticheat/audit-log/export", handlers.ExportAuditLog)
+
+			// Additional routes can be added here
 		}
 
 		// 积分和悬赏

@@ -509,6 +509,133 @@ func SetApprovedReactionsCache(ctx context.Context, data string) error {
 	return nil
 }
 
+// unbanCompensationKey 生成解封补偿幂等性缓存 key
+func unbanCompensationKey(userUID uint, eventID string) string {
+	return fmt.Sprintf("unban_compensation:%d:%s", userUID, eventID)
+}
+
+// CheckUnbanCompensationIdempotency 检查解封补偿幂等性 - 如果已经发放过返回 true
+func CheckUnbanCompensationIdempotency(ctx context.Context, userUID uint, eventID string) (bool, error) {
+	if redisClient == nil {
+		return false, fmt.Errorf("redis client not initialized")
+	}
+
+	_, err := redisClient.Get(ctx, unbanCompensationKey(userUID, eventID)).Result()
+	if err == redis.Nil {
+		return false, nil // 未设置过，可以继续
+	}
+	if err != nil {
+		log.Printf("❌ Redis 查询幂等性缓存失败 UID=%d, eventID=%s: %v", userUID, eventID, err)
+		return false, err
+	}
+
+	// 缓存存在，说明已经处理过
+	return true, nil
+}
+
+// SetUnbanCompensationIdempotency 设置解封补偿幂等性缓存，防止重复发放
+// ttlMinutes 为缓存时间（分钟）
+func SetUnbanCompensationIdempotency(ctx context.Context, userUID uint, eventID string, ttlMinutes int) error {
+	if redisClient == nil {
+		return fmt.Errorf("redis client not initialized")
+	}
+
+	ttl := time.Duration(ttlMinutes) * time.Minute
+	if err := redisClient.Set(ctx, unbanCompensationKey(userUID, eventID), "1", ttl).Err(); err != nil {
+		log.Printf("❌ Redis 设置幂等性缓存失败 UID=%d, eventID=%s: %v", userUID, eventID, err)
+		return err
+	}
+
+	log.Printf("✅ 已设置解封补偿幂等性缓存 UID=%d, eventID=%s, TTL=%d分钟", userUID, eventID, ttlMinutes)
+	return nil
+}
+
+// DeleteUnbanCompensationIdempotency 删除解封补偿幂等性缓存（用于失败重试）
+func DeleteUnbanCompensationIdempotency(ctx context.Context, userUID uint, eventID string) error {
+	if redisClient == nil {
+		return fmt.Errorf("redis client not initialized")
+	}
+
+	if err := redisClient.Del(ctx, unbanCompensationKey(userUID, eventID)).Err(); err != nil {
+		log.Printf("⚠️  删除幂等性缓存失败 UID=%d, eventID=%s: %v", userUID, eventID, err)
+		return err
+	}
+
+	return nil
+}
+
+func playerAnticheatStatsKey() string {
+	return "anticheat:player_stats"
+}
+
+func playerAnticheatStatsRateKey(uid uint) string {
+	return fmt.Sprintf("anticheat:player_stats:rate:%d", uid)
+}
+
+func anticheatStartupKey() string {
+	return "anticheat:startup_time"
+}
+
+// GetPlayerAnticheatStatsCache returns the cached public anticheat stats payload.
+func GetPlayerAnticheatStatsCache(ctx context.Context) (string, error) {
+	if redisClient == nil {
+		return "", fmt.Errorf("redis client not initialized")
+	}
+
+	val, err := redisClient.Get(ctx, playerAnticheatStatsKey()).Result()
+	if err == redis.Nil {
+		return "", nil
+	}
+	return val, err
+}
+
+// SetPlayerAnticheatStatsCache caches the public anticheat stats payload.
+func SetPlayerAnticheatStatsCache(ctx context.Context, data string, ttl time.Duration) error {
+	if redisClient == nil {
+		return fmt.Errorf("redis client not initialized")
+	}
+
+	if err := redisClient.Set(ctx, playerAnticheatStatsKey(), data, ttl).Err(); err != nil {
+		log.Printf("⚠️  Redis player anticheat stats 缓存设置失败: %v", err)
+		return err
+	}
+	return nil
+}
+
+// AllowPlayerAnticheatStatsRequest enforces one request per TTL per user.
+func AllowPlayerAnticheatStatsRequest(ctx context.Context, uid uint, ttl time.Duration) (bool, error) {
+	if redisClient == nil {
+		return false, fmt.Errorf("redis client not initialized")
+	}
+
+	return redisClient.SetNX(ctx, playerAnticheatStatsRateKey(uid), "1", ttl).Result()
+}
+
+// SetAnticheatStartupTime stores the anticheat startup timestamp.
+func SetAnticheatStartupTime(ctx context.Context, startedAt time.Time) error {
+	if redisClient == nil {
+		return fmt.Errorf("redis client not initialized")
+	}
+
+	return redisClient.Set(ctx, anticheatStartupKey(), startedAt.UTC().Format(time.RFC3339Nano), 0).Err()
+}
+
+// GetAnticheatStartupTime reads the stored anticheat startup timestamp.
+func GetAnticheatStartupTime(ctx context.Context) (time.Time, error) {
+	if redisClient == nil {
+		return time.Time{}, fmt.Errorf("redis client not initialized")
+	}
+
+	val, err := redisClient.Get(ctx, anticheatStartupKey()).Result()
+	if err == redis.Nil {
+		return time.Time{}, nil
+	}
+	if err != nil {
+		return time.Time{}, err
+	}
+	return time.Parse(time.RFC3339Nano, val)
+}
+
 // InvalidateApprovedReactionsCache 删除已批准反应缓存
 func InvalidateApprovedReactionsCache(ctx context.Context) error {
 	if redisClient == nil {

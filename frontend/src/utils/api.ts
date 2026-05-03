@@ -285,6 +285,8 @@ export const authAPI = {
     api.get(`/chat/global/history?limit=${limit}`),
   getPrivateChatHistory: (friendUID: number, limit: number = 50) =>
     api.get(`/chat/private/history/${friendUID}?limit=${limit}`),
+  getPlayerAnticheatStats: () =>
+    api.get('/player/anticheat/stats'),
 
   // 2FA相关
   setup2FA: () => api.post('/user/2fa/setup'),
@@ -439,6 +441,12 @@ export const adminAPI = {
     api.get('/admin/game-time-configs'),
   updateGameTimeConfig: (data: any) =>
     api.put('/admin/game-time-configs', data),
+
+  // 反作弊系统 API - 统计信息
+  getAdminAnticheatStats: () =>
+    api.get('/admin/anticheat/stats'),
+  getPlayerAnticheatStats: () =>
+    api.get('/player/anticheat/stats'),
 
   // 反作弊系统 API
   // 检测管理

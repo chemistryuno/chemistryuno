@@ -541,6 +541,11 @@ pnpm test
 | 文档 | 位置 | 用途 |
 |-----|-----|-----|
 | **反作弊系统指南** | [docs/anticheat/ANTICHEAT_GUIDE.md](docs/anticheat/ANTICHEAT_GUIDE.md) | 完整的反作弊系统参考（架构、检测、配置、运维） |
+| **反作弊管理员指南** | [docs/guides/anticheat-admin-guide.md](docs/guides/anticheat-admin-guide.md) | 申诉、补偿、配置、审计操作流程 |
+| **玩家透明度说明** | [docs/guides/anticheat-player-transparency.md](docs/guides/anticheat-player-transparency.md) | 玩家统计组件与公开数据口径 |
+| **反作弊迁移说明** | [docs/guides/anticheat-audit-migration.md](docs/guides/anticheat-audit-migration.md) | 审计补偿字段迁移和回滚说明 |
+| **补偿失败 Runbook** | [docs/guides/failed-compensation-runbook.md](docs/guides/failed-compensation-runbook.md) | 补偿失败时的排查和恢复步骤 |
+| **反作弊发布说明** | [docs/guides/anticheat-release-notes.md](docs/guides/anticheat-release-notes.md) | 新面板、配置键、部署注意事项 |
 | **文件职责** | [docs/architecture/FILE_RESPONSIBILITIES.md](docs/architecture/FILE_RESPONSIBILITIES.md) | 代码分层约定与文件所有权规则 |
 | **隐私政策** | [docs/legal/PRIVACY_POLICY.md](docs/legal/PRIVACY_POLICY.md) | 用户隐私相关 |
 | **用户协议** | [docs/legal/USER_AGREEMENT.md](docs/legal/USER_AGREEMENT.md) | 用户服务条款 |

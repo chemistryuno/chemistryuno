@@ -101,9 +101,10 @@ func (cm *ConfigManager) GetConfig() *RiskScoringConfig {
 
 	// 返回深拷贝以防止外部修改
 	configCopy := &RiskScoringConfig{
-		Dimensions:        make(map[string]DimensionConfig),
+		Dimensions:         make(map[string]DimensionConfig),
 		SanctionThresholds: cm.config.SanctionThresholds,
 		EnabledStrategies:  make([]string, len(cm.config.EnabledStrategies)),
+		UnbanConfig:        cm.config.UnbanConfig,
 	}
 
 	for k, v := range cm.config.Dimensions {
@@ -149,6 +150,68 @@ func (cm *ConfigManager) UpdateDimensionThreshold(dimension string, threshold in
 
 	cm.notifyWatchers()
 	log.Printf("[配置] 已更新维度 %s 的阈值: %d", dimension, threshold)
+
+	return nil
+}
+
+// ReplaceConfig atomically replaces the active risk scoring configuration.
+func (cm *ConfigManager) ReplaceConfig(config *RiskScoringConfig) error {
+	if config == nil {
+		return ErrInvalidConfig
+	}
+	if err := ValidateConfig(config); err != nil {
+		return err
+	}
+
+	cm.lock.Lock()
+	defer cm.lock.Unlock()
+
+	configCopy := &RiskScoringConfig{
+		Dimensions:         make(map[string]DimensionConfig),
+		SanctionThresholds: config.SanctionThresholds,
+		EnabledStrategies:  make([]string, len(config.EnabledStrategies)),
+		UnbanConfig:        config.UnbanConfig,
+	}
+	for k, v := range config.Dimensions {
+		configCopy.Dimensions[k] = v
+	}
+	copy(configCopy.EnabledStrategies, config.EnabledStrategies)
+
+	cm.config = configCopy
+	cm.notifyWatchers()
+	log.Printf("[配置] 已替换反作弊配置")
+	return nil
+}
+
+// ValidateConfig checks risk scoring and compensation configuration ranges.
+func ValidateConfig(config *RiskScoringConfig) error {
+	if config == nil {
+		return ErrInvalidConfig
+	}
+	if len(config.Dimensions) == 0 {
+		return ErrInvalidConfig
+	}
+	for _, dim := range config.Dimensions {
+		if dim.Weight < 0 || dim.Threshold < 0 || dim.Percentile < 0 || dim.Percentile > 1 {
+			return ErrInvalidConfig
+		}
+	}
+
+	thresholds := config.SanctionThresholds
+	if thresholds.ObserveMin < 0 || thresholds.WarningMin < 0 || thresholds.MuteMin < 0 || thresholds.BanMin < 0 ||
+		thresholds.ObserveMax > 100 || thresholds.WarningMax > 100 || thresholds.MuteMax > 100 || thresholds.BanMax > 100 ||
+		thresholds.ObserveMin > thresholds.ObserveMax || thresholds.WarningMin > thresholds.WarningMax ||
+		thresholds.MuteMin > thresholds.MuteMax || thresholds.BanMin > thresholds.BanMax {
+		return ErrInvalidConfig
+	}
+
+	unban := config.UnbanConfig
+	if unban.MinAmount < 0 || unban.MaxAmount < unban.MinAmount ||
+		unban.CompensationAmount < unban.MinAmount || unban.CompensationAmount > unban.MaxAmount ||
+		unban.MessageMaxLength <= 0 || len(unban.DefaultMessage) > unban.MessageMaxLength ||
+		unban.IdempotencyTTL <= 0 {
+		return ErrInvalidConfig
+	}
 
 	return nil
 }
@@ -239,9 +302,10 @@ func (cm *ConfigManager) Watch(callback func(*RiskScoringConfig)) {
 func (cm *ConfigManager) notifyWatchers() {
 	// 在持有锁的情况下调用回调可能导致死锁，所以先拷贝配置
 	config := &RiskScoringConfig{
-		Dimensions:        make(map[string]DimensionConfig),
+		Dimensions:         make(map[string]DimensionConfig),
 		SanctionThresholds: cm.config.SanctionThresholds,
 		EnabledStrategies:  make([]string, len(cm.config.EnabledStrategies)),
+		UnbanConfig:        cm.config.UnbanConfig,
 	}
 
 	for k, v := range cm.config.Dimensions {

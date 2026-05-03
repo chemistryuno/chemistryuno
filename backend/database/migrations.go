@@ -56,6 +56,20 @@ func MigrateCheatTables(db *gorm.DB) error {
 	if err := db.Migrator().CreateIndex(&CheatAuditLog{}, "created_at"); err != nil {
 		log.Printf("Warning: Failed to create index on CheatAuditLog.created_at: %v", err)
 	}
+	if err := db.Migrator().CreateIndex(&CheatAuditLog{}, "compensation_amount"); err != nil {
+		log.Printf("Warning: Failed to create index on CheatAuditLog.compensation_amount: %v", err)
+	}
+	if err := db.Migrator().CreateIndex(&CheatAuditLog{}, "compensation_status"); err != nil {
+		log.Printf("Warning: Failed to create index on CheatAuditLog.compensation_status: %v", err)
+	}
+	if err := db.Migrator().CreateIndex(&CheatAuditLog{}, "compensation_date"); err != nil {
+		log.Printf("Warning: Failed to create index on CheatAuditLog.compensation_date: %v", err)
+	}
+
+	// Auto-migrate to add new compensation columns if they don't exist
+	if err := db.Migrator().AutoMigrate(&CheatAuditLog{}); err != nil {
+		log.Printf("Warning: Auto-migration for CheatAuditLog failed: %v", err)
+	}
 
 	log.Println("Anticheat migrations completed successfully")
 	return nil

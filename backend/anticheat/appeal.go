@@ -3,6 +3,7 @@ package anticheat
 import (
 	"chemistryuno/backend/database"
 	"chemistryuno/backend/repository"
+	"errors"
 	"fmt"
 	"log"
 	"time"
@@ -12,6 +13,16 @@ import (
 type AppealManager struct {
 	repository *repository.CheatRepository
 	userRepo   *repository.UserRepository
+}
+
+// ApprovalOutcome describes the result of approval and optional compensation.
+type ApprovalOutcome struct {
+	Appeal              *database.CheatAppeal
+	CompensationAmount  int
+	CompensationMessage string
+	CompensationStatus  string
+	CompensationNote    string
+	Idempotent          bool
 }
 
 // NewAppealManager 创建申诉管理器
@@ -58,48 +69,93 @@ func (am *AppealManager) GetPendingAppeals(limit int) ([]database.CheatAppeal, e
 
 // ApproveAppeal 批准申诉并发放补偿燃素
 func (am *AppealManager) ApproveAppeal(appealID uint, reviewerUID uint, remark string, sanctionDecider *SanctionDecider, config *RiskScoringConfig) error {
+	_, err := am.ApproveAppealWithCompensation(appealID, reviewerUID, remark, config.UnbanConfig.CompensationAmount, config.UnbanConfig.DefaultMessage, sanctionDecider)
+	return err
+}
+
+// ApproveAppealWithCompensation approves an appeal and records compensation outcome.
+func (am *AppealManager) ApproveAppealWithCompensation(appealID uint, reviewerUID uint, remark string, compensationAmount int, compensationMessage string, sanctionDecider *SanctionDecider) (*ApprovalOutcome, error) {
 	appeal, err := am.repository.GetAppealByID(appealID)
 	if err != nil {
 		log.Printf("[申诉] 查询申诉失败: %v", err)
-		return err
+		return nil, err
 	}
 
 	// 更新申诉状态
 	if err := am.repository.UpdateAppealStatus(appealID, "approved", &reviewerUID, remark); err != nil {
 		log.Printf("[申诉] 更新申诉状态失败: %v", err)
-		return err
+		return nil, err
 	}
 
 	// 如果有关联的处罚，需要撤销
-	if appeal.SanctionID > 0 {
+	if appeal.SanctionID > 0 && sanctionDecider != nil {
 		if err := sanctionDecider.RevokeSanction(appeal.SanctionID); err != nil {
 			log.Printf("[申诉] 撤销处罚失败: %v", err)
-			return err
+			return nil, err
 		}
 	}
 
-	// 发放燃素补偿
-	compensationAmount := config.UnbanConfig.CompensationAmount
+	now := time.Now()
+	pendingStatus := "pending"
+	approvalNote := remark
+	auditLog := &database.CheatAuditLog{
+		EventType:           "review",
+		RoomID:              appeal.RoomID,
+		PlayerUID:           appeal.PlayerUID,
+		OperatorUID:         &reviewerUID,
+		AppealID:            &appealID,
+		OldStatus:           appeal.Status,
+		NewStatus:           "approved",
+		Remark:              remark,
+		ApprovalNote:        &approvalNote,
+		CompensationAmount:  &compensationAmount,
+		CompensationStatus:  &pendingStatus,
+		CompensationMessage: &compensationMessage,
+		CompensationDate:    &now,
+	}
+	if err := am.repository.SaveAuditLog(auditLog); err != nil {
+		log.Printf("[申诉] 记录审批审计日志失败: %v", err)
+	}
+
 	compensationID := fmt.Sprintf("appeal_%d", appealID)
+	outcome := &ApprovalOutcome{
+		Appeal:              appeal,
+		CompensationAmount:  compensationAmount,
+		CompensationMessage: compensationMessage,
+		CompensationStatus:  "pending",
+	}
 
 	if _, err := am.userRepo.AddFuel(appeal.PlayerUID, compensationAmount, compensationID); err != nil {
-		// 记录补偿失败但不中断解封流程
-		log.Printf("[申诉] 燃素补偿失败 (玩家: %d, 金额: %d): %v", appeal.PlayerUID, compensationAmount, err)
+		if errors.Is(err, repository.ErrFuelCompensationAlreadyIssued) {
+			outcome.CompensationStatus = "ok"
+			outcome.CompensationNote = "补偿已发放过，本次请求按幂等成功处理"
+			outcome.Idempotent = true
+		} else {
+			outcome.CompensationStatus = "failed"
+			outcome.CompensationNote = fmt.Sprintf("补偿失败: %v", err)
+		}
 
-		// 更新申诉记录的补偿状态为失败
-		if updateErr := am.repository.UpdateAppealCompensation(appealID, "failed", compensationAmount, fmt.Sprintf("补偿失败: %v", err)); updateErr != nil {
+		log.Printf("[申诉] 燃素补偿失败 (玩家: %d, 金额: %d): %v", appeal.PlayerUID, compensationAmount, err)
+		if updateErr := am.repository.UpdateAppealCompensation(appealID, outcome.CompensationStatus, compensationAmount, outcome.CompensationNote); updateErr != nil {
 			log.Printf("[申诉] 更新补偿状态失败: %v", updateErr)
 		}
 	} else {
-		// 补偿成功，更新申诉记录
-		if updateErr := am.repository.UpdateAppealCompensation(appealID, "completed", compensationAmount, "补偿成功"); updateErr != nil {
+		outcome.CompensationStatus = "ok"
+		outcome.CompensationNote = "补偿成功"
+		if updateErr := am.repository.UpdateAppealCompensation(appealID, outcome.CompensationStatus, compensationAmount, outcome.CompensationNote); updateErr != nil {
 			log.Printf("[申诉] 更新补偿状态失败: %v", updateErr)
 		}
 		log.Printf("[申诉] 已发放燃素补偿 (玩家: %d, 金额: %d)", appeal.PlayerUID, compensationAmount)
 	}
 
+	if auditLog != nil && auditLog.ID > 0 {
+		if updateErr := am.repository.UpdateAuditCompensation(auditLog.ID, outcome.CompensationStatus, outcome.CompensationNote); updateErr != nil {
+			log.Printf("[申诉] 更新审计补偿状态失败: %v", updateErr)
+		}
+	}
+
 	log.Printf("[申诉] 已批准申诉 ID: %d (玩家: %d，审核人: %d)", appealID, appeal.PlayerUID, reviewerUID)
-	return nil
+	return outcome, nil
 }
 
 // RejectAppeal 拒绝申诉

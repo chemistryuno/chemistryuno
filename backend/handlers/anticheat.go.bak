@@ -1,0 +1,332 @@
+package handlers
+
+import (
+	"chemistryuno/backend/anticheat"
+	"chemistryuno/backend/cache"
+	"context"
+	"log"
+	"net/http"
+	"strconv"
+	"time"
+
+	"github.com/gin-gonic/gin"
+)
+
+// AnticheatHandler 反作弊处理程序
+type AnticheatHandler struct {
+	acSystem *anticheat.System
+}
+// 全局反作弊系统实例 (由main.go初始化)
+var globalAnticheatSystem *anticheat.System
+
+// SetGlobalAnticheatSystem 设置全局反作弊系统
+func SetGlobalAnticheatSystem(system *anticheat.System) {
+	globalAnticheatSystem = system
+}
+
+// NewAnticheatHandler 创建反作弊处理程序
+func NewAnticheatHandler(acSystem *anticheat.System) *AnticheatHandler {
+	return &AnticheatHandler{
+		acSystem: acSystem,
+	}
+}
+
+// GetDetectionList 查询检测列表
+func (h *AnticheatHandler) GetDetectionList(c *gin.Context) {
+	limit := 50
+	if l := c.DefaultQuery("limit", "50"); l != "" {
+		if val, err := strconv.Atoi(l); err == nil && val > 0 && val <= 1000 {
+			limit = val
+		}
+	}
+
+	riskScores, err := h.acSystem.Repository.GetRiskScoresByPlayer(0, limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"count": len(riskScores),
+		"data":  riskScores,
+	})
+}
+
+// GetDetectionDetail 查询检测详情
+func (h *AnticheatHandler) GetDetectionDetail(c *gin.Context) {
+	riskScoreID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		return
+	}
+
+	riskScore, err := h.acSystem.Repository.GetRiskScoreByID(uint(riskScoreID))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Detection not found"})
+		return
+	}
+
+	// 获取相关的处罚记录
+	sanctions, _ := h.acSystem.Decider.GetActiveSanctionsForPlayer(riskScore.PlayerUID)
+
+	c.JSON(http.StatusOK, gin.H{
+		"risk_score": riskScore,
+		"sanctions":  sanctions,
+	})
+}
+
+// ReviewDetection 人工审核检测结果
+func (h *AnticheatHandler) ReviewDetection(c *gin.Context) {
+	riskScoreID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		return
+	}
+
+	var req struct {
+		Decision string `json:"decision"` // "confirm", "overturn"
+		Remark   string `json:"remark"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	_, err = h.acSystem.Repository.GetRiskScoreByID(uint(riskScoreID))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Detection not found"})
+		return
+	}
+
+	// TODO: 实现人工审核逻辑
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Review completed",
+		"status":  req.Decision,
+	})
+}
+
+// GetAppealsList 查询申诉列表
+func (h *AnticheatHandler) GetAppealsList(c *gin.Context) {
+	limit := 50
+	if l := c.DefaultQuery("limit", "50"); l != "" {
+		if val, err := strconv.Atoi(l); err == nil && val > 0 && val <= 1000 {
+			limit = val
+		}
+	}
+
+	appeals, err := h.acSystem.AppealManager.GetPendingAppeals(limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"count": len(appeals),
+		"data":  appeals,
+	})
+}
+
+// ApproveAppeal 批准申诉 - 支持配置补偿金额和文案
+func (h *AnticheatHandler) ApproveAppeal(c *gin.Context) {
+	appealID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		return
+	}
+
+	var req struct {
+		Note                  string `json:"note"`                    // 审核备注
+		CompensationAmount    *int   `json:"compensation_amount"`    // 补偿金额（可选，使用默认值）
+		CompensationMessage   string `json:"compensation_message"`   // 补偿文案
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// 获取申诉详情以获取玩家ID
+	appeal, err := h.acSystem.Repository.GetAppealByID(uint(appealID))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Appeal not found"})
+		return
+	}
+
+	// 检查幂等性 - 防止重复发放补偿
+	ctx := context.Background()
+	eventID := "appeal_" + strconv.FormatUint(appealID, 10)
+	isDuplicate, err := cache.CheckUnbanCompensationIdempotency(ctx, appeal.PlayerUID, eventID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Idempotency check failed"})
+		return
+	}
+	if isDuplicate {
+		c.JSON(http.StatusConflict, gin.H{"message": "Appeal already approved - compensation already issued"})
+		return
+	}
+
+	// 获取当前用户ID（假设从上下文中获取）
+	reviewerUID := uint(1)
+
+	// 获取配置用于验证和默认值
+	config := h.acSystem.Config.GetConfig()
+
+	// 验证补偿金额范围
+	compensationAmount := config.UnbanConfig.CompensationAmount
+	if req.CompensationAmount != nil {
+		if *req.CompensationAmount < config.UnbanConfig.MinAmount || *req.CompensationAmount > config.UnbanConfig.MaxAmount {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Compensation amount out of range"})
+			return
+		}
+		compensationAmount = *req.CompensationAmount
+	}
+
+	// 验证补偿文案长度
+	compensationMessage := req.CompensationMessage
+	if compensationMessage == "" {
+		compensationMessage = config.UnbanConfig.DefaultMessage
+	}
+	if len(compensationMessage) > config.UnbanConfig.MessageMaxLength {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Compensation message too long"})
+		return
+	}
+
+	// 执行审批逻辑
+	if err := h.acSystem.AppealManager.ApproveAppeal(uint(appealID), reviewerUID, req.Note, h.acSystem.Decider, config); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// 设置幂等性缓存（根据配置的TTL）
+	ttl := config.UnbanConfig.IdempotencyTTL
+	if err := cache.SetUnbanCompensationIdempotency(ctx, appeal.PlayerUID, eventID, ttl); err != nil {
+		// 不影响主流程，只记录日志
+		log.Printf("Warning: Failed to set idempotency cache: %v", err)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":       "Appeal approved successfully",
+		"compensation": gin.H{
+			"amount":  compensationAmount,
+			"message": compensationMessage,
+		},
+	})
+}
+
+// RejectAppeal 拒绝申诉
+func (h *AnticheatHandler) RejectAppeal(c *gin.Context) {
+	appealID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		return
+	}
+
+	var req struct {
+		Remark string `json:"remark"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// TODO: 获取当前用户ID
+	reviewerUID := uint(1)
+
+	if err := h.acSystem.AppealManager.RejectAppeal(uint(appealID), reviewerUID, req.Remark); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Appeal rejected"})
+}
+
+// GetConfig 获取当前配置
+func (h *AnticheatHandler) GetConfig(c *gin.Context) {
+	config := h.acSystem.Config.GetConfig()
+	c.JSON(http.StatusOK, config)
+}
+
+// UpdateConfig 更新配置
+func (h *AnticheatHandler) UpdateConfig(c *gin.Context) {
+	var config anticheat.RiskScoringConfig
+	if err := c.ShouldBindJSON(&config); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	h.acSystem.Config.UpdateDimensionWeight("response_time", config.Dimensions["response_time"].Weight)
+
+	c.JSON(http.StatusOK, gin.H{"message": "Configuration updated"})
+}
+
+// GetAuditLog 查询审计日志
+func (h *AnticheatHandler) GetAuditLog(c *gin.Context) {
+	startStr := c.DefaultQuery("start", "")
+	endStr := c.DefaultQuery("end", "")
+
+	var startTime, endTime time.Time
+	startTime = time.Now().Add(-24 * time.Hour)
+	endTime = time.Now()
+
+	if startStr != "" {
+		if t, err := time.Parse("2006-01-02", startStr); err == nil {
+			startTime = t
+		}
+	}
+
+	if endStr != "" {
+		if t, err := time.Parse("2006-01-02", endStr); err == nil {
+			endTime = t
+		}
+	}
+
+	logs, err := h.acSystem.AuditLogger.GetAuditLogsByTimeRange(startTime, endTime, 1000)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"count": len(logs),
+		"data":  logs,
+	})
+}
+
+// GetAnticheatStats 获取管理员面板反作弊统计信息
+func (h *AnticheatHandler) GetAnticheatStats(c *gin.Context) {
+	// 获取今日封禁数量
+	bansTodayStart := time.Now().Add(-24 * time.Hour)
+	bansTodayEnd := time.Now()
+
+	// TODO: 从数据库查询今日的所有ban记录
+	bansToday := 0
+
+	// 获取系统运行天数
+	config := h.acSystem.Config.GetConfig()
+	systemUptimeDays := 0
+	// TODO: 从配置中读取系统启动时间，计算运行天数
+
+	// 获取启用的检测规则
+	enabledStrategies := h.acSystem.Config.GetEnabledStrategies()
+
+	// 获取近期的处罚统计
+	stats := map[string]interface{}{
+		"bans_today":         bansToday,
+		"system_uptime_days": systemUptimeDays,
+		"enabled_strategies": enabledStrategies,
+		"sanction_thresholds": h.acSystem.Config.GetSanctionThresholds(),
+		"dimensions":         h.acSystem.Config.GetDimensions(),
+		"query_range": gin.H{
+			"start": bansTodayStart,
+			"end":   bansTodayEnd,
+		},
+	}
+
+	_ = config // 使用config避免未使用变量
+
+	c.JSON(http.StatusOK, stats)
+}
+

@@ -14,6 +14,8 @@ import (
 	"gorm.io/gorm"
 )
 
+var ErrFuelCompensationAlreadyIssued = errors.New("fuel compensation already issued")
+
 type UserRepository struct {
 	db *gorm.DB
 }
@@ -650,7 +652,7 @@ func (r *UserRepository) AddFuel(uid uint, amount int, compensationID string) (i
 			return 0, fmt.Errorf("检查燃素补偿记录失败: %w", err)
 		}
 		if count > 0 {
-			return 0, errors.New("该补偿已经发放过")
+			return 0, ErrFuelCompensationAlreadyIssued
 		}
 	}
 
@@ -675,4 +677,3 @@ func (r *UserRepository) AddFuel(uid uint, amount int, compensationID string) (i
 		return nil
 	})
 }
-

@@ -67,6 +67,21 @@ const fetchUserProfile = async (uid: number) => {
   }
 }
 
+// 监控 show 状态以禁用/启用背景滚动
+watch(
+  () => props.show,
+  (show) => {
+    if (show) {
+      document.documentElement.style.overflow = 'hidden'
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.documentElement.style.overflow = ''
+      document.body.style.overflow = ''
+    }
+  },
+  { immediate: true }
+)
+
 watch(
   () => [props.show, props.uid] as const,
   ([show, uid]) => {

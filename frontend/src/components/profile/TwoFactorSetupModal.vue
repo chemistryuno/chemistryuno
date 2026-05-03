@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { Fingerprint, Loader2, Lock } from 'lucide-vue-next'
 
 defineProps<{
@@ -15,6 +15,17 @@ const emit = defineEmits<{
 
 const verificationCode = ref('')
 const currentPassword = ref('')
+
+// 监控 show 状态以禁用/启用背景滚动
+watch((props: any) => props.show, (show) => {
+  if (show) {
+    document.documentElement.style.overflow = 'hidden'
+    document.body.style.overflow = 'hidden'
+  } else {
+    document.documentElement.style.overflow = ''
+    document.body.style.overflow = ''
+  }
+}, { immediate: true })
 </script>
 
 <template>

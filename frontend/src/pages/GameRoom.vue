@@ -1891,6 +1891,21 @@ const loadGameState = async (silent = false) => {
   }
 }
 
+// 监控弹窗状态以禁用/启用背景滚动
+watch(
+  [showDeckDetailModal, showInviteFriendsModal, showAdminModal, showSettlementPanel, replayGameOver],
+  ([deck, invite, admin, settlement, replay]) => {
+    const hasModal = deck || invite || admin || settlement || replay
+    if (hasModal) {
+      document.documentElement.style.overflow = 'hidden'
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.documentElement.style.overflow = ''
+      document.body.style.overflow = ''
+    }
+  }
+)
+
 onMounted(() => {
   lockPageScroll()
   exposeForceAutoDrawConsoleAPI()

@@ -44,6 +44,13 @@ watch(() => props.show, (val) => {
     newCode.value = ''
     securityAnswer.value = ''
     loadSecurityInfo()
+    // 禁用背景滚动
+    document.documentElement.style.overflow = 'hidden'
+    document.body.style.overflow = 'hidden'
+  } else {
+    // 启用背景滚动
+    document.documentElement.style.overflow = ''
+    document.body.style.overflow = ''
   }
 })
 

@@ -69,8 +69,17 @@ const checkRoomStatus = async (roomId: string) => {
   }
 }
 
-watch(showRequestsModal, (val) => {
-  if (val) fetchRequests()
+watch([showRequestsModal, showSearchModal], ([requests, search]) => {
+  if (requests) fetchRequests()
+  // 监控弹窗状态以禁用/启用背景滚动
+  const hasModal = requests || search
+  if (hasModal) {
+    document.documentElement.style.overflow = 'hidden'
+    document.body.style.overflow = 'hidden'
+  } else {
+    document.documentElement.style.overflow = ''
+    document.body.style.overflow = ''
+  }
 })
 
 // 过滤后的好友列表

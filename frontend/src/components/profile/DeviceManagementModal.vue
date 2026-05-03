@@ -47,7 +47,17 @@ onMounted(() => {
 })
 
 watch(() => props.show, (newVal) => {
-  if (newVal) fetchSessions()
+  if (newVal) {
+    fetchSessions()
+    // 禁用背景滚动
+    document.documentElement.style.overflow = 'hidden'
+    document.body.style.overflow = 'hidden'
+  } else {
+    // 启用背景滚动
+    document.documentElement.style.overflow = ''
+    document.body.style.overflow = ''
+  }
+})
 })
 
 const handleLogoutSession = async (session: any) => {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { Swords, Check, Timer, FlaskConical } from 'lucide-vue-next'
 import { gameAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
@@ -27,6 +27,18 @@ const handleResponse = async (accept: boolean) => {
   }
 }
 
+watch(() => props.invite, (newVal) => {
+  if (newVal) {
+    // 禁用背景滚动
+    document.documentElement.style.overflow = 'hidden'
+    document.body.style.overflow = 'hidden'
+  } else {
+    // 启用背景滚动
+    document.documentElement.style.overflow = ''
+    document.body.style.overflow = ''
+  }
+}, { immediate: true })
+
 onMounted(() => {
   timer = setInterval(() => {
     timeLeft.value--
@@ -38,6 +50,9 @@ onMounted(() => {
 
 onUnmounted(() => {
   if (timer) clearInterval(timer)
+  // 确保清理时恢复背景滚动
+  document.documentElement.style.overflow = ''
+  document.body.style.overflow = ''
 })
 </script>
 

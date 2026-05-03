@@ -25,6 +25,17 @@ watch(() => state.show, (newVal) => {
     timer.value = null
     countdown.value = 0
   }
+
+  // 当弹窗显示时禁用背景滚动，关闭时启用
+  if (newVal) {
+    document.documentElement.style.overflow = 'hidden'
+    document.body.style.overflow = 'hidden'
+    document.documentElement.style.scrollBehavior = 'auto'
+  } else {
+    document.documentElement.style.overflow = ''
+    document.body.style.overflow = ''
+    document.documentElement.style.scrollBehavior = ''
+  }
 })
 
 const handleInputKeyDown = (e: KeyboardEvent) => {

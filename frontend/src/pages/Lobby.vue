@@ -359,6 +359,21 @@ const handleChatUnreadUpdate = (msg: any) => {
   }
 }
 
+// 监控所有弹窗状态以禁用/启用背景滚动
+watch(
+  [showCreateModal, showAIArenaModal, showDeckDetailModal, showAccessKeyModal, showSurveyModal, showLegalModal],
+  ([create, ai, deck, access, survey, legal]) => {
+    const hasModal = create || ai || deck || access || survey || legal
+    if (hasModal) {
+      document.documentElement.style.overflow = 'hidden'
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.documentElement.style.overflow = ''
+      document.body.style.overflow = ''
+    }
+  }
+)
+
 onMounted(() => {
   loadUserInfo()
   loadRooms()

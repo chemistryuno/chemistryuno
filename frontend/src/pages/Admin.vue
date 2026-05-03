@@ -404,6 +404,21 @@ const loadData = async () => {
   }
 }
 
+// 监控弹窗状态以禁用/启用背景滚动
+watch(
+  [showCreateSurveyModal, showEditSurveyModal, showCreateAnnouncementModal, showEditAnnouncementModal, showBanModal],
+  ([survey1, survey2, ann1, ann2, ban]) => {
+    const hasModal = survey1 || survey2 || ann1 || ann2 || ban
+    if (hasModal) {
+      document.documentElement.style.overflow = 'hidden'
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.documentElement.style.overflow = ''
+      document.body.style.overflow = ''
+    }
+  }
+)
+
 onMounted(() => {
   loadData()
   adminAPI.getStats().then(r => { stats.value = r.data }).catch(() => {})

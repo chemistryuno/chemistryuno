@@ -31,6 +31,14 @@ watch(() => props.show, (val) => {
     oldCountdown.value = 0
     newCountdown.value = 0
   }
+  // 监控 show 状态以禁用/启用背景滚动
+  if (val) {
+    document.documentElement.style.overflow = 'hidden'
+    document.body.style.overflow = 'hidden'
+  } else {
+    document.documentElement.style.overflow = ''
+    document.body.style.overflow = ''
+  }
 })
 
 const sendOldCode = async () => {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { X, Cpu, Plus, Trash2, Calendar, HardDrive, Loader2, Key } from 'lucide-vue-next'
 import { create } from '@github/webauthn-json'
 import { authAPI } from '../../utils/api'
@@ -18,6 +18,21 @@ const keys = ref<any[]>([])
 const loading = ref(false)
 const registering = ref(false)
 const appVersion = ref('V1.2.1') // 默认值
+
+// 监控 show 状态以禁用/启用背景滚动
+watch(
+  () => props.show,
+  (show) => {
+    if (show) {
+      document.documentElement.style.overflow = 'hidden'
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.documentElement.style.overflow = ''
+      document.body.style.overflow = ''
+    }
+  },
+  { immediate: true }
+)
 
 const fetchKeys = async () => {
   loading.value = true

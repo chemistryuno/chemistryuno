@@ -738,12 +738,29 @@ const handleDuel = async (player: any) => {
   }
 }
 
+// 监控弹窗状态以禁用/启用背景滚动
+watch(
+  [showBountyModal, showProfileModal],
+  ([bounty, profile]) => {
+    const hasModal = bounty || profile
+    if (hasModal) {
+      document.documentElement.style.overflow = 'hidden'
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.documentElement.style.overflow = ''
+      document.body.style.overflow = ''
+    }
+  }
+)
+
 onMounted(() => {
   loadLeaderboard()
 })
 
 onUnmounted(() => {
   // cleanup if needed
+  document.documentElement.style.overflow = ''
+  document.body.style.overflow = ''
 })
 </script>
 

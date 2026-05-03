@@ -63,6 +63,21 @@ watch([identifier, recoveryMode], async () => {
   }
 })
 
+// 监控 show 状态以禁用/启用背景滚动
+watch(
+  (props: any) => props.show,
+  (show) => {
+    if (show) {
+      document.documentElement.style.overflow = 'hidden'
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.documentElement.style.overflow = ''
+      document.body.style.overflow = ''
+    }
+  },
+  { immediate: true }
+)
+
 const handleSendCode = async () => {
   if (!identifier.value) {
     alert('请输入您的注册邮箱')

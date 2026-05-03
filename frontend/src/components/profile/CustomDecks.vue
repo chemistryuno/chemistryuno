@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { Plus, Minus, Trash2, Edit2, Hexagon, Save, X } from 'lucide-vue-next'
 import { gameAPI } from '../../utils/api'
 import { useDialog } from '../../utils/dialog'
@@ -113,6 +113,20 @@ const deleteDeck = async (id: number) => {
     showAlert(e.response?.data?.error || '删除失败', '出错了')
   }
 }
+
+// 监控弹窗状态以禁用/启用背景滚动
+watch(
+  editingDeck,
+  (deck) => {
+    if (deck) {
+      document.documentElement.style.overflow = 'hidden'
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.documentElement.style.overflow = ''
+      document.body.style.overflow = ''
+    }
+  }
+)
 
 onMounted(loadDecks)
 </script>

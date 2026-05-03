@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { adminAPI, pluginAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
@@ -373,6 +373,20 @@ async function cancelRestart() {
   restartScheduled.value = false
   restartCountdown.value = 0
 }
+
+// 监控弹窗状态以禁用/启用背景滚动
+watch(
+  showRestartModal,
+  (show) => {
+    if (show) {
+      document.documentElement.style.overflow = 'hidden'
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.documentElement.style.overflow = ''
+      document.body.style.overflow = ''
+    }
+  }
+)
 
 onMounted(loadPlugins)
 </script>

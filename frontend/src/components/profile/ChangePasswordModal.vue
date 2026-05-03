@@ -30,6 +30,21 @@ const sendingCode = ref(false)
 const countdown = ref(0)
 const timer = ref<any>(null)
 
+// 监控 show 状态以禁用/启用背景滚动
+watch(
+  () => props.show,
+  (show) => {
+    if (show) {
+      document.documentElement.style.overflow = 'hidden'
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.documentElement.style.overflow = ''
+      document.body.style.overflow = ''
+    }
+  },
+  { immediate: true }
+)
+
 const startCountdown = () => {
   countdown.value = 60
   timer.value = setInterval(() => {

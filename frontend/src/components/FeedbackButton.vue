@@ -29,6 +29,20 @@ watch(type, (newType) => {
   }
 })
 
+// 监控弹窗状态以禁用/启用背景滚动
+watch(
+  isOpen,
+  (open) => {
+    if (open) {
+      document.documentElement.style.overflow = 'hidden'
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.documentElement.style.overflow = ''
+      document.body.style.overflow = ''
+    }
+  }
+)
+
 const submitFeedback = async () => {
   const finalContent = type.value === 'equation' 
     ? `【方程式纠错】${equationContent.value}\n\n详细说明：${content.value}`

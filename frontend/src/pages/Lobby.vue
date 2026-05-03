@@ -1138,7 +1138,7 @@ const copyToClipboard = (text: string) => {
 
 
     <!-- Modern Create Modal -->
-    <div v-if="showCreateModal" class="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md">
+    <div v-if="showCreateModal" class="viewport-modal-overlay z-[100] p-3 sm:p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md">
       <div class="absolute inset-0 bg-slate-900/40 dark:bg-black/80 backdrop-blur-md animate-in fade-in" @click="showCreateModal = false" />
       <div class="relative w-full max-w-lg bg-white dark:bg-[#121216] border border-slate-200 dark:border-white/10 rounded-3xl sm:rounded-[40px] shadow-2xl overflow-hidden flex flex-col modal-mobile animate-in fade-in zoom-in slide-in-from-bottom-10 duration-500">
          <!-- Modal Header -->
@@ -1424,7 +1424,7 @@ const copyToClipboard = (text: string) => {
     </div>
 
     <!-- AI Arena Modal -->
-    <div v-if="showAIArenaModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md">
+    <div v-if="showAIArenaModal" class="viewport-modal-overlay z-[100] p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md">
       <div class="absolute inset-0 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md animate-in fade-in" @click="showAIArenaModal = false" />
       <div class="relative w-full max-w-lg bg-white dark:bg-[#121216] border border-purple-500/30 rounded-[40px] shadow-2xl shadow-purple-500/10 overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in slide-in-from-bottom-10 duration-500">
          <!-- Modal Header -->
@@ -1591,7 +1591,7 @@ const copyToClipboard = (text: string) => {
 
 
     <!-- 牌组详情查看模态框 -->
-    <div v-if="showDeckDetailModal && selectedDeckConfig" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md">
+    <div v-if="showDeckDetailModal && selectedDeckConfig" class="viewport-modal-overlay z-[100] p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md">
       <div class="absolute inset-0 bg-slate-900/40 dark:bg-black/80 backdrop-blur-md animate-in fade-in" @click="showDeckDetailModal = false" />
       <div class="relative w-full max-w-2xl bg-white dark:bg-[#121216] border border-slate-200 dark:border-white/10 rounded-[40px] shadow-2xl overflow-hidden animate-in fade-in zoom-in slide-in-from-bottom-10 duration-500">
          <!-- Modal Header -->
@@ -1677,7 +1677,7 @@ const copyToClipboard = (text: string) => {
     </div>
 
     <!-- 私密房间密钥模态框 -->
-    <div v-if="showAccessKeyModal && createdRoomInfo" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md">
+    <div v-if="showAccessKeyModal && createdRoomInfo" class="viewport-modal-overlay z-[100] p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md">
       <div class="absolute inset-0 bg-slate-900/40 dark:bg-black/80 backdrop-blur-md animate-in fade-in" @click="showAccessKeyModal = false" />
       <div class="relative w-full max-w-md bg-white dark:bg-[#121216] border border-slate-200 dark:border-white/10 rounded-[40px] shadow-2xl overflow-hidden animate-in fade-in zoom-in slide-in-from-bottom-10 duration-500">
          <!-- Modal Header -->
@@ -1770,12 +1770,12 @@ const copyToClipboard = (text: string) => {
     <TutorialGuide :show="showTutorial" :steps="lobbyTutorialSteps" @close="handleTutorialClose" @complete="handleTutorialComplete" />
 
     <!-- 调查问卷弹窗 (内部) -->
-    <div v-if="showSurveyModal && currentSurvey" class="fixed inset-0 bg-slate-900/40 dark:bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center p-3">
+    <div v-if="showSurveyModal && currentSurvey" class="viewport-modal-overlay bg-slate-900/40 dark:bg-black/80 backdrop-blur-md z-[100] p-3">
       <!-- ... existing survey modal code ... -->
     </div>
 
     <!-- Legal Document Modal -->
-    <div v-if="showLegalModal" class="fixed inset-0 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md z-[200] flex items-center justify-center p-5 overflow-y-auto">
+    <div v-if="showLegalModal" class="viewport-modal-overlay bg-slate-900/60 dark:bg-black/80 backdrop-blur-md z-[200] p-5">
       <div class="relative w-full max-w-2xl bg-white dark:bg-[#0c0c0e] border border-slate-200 dark:border-white/10 rounded-[2.5rem] shadow-4xl flex flex-col max-h-[85vh] animate-in zoom-in duration-300">
         <div class="px-8 py-6 border-b border-slate-100 dark:border-white/5 flex items-center justify-between sticky top-0 bg-inherit z-10">
           <div class="flex items-center gap-3">
@@ -1814,7 +1814,7 @@ const copyToClipboard = (text: string) => {
     </div>
 
     <!-- 调查问卷弹窗 (仅在此处保留一个逻辑完整的版本) -->
-    <div v-if="showSurveyModal && currentSurvey" class="fixed inset-0 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center p-3">
+    <div v-if="showSurveyModal && currentSurvey" class="viewport-modal-overlay bg-slate-900/60 dark:bg-black/80 backdrop-blur-md z-[100] p-3">
       <div class="bg-white dark:bg-[#0c0c0e] border border-slate-200 dark:border-white/10 rounded-[2rem] p-5 max-w-sm w-full shadow-[0_50px_100px_-20px_rgba(79,70,229,0.3)] animate-in zoom-in relative overflow-hidden group">
         <div class="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 blur-[50px] -mr-16 -mt-16 group-hover:bg-indigo-500/10 transition-all opacity-50" />
         

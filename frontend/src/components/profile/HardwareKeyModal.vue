@@ -95,7 +95,7 @@ onMounted(() => {
 
 <template>
   <Transition name="modal">
-    <div v-if="show" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md" @click="$emit('close')">
+    <div v-if="show" class="viewport-modal-overlay z-[100] p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md" @click="$emit('close')">
       <div class="relative bg-white dark:bg-[#111114] w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-200 dark:border-white/10 pointer-events-auto">
         <!-- 头部 -->
         <div class="p-8 border-b border-slate-100 dark:border-white/5 flex items-center justify-between">

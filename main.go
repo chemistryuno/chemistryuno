@@ -137,6 +137,11 @@ func main() {
 	// 初始化所有Repository（需要在数据库初始化后）
 	repository.InitRepositories()
 
+	// 启动时修复历史数据中缺失昵称的玩家，确保所有展示面都有可用昵称。
+	if _, err := utils.RepairMissingNicknames(repository.UserRepo); err != nil {
+		log.Fatalf("❌ 昵称启动检查失败: %v", err)
+	}
+
 	// 初始化Admin Handlers（需要在数据库初始化后）
 	handlers.InitAdminHandlers()
 

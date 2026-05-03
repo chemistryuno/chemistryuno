@@ -187,17 +187,10 @@ func Register(c *gin.Context) {
 
 	// 如果昵称为空，生成随机昵称并确保在数据库中不存在（尝试若干次）
 	if strings.TrimSpace(req.Nickname) == "" {
-		base := "研究员"
-		candidate := utils.GenerateRandomNickname(base)
-		for i := 0; i < 8; i++ {
-			exists, _ := userRepo.ExistsByNickname(candidate)
-			if !exists {
-				req.Nickname = candidate
-				break
-			}
-			candidate = utils.GenerateRandomNickname(base)
-		}
-		if req.Nickname == "" {
+		nickname, err := utils.GenerateUniqueRandomNickname("研究员", req.Username, userRepo.ExistsByNickname)
+		if err == nil {
+			req.Nickname = nickname
+		} else {
 			// 最后回退到用户名作为昵称
 			req.Nickname = req.Username
 		}

@@ -3394,7 +3394,7 @@ watch(() => gameState.value?.current_player, () => {
       </div>
 
       <!-- Experimental Victory / Failure Protocol -->
-      <div v-if="showSettlementPanel" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md transition-all duration-500">
+      <div v-if="showSettlementPanel" class="viewport-modal-overlay z-[100] p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md transition-all duration-500">
         <!-- Cool Background Effects (Minimized for focus) -->
         <div class="absolute inset-0 pointer-events-none overflow-hidden opacity-30">
            <div v-for="i in 8" :key="i" 
@@ -3510,7 +3510,7 @@ watch(() => gameState.value?.current_player, () => {
         </div>
       </div>
 
-      <div v-if="isReplayBridgeMode && replayGameOver" class="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md">
+      <div v-if="isReplayBridgeMode && replayGameOver" class="viewport-modal-overlay z-[110] p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md">
         <div class="w-full max-w-xl bg-white dark:bg-[#121216] border border-slate-200 dark:border-white/10 rounded-[28px] shadow-2xl overflow-hidden">
           <div class="px-6 py-5 border-b border-slate-200 dark:border-white/10 bg-slate-50/70 dark:bg-white/[0.03]">
             <p class="text-[10px] font-black uppercase tracking-widest text-blue-500">Replay Result</p>
@@ -3569,7 +3569,7 @@ watch(() => gameState.value?.current_player, () => {
     </template>
 
     <!-- Admin Management Modal -->
-    <div v-if="showAdminModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md">
+    <div v-if="showAdminModal" class="viewport-modal-overlay z-[100] p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md">
       <div class="absolute inset-0 bg-black/80 backdrop-blur-md" @click="feedback.click(); showAdminModal = false"></div>
       <div class="relative w-full max-w-lg bg-white dark:bg-[#121216] border border-slate-200 dark:border-white/10 rounded-[40px] shadow-2xl overflow-hidden animate-in zoom-in duration-300">
         <div class="p-8 border-b border-slate-200 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.02]">
@@ -3683,7 +3683,7 @@ watch(() => gameState.value?.current_player, () => {
     </div>
 
     <!-- Invite Friends Modal -->
-    <div v-if="showInviteFriendsModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md">
+    <div v-if="showInviteFriendsModal" class="viewport-modal-overlay z-[100] p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md">
       <div class="absolute inset-0 bg-black/80 backdrop-blur-md clickable" @click="showInviteFriendsModal = false"></div>
       <div class="relative w-full max-w-lg bg-white dark:bg-[#121216] border border-slate-200 dark:border-white/10 rounded-[40px] shadow-2xl overflow-hidden animate-in zoom-in duration-300">
         <div class="p-8 border-b border-slate-200 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.02]">
@@ -3937,7 +3937,7 @@ watch(() => gameState.value?.current_player, () => {
     />
 
     <!-- 牌组详情查看模态框 -->
-    <div v-if="showDeckDetailModal && roomInfo?.deck_config" class="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md">
+    <div v-if="showDeckDetailModal && roomInfo?.deck_config" class="viewport-modal-overlay z-[200] p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md">
       <div class="absolute inset-0 bg-slate-900/40 dark:bg-black/80 backdrop-blur-md clickable" @click="showDeckDetailModal = false" />
       <div class="relative w-full max-w-2xl bg-white dark:bg-[#121216] border border-slate-200 dark:border-white/10 rounded-[32px] shadow-2xl overflow-hidden">
          <div class="px-5 py-4 border-b border-slate-100 dark:border-white/5 flex items-center justify-between">

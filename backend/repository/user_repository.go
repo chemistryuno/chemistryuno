@@ -20,8 +20,12 @@ type UserRepository struct {
 	db *gorm.DB
 }
 
-func NewUserRepository() *UserRepository {
-	return &UserRepository{db: database.DB}
+func NewUserRepository(dbs ...*gorm.DB) *UserRepository {
+	db := database.DB
+	if len(dbs) > 0 && dbs[0] != nil {
+		db = dbs[0]
+	}
+	return &UserRepository{db: db}
 }
 
 // FindByUID 根据UID查找用户
@@ -108,6 +112,16 @@ func (r *UserRepository) ExistsByNickname(nickname string) (bool, error) {
 	var count int64
 	err := r.db.Model(&database.User{}).Where("nickname = ?", nickname).Count(&count).Error
 	return count > 0, err
+}
+
+// FindUsersWithBlankNickname returns users whose nickname is empty or whitespace-only.
+func (r *UserRepository) FindUsersWithBlankNickname() ([]database.User, error) {
+	var users []database.User
+	err := r.db.Select("uid, username, nickname").
+		Where("TRIM(COALESCE(nickname, '')) = ''").
+		Order("uid ASC").
+		Find(&users).Error
+	return users, err
 }
 
 // FindByEmail 按邮箱或用户名查找用户

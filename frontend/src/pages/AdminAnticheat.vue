@@ -1184,10 +1184,14 @@ const getCompensationBadge = (status: string) => {
   left: 0;
   right: 0;
   bottom: 0;
+  min-height: var(--app-height);
   background: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 16px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   z-index: 1000;
 }
 
@@ -1196,7 +1200,7 @@ const getCompensationBadge = (status: string) => {
   border-radius: 8px;
   padding: 24px;
   max-width: 600px;
-  max-height: 90vh;
+  max-height: min(90vh, calc(var(--app-height) - 2rem));
   overflow-y: auto;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }

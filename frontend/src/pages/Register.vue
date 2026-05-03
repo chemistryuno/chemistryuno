@@ -556,7 +556,7 @@ const handleSubmit = async () => {
 
     <!-- 协议模态框 -->
     <transition name="fade">
-      <div v-if="showAgreementModal" class="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 dark:bg-black/70">
+      <div v-if="showAgreementModal" class="viewport-modal-overlay z-[200] p-4 bg-slate-900/60 dark:bg-black/70">
         <div class="absolute inset-0 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md" @click="showAgreementModal = false"></div>
         <div class="relative w-full max-w-2xl bg-white dark:bg-[#121216] border border-slate-200 dark:border-white/10 rounded-[32px] shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in duration-300">
            <div class="px-6 py-5 border-b border-slate-100 dark:border-white/5 flex items-center justify-between sticky top-0 bg-white dark:bg-[#121216] z-10">

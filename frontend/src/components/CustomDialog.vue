@@ -45,8 +45,8 @@ const handleCompositionEnd = () => {
 
 <template>
   <Transition name="fade">
-    <div v-if="state.show" class="fixed inset-0 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md z-[9999] flex items-center justify-center p-4">
-      <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 rounded-[2rem] p-8 max-w-md w-full shadow-2xl overflow-hidden relative pointer-events-auto">
+    <div v-if="state.show" class="viewport-modal-overlay bg-slate-900/60 dark:bg-black/80 backdrop-blur-md z-[9999] p-4">
+      <div class="viewport-modal-panel bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 rounded-[2rem] p-8 max-w-md w-full shadow-2xl relative pointer-events-auto">
         <!-- 装饰背景 -->
         <div class="absolute -top-24 -right-24 w-48 h-48 bg-blue-500/5 rounded-full blur-3xl pointer-events-none" />
         <div class="absolute -bottom-24 -left-24 w-48 h-48 bg-purple-500/5 rounded-full blur-3xl pointer-events-none" />

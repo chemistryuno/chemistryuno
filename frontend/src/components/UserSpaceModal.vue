@@ -103,7 +103,7 @@ const handleStartChat = () => {
 
 <template>
   <Teleport to="body">
-    <div v-if="show" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md" @click="emit('close')">
+    <div v-if="show" class="viewport-modal-overlay z-[100] p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md" @click="emit('close')">
 
       <div class="relative w-full max-w-2xl bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in duration-300 flex flex-col max-h-[90vh] pointer-events-auto">
         <button

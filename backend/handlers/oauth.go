@@ -632,28 +632,21 @@ func handleOAuthUser(c *gin.Context, provider, providerID, username, email, nick
 			}
 		} else {
 			// 创建新用户
-				// 如果 OAuth 提供方没有传回可用昵称，则生成随机昵称并确保唯一性
-				if strings.TrimSpace(nickname) == "" {
-					base := "研究员"
-					candidate := utils.GenerateRandomNickname(base)
-					for i := 0; i < 8; i++ {
-						exists, _ := userRepo.ExistsByNickname(candidate)
-						if !exists {
-							nickname = candidate
-							break
-						}
-						candidate = utils.GenerateRandomNickname(base)
-					}
-					if nickname == "" {
-						// 回退到邮箱本地部分或 provider 标识
-						parts := strings.SplitN(email, "@", 2)
-						if parts[0] != "" {
-							nickname = parts[0]
-						} else {
-							nickname = provider + "_user"
-						}
+			// 如果 OAuth 提供方没有传回可用昵称，则生成随机昵称并确保唯一性
+			if strings.TrimSpace(nickname) == "" {
+				generatedNickname, err := utils.GenerateUniqueRandomNickname("研究员", email, userRepo.ExistsByNickname)
+				if err == nil {
+					nickname = generatedNickname
+				} else {
+					// 回退到邮箱本地部分或 provider 标识
+					parts := strings.SplitN(email, "@", 2)
+					if parts[0] != "" {
+						nickname = parts[0]
+					} else {
+						nickname = provider + "_user"
 					}
 				}
+			}
 
 			// 确保用户名唯一
 			baseUsername := strings.Split(email, "@")[0]

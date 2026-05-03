@@ -1939,7 +1939,7 @@ const filteredHistory = computed(() => {
     </div>
 
     <!-- 封禁用户模态框 -->
-    <div v-if="showBanModal && banTarget" class="fixed inset-0 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+    <div v-if="showBanModal && banTarget" class="viewport-modal-overlay bg-slate-900/60 dark:bg-black/80 backdrop-blur-md z-50 p-4">
       <div class="bg-white dark:bg-[#0c0c0e] border border-slate-200 dark:border-white/10 rounded-[1.5rem] p-4 max-w-md w-full shadow-[0_50px_100px_-20px_rgba(220,38,38,0.15)] animate-in zoom-in relative overflow-hidden">
         <div class="absolute top-0 right-0 w-40 h-40 bg-rose-500/5 blur-[60px] -mr-20 -mt-20" />
 
@@ -2037,7 +2037,7 @@ const filteredHistory = computed(() => {
     </div>
 
     <!-- 发布公告模态框 -->
-    <div v-if="showCreateAnnouncementModal" class="fixed inset-0 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+    <div v-if="showCreateAnnouncementModal" class="viewport-modal-overlay bg-slate-900/60 dark:bg-black/80 backdrop-blur-md z-50 p-4">
       <div class="bg-white dark:bg-[#0c0c0e] border border-slate-200 dark:border-white/10 rounded-[1.5rem] p-4 max-w-lg w-full shadow-[0_50px_100px_-20px_rgba(6,182,212,0.2)] animate-in zoom-in relative overflow-hidden">
         <div class="absolute top-0 right-0 w-40 h-40 bg-cyan-500/5 blur-[60px] -mr-20 -mt-20" />
         
@@ -2159,7 +2159,7 @@ const filteredHistory = computed(() => {
     </div>
 
     <!-- 编辑公告模态框 -->
-    <div v-if="showEditAnnouncementModal && editingAnnouncement" class="fixed inset-0 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+    <div v-if="showEditAnnouncementModal && editingAnnouncement" class="viewport-modal-overlay bg-slate-900/60 dark:bg-black/80 backdrop-blur-md z-50 p-4">
       <div class="bg-white dark:bg-[#0c0c0e] border border-slate-200 dark:border-white/10 rounded-[1.5rem] p-4 max-w-lg w-full shadow-[0_50px_100px_-20px_rgba(6,182,212,0.2)] animate-in zoom-in relative overflow-hidden">
         <div class="absolute top-0 right-0 w-40 h-40 bg-cyan-500/5 blur-[60px] -mr-20 -mt-20" />
 
@@ -2281,7 +2281,7 @@ const filteredHistory = computed(() => {
     </div>
 
     <!-- 发布问卷调查模态框 (内部) -->
-    <div v-if="showCreateSurveyModal" class="fixed inset-0 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+    <div v-if="showCreateSurveyModal" class="viewport-modal-overlay bg-slate-900/60 dark:bg-black/80 backdrop-blur-md z-50 p-4">
       <div class="bg-white dark:bg-[#0c0c0e] border border-slate-200 dark:border-white/10 rounded-[1.25rem] p-5 max-w-xl w-full max-h-[85vh] overflow-y-auto custom-scrollbar shadow-[0_50px_100px_-20px_rgba(79,70,229,0.2)] animate-in zoom-in relative">
         <div class="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 blur-[50px] -mr-16 -mt-16" />
         
@@ -2393,7 +2393,7 @@ const filteredHistory = computed(() => {
     </div>
 
     <!-- 编辑问卷模态框 -->
-    <div v-if="showEditSurveyModal && editingSurvey" class="fixed inset-0 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+    <div v-if="showEditSurveyModal && editingSurvey" class="viewport-modal-overlay bg-slate-900/60 dark:bg-black/80 backdrop-blur-md z-50 p-4">
       <div class="bg-white dark:bg-[#0c0c0e] border border-slate-200 dark:border-white/10 rounded-[1.25rem] p-5 max-w-xl w-full max-h-[85vh] overflow-y-auto custom-scrollbar shadow-[0_50px_100px_-20px_rgba(245,158,11,0.15)] animate-in zoom-in relative">
         <div class="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 blur-[50px] -mr-16 -mt-16" />
 

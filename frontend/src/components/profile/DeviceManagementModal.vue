@@ -133,7 +133,7 @@ const formatUA = (ua: string) => {
 </script>
 
 <template>
-  <div v-if="show" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 dark:bg-black/70 backdrop-blur-sm" @click="emit('close')">
+  <div v-if="show" class="viewport-modal-overlay z-[100] p-4 bg-black/60 dark:bg-black/70 backdrop-blur-sm" @click="emit('close')">
     
     <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 w-full max-w-2xl rounded-[2.5rem] shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-200">
       <!-- Header -->

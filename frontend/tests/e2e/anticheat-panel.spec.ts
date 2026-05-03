@@ -1,23 +1,11 @@
 import { expect, test } from '@playwright/test'
-import { seededUsers } from './helpers'
+import { loginAs, seededUsers } from './helpers'
 
 const json = (body: unknown) => ({
   status: 200,
   contentType: 'application/json',
   body: JSON.stringify(body),
 })
-
-const seedUser = async (page: import('@playwright/test').Page) => {
-  await page.addInitScript(() => {
-    window.localStorage.setItem('user', JSON.stringify({
-      uid: 1,
-      username: 'admin',
-      nickname: '系统管理员',
-      role: 'admin',
-      is_admin: true,
-    }))
-  })
-}
 
 test.beforeEach(async ({ page }) => {
   await page.route('**/api/announcements**', route => route.fulfill(json([])))
@@ -51,7 +39,7 @@ test.beforeEach(async ({ page }) => {
 })
 
 test('admin workflow approves an appeal and sees compensation in audit', async ({ page }) => {
-  await seedUser(page)
+  await loginAs(page, seededUsers.admin)
 
   await page.route('**/api/admin/anticheat/appeals**', route => route.fulfill(json({
     appeals: [
@@ -113,7 +101,7 @@ test('admin workflow approves an appeal and sees compensation in audit', async (
 })
 
 test('player dashboard loads anticheat stats and refreshes periodically', async ({ page }) => {
-  await seedUser(page)
+  await loginAs(page, seededUsers.player)
   await page.addInitScript(() => {
     const originalSetInterval = window.setInterval
     window.setInterval = ((handler: TimerHandler, timeout?: number, ...args: any[]) => {

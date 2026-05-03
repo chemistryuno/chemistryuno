@@ -8,5 +8,14 @@ export default defineConfig({
     globals: true,
     include: ['src/**/*.test.ts'],
     setupFiles: ['src/test/setup.ts'],
+    coverage: {
+      include: ['src/**/*.{ts,vue}'],
+      exclude: [
+        'src/**/*.test.ts',
+        'src/test/**',
+        'src/types/**',
+        'src/vite-env.d.ts',
+      ],
+    },
   },
 })

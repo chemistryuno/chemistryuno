@@ -58,7 +58,6 @@ watch(() => props.show, (newVal) => {
     document.body.style.overflow = ''
   }
 })
-})
 
 const handleLogoutSession = async (session: any) => {
   const confirmed = await showConfirm(

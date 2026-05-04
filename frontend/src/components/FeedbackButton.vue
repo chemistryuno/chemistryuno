@@ -69,7 +69,8 @@ const submitFeedback = async () => {
 </script>
 
 <template>
-  <div v-if="isOpen" class="viewport-modal-overlay z-[999] bg-slate-900/60 dark:bg-black/80 backdrop-blur-md p-4" @click.self="isOpen = false">
+  <Teleport to="body">
+    <div v-if="isOpen" class="viewport-modal-overlay z-[999] bg-slate-900/60 dark:bg-black/80 backdrop-blur-md p-4" @click.self="isOpen = false">
     <!-- Feedback Panel -->
     <div 
       class="viewport-modal-panel relative w-full max-w-sm custom-scrollbar bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-3xl shadow-2xl p-6 animate-in zoom-in-95 fade-in duration-200"
@@ -126,7 +127,8 @@ const submitFeedback = async () => {
         </button>
       </div>
     </div>
-  </div>
+    </div>
+  </Teleport>
 </template>
 
 <style src="./FeedbackButton.css" scoped></style>

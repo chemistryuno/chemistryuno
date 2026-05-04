@@ -3408,6 +3408,7 @@ watch(() => gameState.value?.current_player, () => {
         </div>
       </div>
 
+      <Teleport to="body">
       <!-- Experimental Victory / Failure Protocol -->
       <div v-if="showSettlementPanel" class="viewport-modal-overlay z-[100] p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md transition-all duration-500">
         <!-- Cool Background Effects (Minimized for focus) -->
@@ -3581,12 +3582,14 @@ watch(() => gameState.value?.current_player, () => {
           </div>
         </div>
       </div>
+      </Teleport>
     </template>
 
+    <Teleport to="body">
     <!-- Admin Management Modal -->
     <div v-if="showAdminModal" class="viewport-modal-overlay z-[100] p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md">
       <div class="absolute inset-0 bg-black/80 backdrop-blur-md" @click="feedback.click(); showAdminModal = false"></div>
-      <div class="relative w-full max-w-lg bg-white dark:bg-[#121216] border border-slate-200 dark:border-white/10 rounded-[40px] shadow-2xl overflow-hidden animate-in zoom-in duration-300">
+      <div class="viewport-modal-panel modal-mobile relative w-full max-w-lg bg-white dark:bg-[#121216] border border-slate-200 dark:border-white/10 rounded-[40px] shadow-2xl overflow-y-auto overflow-x-hidden animate-in zoom-in duration-300">
         <div class="p-8 border-b border-slate-200 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.02]">
           <div class="flex items-center justify-between mb-2">
             <h3 class="text-2xl font-black text-slate-900 dark:text-white tracking-tighter flex items-center gap-3">
@@ -3696,8 +3699,10 @@ watch(() => gameState.value?.current_player, () => {
         </div>
       </div>
     </div>
+    </Teleport>
 
     <!-- Invite Friends Modal -->
+    <Teleport to="body">
     <div v-if="showInviteFriendsModal" class="viewport-modal-overlay z-[100] p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md">
       <div class="absolute inset-0 bg-black/80 backdrop-blur-md clickable" @click="showInviteFriendsModal = false"></div>
       <div class="relative w-full max-w-lg bg-white dark:bg-[#121216] border border-slate-200 dark:border-white/10 rounded-[40px] shadow-2xl overflow-hidden animate-in zoom-in duration-300">
@@ -3752,6 +3757,7 @@ watch(() => gameState.value?.current_player, () => {
         </div>
       </div>
     </div>
+    </Teleport>
 
     <!-- Players Floating Panel -->
     <div
@@ -3952,6 +3958,7 @@ watch(() => gameState.value?.current_player, () => {
     />
 
     <!-- 牌组详情查看模态框 -->
+    <Teleport to="body">
     <div v-if="showDeckDetailModal && roomInfo?.deck_config" class="viewport-modal-overlay z-[200] p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md">
       <div class="absolute inset-0 bg-slate-900/40 dark:bg-black/80 backdrop-blur-md clickable" @click="showDeckDetailModal = false" />
       <div class="relative w-full max-w-2xl bg-white dark:bg-[#121216] border border-slate-200 dark:border-white/10 rounded-[32px] shadow-2xl overflow-hidden">
@@ -4014,6 +4021,7 @@ watch(() => gameState.value?.current_player, () => {
          </div>
       </div>
     </div>
+    </Teleport>
   </div>
 
   <!-- Level Up Animation -->

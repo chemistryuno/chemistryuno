@@ -11,16 +11,24 @@ describe('CustomDialog viewport placement', () => {
     })
 
     const dialog = useDialog()
-    const wrapper = mount(CustomDialog)
+    const wrapper = mount(CustomDialog, {
+      attachTo: document.body,
+      global: {
+        stubs: {
+          teleport: false,
+        },
+      },
+    })
     void dialog.showAlert('Scrolled page alert', 'Viewport Check')
     await wrapper.vm.$nextTick()
 
-    const overlay = wrapper.find('.viewport-modal-overlay')
-    expect(overlay.exists()).toBe(true)
-    expect(overlay.classes()).toContain('viewport-modal-overlay')
-    expect(overlay.classes()).not.toContain('absolute')
-    expect(wrapper.find('.viewport-modal-panel').exists()).toBe(true)
+    const overlay = document.body.querySelector('.viewport-modal-overlay')
+    expect(overlay).toBeTruthy()
+    expect(overlay?.parentElement).toBe(document.body)
+    expect(overlay?.classList.contains('absolute')).toBe(false)
+    expect(document.body.querySelector('.viewport-modal-panel')).toBeTruthy()
 
     dialog.handleConfirm()
+    wrapper.unmount()
   })
 })

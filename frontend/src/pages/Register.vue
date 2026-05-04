@@ -555,6 +555,7 @@ const handleSubmit = async () => {
     </div>
 
     <!-- 协议模态框 -->
+    <Teleport to="body">
     <transition name="fade">
       <div v-if="showAgreementModal" class="viewport-modal-overlay z-[200] p-4 bg-slate-900/60 dark:bg-black/70">
         <div class="absolute inset-0 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md" @click="showAgreementModal = false"></div>
@@ -595,5 +596,6 @@ const handleSubmit = async () => {
         </div>
       </div>
     </transition>
+    </Teleport>
   </div>
 </template>

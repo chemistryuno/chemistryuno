@@ -22,26 +22,16 @@ import (
 	"gorm.io/gorm"
 )
 
-// setSecureAuthCookie 设置安全的认证Cookie
-// 包括HttpOnly、Secure（HTTPS时）、SameSite（CSRF防护）等安全属性
+// setSecureAuthCookie stores auth tokens in HttpOnly cookies.
 func setSecureAuthCookie(c *gin.Context, name string, value string, maxAge int) {
-	// 根据请求协议判断是否使用HTTPS
 	secure := c.Request.URL.Scheme == "https" || c.Request.Header.Get("X-Forwarded-Proto") == "https"
+	sameSite := http.SameSiteLaxMode
+	if secure {
+		sameSite = http.SameSiteNoneMode
+	}
 
-	// 设置Cookie，包含安全属性
-	c.SetCookie(
-		name,   // cookie名称
-		value,  // token值
-		maxAge, // 过期时间（秒）
-		"/",    // 路径：整个网站
-		"",     // 域：空表示当前域
-		secure, // Secure：HTTPS时启用，防止中间人攻击
-		true,   // HttpOnly：防止XSS窃取
-	)
-
-	// 添加SameSite属性防CSRF（Gin的SetCookie不支持SameSite，需要手动设置）
-	// SameSite=Lax：GET请求跨站时被发送，POST等状态变更请求不被发送
-	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetSameSite(sameSite)
+	c.SetCookie(name, value, maxAge, "/", "", secure, true)
 }
 
 // consumeVerificationCode atomically deletes one matching, unexpired code.

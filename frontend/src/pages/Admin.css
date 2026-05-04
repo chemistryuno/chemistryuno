@@ -17,6 +17,42 @@
   animation: zoomIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
+.admin-ban-modal-overlay {
+  padding: 0 !important;
+}
+
+.admin-ban-modal-backdrop,
+.admin-ban-modal-positioner {
+  position: fixed;
+  inset: 0;
+}
+
+.admin-ban-modal-backdrop {
+  z-index: 0;
+}
+
+.admin-ban-modal-positioner {
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+.admin-ban-modal-panel {
+  width: min(100%, 28rem);
+  max-height: min(90vh, calc(100vh - 2rem));
+  pointer-events: auto;
+  box-sizing: border-box;
+}
+
+@supports (height: 100dvh) {
+  .admin-ban-modal-panel {
+    max-height: min(90dvh, calc(100dvh - 2rem));
+  }
+}
+
 @keyframes zoomIn {
   from {
     opacity: 0;

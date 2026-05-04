@@ -29,6 +29,7 @@ watch((props: any) => props.show, (show) => {
 </script>
 
 <template>
+  <Teleport to="body">
   <div v-if="show" class="viewport-modal-overlay z-[100] p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md">
     <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 rounded-[3rem] p-10 max-w-md w-full shadow-2xl relative animate-in fade-in zoom-in duration-300 overflow-y-auto max-h-[90vh]">
       <h3 class="text-2xl font-black mb-4 italic uppercase text-center text-slate-900 dark:text-white">配置双重验证 / 2FA Config</h3>
@@ -83,4 +84,5 @@ watch((props: any) => props.show, (show) => {
       </div>
     </div>
   </div>
+  </Teleport>
 </template>

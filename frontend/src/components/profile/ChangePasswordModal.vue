@@ -147,6 +147,7 @@ const handleWebauthnReset = async () => {
 </script>
 
 <template>
+  <Teleport to="body">
   <div v-if="show" class="viewport-modal-overlay z-[100] p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md">
     <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 rounded-[3rem] p-10 max-w-md w-full shadow-2xl relative animate-in fade-in zoom-in duration-300">
       <div class="flex flex-col items-center mb-6">
@@ -297,5 +298,6 @@ const handleWebauthnReset = async () => {
       </form>
     </div>
   </div>
+  </Teleport>
 </template>
 

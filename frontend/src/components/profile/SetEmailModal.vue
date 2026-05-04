@@ -110,6 +110,7 @@ const handleSubmit = async () => {
 </script>
 
 <template>
+  <Teleport to="body">
   <div v-if="show" class="viewport-modal-overlay z-[100] p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md">
     <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-2xl p-6 max-w-md w-full shadow-2xl animate-in fade-in zoom-in duration-300">
       <div class="flex items-center gap-3 mb-5">
@@ -199,4 +200,5 @@ const handleSubmit = async () => {
       </form>
     </div>
   </div>
+  </Teleport>
 </template>

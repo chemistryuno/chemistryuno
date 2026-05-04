@@ -4,7 +4,7 @@ import { Lock, Fingerprint, Loader2, Eye, EyeOff, Mail, Shield, AlertTriangle, H
 import { authAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
 
-defineProps<{
+const props = defineProps<{
   show: boolean
   loading: boolean
 }>()
@@ -65,7 +65,7 @@ watch([identifier, recoveryMode], async () => {
 
 // 监控 show 状态以禁用/启用背景滚动
 watch(
-  (props: any) => props.show,
+  () => props.show,
   (show) => {
     if (show) {
       document.documentElement.style.overflow = 'hidden'
@@ -151,7 +151,8 @@ const handleReset = async () => {
 </script>
 
 <template>
-  <div v-if="show" class="viewport-modal-overlay z-[100] p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md">
+  <Teleport to="body">
+    <div v-if="show" class="viewport-modal-overlay z-[100] p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md">
     <div class="bg-white/90 dark:bg-slate-900/90 border border-white dark:border-white/10 rounded-[3rem] p-6 md:p-8 max-w-md w-full shadow-[0_0_50px_rgba(0,0,0,0.5)] relative animate-in fade-in zoom-in duration-300 backdrop-blur-3xl pointer-events-auto">
       <div class="flex flex-col items-center mb-6">
         <div class="relative group">
@@ -333,5 +334,6 @@ const handleReset = async () => {
         </div>
       </form>
     </div>
-  </div>
+    </div>
+  </Teleport>
 </template>

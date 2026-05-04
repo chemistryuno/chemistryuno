@@ -529,6 +529,7 @@ onMounted(loadPlugins)
       </div>
     </div>
 
+    <Teleport to="body">
     <div v-if="showRestartModal" class="viewport-modal-overlay z-50 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md p-4">
       <div class="bg-slate-900 border border-red-500/20 rounded-2xl w-full max-w-md">
         <div class="p-4 border-b border-white/5 text-sm font-black text-red-300 uppercase tracking-widest">安排服务器重启</div>
@@ -542,5 +543,6 @@ onMounted(loadPlugins)
         </div>
       </div>
     </div>
+    </Teleport>
   </div>
 </template>

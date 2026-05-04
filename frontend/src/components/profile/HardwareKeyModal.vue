@@ -110,6 +110,7 @@ onMounted(() => {
 
 <template>
   <Transition name="modal">
+    <Teleport to="body">
     <div v-if="show" class="viewport-modal-overlay z-[100] p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md" @click="$emit('close')">
       <div class="relative bg-white dark:bg-[#111114] w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-200 dark:border-white/10 pointer-events-auto">
         <!-- 头部 -->
@@ -191,6 +192,7 @@ onMounted(() => {
         </div>
       </div>
     </div>
+    </Teleport>
   </Transition>
 </template>
 

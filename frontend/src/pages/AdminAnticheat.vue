@@ -428,8 +428,9 @@ const getCompensationBadge = (status: string) => {
       </div>
     </div>
 
-    <!-- Detection Detail Modal -->
-    <div v-if="showDetailModal" class="modal-overlay" @click.self="showDetailModal = false">
+    <Teleport to="body">
+      <!-- Detection Detail Modal -->
+      <div v-if="showDetailModal" class="modal-overlay" @click.self="showDetailModal = false">
       <div class="modal-content">
         <h2>检测详情</h2>
         <div v-if="selectedDetection" class="detail-content">
@@ -507,7 +508,8 @@ const getCompensationBadge = (status: string) => {
           <button class="btn btn-secondary" @click="showDetailModal = false">关闭</button>
         </div>
       </div>
-    </div>
+      </div>
+    </Teleport>
 
     <!-- Appeals Tab -->
     <div v-if="activeTab === 'appeals'" class="tab-content">
@@ -579,8 +581,9 @@ const getCompensationBadge = (status: string) => {
         </button>
       </div>
 
-      <!-- Approval Modal with Compensation -->
-      <div v-if="showApprovalModal" class="modal-overlay" @click.self="cancelApproval">
+      <Teleport to="body">
+        <!-- Approval Modal with Compensation -->
+        <div v-if="showApprovalModal" class="modal-overlay" @click.self="cancelApproval">
         <div class="modal-content modal-approval">
           <h2>批准申诉并发放补偿</h2>
           
@@ -649,7 +652,8 @@ const getCompensationBadge = (status: string) => {
             <button class="btn btn-secondary" @click="cancelApproval">取消</button>
           </div>
         </div>
-      </div>
+        </div>
+      </Teleport>
     </div>
     <div v-if="activeTab === 'config'" class="tab-content">
       <div v-if="!editingConfig && configData" class="config-view">
@@ -1180,19 +1184,26 @@ const getCompensationBadge = (status: string) => {
 /* Modal Styles */
 .modal-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  min-height: var(--app-height);
+  inset: 0 !important;
+  width: 100vw;
+  height: 100vh;
+  min-height: 100vh;
   background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: grid;
+  place-items: center;
   padding: 16px;
   overflow-y: auto;
+  overflow-x: hidden;
   overscroll-behavior: contain;
   z-index: 1000;
+  box-sizing: border-box;
+}
+
+@supports (height: 100dvh) {
+  .modal-overlay {
+    height: 100dvh;
+    min-height: 100dvh;
+  }
 }
 
 .modal-content {
@@ -1200,9 +1211,15 @@ const getCompensationBadge = (status: string) => {
   border-radius: 8px;
   padding: 24px;
   max-width: 600px;
-  max-height: min(90vh, calc(var(--app-height) - 2rem));
+  max-height: min(90vh, calc(100vh - 2rem));
   overflow-y: auto;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+@supports (height: 100dvh) {
+  .modal-content {
+    max-height: min(90dvh, calc(100dvh - 2rem));
+  }
 }
 
 .modal-content h2 {

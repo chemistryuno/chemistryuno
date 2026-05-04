@@ -194,6 +194,7 @@ onMounted(loadDecks)
     </div>
 
     <!-- Edit Modal Overlay -->
+     <Teleport to="body">
      <div v-if="editingDeck" class="viewport-modal-overlay z-[100] p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md" @click="editingDeck = null">
        <div class="relative w-full max-w-2xl bg-white dark:bg-slate-900 rounded-2xl border border-white/10 shadow-3xl overflow-hidden flex flex-col max-h-[90vh] pointer-events-auto" @click.stop>
           <div class="p-5 border-b border-white/5">
@@ -304,5 +305,6 @@ onMounted(loadDecks)
           </div>
        </div>
     </div>
+     </Teleport>
   </div>
 </template>

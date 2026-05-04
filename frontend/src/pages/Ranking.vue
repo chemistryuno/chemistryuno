@@ -433,6 +433,7 @@
     </div>
 
     <!-- Bounty Issue Modal -->
+    <Teleport to="body">
     <div v-if="showBountyModal" class="viewport-modal-overlay z-[100] p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md">
        <div class="absolute inset-0 bg-slate-900/40 dark:bg-black/80 backdrop-blur-md" @click="showBountyModal = false"></div>
        <div class="relative w-full max-w-sm bg-white dark:bg-[#121216] border border-slate-200 dark:border-rose-500/30 rounded-[32px] shadow-2xl overflow-hidden animate-in zoom-in duration-300">
@@ -505,6 +506,7 @@
           </div>
        </div>
     </div>
+    </Teleport>
 
 
 

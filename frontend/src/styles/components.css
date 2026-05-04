@@ -91,12 +91,26 @@
 /* ==================== 模态框组件 ==================== */
 
 .modal-overlay {
-  @apply fixed inset-0 z-[100];
+  @apply fixed z-[100];
   @apply bg-black/60 backdrop-blur-sm;
-  @apply flex items-center justify-center p-4;
-  min-height: var(--app-height);
+  inset: 0 !important;
+  display: grid;
+  place-items: center;
+  width: 100vw;
+  height: 100vh;
+  min-height: 100vh;
+  padding: 1rem;
   overflow-y: auto;
+  overflow-x: hidden;
   overscroll-behavior: contain;
+  box-sizing: border-box;
+}
+
+@supports (height: 100dvh) {
+  .modal-overlay {
+    height: 100dvh;
+    min-height: 100dvh;
+  }
 }
 
 .modal-content {
@@ -104,14 +118,21 @@
   @apply bg-white dark:bg-slate-900;
   @apply rounded-2xl shadow-2xl;
   @apply border border-slate-200 dark:border-white/10;
-  max-height: min(90vh, calc(var(--app-height) - 2rem));
+  max-height: min(90vh, calc(100vh - 2rem));
   overflow-y: auto;
 }
 
 .modal-mobile {
   @apply max-w-full;
-  max-height: min(90vh, calc(var(--app-height) - 2rem));
+  max-height: min(90vh, calc(100vh - 2rem));
   overflow-y: auto;
+}
+
+@supports (height: 100dvh) {
+  .modal-content,
+  .modal-mobile {
+    max-height: min(90dvh, calc(100dvh - 2rem));
+  }
 }
 
 /* ==================== 徽章组件 ==================== */

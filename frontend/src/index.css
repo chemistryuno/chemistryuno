@@ -132,31 +132,40 @@ body {
 
   .viewport-modal-overlay {
     position: fixed;
-    inset: 0;
+    inset: 0 !important;
     width: 100vw;
-    height: var(--app-height);
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    height: 100vh;
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
     z-index: 9999;
     overflow-y: auto;
     overflow-x: hidden;
     overscroll-behavior: contain;
     padding: 1rem;
+    box-sizing: border-box;
   }
 
-  /* 禁用弹窗出现时的背景滚动 */
-  .viewport-modal-overlay {
-    scrollbar-gutter: stable;
+  @supports (height: 100dvh) {
+    .viewport-modal-overlay {
+      height: 100dvh;
+      min-height: 100dvh;
+    }
   }
 
   .viewport-modal-panel {
     position: relative;
-    margin: auto;
-    max-height: min(90vh, calc(var(--app-height) - 2rem));
+    max-height: min(90vh, calc(100vh - 2rem));
     overflow-y: auto;
-    max-width: 100%;
-    flex-shrink: 0;
+    justify-self: center;
+    align-self: center;
+    box-sizing: border-box;
+  }
+
+  @supports (height: 100dvh) {
+    .viewport-modal-panel {
+      max-height: min(90dvh, calc(100dvh - 2rem));
+    }
   }
 }
 
@@ -214,8 +223,14 @@ body {
 
   /* Modal sizing */
   .modal-mobile {
-    max-height: min(90vh, calc(var(--app-height) - 2rem));
+    max-height: min(90vh, calc(100vh - 2rem));
     overflow-y: auto;
+  }
+
+  @supports (height: 100dvh) {
+    .modal-mobile {
+      max-height: min(90dvh, calc(100dvh - 2rem));
+    }
   }
 
   .modal-content-mobile {

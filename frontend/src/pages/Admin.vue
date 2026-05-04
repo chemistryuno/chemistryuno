@@ -31,6 +31,7 @@ import {
   Clock,
   Ban,
   ShieldCheck,
+  Settings2,
   UserMinus,
   X,
   Puzzle,
@@ -405,20 +406,6 @@ const loadData = async () => {
 }
 
 // 监控弹窗状态以禁用/启用背景滚动
-watch(
-  [showCreateSurveyModal, showEditSurveyModal, showCreateAnnouncementModal, showEditAnnouncementModal, showBanModal],
-  ([survey1, survey2, ann1, ann2, ban]) => {
-    const hasModal = survey1 || survey2 || ann1 || ann2 || ban
-    if (hasModal) {
-      document.documentElement.style.overflow = 'hidden'
-      document.body.style.overflow = 'hidden'
-    } else {
-      document.documentElement.style.overflow = ''
-      document.body.style.overflow = ''
-    }
-  }
-)
-
 onMounted(() => {
   loadData()
   adminAPI.getStats().then(r => { stats.value = r.data }).catch(() => {})
@@ -574,6 +561,20 @@ const banPresets = [
 ]
 
 const selectedPreset = ref<number | null>(24)
+
+watch(
+  [showCreateSurveyModal, showEditSurveyModal, showCreateAnnouncementModal, showEditAnnouncementModal, showBanModal],
+  ([survey1, survey2, ann1, ann2, ban]) => {
+    const hasModal = survey1 || survey2 || ann1 || ann2 || ban
+    if (hasModal) {
+      document.documentElement.style.overflow = 'hidden'
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.documentElement.style.overflow = ''
+      document.body.style.overflow = ''
+    }
+  }
+)
 
 const setBanDuration = (hours: number) => {
   selectedPreset.value = hours
@@ -1954,102 +1955,107 @@ const filteredHistory = computed(() => {
     </div>
 
     <!-- 封禁用户模态框 -->
-    <div v-if="showBanModal && banTarget" class="viewport-modal-overlay bg-slate-900/60 dark:bg-black/80 backdrop-blur-md z-50 p-4">
-      <div class="bg-white dark:bg-[#0c0c0e] border border-slate-200 dark:border-white/10 rounded-[1.5rem] p-4 max-w-md w-full shadow-[0_50px_100px_-20px_rgba(220,38,38,0.15)] animate-in zoom-in relative overflow-hidden">
-        <div class="absolute top-0 right-0 w-40 h-40 bg-rose-500/5 blur-[60px] -mr-20 -mt-20" />
+    <Teleport to="body">
+    <div v-if="showBanModal && banTarget" class="viewport-modal-overlay admin-ban-modal-overlay bg-slate-900/60 dark:bg-black/80 backdrop-blur-md z-50">
+      <div class="admin-ban-modal-backdrop" @click="showBanModal = false"></div>
+      <div class="admin-ban-modal-positioner">
+        <div class="viewport-modal-panel admin-ban-modal-panel modal-mobile bg-white dark:bg-[#0c0c0e] border border-slate-200 dark:border-white/10 rounded-[1.5rem] p-4 max-w-md w-full shadow-[0_50px_100px_-20px_rgba(220,38,38,0.15)] animate-in zoom-in relative overflow-y-auto overflow-x-hidden">
+          <div class="absolute top-0 right-0 w-40 h-40 bg-rose-500/5 blur-[60px] -mr-20 -mt-20" />
 
-        <div class="flex items-center justify-between mb-8 relative z-10">
-          <h3 class="text-lg font-black italic uppercase text-slate-900 dark:text-white flex items-center gap-4">
-            <Ban class="w-6 h-6 text-rose-500" />
-            {{ isBanned(banTarget) ? '修改封禁时间' : '封禁研究员' }} <span class="text-[10px] text-slate-400 font-mono not-italic tracking-normal">/ {{ isBanned(banTarget) ? 'MODIFY_BAN' : 'ACCESS_RESTRICT' }}</span>
-          </h3>
-          <button @click="showBanModal = false" class="p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl transition-colors text-slate-400 hover:text-slate-900 dark:hover:text-white">
-            <X class="w-5 h-5" />
-          </button>
-        </div>
-
-        <div class="p-4 bg-rose-500/5 border border-rose-500/10 rounded-xl mb-6 relative z-10 flex items-center gap-4">
-          <div class="w-12 h-12 bg-white dark:bg-black/40 rounded-xl flex items-center justify-center text-lg border border-slate-200 dark:border-white/10 shadow-sm overflow-hidden shrink-0">
-            <UserAvatar :avatar="banTarget.avatar" />
+          <div class="flex items-center justify-between mb-8 relative z-10">
+            <h3 class="text-lg font-black italic uppercase text-slate-900 dark:text-white flex items-center gap-4">
+              <Ban class="w-6 h-6 text-rose-500" />
+              {{ isBanned(banTarget) ? '修改封禁时间' : '封禁研究员' }} <span class="text-[10px] text-slate-400 font-mono not-italic tracking-normal">/ {{ isBanned(banTarget) ? 'MODIFY_BAN' : 'ACCESS_RESTRICT' }}</span>
+            </h3>
+            <button @click="showBanModal = false" class="p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl transition-colors text-slate-400 hover:text-slate-900 dark:hover:text-white">
+              <X class="w-5 h-5" />
+            </button>
           </div>
-          <div>
-            <p class="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight">{{ banTarget.nickname || banTarget.username }}</p>
-            <p class="text-[9px] text-slate-400 font-mono">UID: {{ banTarget.uid }}</p>
-          </div>
-        </div>
 
-        <div class="space-y-6 relative z-10">
-          <div>
-            <label class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] block mb-3 ml-1">Ban Duration / 封禁时长</label>
-            <div class="grid grid-cols-4 gap-2 mb-4">
-              <button
-                v-for="preset in banPresets"
-                :key="preset.hours"
-                @click="setBanDuration(preset.hours)"
-                :class="cn(
-                  'px-3 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border active:scale-95',
-                  selectedPreset === preset.hours
-                    ? 'bg-rose-500/10 border-rose-500/30 text-rose-500 shadow-sm'
-                    : 'bg-slate-50 dark:bg-black/40 border-slate-200 dark:border-white/10 text-slate-500 hover:border-rose-500/20 hover:text-rose-400'
-                )"
-              >
-                {{ preset.label }}
-              </button>
-              <button
-                @click="selectedPreset = null"
-                :class="cn(
-                  'px-3 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border active:scale-95',
-                  selectedPreset === null
-                    ? 'bg-rose-500/10 border-rose-500/30 text-rose-500 shadow-sm'
-                    : 'bg-slate-50 dark:bg-black/40 border-slate-200 dark:border-white/10 text-slate-500 hover:border-rose-500/20 hover:text-rose-400'
-                )"
-              >
-                自定义
-              </button>
+          <div class="p-4 bg-rose-500/5 border border-rose-500/10 rounded-xl mb-6 relative z-10 flex items-center gap-4">
+            <div class="w-12 h-12 bg-white dark:bg-black/40 rounded-xl flex items-center justify-center text-lg border border-slate-200 dark:border-white/10 shadow-sm overflow-hidden shrink-0">
+              <UserAvatar :avatar="banTarget.avatar" />
             </div>
-            <div v-if="selectedPreset === null" class="animate-in slide-in-from-top-2 duration-200">
-              <input
-                v-model="banUntil"
-                type="datetime-local"
-                :min="formatDatetimeLocal(new Date())"
-                class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-5 py-2.5 text-sm font-black text-slate-900 dark:text-white focus:outline-none focus:border-rose-500/50 transition-all"
+            <div>
+              <p class="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight">{{ banTarget.nickname || banTarget.username }}</p>
+              <p class="text-[9px] text-slate-400 font-mono">UID: {{ banTarget.uid }}</p>
+            </div>
+          </div>
+
+          <div class="space-y-6 relative z-10">
+            <div>
+              <label class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] block mb-3 ml-1">Ban Duration / 封禁时长</label>
+              <div class="grid grid-cols-4 gap-2 mb-4">
+                <button
+                  v-for="preset in banPresets"
+                  :key="preset.hours"
+                  @click="setBanDuration(preset.hours)"
+                  :class="cn(
+                    'px-3 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border active:scale-95',
+                    selectedPreset === preset.hours
+                      ? 'bg-rose-500/10 border-rose-500/30 text-rose-500 shadow-sm'
+                      : 'bg-slate-50 dark:bg-black/40 border-slate-200 dark:border-white/10 text-slate-500 hover:border-rose-500/20 hover:text-rose-400'
+                  )"
+                >
+                  {{ preset.label }}
+                </button>
+                <button
+                  @click="selectedPreset = null"
+                  :class="cn(
+                    'px-3 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border active:scale-95',
+                    selectedPreset === null
+                      ? 'bg-rose-500/10 border-rose-500/30 text-rose-500 shadow-sm'
+                      : 'bg-slate-50 dark:bg-black/40 border-slate-200 dark:border-white/10 text-slate-500 hover:border-rose-500/20 hover:text-rose-400'
+                  )"
+                >
+                  自定义
+                </button>
+              </div>
+              <div v-if="selectedPreset === null" class="animate-in slide-in-from-top-2 duration-200">
+                <input
+                  v-model="banUntil"
+                  type="datetime-local"
+                  :min="formatDatetimeLocal(new Date())"
+                  class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-5 py-2.5 text-sm font-black text-slate-900 dark:text-white focus:outline-none focus:border-rose-500/50 transition-all"
+                />
+              </div>
+              <div class="flex items-center gap-2 ml-1 mt-2">
+                <div class="w-1.5 h-1.5 rounded-full" :class="banUntil ? 'bg-rose-500 animate-pulse' : 'bg-slate-300 dark:bg-slate-600'"></div>
+                <span class="text-[9px] font-bold text-slate-400 dark:text-slate-600 uppercase tracking-wider">
+                  封禁截止: {{ banUntil ? new Date(banUntil).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }) + '（UTC+8）' : '未设置' }}
+                </span>
+              </div>
+            </div>
+
+            <div>
+              <label class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] block mb-3 ml-1">Reason / 封禁事由</label>
+              <textarea
+                v-model="banReason"
+                rows="3"
+                placeholder="请输入封禁原因..."
+                class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-5 py-2.5 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-rose-500/50 transition-all resize-none"
               />
             </div>
-            <div class="flex items-center gap-2 ml-1 mt-2">
-              <div class="w-1.5 h-1.5 rounded-full" :class="banUntil ? 'bg-rose-500 animate-pulse' : 'bg-slate-300 dark:bg-slate-600'"></div>
-              <span class="text-[9px] font-bold text-slate-400 dark:text-slate-600 uppercase tracking-wider">
-                封禁截止: {{ banUntil ? new Date(banUntil).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }) + '（UTC+8）' : '未设置' }}
-              </span>
-            </div>
           </div>
 
-          <div>
-            <label class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] block mb-3 ml-1">Reason / 封禁事由</label>
-            <textarea
-              v-model="banReason"
-              rows="3"
-              placeholder="请输入封禁原因..."
-              class="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-5 py-2.5 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-rose-500/50 transition-all resize-none"
-            />
+          <div class="flex gap-4 mt-10 relative z-10">
+            <button
+              @click="showBanModal = false"
+              class="flex-1 px-4 py-2.5 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-500 dark:text-slate-400 rounded-[1.25rem] font-black text-[10px] uppercase tracking-widest transition-all border border-slate-200 dark:border-white/5"
+            >
+              Abort
+            </button>
+            <button
+              @click="handleBanUser"
+              class="flex-1 px-4 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-[1.25rem] font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-rose-500/20 active:scale-95 border border-rose-500/20"
+            >
+              {{ isBanned(banTarget) ? 'Update Ban' : 'Execute Ban' }}
+            </button>
           </div>
-        </div>
-
-        <div class="flex gap-4 mt-10 relative z-10">
-          <button
-            @click="showBanModal = false"
-            class="flex-1 px-4 py-2.5 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-500 dark:text-slate-400 rounded-[1.25rem] font-black text-[10px] uppercase tracking-widest transition-all border border-slate-200 dark:border-white/5"
-          >
-            Abort
-          </button>
-          <button
-            @click="handleBanUser"
-            class="flex-1 px-4 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-[1.25rem] font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-rose-500/20 active:scale-95 border border-rose-500/20"
-          >
-            {{ isBanned(banTarget) ? 'Update Ban' : 'Execute Ban' }}
-          </button>
         </div>
       </div>
     </div>
+    </Teleport>
 
     <!-- 发布公告模态框 -->
     <div v-if="showCreateAnnouncementModal" class="viewport-modal-overlay bg-slate-900/60 dark:bg-black/80 backdrop-blur-md z-50 p-4">

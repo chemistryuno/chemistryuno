@@ -57,7 +57,8 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="viewport-modal-overlay z-[1000] p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md" @click="handleResponse(false)">
+  <Teleport to="body">
+    <div class="viewport-modal-overlay z-[1000] p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md" @click="handleResponse(false)">
 
     <div class="viewport-modal-panel relative w-full max-w-sm bg-white dark:bg-[#121216] border border-slate-200 dark:border-white/10 rounded-[40px] shadow-2xl overflow-hidden animate-in zoom-in duration-300 pointer-events-auto">
       <!-- Decoration -->
@@ -112,5 +113,6 @@ onUnmounted(() => {
         </div>
       </div>
     </div>
-  </div>
+    </div>
+  </Teleport>
 </template>

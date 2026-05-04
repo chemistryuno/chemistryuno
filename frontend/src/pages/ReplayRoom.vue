@@ -550,8 +550,8 @@ onUnmounted(() => {
         <div class="rounded-xl border border-slate-200 dark:border-white/10 p-3">
           <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">回放状态</p>
           <div class="flex flex-wrap gap-2">
-            <span v-if="replayData?.cheat_detected" class="px-2 py-1 rounded-md text-[10px] font-black bg-rose-500/10 text-rose-500">CHEAT</span>
-            <span v-if="replayData?.replay_permanent" class="px-2 py-1 rounded-md text-[10px] font-black bg-amber-500/10 text-amber-600 dark:text-amber-400">PERMANENT</span>
+            <span v-if="useAdminScope && replayData?.cheat_detected" class="px-2 py-1 rounded-md text-[10px] font-black bg-rose-500/10 text-rose-500">CHEAT</span>
+            <span v-if="useAdminScope && replayData?.replay_permanent" class="px-2 py-1 rounded-md text-[10px] font-black bg-amber-500/10 text-amber-600 dark:text-amber-400">PERMANENT</span>
             <span v-else-if="replayData?.replay_expires_at" class="px-2 py-1 rounded-md text-[10px] font-black bg-cyan-500/10 text-cyan-600 dark:text-cyan-300">
               {{ formatDate(replayData.replay_expires_at) }} 到期
             </span>

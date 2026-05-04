@@ -11,6 +11,7 @@ import {
 import { cn } from '../utils/cn'
 import { useDialog } from '../utils/dialog'
 import UserAvatar from '../components/UserAvatar.vue'
+import { banStateFromBlockedMessage, formatBanUntil, getBanState } from '../utils/banState'
 
 const router = useRouter()
 const route = useRoute()
@@ -27,6 +28,7 @@ try {
   console.error('Failed to parse user in Chat:', e)
 }
 const currentUser = ref<any>(initialUser)
+const banState = ref(getBanState(initialUser))
 
 // 状态管理
 const friends = ref<any[]>([])
@@ -46,6 +48,17 @@ const showRequestsModal = ref(false)
 
 // 房间状态缓存
 const roomStatusCache = ref<Record<string, { status: string, checkedAt: number }>>({})
+
+const refreshBanState = async () => {
+  try {
+    const res = await authAPI.getUserInfo()
+    currentUser.value = res.data
+    localStorage.setItem('user', JSON.stringify(res.data))
+    banState.value = getBanState(res.data)
+  } catch (err) {
+    banState.value = getBanState(currentUser.value)
+  }
+}
 
 // 检查房间状态
 const checkRoomStatus = async (roomId: string) => {
@@ -273,6 +286,7 @@ const selectChat = async (friend: any) => {
 
 const handleSend = () => {
   if (!newMessage.value.trim() || !activeChat.value) return
+  if (banState.value.isBanned) return
   
   websocket.send({
     type: 'private_chat',
@@ -333,13 +347,23 @@ const onErrorMessage = (msg: any) => {
   showAlert(msg.message, '通信链路异常')
 }
 
+const onChatBlocked = (msg: any) => {
+  const next = banStateFromBlockedMessage(msg)
+  if (next.isBanned) {
+    banState.value = next
+  }
+  showAlert(msg.message || '账号封禁期间无法使用私聊。', '聊天已限制')
+}
+
 onMounted(() => {
+  refreshBanState()
   Promise.all([fetchFriends(), fetchRequests()]).finally(() => {
     loading.value = false
   })
 
   websocket.on('private_chat', onPrivateMessage)
   websocket.on('error', onErrorMessage)
+  websocket.on('chat_blocked', onChatBlocked)
   websocket.on('friend_request', handleIncomingFriendRequest)
   websocket.on('friend_request_handled', handleFriendRequestHandled)
 })
@@ -347,6 +371,7 @@ onMounted(() => {
 onUnmounted(() => {
   websocket.off('private_chat', onPrivateMessage)
   websocket.off('error', onErrorMessage)
+  websocket.off('chat_blocked', onChatBlocked)
   websocket.off('friend_request', handleIncomingFriendRequest)
   websocket.off('friend_request_handled', handleFriendRequestHandled)
 })
@@ -637,18 +662,28 @@ const formatTime = (date: Date) => {
 
           <!-- Input Area -->
           <div class="p-2.5 sm:p-3 border-t border-slate-200 dark:border-white/5 bg-white/50 dark:bg-black/20 backdrop-blur-md">
+            <div v-if="banState.isBanned" data-testid="private-chat-blocked" class="mb-2 rounded-xl sm:rounded-2xl border border-rose-200 dark:border-rose-500/20 bg-rose-50 dark:bg-rose-500/10 p-3 text-xs text-rose-700 dark:text-rose-200">
+              <div class="font-black">私聊暂不可用</div>
+              <div class="mt-1 leading-relaxed">
+                账号封禁期间无法参与私人聊天。封禁截止：{{ formatBanUntil(banState.bannedUntil) }}
+              </div>
+              <div v-if="banState.banReason" class="mt-1 leading-relaxed">
+                原因：{{ banState.banReason }}
+              </div>
+            </div>
             <div class="relative group">
               <div class="absolute -inset-1 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl sm:rounded-2xl blur opacity-0 group-focus-within:opacity-10 transition duration-500"></div>
               <div class="relative flex items-center gap-2">
                 <input
                   v-model="newMessage"
                   @keyup.enter="handleSend"
+                  :disabled="banState.isBanned"
                   placeholder="注入数据流以开启通信频率..."
                   class="flex-1 h-10 sm:h-11 bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 rounded-xl sm:rounded-2xl px-3 sm:px-4 text-[10px] sm:text-xs focus:outline-none focus:border-blue-500/50 transition-all font-medium text-slate-700 dark:text-white"
                 />
                 <button
                   @click="handleSend"
-                  :disabled="!newMessage.trim()"
+                  :disabled="!newMessage.trim() || banState.isBanned"
                   class="w-10 h-10 sm:w-11 sm:h-11 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-xl sm:rounded-2xl flex items-center justify-center transition-all shadow-lg shadow-blue-500/20 active:scale-95 shrink-0"
                 >
                   <Send class="w-3.5 h-3.5 sm:w-4 sm:h-4 -rotate-12 group-hover:rotate-0 transition-transform" />

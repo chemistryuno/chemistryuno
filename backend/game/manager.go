@@ -42,7 +42,7 @@ func InitializeAnticheatSystem(db *gorm.DB) error {
 	log.Printf("[游戏] 反作弊系统初始化成功, 启动时间: %v", systemStartTime)
 	return nil
 }
- 
+
 // GetGlobalAnticheatSystem 获取全局反作弊系统实例
 func GetGlobalAnticheatSystem() *anticheat.System {
 	return anticheatSystem
@@ -1721,7 +1721,7 @@ func (gr *GameRoom) terminateAsInvalidGame(reason string) {
 	replayLog, cheatUIDs, cheatDetected := gr.captureReplaySnapshotLocked(reason)
 	replayMeta = &gameReplayMeta{
 		ReplayLog:       replayLog,
-		ReplayPermanent: cheatDetected,
+		ReplayPermanent: false,
 		CheatDetected:   cheatDetected,
 		CheatUIDs:       cheatUIDs,
 		StartedAt:       gr.GameStartedAt,
@@ -3972,7 +3972,7 @@ func saveGameHistory(roomID string, winnerUID int, players []int, originalPlayer
 			}
 		}
 
-		if replayMeta.ReplayLog != "" && !replayMeta.ReplayPermanent {
+		if replayMeta.ReplayLog != "" {
 			expiresAt := now.Add(7 * 24 * time.Hour)
 			history.ReplayExpiresAt = &expiresAt
 		}
@@ -4463,7 +4463,7 @@ func finalizeGame(gr *GameRoom) {
 
 	saveGameHistory(gr.Room.ID, winnerUID, gr.Room.Players, gr.GameState.OriginalPlayerCount, gr.GameState.QuittedCount, gr.GameState.FinishedPlayers, false, "", &gameReplayMeta{
 		ReplayLog:       replayLog,
-		ReplayPermanent: cheatDetected,
+		ReplayPermanent: false,
 		CheatDetected:   cheatDetected,
 		CheatUIDs:       cheatUIDs,
 		StartedAt:       gr.GameStartedAt,

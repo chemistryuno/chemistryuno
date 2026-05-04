@@ -1,4 +1,6 @@
 import { mount } from '@vue/test-utils'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import CustomDialog from './CustomDialog.vue'
 import { useDialog } from '../utils/dialog'
@@ -30,5 +32,18 @@ describe('CustomDialog viewport placement', () => {
 
     dialog.handleConfirm()
     wrapper.unmount()
+  })
+
+  it('keeps scrolling on the dialog panel without showing modal scrollbars', () => {
+    const css = readFileSync(join(process.cwd(), 'src/index.css'), 'utf8')
+    const overlayRule = css.match(/\.viewport-modal-overlay\s*\{[^}]*\}/)?.[0] ?? ''
+    const panelRule = css.match(/\.viewport-modal-panel\s*\{[^}]*\}/)?.[0] ?? ''
+    const panelScrollbarRule = css.match(/\.viewport-modal-panel::-webkit-scrollbar\s*\{[^}]*\}/)?.[0] ?? ''
+
+    expect(overlayRule).toContain('overflow: hidden;')
+    expect(overlayRule).not.toContain('overflow-y: auto;')
+    expect(panelRule).toContain('overflow-y: auto;')
+    expect(panelRule).toContain('scrollbar-width: none;')
+    expect(panelScrollbarRule).toContain('display: none;')
   })
 })

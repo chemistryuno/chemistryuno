@@ -37,6 +37,11 @@ type Message struct {
 	Timestamp int64       `json:"timestamp,omitempty"` // 用于ping/pong时间戳
 }
 
+type chatBanInfo struct {
+	Until  *time.Time
+	Reason string
+}
+
 func NewClient(hub *Hub, conn *websocket.Conn, uid int, username string, nickname string, avatar string) *Client {
 	return &Client{
 		hub:      hub,
@@ -47,6 +52,38 @@ func NewClient(hub *Hub, conn *websocket.Conn, uid int, username string, nicknam
 		nickname: nickname,
 		avatar:   avatar,
 	}
+}
+
+func (c *Client) activeChatBan() (*chatBanInfo, bool) {
+	bannedUntil, _, reason, err := repository.NewUserRepository().CheckBanStatus(uint(c.uid))
+	if err != nil {
+		log.Printf("failed to check ban status for websocket user %d: %v", c.uid, err)
+		return nil, false
+	}
+	if bannedUntil == nil || !bannedUntil.After(time.Now()) {
+		return nil, false
+	}
+	return &chatBanInfo{Until: bannedUntil, Reason: reason}, true
+}
+
+func (c *Client) rejectBannedChat(action string, ban *chatBanInfo) {
+	data := map[string]string{
+		"reason": "banned",
+		"action": action,
+	}
+	if ban != nil {
+		if ban.Until != nil {
+			data["banned_until"] = ban.Until.Format(time.RFC3339)
+		}
+		if ban.Reason != "" {
+			data["ban_reason"] = ban.Reason
+		}
+	}
+	c.Send(Message{
+		Type:    "chat_blocked",
+		Message: "账号封禁期间无法使用聊天功能，请提交申诉或等待封禁结束。",
+		Data:    data,
+	})
 }
 
 func (c *Client) ReadPump() {
@@ -143,6 +180,12 @@ func (c *Client) handleMessage(msg *Message) {
 		return
 
 	case "join_room":
+		if msg.RoomID == "lobby" {
+			if ban, banned := c.activeChatBan(); banned {
+				c.rejectBannedChat("join_public_chat", ban)
+				return
+			}
+		}
 		log.Printf("✅ 用户 %d 加入房间 %s", c.uid, msg.RoomID)
 		c.hub.JoinRoom(c, msg.RoomID)
 		displayName := c.nickname
@@ -172,6 +215,10 @@ func (c *Client) handleMessage(msg *Message) {
 		log.Printf("📢 广播 player_left: 用户 %d 房间 %s", c.uid, roomID)
 
 	case "chat":
+		if ban, banned := c.activeChatBan(); banned {
+			c.rejectBannedChat("send_public_chat", ban)
+			return
+		}
 		targetRoom := c.roomID
 		if targetRoom == "" {
 			targetRoom = "lobby"
@@ -194,6 +241,10 @@ func (c *Client) handleMessage(msg *Message) {
 		})
 
 	case "private_chat":
+		if ban, banned := c.activeChatBan(); banned {
+			c.rejectBannedChat("send_private_chat", ban)
+			return
+		}
 		// 禁止游戏内（房间内）私聊
 		if c.roomID != "" && c.roomID != "lobby" {
 			c.hub.SendToUID(c.uid, Message{

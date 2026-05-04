@@ -1176,6 +1176,8 @@ func GetUserProfile(c *gin.Context) {
 		"win_count":      user.WinCount,
 		"total_games":    user.TotalGames,
 		"created_at":     user.CreatedAt,
+		"banned_until":   user.BannedUntil,
+		"ban_reason":     user.BanReason,
 	})
 }
 

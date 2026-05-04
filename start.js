@@ -86,6 +86,9 @@ function createModuleLogger(moduleName, color) {
 }
 
 log("SYSTEM", "Starting services...", colors.yellow);
+log("SYSTEM", "Frontend dev server: http://127.0.0.1:5000", colors.green);
+log("SYSTEM", "Backend API server:   http://127.0.0.1:8080", colors.blue);
+log("SYSTEM", "Open the frontend URL above for Vite hot updates.", colors.yellow);
 
 // Start frontend
 frontendProcess = spawn('pnpm', ['-C', 'frontend', 'dev'], {

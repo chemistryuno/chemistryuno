@@ -265,13 +265,6 @@ func GetMyGameHistory(c *gin.Context) {
 			players = []int{}
 		}
 
-		var cheatUIDs []int
-		if len(h.CheatUIDs) > 0 {
-			if err := json.Unmarshal([]byte(h.CheatUIDs), &cheatUIDs); err != nil {
-				cheatUIDs = []int{}
-			}
-		}
-
 		winnerName := "AI"
 		if h.IsInvalid {
 			winnerName = "无效对局"
@@ -291,11 +284,8 @@ func GetMyGameHistory(c *gin.Context) {
 			"is_invalid":            h.IsInvalid,
 			"invalid_reason":        h.InvalidReason,
 			"has_replay":            h.ReplayLog != "",
-			"replay_permanent":      h.ReplayPermanent,
 			"replay_expires_at":     h.ReplayExpiresAt,
 			"replay_cleared_at":     h.ReplayClearedAt,
-			"cheat_detected":        h.CheatDetected,
-			"cheat_uids":            cheatUIDs,
 			"players":               players,
 			"original_player_count": h.OriginalPlayerCount,
 			"quitted_count":         h.QuittedCount,

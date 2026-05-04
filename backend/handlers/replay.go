@@ -250,7 +250,23 @@ func buildReplayProfilesFromParticipants(participants []map[string]interface{}) 
 	return profiles
 }
 
-func buildReplayResponse(history *database.GameHistory) map[string]interface{} {
+func sanitizePlayerReplayData(replayData interface{}) interface{} {
+	replayMap, ok := replayData.(map[string]interface{})
+	if !ok {
+		return replayData
+	}
+
+	sanitized := make(map[string]interface{}, len(replayMap))
+	for key, value := range replayMap {
+		if key == "cheat_detected" || key == "cheat_uids" {
+			continue
+		}
+		sanitized[key] = value
+	}
+	return sanitized
+}
+
+func buildReplayResponse(history *database.GameHistory, includeAnticheatFields bool) map[string]interface{} {
 	players := parseIntSliceJSON(history.Players)
 	cheatUIDs := parseIntSliceJSON(history.CheatUIDs)
 
@@ -263,6 +279,11 @@ func buildReplayResponse(history *database.GameHistory) map[string]interface{} {
 		}
 	}
 
+	responseReplayData := replayData
+	if !includeAnticheatFields {
+		responseReplayData = sanitizePlayerReplayData(replayData)
+	}
+
 	profiles := buildReplayPlayerProfiles(players)
 	if replayParticipants := parseReplayParticipants(replayData); len(replayParticipants) > 0 {
 		if replayProfiles := buildReplayProfilesFromParticipants(replayParticipants); len(replayProfiles) > 0 {
@@ -270,21 +291,26 @@ func buildReplayResponse(history *database.GameHistory) map[string]interface{} {
 		}
 	}
 
-	return map[string]interface{}{
+	response := map[string]interface{}{
 		"id":                history.ID,
 		"room_id":           history.RoomID,
 		"is_invalid":        history.IsInvalid,
 		"invalid_reason":    history.InvalidReason,
 		"has_replay":        history.ReplayLog != "",
-		"replay_permanent":  history.ReplayPermanent,
 		"replay_expires_at": history.ReplayExpiresAt,
 		"replay_cleared_at": history.ReplayClearedAt,
-		"cheat_detected":    history.CheatDetected,
-		"cheat_uids":        cheatUIDs,
 		"players":           players,
 		"player_profiles":   profiles,
-		"replay":            replayData,
+		"replay":            responseReplayData,
 	}
+
+	if includeAnticheatFields {
+		response["replay_permanent"] = history.ReplayPermanent
+		response["cheat_detected"] = history.CheatDetected
+		response["cheat_uids"] = cheatUIDs
+	}
+
+	return response
 }
 
 // GetMyGameReplay 获取当前用户可访问的单局回放
@@ -322,7 +348,7 @@ func GetMyGameReplay(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, buildReplayResponse(history))
+	c.JSON(http.StatusOK, buildReplayResponse(history, false))
 }
 
 // GetAdminGameReplay 管理员查看任意回放
@@ -348,7 +374,7 @@ func GetAdminGameReplay(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, buildReplayResponse(history))
+	c.JSON(http.StatusOK, buildReplayResponse(history, true))
 }
 
 // ClearAdminGameReplay 管理员消除某条回放内容（含永久回放）

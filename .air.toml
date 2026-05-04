@@ -4,7 +4,7 @@ env_files = [".env"]
 
 [build]
 cmd = "go build -o ./tmp/chemistryuno-dev.exe ./main.go"
-entrypoint = "./tmp/chemistryuno-dev.exe"
+bin = "./tmp/chemistryuno-dev.exe"
 include_ext = ["go", "tpl", "tmpl", "html"]
 include_dir = [
   "backend/cache",

@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import { usePing } from '../composables/usePing'
 
 const { pingStatus } = usePing()
-const shouldShowPingPrompt = computed(() => pingStatus.value.status !== 'disconnected' && pingStatus.value.latency > 1000)
+const shouldShowPingPrompt = computed(() => pingStatus.value.status !== 'disconnected' && pingStatus.value.latency >= 1000)
 </script>
 
 <template>

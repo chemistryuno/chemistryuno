@@ -311,7 +311,7 @@ onUnmounted(() => {
     <Transition name="tutorial-fade">
       <div
         v-if="isVisible"
-        class="tutorial-overlay fixed inset-0 z-[9999] bg-black/60 dark:bg-black/80 backdrop-blur-[2px]"
+        class="tutorial-overlay fixed inset-0 z-[9999]"
         @click.self="skipTutorial"
       >
         <!-- 聚光灯高亮区域 -->
@@ -327,20 +327,13 @@ onUnmounted(() => {
               transform: 'translate(-50%, -50%)'
             }"
           >
-            <!-- 发光边框动画 -->
-            <div class="absolute inset-0 rounded-3xl border-4 border-blue-500/80 dark:border-cyan-400/80 animate-pulse-slow"></div>
-            <div class="absolute inset-0 rounded-3xl shadow-[0_0_60px_20px_rgba(59,130,246,0.4)] dark:shadow-[0_0_60px_20px_rgba(34,211,238,0.6)]"></div>
+            <div class="tutorial-spotlight-frame absolute inset-0"></div>
+            <div class="tutorial-spotlight-label absolute -top-8 left-0">当前区域</div>
 
-            <!-- 扫描线效果 -->
-            <div class="absolute inset-0 rounded-3xl overflow-hidden">
-              <div class="scan-line absolute inset-x-0 h-1 bg-gradient-to-r from-transparent via-blue-500 dark:via-cyan-400 to-transparent"></div>
-            </div>
-
-            <!-- 角落装饰 -->
-            <div class="corner-tl absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-blue-500 dark:border-cyan-400"></div>
-            <div class="corner-tr absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-blue-500 dark:border-cyan-400"></div>
-            <div class="corner-bl absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-blue-500 dark:border-cyan-400"></div>
-            <div class="corner-br absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-blue-500 dark:border-cyan-400"></div>
+            <div class="corner-tl absolute top-0 left-0 w-7 h-7"></div>
+            <div class="corner-tr absolute top-0 right-0 w-7 h-7"></div>
+            <div class="corner-bl absolute bottom-0 left-0 w-7 h-7"></div>
+            <div class="corner-br absolute bottom-0 right-0 w-7 h-7"></div>
           </div>
         </Transition>
 
@@ -371,33 +364,29 @@ onUnmounted(() => {
             ></div>
 
             <!-- 卡片内容 -->
-            <div class="tutorial-card relative w-[90vw] max-w-md sm:max-w-lg bg-white dark:bg-gradient-to-br dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 rounded-3xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] dark:shadow-[0_20px_60px_-15px_rgba(0,0,0,0.8)] border-2 border-blue-500/30 dark:border-cyan-400/40 overflow-hidden ring-4 ring-black/5 dark:ring-4 dark:ring-black/20">
-              <!-- 背景装饰 -->
-              <div class="absolute inset-0 bg-[radial-gradient(circle_at_50%_120%,rgba(59,130,246,0.05),transparent_50%)] dark:bg-[radial-gradient(circle_at_50%_120%,rgba(34,211,238,0.1),transparent_50%)]"></div>
-              <div class="absolute top-0 right-0 w-64 h-64 bg-blue-500/5 dark:bg-cyan-500/5 rounded-full blur-3xl"></div>
-
+            <div class="tutorial-card relative w-[90vw] max-w-md sm:max-w-lg bg-white dark:bg-slate-950 rounded-lg shadow-[0_18px_48px_-24px_rgba(15,23,42,0.7)] dark:shadow-[0_18px_48px_-24px_rgba(0,0,0,0.95)] border border-slate-200 dark:border-slate-700 overflow-hidden">
               <!-- 顶部装饰条 -->
-              <div class="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-transparent via-blue-500 dark:via-cyan-400 to-transparent"></div>
+              <div class="absolute top-0 inset-x-0 h-1 bg-blue-600 dark:bg-cyan-400"></div>
 
               <!-- 内容区 -->
-              <div class="relative p-6 sm:p-8">
+              <div class="relative p-5 sm:p-6">
                 <!-- 头部 -->
-                <div class="flex items-start justify-between mb-6">
+                <div class="flex items-start justify-between gap-4 mb-5">
                   <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 dark:from-cyan-400 dark:to-blue-500 flex items-center justify-center shadow-lg shadow-blue-500/20 dark:shadow-cyan-500/30">
+                    <div class="w-10 h-10 rounded-lg bg-blue-600 dark:bg-cyan-500 flex items-center justify-center shrink-0">
                       <Sparkles class="w-5 h-5 text-white" />
                     </div>
-                    <div>
-                      <h3 class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+                    <div class="min-w-0">
+                      <h3 class="text-lg sm:text-xl font-black text-slate-900 dark:text-white tracking-tight leading-tight">
                         {{ tutorialSteps[currentStep].titlePlaceholder }}
                       </h3>
-                      <div class="flex items-center gap-2 mt-1">
-                        <span class="text-xs font-bold text-blue-600 dark:text-cyan-400">Step {{ currentStep + 1 }}/{{ tutorialSteps.length }}</span>
-                        <div class="flex gap-1">
+                      <div class="flex items-center gap-2 mt-2">
+                        <span class="text-[11px] font-black text-blue-700 dark:text-cyan-300 uppercase">Step {{ currentStep + 1 }}/{{ tutorialSteps.length }}</span>
+                        <div class="flex gap-1 min-w-0">
                           <div
                             v-for="(_, index) in tutorialSteps"
                             :key="index"
-                            class="w-6 h-1 rounded-full transition-all duration-300"
+                            class="w-5 h-1 rounded-full transition-all duration-300"
                             :class="index === currentStep ? 'bg-blue-600 dark:bg-cyan-400' : 'bg-slate-200 dark:bg-slate-700'"
                           ></div>
                         </div>
@@ -406,57 +395,48 @@ onUnmounted(() => {
                   </div>
                   <button
                     @click="skipTutorial"
-                    class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/50 dark:hover:bg-slate-700 flex items-center justify-center transition-colors border border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
+                    class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 flex items-center justify-center transition-colors border border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 shrink-0"
+                    aria-label="关闭向导"
                   >
                     <X class="w-4 h-4 text-slate-500 dark:text-slate-400" />
                   </button>
                 </div>
 
                 <!-- 内容 -->
-                <p class="text-slate-600 dark:text-slate-300 text-sm sm:text-base leading-relaxed mb-8">
+                <p class="text-slate-600 dark:text-slate-300 text-sm sm:text-base leading-relaxed mb-6">
                   {{ tutorialSteps[currentStep].contentPlaceholder }}
                 </p>
 
                 <!-- 底部按钮 -->
-                <div class="flex items-center justify-between gap-4">
+                <div class="flex items-center justify-between gap-3">
                   <button
                     v-if="currentStep > 0"
                     @click="prevStep"
-                    class="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold text-sm transition-all border border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
+                    class="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold text-sm transition-all border border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
                   >
                     <ChevronLeft class="w-4 h-4" />
-                    <span>Previous</span>
+                    <span>上一步</span>
                   </button>
                   <button
                     v-else
                     @click="skipTutorial"
-                    class="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/50 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 font-bold text-sm transition-all border border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
+                    class="px-4 py-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 font-bold text-sm transition-all border border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
                   >
-                    Skip Tutorial
+                    跳过
                   </button>
 
                   <button
                     @click="nextStep"
-                    class="flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-cyan-500 dark:to-blue-500 hover:from-blue-500 hover:to-indigo-500 dark:hover:from-cyan-400 dark:hover:to-blue-400 text-white font-black text-sm transition-all shadow-lg shadow-blue-500/20 dark:shadow-cyan-500/30 hover:scale-105"
+                    class="flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-lg bg-blue-600 hover:bg-blue-500 dark:bg-cyan-500 dark:hover:bg-cyan-400 text-white dark:text-slate-950 font-black text-sm transition-all shadow-lg shadow-blue-500/20 dark:shadow-cyan-500/20"
                   >
-                    <span>{{ currentStep === tutorialSteps.length - 1 ? 'Get Started' : 'Next' }}</span>
+                    <span>{{ currentStep === tutorialSteps.length - 1 ? '开始' : '下一步' }}</span>
                     <ChevronRight v-if="currentStep < tutorialSteps.length - 1" class="w-4 h-4" />
                   </button>
                 </div>
               </div>
-
-              <!-- 粒子装饰 -->
-              <div class="absolute top-4 left-4 w-2 h-2 rounded-full bg-blue-500 dark:bg-cyan-400 animate-ping opacity-30"></div>
-              <div class="absolute bottom-8 right-8 w-1.5 h-1.5 rounded-full bg-indigo-500 dark:bg-blue-400 animate-ping opacity-20" style="animation-delay: 0.5s;"></div>
-              <div class="absolute top-1/2 right-4 w-1 h-1 rounded-full bg-blue-400 dark:bg-cyan-300 animate-ping opacity-25" style="animation-delay: 1s;"></div>
             </div>
           </div>
         </Transition>
-
-        <!-- 粒子背景效果 -->
-        <div class="particles-container absolute inset-0 pointer-events-none overflow-hidden">
-          <div v-for="i in 20" :key="i" class="particle" :style="{ animationDelay: `${i * 0.3}s` }"></div>
-        </div>
       </div>
     </Transition>
   </Teleport>

@@ -5,6 +5,7 @@ import { cn } from '../../utils/cn'
 import Cropper from 'cropperjs'
 import 'cropperjs/dist/cropper.css'
 import { AVATAR_PRESETS, isPresetAvatar } from '../../utils/avatarPresets'
+import { useDialog } from '../../utils/dialog'
 
 const props = defineProps<{
   show: boolean
@@ -23,6 +24,7 @@ const showCropperModal = ref(false)
 const imageToCrop = ref<HTMLImageElement | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
 let cropper: Cropper | null = null
+const { showAlert } = useDialog()
 
 const avatarOptions = Object.entries(AVATAR_PRESETS).map(([id, icon]) => ({ id, icon }))
 
@@ -61,12 +63,12 @@ const handleFileUpload = (event: Event) => {
 
   // 10MB limit (10 * 1024 * 1024)
   if (file.size > 10 * 1024 * 1024) {
-    alert('文件大小超过 10MB 限制 / File too large (Max 10MB)')
+    showAlert('文件大小超过 10MB 限制 / File too large (Max 10MB)', '上传失败')
     return
   }
   
   if (file.size === 0) {
-    alert('文件内容不能为空 / File is empty')
+    showAlert('文件内容不能为空 / File is empty', '上传失败')
     return
   }
 

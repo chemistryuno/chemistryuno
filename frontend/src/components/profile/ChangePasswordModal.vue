@@ -4,6 +4,7 @@ import { Key, Lock, Eye, EyeOff, Loader2, Fingerprint, Cpu, AlertTriangle, Mail 
 import api, { authAPI } from '../../utils/api'
 import { get } from '@github/webauthn-json'
 import { onMounted, watch } from 'vue'
+import { useDialog } from '../../utils/dialog'
 
 const props = defineProps<{
   show: boolean
@@ -29,6 +30,7 @@ const useEmailMode = ref(false)
 const sendingCode = ref(false)
 const countdown = ref(0)
 const timer = ref<any>(null)
+const { showAlert } = useDialog()
 
 // 监控 show 状态以禁用/启用背景滚动
 watch(
@@ -57,7 +59,7 @@ const startCountdown = () => {
 
 const handleSendCode = async () => {
   if (!props.userEmail) {
-    alert('未获取到您的邮箱，无法发送')
+    showAlert('未获取到您的邮箱，无法发送验证码', '发送失败')
     return
   }
   
@@ -66,7 +68,7 @@ const handleSendCode = async () => {
     await authAPI.sendCode(props.userEmail, 'change_password')
     startCountdown()
   } catch (err: any) {
-    alert(err.response?.data?.error || '发送失败')
+    showAlert(err.response?.data?.error || '发送失败', '发送失败')
   } finally {
     sendingCode.value = false
   }
@@ -108,11 +110,11 @@ const mode = computed(() => {
 
 const handleSave = () => {
   if (newPassword.value !== confirmPassword.value) {
-    alert('两次输入的密码不一致')
+    showAlert('两次输入的密码不一致', '校验失败')
     return
   }
   if (newPassword.value.length < 6) {
-    alert('新密码长度至少为 6 位')
+    showAlert('新密码长度至少为 6 位', '校验失败')
     return
   }
   emit('save', oldPassword.value, newPassword.value, code.value, useEmailMode.value)
@@ -120,11 +122,11 @@ const handleSave = () => {
 
 const handleWebauthnReset = async () => {
   if (newPassword.value !== confirmPassword.value) {
-    alert('两次输入的密码不一致')
+    showAlert('两次输入的密码不一致', '校验失败')
     return
   }
   if (!newPassword.value || newPassword.value.length < 6) {
-    alert('新密码长度至少为 6 位')
+    showAlert('新密码长度至少为 6 位', '校验失败')
     return
   }
 
@@ -137,7 +139,7 @@ const handleWebauthnReset = async () => {
     emit('close')
   } catch (err: any) {
     console.error(err)
-    alert(err.response?.data?.error || '硬件验证失败')
+    showAlert(err.response?.data?.error || '硬件验证失败', '验证失败')
   } finally {
     localLoading.value = false
   }

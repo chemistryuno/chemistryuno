@@ -77,6 +77,22 @@ const ensureStartupSession = async () => {
   }
 }
 
+const scheduleStartupSessionCheck = () => {
+  const rawUser = localStorage.getItem('user')
+  if (!rawUser) return
+
+  try {
+    JSON.parse(rawUser)
+  } catch {
+    clearStaleAuthState()
+    return
+  }
+
+  scheduleNonCriticalTask(() => {
+    void ensureStartupSession()
+  }, 300)
+}
+
 const markBootSplashReady = () => {
   const splash = document.getElementById('boot-splash')
 
@@ -110,12 +126,11 @@ async function bootstrap() {
   window.addEventListener('orientationchange', scheduleViewportSync, { passive: true })
   window.visualViewport?.addEventListener('resize', scheduleViewportSync)
 
-  await ensureStartupSession()
-
   const app = createApp(App)
   app.use(router)
   app.mount('#app')
   markBootSplashReady()
+  scheduleStartupSessionCheck()
 
   scheduleNonCriticalTask(() => {
     void import('./utils/plugin-runtime')

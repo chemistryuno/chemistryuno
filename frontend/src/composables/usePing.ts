@@ -23,6 +23,7 @@ export function usePing() {
   // Ping间隔（毫秒）
   const PING_INTERVAL = 3000
   const MAX_HISTORY = 10
+  const HIGH_PING_THRESHOLD_MS = 1000
 
   // 定时器
   let pingTimer: number | null = null
@@ -120,7 +121,9 @@ export function usePing() {
       pingHistory.value.shift()
     }
 
-    console.log(`[Ping] RTT: ${rtt}ms, 平均: ${averageLatency.value}ms`)
+    if (rtt >= HIGH_PING_THRESHOLD_MS) {
+      console.warn(`[Ping] High latency: ${rtt}ms, average: ${averageLatency.value}ms`)
+    }
   }
 
   // 开始ping监控

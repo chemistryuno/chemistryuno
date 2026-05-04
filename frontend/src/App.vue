@@ -307,7 +307,6 @@ onUnmounted(() => {
 
 <style>
 .app-route-shell {
-  will-change: opacity, transform, filter;
   min-height: var(--app-height);
 }
 

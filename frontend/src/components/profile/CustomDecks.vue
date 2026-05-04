@@ -6,7 +6,7 @@ import { useDialog } from '../../utils/dialog'
 
 const decks = ref<any[]>([])
 const isLoading = ref(true)
-const { showAlert } = useDialog()
+const { showAlert, showConfirm } = useDialog()
 
 const editingDeck = ref<any>(null)
 const newDeckName = ref('')
@@ -105,7 +105,8 @@ const saveDeck = async () => {
 }
 
 const deleteDeck = async (id: number) => {
-  if (!confirm('确定要删除此卡组吗？')) return
+  const confirmed = await showConfirm('确定要删除此卡组吗？', '删除卡组')
+  if (!confirmed) return
   try {
     await gameAPI.deleteMyDeck(id)
     loadDecks()

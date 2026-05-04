@@ -80,7 +80,7 @@ watch(
 
 const handleSendCode = async () => {
   if (!identifier.value) {
-    alert('请输入您的注册邮箱')
+    dialog.showAlert('请输入您的注册邮箱', '校验失败')
     return
   }
 
@@ -94,7 +94,7 @@ const handleSendCode = async () => {
       if (countdown.value <= 0) clearInterval(timer)
     }, 1000)
   } catch (err: any) {
-    alert(err.response?.data?.error || '发送失败')
+    dialog.showAlert(err.response?.data?.error || '发送失败', '发送失败')
   } finally {
     emailLoading.value = false
   }
@@ -102,7 +102,7 @@ const handleSendCode = async () => {
 
 const handleReset = async () => {
   if (newPassword.value !== confirmPassword.value) {
-    alert('两次输入的密码不一致')
+    dialog.showAlert('两次输入的密码不一致', '校验失败')
     return
   }
 
@@ -117,7 +117,7 @@ const handleReset = async () => {
       emit('close')
       dialog.showAlert('访问凭证已重置，请尝试使用新密码重新登录。', '协议同步成功')
     } catch (err: any) {
-      alert(err.response?.data?.error || '重置失败')
+      dialog.showAlert(err.response?.data?.error || '重置失败', '重置失败')
     } finally {
       emailLoading.value = false
     }
@@ -126,7 +126,7 @@ const handleReset = async () => {
 
   if (recoveryMode.value === 'security_question') {
     if (!securityAnswer.value) {
-      alert('请输入密保答案')
+      dialog.showAlert('请输入密保答案', '校验失败')
       return
     }
     emailLoading.value = true
@@ -139,7 +139,7 @@ const handleReset = async () => {
       emit('close')
       dialog.showAlert('访问凭证已重置，请使用新密码重新登录。', '协议同步成功')
     } catch (err: any) {
-      alert(err.response?.data?.error || '重置失败，请检查密保答案')
+      dialog.showAlert(err.response?.data?.error || '重置失败，请检查密保答案', '重置失败')
     } finally {
       emailLoading.value = false
     }

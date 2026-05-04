@@ -13,9 +13,11 @@ import {
   Users
 } from 'lucide-vue-next'
 import { cn } from '../utils/cn'
+import { useDialog } from '../utils/dialog'
 
 const route = useRoute()
 const router = useRouter()
+const { showConfirm } = useDialog()
 
 const surveyID = parseInt(route.params.id as string)
 const survey = ref<any>(null)
@@ -109,7 +111,11 @@ const repairing = ref(false)
 const repairResult = ref('')
 
 const handleRepair = async () => {
-  if (!confirm('将自动修复该问卷中 question_id=0 的历史答案（按插入顺序与题目顺序对应）。\n答案数量与题目数量不符的答卷将被跳过。\n继续？')) return
+  const confirmed = await showConfirm(
+    '将自动修复该问卷中 question_id=0 的历史答案（按插入顺序与题目顺序对应）。\n答案数量与题目数量不符的答卷将被跳过。\n继续？',
+    '修复历史答案'
+  )
+  if (!confirmed) return
   repairing.value = true
   repairResult.value = ''
   try {

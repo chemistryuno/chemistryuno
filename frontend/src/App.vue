@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import websocket from './utils/websocket'
 import feedback from './utils/feedback'
 import { useDialog } from './utils/dialog'
+import { clearAuthState } from './utils/api'
 import AnnouncementTicker from './components/AnnouncementTicker.vue'
 
 const CustomDialog = defineAsyncComponent(() => import('./components/CustomDialog.vue'))
@@ -91,7 +92,7 @@ const handleDuelDeclined = (msg: any) => {
 
 const handleForceLogout = async (msg: any) => {
   // Token已存储在HttpOnly Cookie中，浏览器会自动处理
-  localStorage.removeItem('user')
+  clearAuthState()
   websocket.disconnect()
   const reason = msg?.message || msg?.data || '您已被管理员强制下线'
   await showAlert(reason, '账号操作通知')

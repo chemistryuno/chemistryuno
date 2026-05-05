@@ -1,10 +1,12 @@
 import { flushPromises, mount } from '@vue/test-utils'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import Appeals from './Appeals.vue'
 import { authAPI } from '../utils/api'
 
 vi.mock('../utils/api', () => ({
   authAPI: {
+    getUserInfo: vi.fn(),
+    refreshUserInfo: vi.fn(),
     getPlayerAppeals: vi.fn(),
     getPlayerSanctions: vi.fn(),
     submitAppeal: vi.fn(),
@@ -34,6 +36,11 @@ const mountAppeals = async () => {
 }
 
 describe('Appeals', () => {
+  beforeEach(() => {
+    vi.mocked(authAPI.getUserInfo).mockResolvedValue(apiResponse({ uid: 1001, banned_until: null, ban_reason: '' }))
+    vi.mocked(authAPI.refreshUserInfo).mockResolvedValue(apiResponse({ uid: 1001, banned_until: null, ban_reason: '', points: 1100, fuel: 100 }))
+  })
+
   it('submits a valid appeal and refreshes history', async () => {
     vi.mocked(authAPI.getPlayerAppeals)
       .mockResolvedValueOnce(apiResponse({ appeals: [], total: 0 }))
@@ -77,6 +84,11 @@ describe('Appeals', () => {
   })
 
   it('shows approved outcome and compensation details', async () => {
+    localStorage.setItem('user', JSON.stringify({
+      uid: 1001,
+      banned_until: '2026-05-06T09:42:00+08:00',
+      ban_reason: 'legacy ban',
+    }))
     vi.mocked(authAPI.getPlayerAppeals).mockResolvedValue(apiResponse({
       appeals: [{
         id: 2,
@@ -90,11 +102,19 @@ describe('Appeals', () => {
       total: 1,
     }))
     vi.mocked(authAPI.getPlayerSanctions).mockResolvedValue(apiResponse({ sanctions: [] }))
+    vi.mocked(authAPI.refreshUserInfo).mockResolvedValue(apiResponse({
+      uid: 1001,
+      banned_until: null,
+      ban_reason: '',
+      points: 1100,
+      fuel: 100,
+    }))
 
     const wrapper = await mountAppeals()
 
     expect(wrapper.text()).toContain('已通过')
     expect(wrapper.text()).toContain('120')
+    expect(wrapper.text()).not.toContain('legacy ban')
     expect(wrapper.text()).toContain('补偿成功')
   })
 

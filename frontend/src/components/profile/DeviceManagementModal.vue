@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { authAPI } from '../../utils/api'
+import { authAPI, clearAuthState } from '../../utils/api'
 import { useDialog } from '../../utils/dialog'
 import {
   X,
@@ -72,7 +72,7 @@ const handleLogoutSession = async (session: any) => {
     await authAPI.logoutSession(session.id)
     if (session.is_current) {
       // Token已存储在HttpOnly Cookie中，浏览器会自动处理
-      localStorage.removeItem('user')
+      clearAuthState()
       router.push('/login')
     } else {
       await fetchSessions()
@@ -107,7 +107,7 @@ const handleFreezeAccount = async () => {
   try {
     await authAPI.freezeAccount(hours)
     // Token已存储在HttpOnly Cookie中，浏览器会自动处理
-    localStorage.removeItem('user')
+    clearAuthState()
     router.push('/login')
   } catch (err: any) {
     showAlert(err.response?.data?.error || '冻结失败', '错误')

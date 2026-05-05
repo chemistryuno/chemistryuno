@@ -2,11 +2,11 @@
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import PhlogistonIcon from '../components/icons/PhlogistonIcon.vue'
-import { gameAPI, authAPI, commonAPI, friendAPI, adminAPI } from '../utils/api'
+import { gameAPI, authAPI, commonAPI, friendAPI, adminAPI, clearAuthState } from '../utils/api'
 import { useDialog } from '../utils/dialog'
 import UserAvatar from '../components/UserAvatar.vue'
 import websocket from '../utils/websocket'
-import { Beaker, Plus, Shield, LogOut, Settings, Play, X, Loader2, Database, MessageCircle, Megaphone, Menu, Puzzle, FileText, ChevronRight } from 'lucide-vue-next'
+import { Beaker, Plus, Shield, ShieldAlert, LogOut, Settings, Play, X, Loader2, Database, MessageCircle, Megaphone, Menu, Puzzle, FileText, ChevronRight } from 'lucide-vue-next'
 import { cn } from '../utils/cn'
 import ChatBox from '../components/ChatBox.vue'
 import TutorialGuide from '../components/TutorialGuide.vue'
@@ -35,6 +35,16 @@ const loadUserInfo = async () => {
 
 const isAdminUser = computed(() => user.value?.role === 'admin')
 const isAdminView = computed(() => isAdminUser.value && lobbyViewMode.value === 'admin')
+const anticheatPanelPath = computed(() =>
+  user.value?.role === 'admin'
+    ? '/admin/anticheat'
+    : '/appeals'
+)
+const anticheatPanelTitle = computed(() =>
+  user.value?.role === 'admin'
+    ? '反作弊管理'
+    : '申诉中心'
+)
 
 try {
   const userData = JSON.parse(localStorage.getItem('user') || '{}')
@@ -95,6 +105,55 @@ const currentSurvey = ref<any>(null)
 const showLegalModal = ref(false)
 const legalModalTitle = ref('')
 const legalModalContent = ref('')
+const pendingCompensationAppeal = ref<any>(null)
+const showCompensationReminder = ref(false)
+
+const normalizeApiList = (payload: any, key: string) => {
+  if (Array.isArray(payload?.[key])) return payload[key]
+  if (Array.isArray(payload?.data)) return payload.data
+  return []
+}
+
+const isPendingCompensationAppeal = (appeal: any) => {
+  const status = String(appeal?.status || '').toLowerCase()
+  const compensationStatus = String(appeal?.compensation_status || '').toLowerCase()
+  return status === 'approved' && Number(appeal?.compensation_amount || 0) > 0 && compensationStatus !== 'ok'
+}
+
+const compensationReminderMutedKey = (appeal: any) => {
+  const uid = user.value?.uid || user.value?.id || 'anonymous'
+  const appealId = appeal?.id || appeal?.ID || 'latest'
+  return `chemistryuno-compensation-reminder-muted-${uid}-${appealId}`
+}
+
+const loadCompensationReminder = async () => {
+  try {
+    const res = await authAPI.getPlayerAppeals()
+    const pending = normalizeApiList(res.data, 'appeals').find(isPendingCompensationAppeal)
+    pendingCompensationAppeal.value = pending || null
+    if (pending && localStorage.getItem(compensationReminderMutedKey(pending)) !== 'true') {
+      showCompensationReminder.value = true
+    }
+  } catch (err) {
+    console.error('加载补偿领取提醒失败:', err)
+  }
+}
+
+const goToCompensationClaim = () => {
+  showCompensationReminder.value = false
+  router.push('/appeals')
+}
+
+const remindCompensationLater = () => {
+  showCompensationReminder.value = false
+}
+
+const muteCompensationReminder = () => {
+  if (pendingCompensationAppeal.value) {
+    localStorage.setItem(compensationReminderMutedKey(pendingCompensationAppeal.value), 'true')
+  }
+  showCompensationReminder.value = false
+}
 
 const openUserAgreement = async () => {
   try {
@@ -361,9 +420,9 @@ const handleChatUnreadUpdate = (msg: any) => {
 
 // 监控所有弹窗状态以禁用/启用背景滚动
 watch(
-  [showCreateModal, showAIArenaModal, showDeckDetailModal, showAccessKeyModal, showSurveyModal, showLegalModal],
-  ([create, ai, deck, access, survey, legal]) => {
-    const hasModal = create || ai || deck || access || survey || legal
+  [showCreateModal, showAIArenaModal, showDeckDetailModal, showAccessKeyModal, showSurveyModal, showLegalModal, showCompensationReminder],
+  ([create, ai, deck, access, survey, legal, compensationReminder]) => {
+    const hasModal = create || ai || deck || access || survey || legal || compensationReminder
     if (hasModal) {
       document.documentElement.style.overflow = 'hidden'
       document.body.style.overflow = 'hidden'
@@ -383,6 +442,7 @@ onMounted(() => {
   loadFriends()
   loadVersion()
   loadSurveys() // 加载问卷调查
+  loadCompensationReminder()
   websocket.connect()
   websocket.on('online_count', handleOnlineCountUpdate)
   websocket.on('system_announcement', handleSystemAnnouncement)
@@ -613,7 +673,7 @@ const handleTerminateRoom = async (roomId: string) => {
 
 const handleLogout = () => {
   // Token已存储在HttpOnly Cookie中，浏览器会自动处理
-  localStorage.removeItem('user')
+  clearAuthState()
   websocket.disconnect()
   router.push('/login')
 }
@@ -720,6 +780,9 @@ const copyToClipboard = (text: string) => {
               <router-link v-if="user.role === 'admin' || user.role === 'co-worker'" to="/admin" class="lobby-nav-link lobby-nav-link-amber" title="管理面板">
                 <Shield class="w-4 h-4 text-yellow-500" />
               </router-link>
+              <router-link :to="anticheatPanelPath" class="lobby-nav-link lobby-nav-link-red" :title="anticheatPanelTitle">
+                <ShieldAlert class="w-4 h-4" />
+              </router-link>
               <div class="w-px h-5 bg-white/10 mx-1"></div>
               <button @click="handleLogout" class="lobby-nav-link lobby-nav-link-red" title="退出登录">
                 <LogOut class="w-4 h-4" />
@@ -820,6 +883,13 @@ const copyToClipboard = (text: string) => {
                   <Puzzle class="w-5 h-5" />
                 </div>
                 <span class="text-[9px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300 text-center leading-tight">插件扩展市场</span>
+              </router-link>
+
+              <router-link @click="isMobileMenuOpen = false" :to="anticheatPanelPath" class="flex flex-col items-center justify-center p-3 bg-slate-50 dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/10 shadow-sm active:scale-95 transition-all">
+                <div class="w-10 h-10 bg-rose-500/10 rounded-xl flex items-center justify-center mb-2 text-rose-500">
+                  <ShieldAlert class="w-5 h-5" />
+                </div>
+                <span class="text-[9px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300 text-center leading-tight">{{ anticheatPanelTitle }}</span>
               </router-link>
 
               <router-link v-if="user.role === 'admin' || user.role === 'co-worker'" @click="isMobileMenuOpen = false" to="/admin" class="flex flex-col items-center justify-center p-3 bg-slate-50 dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/10 shadow-sm active:scale-95 transition-all col-span-2">
@@ -1151,6 +1221,57 @@ const copyToClipboard = (text: string) => {
       </footer>
     </div>
 
+
+    <!-- 解封补偿领取提醒 -->
+    <div v-if="showCompensationReminder && pendingCompensationAppeal" class="viewport-modal-overlay z-[210] p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md">
+      <div class="absolute inset-0 bg-slate-900/40 dark:bg-black/80 backdrop-blur-md animate-in fade-in" @click="remindCompensationLater" />
+      <div class="relative w-full max-w-md overflow-hidden rounded-2xl border border-emerald-200 bg-white shadow-2xl animate-in fade-in zoom-in slide-in-from-bottom-6 duration-300 dark:border-emerald-500/20 dark:bg-[#121216]">
+        <div class="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4 dark:border-white/5">
+          <div class="flex items-center gap-3">
+            <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
+              <PhlogistonIcon :size="20" color="#10b981" />
+            </div>
+            <div>
+              <h3 class="text-sm font-black text-slate-900 dark:text-white">补偿待领取</h3>
+              <p class="mt-1 text-[10px] font-bold uppercase tracking-widest text-emerald-600/80 dark:text-emerald-300/80">Appeal Compensation</p>
+            </div>
+          </div>
+          <button class="rounded-xl p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/5 dark:hover:text-white" @click="remindCompensationLater">
+            <X class="h-5 w-5" />
+          </button>
+        </div>
+
+        <div class="space-y-4 px-5 py-5">
+          <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-100">
+            <div class="font-black">你的申诉已通过，{{ pendingCompensationAppeal.compensation_amount || 0 }} 燃素补偿正在等待领取。</div>
+            <div class="mt-2 text-xs leading-relaxed text-emerald-700 dark:text-emerald-200/80">请前往申诉中心领取。补偿不会过期，稍后领取也会一直保留。</div>
+          </div>
+
+          <div class="grid gap-2 sm:grid-cols-[1fr_auto]">
+            <button
+              class="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-xs font-black text-white transition-colors hover:bg-emerald-500"
+              @click="goToCompensationClaim"
+            >
+              <FileText class="h-4 w-4" />
+              前往申诉中心
+            </button>
+            <button
+              class="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-xs font-black text-slate-600 transition-colors hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
+              @click="remindCompensationLater"
+            >
+              稍后提醒
+            </button>
+          </div>
+
+          <button
+            class="w-full text-center text-xs font-bold text-slate-400 transition-colors hover:text-slate-700 dark:hover:text-slate-200"
+            @click="muteCompensationReminder"
+          >
+            不再提醒
+          </button>
+        </div>
+      </div>
+    </div>
 
     <!-- Modern Create Modal -->
     <div v-if="showCreateModal" class="viewport-modal-overlay z-[100] p-3 sm:p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md">

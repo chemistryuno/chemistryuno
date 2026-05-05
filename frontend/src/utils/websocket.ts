@@ -83,6 +83,7 @@ class WebSocketService {
 
   disconnect(): void {
     this.reconnectAttempts = this.maxReconnectAttempts
+    this.pendingMessages = []
     if (this.ws) {
       this.ws.close()
       this.ws = null

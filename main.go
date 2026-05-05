@@ -438,6 +438,7 @@ func main() {
 			auth.GET("/player/anticheat/stats", handlers.GetPlayerAnticheatStats)
 			auth.GET("/anticheat/stats", handlers.GetPlayerAnticheatStats)
 			auth.GET("/player/appeals", handlers.GetPlayerAppeals)
+			auth.POST("/player/appeals/:id/claim", handlers.ClaimAppealCompensation)
 			auth.GET("/player/sanctions", handlers.GetPlayerSanctions)
 			auth.POST("/game/:roomId/appeal", handlers.SubmitAppeal)
 
@@ -524,19 +525,19 @@ func main() {
 			admin.POST("/surveys/import", handlers.ImportSurveyConfig) // 导入配置
 
 			// 反作弊系统 - 管理员端
-			admin.GET("/anticheat/stats", handlers.GetAnticheatStats)
-			admin.GET("/anticheat/config", handlers.GetConfig)
-			admin.POST("/anticheat/config", handlers.UpdateConfig)
-			admin.GET("/anticheat/detection-list", handlers.GetDetectionList)
-			admin.GET("/anticheat/detection/:id", handlers.GetDetectionDetail)
-			admin.POST("/anticheat/detection/:id/review", handlers.ReviewDetection)
-			admin.POST("/anticheat/ban", handlers.BanFromAnticheatPanel)
-			admin.POST("/anticheat/unban", handlers.UnbanFromAnticheatPanel)
-			admin.GET("/anticheat/appeals", handlers.GetAppealsList)
-			admin.POST("/anticheat/appeals/:id/approve", handlers.ApproveAppeal)
-			admin.POST("/anticheat/appeals/:id/reject", handlers.RejectAppeal)
-			admin.GET("/anticheat/audit-log", handlers.GetAuditLog)
-			admin.GET("/anticheat/audit-log/export", handlers.ExportAuditLog)
+			admin.GET("/anticheat/stats", middleware.AdminMiddleware(), handlers.GetAnticheatStats)
+			admin.GET("/anticheat/config", middleware.AdminMiddleware(), handlers.GetConfig)
+			admin.POST("/anticheat/config", middleware.AdminMiddleware(), handlers.UpdateConfig)
+			admin.GET("/anticheat/detection-list", middleware.AdminMiddleware(), handlers.GetDetectionList)
+			admin.GET("/anticheat/detection/:id", middleware.AdminMiddleware(), handlers.GetDetectionDetail)
+			admin.POST("/anticheat/detection/:id/review", middleware.AdminMiddleware(), handlers.ReviewDetection)
+			admin.POST("/anticheat/ban", middleware.AdminMiddleware(), handlers.BanFromAnticheatPanel)
+			admin.POST("/anticheat/unban", middleware.AdminMiddleware(), handlers.UnbanFromAnticheatPanel)
+			admin.GET("/anticheat/appeals", middleware.AdminMiddleware(), handlers.GetAppealsList)
+			admin.POST("/anticheat/appeals/:id/approve", middleware.AdminMiddleware(), handlers.ApproveAppeal)
+			admin.POST("/anticheat/appeals/:id/reject", middleware.AdminMiddleware(), handlers.RejectAppeal)
+			admin.GET("/anticheat/audit-log", middleware.AdminMiddleware(), handlers.GetAuditLog)
+			admin.GET("/anticheat/audit-log/export", middleware.AdminMiddleware(), handlers.ExportAuditLog)
 
 			// Additional routes can be added here
 		}
@@ -582,6 +583,11 @@ func main() {
 				return
 			}
 
+			if !isFrontendRoute(c.Request.URL.Path) && (c.Request.Method == http.MethodGet || c.Request.Method == http.MethodHead) {
+				c.Redirect(http.StatusFound, "/")
+				return
+			}
+
 			// 读取 index.html 用于 Vue Router
 			data, err := fs.ReadFile(distFS, "index.html")
 			if err != nil {
@@ -589,6 +595,13 @@ func main() {
 				return
 			}
 			c.Data(200, "text/html; charset=utf-8", data)
+		})
+		r.NoMethod(func(c *gin.Context) {
+			if strings.HasPrefix(c.Request.URL.Path, "/api") || strings.HasPrefix(c.Request.URL.Path, "/ws") {
+				c.JSON(http.StatusMethodNotAllowed, gin.H{"error": "method not allowed"})
+				return
+			}
+			c.Redirect(http.StatusFound, "/")
 		})
 
 		log.Println("✓ 前端静态文件服务已启用（embed 模式）")
@@ -653,6 +666,43 @@ func main() {
 	}
 
 	log.Println("✅ 服务器已安全关闭")
+}
+
+func isFrontendRoute(path string) bool {
+	if path == "/" {
+		return true
+	}
+
+	for _, route := range []string{
+		"/login",
+		"/register",
+		"/chat",
+		"/profile",
+		"/appeals",
+		"/feedbacks",
+		"/admin",
+		"/plugins",
+		"/data",
+		"/ranking",
+		"/oauth-callback",
+	} {
+		if path == route || strings.HasPrefix(path, route+"/") {
+			return true
+		}
+	}
+
+	for _, prefix := range []string{
+		"/room/",
+		"/replay/",
+		"/surveys/",
+		"/user/",
+	} {
+		if strings.HasPrefix(path, prefix) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func handleWebSocket(c *gin.Context) {

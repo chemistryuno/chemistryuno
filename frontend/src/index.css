@@ -8,6 +8,8 @@
   /* Global compact density: shrink rem-based spacing and typography a bit. */
   :root {
     --app-height: 100vh;
+    --app-modal-z-index: 2147483000;
+    --app-dialog-z-index: 2147483001;
   }
 
   html {
@@ -138,11 +140,15 @@ body {
     min-height: 100vh;
     display: grid;
     place-items: center;
-    z-index: 9999;
+    z-index: var(--app-modal-z-index) !important;
     overflow: hidden;
     overscroll-behavior: contain;
     padding: 1rem;
     box-sizing: border-box;
+  }
+
+  .viewport-dialog-overlay {
+    z-index: var(--app-dialog-z-index) !important;
   }
 
   @supports (height: 100dvh) {

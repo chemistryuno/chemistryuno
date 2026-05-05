@@ -46,6 +46,7 @@ interface SanctionRecord {
 
 const loading = ref(true)
 const submitting = ref(false)
+const claimingId = ref<number | null>(null)
 const error = ref('')
 const fieldError = ref('')
 const appeals = ref<AppealRecord[]>([])
@@ -56,7 +57,9 @@ const sanctionId = ref('')
 const reason = ref('')
 const evidence = ref('')
 
+const currentUser = ref<any>({})
 const user = computed(() => {
+  if (Object.keys(currentUser.value).length > 0) return currentUser.value
   try {
     return JSON.parse(localStorage.getItem('user') || '{}')
   } catch {
@@ -71,6 +74,10 @@ const activeAppeal = computed(() =>
 const latestSanction = computed(() => sanctions.value[0])
 const canSubmit = computed(() => !submitting.value && !activeAppeal.value && reason.value.trim().length > 0)
 const evidenceLimit = 1000
+const canClaimCompensation = (appeal: AppealRecord) =>
+  appeal.status === 'approved' &&
+  (appeal.compensation_amount || 0) > 0 &&
+  appeal.compensation_status !== 'ok'
 
 const normalizeList = (payload: any, key: string) => {
   if (Array.isArray(payload?.[key])) return payload[key]
@@ -82,10 +89,15 @@ const loadPanel = async () => {
   loading.value = true
   error.value = ''
   try {
-    const [appealResponse, sanctionResponse] = await Promise.all([
-      authAPI.getPlayerAppeals(),
+    const appealResponse = await authAPI.getPlayerAppeals()
+    const [sanctionResponse, userResponse] = await Promise.all([
       authAPI.getPlayerSanctions().catch(() => ({ data: { sanctions: [] } })),
+      authAPI.refreshUserInfo().catch(() => null),
     ])
+    if (userResponse?.data) {
+      currentUser.value = userResponse.data
+      localStorage.setItem('user', JSON.stringify(userResponse.data))
+    }
     appeals.value = normalizeList(appealResponse.data, 'appeals')
     sanctions.value = normalizeList(sanctionResponse.data, 'sanctions')
 
@@ -140,6 +152,20 @@ const submitAppeal = async () => {
   }
 }
 
+const claimCompensation = async (appeal: AppealRecord) => {
+  if (!canClaimCompensation(appeal)) return
+  claimingId.value = appeal.id
+  error.value = ''
+  try {
+    await authAPI.claimAppealCompensation(appeal.id)
+    await loadPanel()
+  } catch (err: any) {
+    error.value = err.response?.data?.error || '领取补偿失败'
+  } finally {
+    claimingId.value = null
+  }
+}
+
 const statusMeta = (status: AppealStatus) => {
   if (status === 'approved') return { label: '已通过', icon: CheckCircle2, cls: 'text-emerald-600 bg-emerald-50 border-emerald-200 dark:text-emerald-300 dark:bg-emerald-500/10 dark:border-emerald-500/20' }
   if (status === 'rejected') return { label: '已驳回', icon: XCircle, cls: 'text-rose-600 bg-rose-50 border-rose-200 dark:text-rose-300 dark:bg-rose-500/10 dark:border-rose-500/20' }
@@ -152,6 +178,12 @@ const formatDate = (value?: string) => {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return '未记录'
   return date.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })
+}
+
+const compensationStatusLabel = (status?: string) => {
+  if (status === 'ok') return '已领取'
+  if (status === 'failed') return '领取失败，可重试'
+  return '待领取'
 }
 
 onMounted(loadPanel)
@@ -301,9 +333,23 @@ onMounted(loadPanel)
                 审核备注：{{ appeal.review_remark }}
               </div>
               <div v-if="appeal.status === 'approved' && (appeal.compensation_amount || appeal.compensation_note)" class="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-200">
-                补偿：{{ appeal.compensation_amount || 0 }} 燃素
-                <span v-if="appeal.compensation_status">，状态：{{ appeal.compensation_status }}</span>
-                <div v-if="appeal.compensation_note" class="mt-1">{{ appeal.compensation_note }}</div>
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <div class="font-black">补偿：{{ appeal.compensation_amount || 0 }} 燃素</div>
+                    <div class="mt-1">状态：{{ compensationStatusLabel(appeal.compensation_status) }}</div>
+                    <div v-if="appeal.compensation_note" class="mt-1">{{ appeal.compensation_note }}</div>
+                  </div>
+                  <button
+                    v-if="canClaimCompensation(appeal)"
+                    class="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 text-xs font-black text-white transition-colors hover:bg-emerald-500 disabled:opacity-60"
+                    :disabled="claimingId === appeal.id"
+                    @click="claimCompensation(appeal)"
+                  >
+                    <Loader2 v-if="claimingId === appeal.id" class="h-4 w-4 animate-spin" />
+                    <CheckCircle2 v-else class="h-4 w-4" />
+                    领取补偿
+                  </button>
+                </div>
               </div>
             </article>
           </div>

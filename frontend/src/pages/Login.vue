@@ -1,7 +1,7 @@
 ﻿<script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import api, { authAPI } from '../utils/api'
+import api, { authAPI, clearAccountScopedCache } from '../utils/api'
 import { useDialog } from '../utils/dialog'
 import feedback from '../utils/feedback'
 import { Beaker, Lock, Loader2, Fingerprint, Shield, Cpu, Mail, Eye, EyeOff } from 'lucide-vue-next'
@@ -121,6 +121,8 @@ const handle2FAVerify = async () => {
 
 const handleLoginSuccess = (token: string | null, user: any, announcements: any[] = [], isReturningPlayer: boolean = false, daysSinceLastLogin: number = 0, accessToken?: string, refreshToken?: string) => {
   // Token已由后端通过HttpOnly Cookie设置，前端不需要存储
+  clearAccountScopedCache()
+  websocket.disconnect()
   localStorage.setItem('user', JSON.stringify(user))
   websocket.connect()
   window.dispatchEvent(new Event('auth-changed'))

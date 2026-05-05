@@ -736,7 +736,7 @@ const formatTime = (date: Date) => {
 
     <!-- 搜索研究员模态框 -->
     <Teleport to="body">
-    <div v-if="showSearchModal" @click="closeSearchModal" class="viewport-modal-overlay chat-page-modal-overlay z-[9990] p-3 sm:p-4 bg-slate-900/60 dark:bg-black/70 backdrop-blur-sm">
+    <div v-if="showSearchModal" @click="closeSearchModal" class="viewport-modal-overlay chat-page-modal-overlay p-3 sm:p-4 bg-slate-900/60 dark:bg-black/70 backdrop-blur-sm">
       <div @click.stop class="viewport-modal-panel w-full max-w-md sm:max-w-lg bg-white dark:bg-[#0f0f12] rounded-2xl sm:rounded-3xl border border-slate-200 dark:border-white/10 shadow-2xl flex flex-col overflow-hidden">
         <div class="p-3 sm:p-4 border-b border-slate-100 dark:border-white/5 flex items-center justify-between">
           <div class="min-w-0 flex-1">
@@ -831,7 +831,7 @@ const formatTime = (date: Date) => {
     </div>
 
     <!-- 好友请求模态框 -->
-    <div v-if="showRequestsModal" @click="closeRequestsModal" class="viewport-modal-overlay chat-page-modal-overlay z-[9990] p-3 sm:p-4 bg-slate-900/60 dark:bg-black/70 backdrop-blur-sm">
+    <div v-if="showRequestsModal" @click="closeRequestsModal" class="viewport-modal-overlay chat-page-modal-overlay p-3 sm:p-4 bg-slate-900/60 dark:bg-black/70 backdrop-blur-sm">
       <div @click.stop class="viewport-modal-panel w-full max-w-md sm:max-w-lg bg-white dark:bg-[#0f0f12] rounded-2xl sm:rounded-3xl border border-slate-200 dark:border-white/10 shadow-2xl flex flex-col overflow-hidden">
         <div class="p-3 sm:p-4 border-b border-slate-100 dark:border-white/5 flex items-center justify-between">
           <div>

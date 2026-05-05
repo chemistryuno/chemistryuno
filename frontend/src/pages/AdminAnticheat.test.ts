@@ -7,8 +7,11 @@ import { useDialog } from '../utils/dialog'
 vi.mock('../utils/api', () => ({
   adminAPI: {
     getDetectionList: vi.fn(),
+    getDetectionDetail: vi.fn(),
     getAppealsList: vi.fn(),
     approveAppeal: vi.fn(),
+    banFromAnticheatPanel: vi.fn(),
+    unbanFromAnticheatPanel: vi.fn(),
     getAnticheatConfig: vi.fn(),
     getAuditLog: vi.fn(),
     exportAuditLog: vi.fn(),
@@ -52,13 +55,23 @@ const apiResponse = (data: any) => ({
   config: {} as any,
 })
 
-const mountAdminAnticheat = async () => {
-  vi.mocked(adminAPI.getDetectionList).mockResolvedValue(apiResponse({ detections: [], total: 0 }))
+const mountAdminAnticheat = async (detections: any[] = []) => {
+  vi.mocked(adminAPI.getDetectionList).mockResolvedValue(apiResponse({ detections, total: detections.length }))
+  vi.mocked(adminAPI.getDetectionDetail).mockResolvedValue(apiResponse({
+    risk_score: {
+      id: 7,
+      player_uid: 42,
+      room_id: 'room-1',
+      risk_score: 86,
+      response_time_score: 92,
+    },
+    sanctions: [{ sanction_type: 'ban' }],
+  }))
   vi.mocked(adminAPI.getAppealsList).mockResolvedValue(apiResponse({
       appeals: [
         {
           id: 'appeal-1',
-          player_id: 42,
+          player_uid: 42,
           room_id: 'room-1',
           reason: '误封申诉',
           status: 'pending',
@@ -83,6 +96,8 @@ const mountAdminAnticheat = async () => {
       total: 1,
     }))
   vi.mocked(adminAPI.approveAppeal).mockResolvedValue(apiResponse({ compensation_status: 'ok' }))
+  vi.mocked(adminAPI.banFromAnticheatPanel).mockResolvedValue(apiResponse({ message: 'player banned' }))
+  vi.mocked(adminAPI.unbanFromAnticheatPanel).mockResolvedValue(apiResponse({ message: 'player unbanned' }))
 
   const wrapper = mount(AdminAnticheat)
   await flushPromises()
@@ -97,6 +112,7 @@ describe('AdminAnticheat', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('误封申诉')
+    expect(wrapper.text()).toContain('42')
 
     await wrapper.findAll('button').find(button => button.text().includes('批准'))!.trigger('click')
     await flushPromises()
@@ -138,5 +154,36 @@ describe('AdminAnticheat', () => {
     expect(wrapper.text()).toContain('解封补偿')
     expect(wrapper.text()).toContain('100 燃素')
     expect(wrapper.text()).toContain('Default compensation message')
+  })
+
+  it('validates and submits manual ban from detection detail', async () => {
+    const wrapper = await mountAdminAnticheat([{
+      id: 7,
+      player_id: 42,
+      room_id: 'room-1',
+      risk_score: 86,
+      sanction_type: 'ban',
+      created_at: '2026-05-03T00:00:00Z',
+    }])
+    await wrapper.find('button.btn-small.btn-primary').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('封禁处置')
+
+    const untilInput = wrapper.find('input[type="datetime-local"]')
+    await untilInput.setValue('2026-05-06T10:00')
+    const textareas = wrapper.findAll('textarea')
+    await textareas[textareas.length - 1].setValue('manual evidence review')
+
+    await wrapper.findAll('button').find(button => button.text().includes('执行封禁'))!.trigger('click')
+    await flushPromises()
+
+    expect(adminAPI.banFromAnticheatPanel).toHaveBeenCalledWith({
+      player_uid: 42,
+      banned_until: new Date('2026-05-06T10:00').toISOString(),
+      reason: 'manual evidence review',
+      room_id: 'room-1',
+      risk_score_id: 7,
+    })
   })
 })

@@ -26,6 +26,15 @@ const setCached = (key: string, data: any, ttl: number = 5 * 60 * 1000) => {  //
   apiCache.set(key, { data, timestamp: Date.now(), ttl })
 }
 
+export const clearAccountScopedCache = () => {
+  apiCache.delete('user_info')
+  apiCache.delete('rooms_list')
+}
+
+export const invalidateUserInfoCache = () => {
+  apiCache.delete('user_info')
+}
+
 // Token管理
 let isRefreshing = false
 let isRedirectingToLogin = false
@@ -51,12 +60,12 @@ const onRefreshFailed = (reason?: unknown) => {
   refreshSubscribers = []
 }
 
-const clearAuthState = () => {
+export const clearAuthState = () => {
   localStorage.removeItem('user')
   localStorage.removeItem('token')
   localStorage.removeItem('access_token')
   localStorage.removeItem('refresh_token')
-  apiCache.delete('user_info')
+  clearAccountScopedCache()
 }
 
 const redirectToLogin = () => {
@@ -214,6 +223,12 @@ export const authAPI = {
     setCached(cacheKey, response.data, 60 * 1000) // 缓存1分钟
     return response
   },
+  refreshUserInfo: async () => {
+    apiCache.delete('user_info')
+    const response = await api.get('/user/info')
+    setCached('user_info', response.data, 60 * 1000)
+    return response
+  },
   changePassword: (oldPassword: string, newPassword: string, code: string = '', useEmail: boolean = false) =>
     api.put('/user/password', { old_password: oldPassword, new_password: newPassword, code, use_email: useEmail }),
   beginChangePasswordWebAuthn: () =>
@@ -289,6 +304,8 @@ export const authAPI = {
     api.get('/player/anticheat/stats'),
   getPlayerAppeals: () =>
     api.get('/player/appeals'),
+  claimAppealCompensation: (id: number) =>
+    api.post(`/player/appeals/${id}/claim`),
   getPlayerSanctions: () =>
     api.get('/player/sanctions'),
   submitAppeal: (roomId: string, data: { risk_score_id?: number; sanction_id?: number; reason: string; evidence?: string }) =>
@@ -458,9 +475,9 @@ export const adminAPI = {
   // 检测管理
   getDetectionList: (params?: { page?: number; limit?: number; player_id?: string; status?: string }) =>
     api.get('/admin/anticheat/detection-list', { params }),
-  getDetectionDetail: (id: string) =>
+  getDetectionDetail: (id: string | number) =>
     api.get(`/admin/anticheat/detection/${id}`),
-  reviewDetection: (id: string, data: { decision: string; note?: string }) =>
+  reviewDetection: (id: string | number, data: { decision: string; note?: string }) =>
     api.post(`/admin/anticheat/detection/${id}/review`, data),
   banFromAnticheatPanel: (data: { player_uid: number; banned_until: string; reason: string; room_id?: string; risk_score_id?: number }) =>
     api.post('/admin/anticheat/ban', data),

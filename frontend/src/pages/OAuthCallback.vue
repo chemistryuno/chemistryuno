@@ -2,6 +2,7 @@
 import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import websocket from '../utils/websocket'
+import { clearAccountScopedCache } from '../utils/api'
 import { buildApiURL } from '../utils/runtimeConfig'
 
 const router = useRouter()
@@ -30,6 +31,8 @@ onMounted(async () => {
     }
 
     // 存储用户信息
+    clearAccountScopedCache()
+    websocket.disconnect()
     localStorage.setItem('user', JSON.stringify(user))
     websocket.connect()
     window.dispatchEvent(new Event('auth-changed'))

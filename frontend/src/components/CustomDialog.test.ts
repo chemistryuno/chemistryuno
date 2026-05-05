@@ -27,7 +27,7 @@ describe('CustomDialog viewport placement', () => {
     const overlay = document.body.querySelector('.viewport-modal-overlay')
     expect(overlay).toBeTruthy()
     expect(overlay?.parentElement).toBe(document.body)
-    expect(overlay?.classList.contains('z-[10000]')).toBe(true)
+    expect(overlay?.classList.contains('viewport-dialog-overlay')).toBe(true)
     expect(overlay?.classList.contains('absolute')).toBe(false)
     expect(document.body.querySelector('.viewport-modal-panel')).toBeTruthy()
 
@@ -38,11 +38,14 @@ describe('CustomDialog viewport placement', () => {
   it('keeps scrolling on the dialog panel without showing modal scrollbars', () => {
     const css = readFileSync(join(process.cwd(), 'src/index.css'), 'utf8')
     const overlayRule = css.match(/\.viewport-modal-overlay\s*\{[^}]*\}/)?.[0] ?? ''
+    const dialogOverlayRule = css.match(/\.viewport-dialog-overlay\s*\{[^}]*\}/)?.[0] ?? ''
     const panelRule = css.match(/\.viewport-modal-panel\s*\{[^}]*\}/)?.[0] ?? ''
     const panelScrollbarRule = css.match(/\.viewport-modal-panel::-webkit-scrollbar\s*\{[^}]*\}/)?.[0] ?? ''
 
     expect(overlayRule).toContain('overflow: hidden;')
     expect(overlayRule).not.toContain('overflow-y: auto;')
+    expect(overlayRule).toContain('z-index: var(--app-modal-z-index) !important;')
+    expect(dialogOverlayRule).toContain('z-index: var(--app-dialog-z-index) !important;')
     expect(panelRule).toContain('overflow-y: auto;')
     expect(panelRule).toContain('scrollbar-width: none;')
     expect(panelScrollbarRule).toContain('display: none;')

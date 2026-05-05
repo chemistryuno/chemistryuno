@@ -51,8 +51,8 @@ const loadDetections = async () => {
       limit: detectionLimit.value,
       status: detectionStatusFilter.value !== 'all' ? detectionStatusFilter.value : undefined,
     })
-    detectionList.value = response.data?.detections || []
-    detectionTotal.value = response.data?.total || 0
+    detectionList.value = response.data?.detections || response.data?.data || []
+    detectionTotal.value = response.data?.total || response.data?.count || detectionList.value.length
   } catch (error: any) {
     showAlert(error.response?.data?.error || '加载检测列表失败', '错误')
   } finally {
@@ -178,7 +178,7 @@ const filteredAppeals = computed(() => {
   if (appealsSearchTerm.value) {
     const term = appealsSearchTerm.value.toLowerCase()
     items = items.filter(a => 
-      a.player_id?.toString().includes(term) || 
+      (a.player_id || a.player_uid)?.toString().includes(term) || 
       a.room_id?.toString().includes(term)
     )
   }
@@ -196,8 +196,8 @@ const loadAppeals = async () => {
       limit: appealsLimit.value,
       status: appealsStatusFilter.value !== 'all' ? appealsStatusFilter.value : undefined,
     })
-    appealsList.value = response.data?.appeals || []
-    appealsTotal.value = response.data?.total || 0
+    appealsList.value = response.data?.appeals || response.data?.data || []
+    appealsTotal.value = response.data?.total || response.data?.count || appealsList.value.length
   } catch (error: any) {
     showAlert(error.response?.data?.error || '加载申诉列表失败', '错误')
   } finally {
@@ -641,7 +641,7 @@ const getCompensationBadge = (status: string) => {
               <td colspan="5" class="empty">暂无申诉记录</td>
             </tr>
             <tr v-for="appeal in filteredAppeals" :key="appeal.id">
-              <td>{{ appeal.player_id }}</td>
+              <td>{{ appeal.player_id || appeal.player_uid }}</td>
               <td class="appeal-reason">{{ appeal.reason }}</td>
               <td>
                 <span :class="['badge', getStatusBadge(appeal.status).color]">

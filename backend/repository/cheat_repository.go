@@ -69,6 +69,34 @@ func (cr *CheatRepository) GetRiskScoresByRoom(roomID string) ([]database.CheatR
 }
 
 // SaveSanction 保存处罚记录
+func (cr *CheatRepository) GetCheatDetectedGameHistories(limit int) ([]database.GameHistory, error) {
+	if !cr.db.Migrator().HasTable(&database.GameHistory{}) {
+		return nil, nil
+	}
+	if limit <= 0 {
+		limit = 50
+	}
+	var histories []database.GameHistory
+	if err := cr.db.Where("cheat_detected = ?", true).
+		Order("finished_at DESC, created_at DESC").
+		Limit(limit).
+		Find(&histories).Error; err != nil {
+		return nil, err
+	}
+	return histories, nil
+}
+
+func (cr *CheatRepository) GetGameHistoryByID(id uint) (*database.GameHistory, error) {
+	if !cr.db.Migrator().HasTable(&database.GameHistory{}) {
+		return nil, gorm.ErrRecordNotFound
+	}
+	var history database.GameHistory
+	if err := cr.db.First(&history, id).Error; err != nil {
+		return nil, err
+	}
+	return &history, nil
+}
+
 func (cr *CheatRepository) SaveSanction(sanction *database.CheatSanction) error {
 	return cr.db.Create(sanction).Error
 }
@@ -93,11 +121,46 @@ func (cr *CheatRepository) GetActiveSanctionsByPlayer(playerUID uint) ([]databas
 	return sanctions, nil
 }
 
+// GetSanctionsByRiskScoreIDs returns sanctions keyed by their risk score id.
+func (cr *CheatRepository) GetSanctionsByRiskScoreIDs(riskScoreIDs []uint) (map[uint][]database.CheatSanction, error) {
+	result := make(map[uint][]database.CheatSanction)
+	if len(riskScoreIDs) == 0 {
+		return result, nil
+	}
+
+	var sanctions []database.CheatSanction
+	if err := cr.db.Where("risk_score_id IN ?", riskScoreIDs).
+		Order("applied_at DESC").
+		Find(&sanctions).Error; err != nil {
+		return nil, err
+	}
+	for _, sanction := range sanctions {
+		result[sanction.RiskScoreID] = append(result[sanction.RiskScoreID], sanction)
+	}
+	return result, nil
+}
+
 // UpdateSanctionStatus 更新处罚状态
 func (cr *CheatRepository) UpdateSanctionStatus(sanctionID uint, status string) error {
 	return cr.db.Model(&database.CheatSanction{}).
 		Where("id = ?", sanctionID).
 		Update("status", status).Error
+}
+
+func (cr *CheatRepository) RevokeActiveBanSanctionsByPlayer(playerUID uint) error {
+	return cr.db.Model(&database.CheatSanction{}).
+		Where("player_uid = ? AND sanction_type = ? AND status = ?", playerUID, "ban", "active").
+		Update("status", "revoked").Error
+}
+
+func (cr *CheatRepository) ClearPlayerAccountBan(playerUID uint) error {
+	if !cr.db.Migrator().HasTable(&database.User{}) {
+		return nil
+	}
+	return cr.db.Model(&database.User{}).Where("uid = ?", playerUID).Updates(map[string]interface{}{
+		"banned_until": nil,
+		"ban_reason":   "",
+	}).Error
 }
 
 // CountBansInRange counts ban sanctions issued during a time range.
@@ -108,6 +171,7 @@ func (cr *CheatRepository) CountBansInRange(startTime, endTime time.Time) (int64
 		Count(&count).Error; err != nil {
 		return 0, err
 	}
+
 	return count, nil
 }
 
@@ -128,13 +192,30 @@ func (cr *CheatRepository) GetAppealByID(id uint) (*database.CheatAppeal, error)
 // GetPendingAppeals 获取待审核的申诉
 func (cr *CheatRepository) GetPendingAppeals(limit int) ([]database.CheatAppeal, error) {
 	var appeals []database.CheatAppeal
-	if err := cr.db.Where("status IN ?", []string{"pending", "under_review"}).
-		Order("submitted_at ASC").
-		Limit(limit).
-		Find(&appeals).Error; err != nil {
+	query := cr.db.Model(&database.CheatAppeal{})
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+	if err := query.Order("submitted_at DESC").Find(&appeals).Error; err != nil {
 		return nil, err
 	}
 	return appeals, nil
+}
+
+func (cr *CheatRepository) HasPendingAppealForContext(playerUID uint, riskScoreID uint, sanctionID *uint) (bool, error) {
+	query := cr.db.Model(&database.CheatAppeal{}).
+		Where("player_uid = ? AND status IN ?", playerUID, []string{"pending", "under_review"})
+	if sanctionID != nil && *sanctionID > 0 {
+		query = query.Where("sanction_id = ?", *sanctionID)
+	} else if riskScoreID > 0 {
+		query = query.Where("risk_score_id = ?", riskScoreID)
+	}
+
+	var count int64
+	if err := query.Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
 }
 
 // GetAppealsByPlayer 获取玩家的申诉历史

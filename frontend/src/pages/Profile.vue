@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { authAPI } from '../utils/api'
+import { authAPI, clearAuthState } from '../utils/api'
 import { useDialog } from '../utils/dialog'
 import { 
   ArrowLeft, 
@@ -190,7 +190,7 @@ const handleUpdateNickname = async () => {
 
 const handleLogout = () => {
   // Token已存储在HttpOnly Cookie中，浏览器会自动处理
-  localStorage.removeItem('user')
+  clearAuthState()
   router.push('/login')
 }
 

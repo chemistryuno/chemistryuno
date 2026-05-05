@@ -11,6 +11,7 @@ import (
 type SanctionDecider struct {
 	config     *RiskScoringConfig
 	repository *repository.CheatRepository
+	userRepo   *repository.UserRepository
 }
 
 // NewSanctionDecider 创建处罚决策器
@@ -18,6 +19,7 @@ func NewSanctionDecider(config *RiskScoringConfig, repo *repository.CheatReposit
 	return &SanctionDecider{
 		config:     config,
 		repository: repo,
+		userRepo:   repository.NewUserRepository(),
 	}
 }
 
@@ -104,17 +106,35 @@ func (sd *SanctionDecider) ApplySanction(decision *Decision, roomID string, play
 	log.Printf("[处罚] 已应用处罚 %s 给玩家 %d（房间 %s）",
 		decision.SanctionType, playerUID, roomID)
 
+	if sanction.SanctionType == "ban" && sanction.EffectiveUntil != nil && sd.userRepo != nil {
+		if err := sd.userRepo.UpdateBanStatusWithReason(playerUID, sanction.EffectiveUntil, decision.Reason); err != nil {
+			log.Printf("[sanction] failed to apply account ban for player %d: %v", playerUID, err)
+			return nil, err
+		}
+	}
+
 	return sanction, nil
 }
 
 // RevokeSanction 撤销处罚
 func (sd *SanctionDecider) RevokeSanction(sanctionID uint) error {
+	sanction, err := sd.repository.GetSanctionByID(sanctionID)
+	if err != nil {
+		log.Printf("[sanction] failed to load sanction before revoke: %v", err)
+		return err
+	}
 	if err := sd.repository.UpdateSanctionStatus(sanctionID, "revoked"); err != nil {
 		log.Printf("[处罚] 撤销处罚失败: %v", err)
 		return err
 	}
 
 	log.Printf("[处罚] 已撤销处罚 ID: %d", sanctionID)
+	if sanction.SanctionType == "ban" && sd.userRepo != nil {
+		if err := sd.userRepo.UpdateBanStatusWithReason(sanction.PlayerUID, nil, ""); err != nil {
+			log.Printf("[sanction] failed to clear account ban for player %d: %v", sanction.PlayerUID, err)
+			return err
+		}
+	}
 	return nil
 }
 

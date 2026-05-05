@@ -465,7 +465,7 @@ describe('Chat - Private Chat Restrictions for Banned Users', () => {
     await wrapper.vm.$nextTick()
 
     const pageOverlay = document.body.querySelector('.chat-page-modal-overlay')
-    expect(pageOverlay?.classList.contains('z-[9990]')).toBe(true)
+    expect(pageOverlay?.classList.contains('viewport-modal-overlay')).toBe(true)
 
     void wrapper.vm.sendRequest(2)
     await wrapper.vm.$nextTick()

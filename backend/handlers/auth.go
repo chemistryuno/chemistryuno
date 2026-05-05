@@ -1172,6 +1172,7 @@ func GetUserProfile(c *gin.Context) {
 		"birthday":       user.Birthday,
 		"custom_contact": user.CustomContact,
 		"points":         user.Points,
+		"fuel":           user.Fuel,
 		"level":          user.Level,
 		"win_count":      user.WinCount,
 		"total_games":    user.TotalGames,

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { authAPI } from '../utils/api'
+import { authAPI, clearAccountScopedCache } from '../utils/api'
 import { useDialog } from '../utils/dialog'
 import { Lock, FlaskConical, ShieldCheck, Loader2, Mail, User, HelpCircle, AtSign, FileText } from 'lucide-vue-next'
 import OAuthLogos from '../components/icons/OAuthLogos.vue'
@@ -67,6 +67,8 @@ onMounted(async () => {
 })
 
 const handleLoginSuccess = (token: string, user: any) => {
+  clearAccountScopedCache()
+  websocket.disconnect()
   // Token已由后端通过HttpOnly Cookie设置，前端不需要存储
   localStorage.setItem('user', JSON.stringify(user))
   websocket.connect()

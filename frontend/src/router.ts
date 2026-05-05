@@ -116,7 +116,7 @@ const routes = [
     path: '/admin/anticheat',
     name: 'AdminAnticheat',
     component: AdminAnticheat,
-    meta: { requiresAuth: true, coWorkerOnly: true }
+    meta: { requiresAuth: true, adminOnly: true }
   },
   {
     path: '/admin/:tab',
@@ -165,6 +165,11 @@ const routes = [
     path: '/oauth-callback',
     name: 'OAuthCallback',
     component: OAuthCallback
+  },
+  {
+    path: '/:pathMatch(.*)*',
+    name: 'InvalidUriRedirect',
+    redirect: '/'
   }
 ]
 

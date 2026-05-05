@@ -51,6 +51,10 @@ func autoMigrate() error {
 		&SurveyResponse{},
 		&SurveyAnswer{},
 		&FuelCompensationRecord{},
+		&CheatRiskScore{},
+		&CheatSanction{},
+		&CheatAppeal{},
+		&CheatAuditLog{},
 	)
 
 	if err != nil {

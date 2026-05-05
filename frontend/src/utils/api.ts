@@ -287,6 +287,12 @@ export const authAPI = {
     api.get(`/chat/private/history/${friendUID}?limit=${limit}`),
   getPlayerAnticheatStats: () =>
     api.get('/player/anticheat/stats'),
+  getPlayerAppeals: () =>
+    api.get('/player/appeals'),
+  getPlayerSanctions: () =>
+    api.get('/player/sanctions'),
+  submitAppeal: (roomId: string, data: { risk_score_id?: number; sanction_id?: number; reason: string; evidence?: string }) =>
+    api.post(`/game/${encodeURIComponent(roomId)}/appeal`, data),
 
   // 2FA相关
   setup2FA: () => api.post('/user/2fa/setup'),
@@ -456,6 +462,10 @@ export const adminAPI = {
     api.get(`/admin/anticheat/detection/${id}`),
   reviewDetection: (id: string, data: { decision: string; note?: string }) =>
     api.post(`/admin/anticheat/detection/${id}/review`, data),
+  banFromAnticheatPanel: (data: { player_uid: number; banned_until: string; reason: string; room_id?: string; risk_score_id?: number }) =>
+    api.post('/admin/anticheat/ban', data),
+  unbanFromAnticheatPanel: (data: { player_uid: number; reason?: string; room_id?: string }) =>
+    api.post('/admin/anticheat/unban', data),
 
   // 申诉管理
   getAppealsList: (params?: { page?: number; limit?: number; status?: string }) =>

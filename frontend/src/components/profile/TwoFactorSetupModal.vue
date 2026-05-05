@@ -2,7 +2,7 @@
 import { ref, watch } from 'vue'
 import { Fingerprint, Loader2, Lock } from 'lucide-vue-next'
 
-defineProps<{
+const props = defineProps<{
   show: boolean
   qrCode: string
   loading: boolean
@@ -17,7 +17,7 @@ const verificationCode = ref('')
 const currentPassword = ref('')
 
 // 监控 show 状态以禁用/启用背景滚动
-watch((props: any) => props.show, (show) => {
+watch(() => props.show, (show) => {
   if (show) {
     document.documentElement.style.overflow = 'hidden'
     document.body.style.overflow = 'hidden'
@@ -30,14 +30,14 @@ watch((props: any) => props.show, (show) => {
 
 <template>
   <Teleport to="body">
-  <div v-if="show" class="viewport-modal-overlay z-[100] p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md">
+  <div v-if="props.show" class="viewport-modal-overlay z-[100] p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md">
     <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 rounded-[3rem] p-10 max-w-md w-full shadow-2xl relative animate-in fade-in zoom-in duration-300 overflow-y-auto max-h-[90vh]">
       <h3 class="text-2xl font-black mb-4 italic uppercase text-center text-slate-900 dark:text-white">配置双重验证 / 2FA Config</h3>
       <p class="text-slate-500 text-xs text-center mb-8">请使用手机验证器应用扫描下方二维码，并在下方输入当前账户密码以确认身份</p>
       
       <div class="flex flex-col items-center gap-6">
         <div class="bg-white p-4 rounded-[2rem] shadow-[0_0_30px_rgba(0,0,0,0.05)] dark:shadow-[0_0_30px_rgba(255,255,255,0.1)]">
-          <img :src="qrCode" alt="2FA QR Code" class="w-48 h-48" />
+          <img :src="props.qrCode" alt="2FA QR Code" class="w-48 h-48" />
         </div>
 
         <div class="w-full space-y-4">
@@ -74,10 +74,10 @@ watch((props: any) => props.show, (show) => {
           </button>
           <button 
             @click="$emit('enable', verificationCode, currentPassword)"
-            :disabled="loading || verificationCode.length !== 6 || !currentPassword"
+            :disabled="props.loading || verificationCode.length !== 6 || !currentPassword"
             class="flex-[2] py-4 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 rounded-2xl font-black text-white shadow-xl shadow-emerald-500/20 disabled:scale-100 active:scale-95 flex items-center justify-center gap-2"
           >
-            <Loader2 v-if="loading" class="w-5 h-5 animate-spin" />
+            <Loader2 v-if="props.loading" class="w-5 h-5 animate-spin" />
             激活保护
           </button>
         </div>

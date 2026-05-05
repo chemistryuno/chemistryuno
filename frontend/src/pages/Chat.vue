@@ -45,6 +45,7 @@ const scrollContainer = ref<HTMLElement | null>(null)
 
 const showSearchModal = ref(false)
 const showRequestsModal = ref(false)
+const hasPageModal = computed(() => showSearchModal.value || showRequestsModal.value)
 
 // 房间状态缓存
 const roomStatusCache = ref<Record<string, { status: string, checkedAt: number }>>({})
@@ -82,16 +83,18 @@ const checkRoomStatus = async (roomId: string) => {
   }
 }
 
-watch([showRequestsModal, showSearchModal], ([requests, search]) => {
-  if (requests) fetchRequests()
+const unlockPageScroll = () => {
+  document.documentElement.style.overflow = ''
+  document.body.style.overflow = ''
+}
+
+watch(hasPageModal, (hasModal) => {
   // 监控弹窗状态以禁用/启用背景滚动
-  const hasModal = requests || search
   if (hasModal) {
     document.documentElement.style.overflow = 'hidden'
     document.body.style.overflow = 'hidden'
   } else {
-    document.documentElement.style.overflow = ''
-    document.body.style.overflow = ''
+    unlockPageScroll()
   }
 })
 
@@ -114,7 +117,7 @@ watch(searchQuery, (newVal) => {
     globalSearchResults.value = []
     return
   }
-  
+
   searchLoading.value = true
   searchTimeout = setTimeout(async () => {
     try {
@@ -134,7 +137,7 @@ watch(searchQuery, (newVal) => {
 const triggerSearch = async () => {
   if (!searchQuery.value.trim()) return
   if (searchTimeout) clearTimeout(searchTimeout)
-  
+
   searchLoading.value = true
   try {
     const res = await authAPI.searchUsers(searchQuery.value)
@@ -157,7 +160,7 @@ const fetchFriends = async () => {
   try {
     const res = await friendAPI.getFriends()
     friends.value = res.data || []
-    
+
     // 如果 URL 中有 uid 参数，自动选择该好友
     const targetUid = route.query.uid
     if (targetUid) {
@@ -196,7 +199,7 @@ const handleRequest = async (id: number, action: 'accept' | 'decline') => {
 const sendRequest = async (uid: number) => {
   const message = await showPrompt('请输入申请信息（可选）:', '你好，我想和你一起进行化学实验。', '建立研究连接')
   if (message === null) return // 用户取消
-  
+
   try {
     await friendAPI.sendRequest(uid, message)
     showAlert('研究者连接请求已发出，等待对方同步波段。', '请求已发送')
@@ -228,13 +231,23 @@ const scrollToBottom = () => {
 
 const focusSearch = () => {
   console.log('Chat: Opening search modal')
+  showRequestsModal.value = false
   showSearchModal.value = true
+}
+
+const closeSearchModal = () => {
+  showSearchModal.value = false
 }
 
 const openRequestsModal = () => {
   console.log('Chat: Opening requests modal')
+  showSearchModal.value = false
   fetchRequests()
   showRequestsModal.value = true
+}
+
+const closeRequestsModal = () => {
+  showRequestsModal.value = false
 }
 
 // 选择聊天对象
@@ -287,13 +300,13 @@ const selectChat = async (friend: any) => {
 const handleSend = () => {
   if (!newMessage.value.trim() || !activeChat.value) return
   if (banState.value.isBanned) return
-  
+
   websocket.send({
     type: 'private_chat',
     target_uid: activeChat.value.uid,
     message: newMessage.value
   })
-  
+
   newMessage.value = ''
 }
 
@@ -374,6 +387,7 @@ onUnmounted(() => {
   websocket.off('chat_blocked', onChatBlocked)
   websocket.off('friend_request', handleIncomingFriendRequest)
   websocket.off('friend_request_handled', handleFriendRequestHandled)
+  unlockPageScroll()
 })
 
 const handleIncomingFriendRequest = () => {
@@ -388,7 +402,7 @@ const handleFriendRequestHandled = (data: any) => {
 
 const formatTime = (date: Date) => {
   const d = new Date(date)
-  return d.getHours().toString().padStart(2, '0') + ':' + 
+  return d.getHours().toString().padStart(2, '0') + ':' +
          d.getMinutes().toString().padStart(2, '0')
 }
 </script>
@@ -671,6 +685,13 @@ const formatTime = (date: Date) => {
                 原因：{{ banState.banReason }}
               </div>
             </div>
+              <button
+                v-if="banState.isBanned"
+                class="mb-2 inline-flex h-8 items-center justify-center rounded-lg border border-rose-300 px-3 text-[10px] font-black text-rose-700 transition-colors hover:bg-rose-100 dark:border-rose-400/30 dark:text-rose-100 dark:hover:bg-rose-500/20"
+                @click="router.push('/appeals')"
+              >
+                前往申诉中心
+              </button>
             <div class="relative group">
               <div class="absolute -inset-1 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl sm:rounded-2xl blur opacity-0 group-focus-within:opacity-10 transition duration-500"></div>
               <div class="relative flex items-center gap-2">
@@ -715,8 +736,8 @@ const formatTime = (date: Date) => {
 
     <!-- 搜索研究员模态框 -->
     <Teleport to="body">
-    <div v-if="showSearchModal" @click="showSearchModal = false" class="viewport-modal-overlay z-[140] p-3 sm:p-4 bg-slate-900/60 dark:bg-black/70 backdrop-blur-sm">
-      <div @click.stop class="w-full max-w-md sm:max-w-lg bg-white dark:bg-[#0f0f12] rounded-2xl sm:rounded-3xl border border-slate-200 dark:border-white/10 shadow-2xl flex flex-col overflow-hidden max-h-[90vh]">
+    <div v-if="showSearchModal" @click="closeSearchModal" class="viewport-modal-overlay chat-page-modal-overlay z-[9990] p-3 sm:p-4 bg-slate-900/60 dark:bg-black/70 backdrop-blur-sm">
+      <div @click.stop class="viewport-modal-panel w-full max-w-md sm:max-w-lg bg-white dark:bg-[#0f0f12] rounded-2xl sm:rounded-3xl border border-slate-200 dark:border-white/10 shadow-2xl flex flex-col overflow-hidden">
         <div class="p-3 sm:p-4 border-b border-slate-100 dark:border-white/5 flex items-center justify-between">
           <div class="min-w-0 flex-1">
             <h3 class="text-sm sm:text-base font-black text-slate-800 dark:text-white uppercase tracking-tighter flex items-center gap-1.5">
@@ -725,7 +746,7 @@ const formatTime = (date: Date) => {
             </h3>
             <p class="text-[7px] sm:text-[8px] text-slate-400 font-mono uppercase tracking-widest mt-0.5">Cross-Server Researcher Search</p>
           </div>
-          <button @click="showSearchModal = false" class="p-1.5 sm:p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg sm:rounded-xl text-slate-400 transition-all shrink-0 ml-2">
+          <button @click="closeSearchModal" class="p-1.5 sm:p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg sm:rounded-xl text-slate-400 transition-all shrink-0 ml-2">
             <X class="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
         </div>
@@ -810,8 +831,8 @@ const formatTime = (date: Date) => {
     </div>
 
     <!-- 好友请求模态框 -->
-    <div v-if="showRequestsModal" @click="showRequestsModal = false" class="viewport-modal-overlay z-[150] p-3 sm:p-4 bg-slate-900/60 dark:bg-black/70 backdrop-blur-sm">
-      <div @click.stop class="w-full max-w-md sm:max-w-lg bg-white dark:bg-[#0f0f12] rounded-2xl sm:rounded-3xl border border-slate-200 dark:border-white/10 shadow-2xl flex flex-col overflow-hidden max-h-[90vh]">
+    <div v-if="showRequestsModal" @click="closeRequestsModal" class="viewport-modal-overlay chat-page-modal-overlay z-[9990] p-3 sm:p-4 bg-slate-900/60 dark:bg-black/70 backdrop-blur-sm">
+      <div @click.stop class="viewport-modal-panel w-full max-w-md sm:max-w-lg bg-white dark:bg-[#0f0f12] rounded-2xl sm:rounded-3xl border border-slate-200 dark:border-white/10 shadow-2xl flex flex-col overflow-hidden">
         <div class="p-3 sm:p-4 border-b border-slate-100 dark:border-white/5 flex items-center justify-between">
           <div>
             <h3 class="text-sm sm:text-base font-black text-slate-800 dark:text-white uppercase tracking-tighter flex items-center gap-1.5">
@@ -820,7 +841,7 @@ const formatTime = (date: Date) => {
             </h3>
             <p class="text-[7px] sm:text-[8px] text-slate-400 font-mono uppercase tracking-widest mt-0.5">Pending Connection Requests</p>
           </div>
-          <button @click="showRequestsModal = false" class="p-1.5 sm:p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg sm:rounded-xl text-slate-400 transition-all">
+          <button @click="closeRequestsModal" class="p-1.5 sm:p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg sm:rounded-xl text-slate-400 transition-all">
             <X class="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
         </div>

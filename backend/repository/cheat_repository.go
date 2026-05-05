@@ -45,8 +45,11 @@ func (cr *CheatRepository) GetRiskScoreByID(id uint) (*database.CheatRiskScore, 
 // GetRiskScoresByPlayer 获取玩家的风险评分历史
 func (cr *CheatRepository) GetRiskScoresByPlayer(playerUID uint, limit int) ([]database.CheatRiskScore, error) {
 	var scores []database.CheatRiskScore
-	if err := cr.db.Where("player_uid = ?", playerUID).
-		Order("detection_time DESC").
+	query := cr.db.Model(&database.CheatRiskScore{})
+	if playerUID > 0 {
+		query = query.Where("player_uid = ?", playerUID)
+	}
+	if err := query.Order("detection_time DESC").
 		Limit(limit).
 		Find(&scores).Error; err != nil {
 		return nil, err

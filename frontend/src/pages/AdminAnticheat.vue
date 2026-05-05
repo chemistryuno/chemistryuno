@@ -65,11 +65,34 @@ const showDetailModal = ref(false)
 const selectedDetection = ref<any>(null)
 const reviewDecision = ref<'confirm' | 'override'>('confirm')
 const reviewNote = ref('')
+const enforcementReason = ref('Anticheat panel manual enforcement')
+const enforcementUntil = ref('')
+const enforcementLoading = ref(false)
+
+const normalizeDetectionDetail = (payload: any, fallback: any) => {
+  const risk = payload?.risk_score || payload || {}
+  const sanctions = payload?.sanctions || []
+  return {
+    ...fallback,
+    ...risk,
+    id: risk.id || fallback.id,
+    player_id: risk.player_id || risk.player_uid || fallback.player_id,
+    player_uid: risk.player_uid || risk.player_id || fallback.player_uid || fallback.player_id,
+    room_id: risk.room_id || fallback.room_id,
+    risk_score: risk.risk_score ?? fallback.risk_score ?? 0,
+    sanction_type: fallback.sanction_type || sanctions[0]?.sanction_type || 'observe',
+    sanctions,
+  }
+}
+
+const defaultBanUntil = () => new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 16)
 
 const openDetectionDetail = async (detection: any) => {
   try {
     const response = await adminAPI.getDetectionDetail(detection.id)
-    selectedDetection.value = response.data
+    selectedDetection.value = normalizeDetectionDetail(response.data, detection)
+    enforcementReason.value = 'Anticheat panel manual enforcement'
+    enforcementUntil.value = defaultBanUntil()
     showDetailModal.value = true
   } catch (error: any) {
     showAlert(error.response?.data?.error || '加载检测详情失败', '错误')
@@ -91,6 +114,54 @@ const submitReview = async () => {
     loadDetections()
   } catch (error: any) {
     showAlert(error.response?.data?.error || '提交审核失败', '错误')
+  }
+}
+
+const handlePanelBan = async () => {
+  if (!selectedDetection.value) return
+  if (!enforcementUntil.value || !enforcementReason.value.trim()) {
+    showAlert('请填写封禁截止时间和原因', '参数缺失')
+    return
+  }
+  const until = new Date(enforcementUntil.value)
+  if (Number.isNaN(until.getTime()) || until <= new Date()) {
+    showAlert('封禁截止时间必须晚于当前时间', '时间无效')
+    return
+  }
+
+  enforcementLoading.value = true
+  try {
+    await adminAPI.banFromAnticheatPanel({
+      player_uid: Number(selectedDetection.value.player_uid || selectedDetection.value.player_id),
+      banned_until: until.toISOString(),
+      reason: enforcementReason.value.trim(),
+      room_id: selectedDetection.value.room_id,
+      risk_score_id: Number(selectedDetection.value.id) || undefined,
+    })
+    showAlert('已执行封禁并写入审计日志', '操作完成')
+    await Promise.all([loadDetections(), loadAuditLog()])
+  } catch (error: any) {
+    showAlert(error.response?.data?.error || '封禁失败', '操作失败')
+  } finally {
+    enforcementLoading.value = false
+  }
+}
+
+const handlePanelUnban = async () => {
+  if (!selectedDetection.value) return
+  enforcementLoading.value = true
+  try {
+    await adminAPI.unbanFromAnticheatPanel({
+      player_uid: Number(selectedDetection.value.player_uid || selectedDetection.value.player_id),
+      reason: enforcementReason.value.trim() || 'Manual unban from anticheat panel',
+      room_id: selectedDetection.value.room_id,
+    })
+    showAlert('已解除封禁并写入审计日志', '操作完成')
+    await Promise.all([loadDetections(), loadAuditLog()])
+  } catch (error: any) {
+    showAlert(error.response?.data?.error || '解封失败', '操作失败')
+  } finally {
+    enforcementLoading.value = false
   }
 }
 
@@ -161,7 +232,7 @@ const confirmApproval = async () => {
     })
     showAlert('申诉已批准，补偿已发放', '成功')
     showApprovalModal.value = false
-    loadAppeals()
+    await Promise.all([loadAppeals(), loadAuditLog()])
   } catch (error: any) {
     showAlert(error.response?.data?.error || '批准申诉失败', '错误')
   }
@@ -179,7 +250,7 @@ const handleRejectAppeal = async (appealId: string) => {
   try {
     await adminAPI.rejectAppeal(appealId, { note })
     showAlert('申诉已拒绝', '成功')
-    loadAppeals()
+    await Promise.all([loadAppeals(), loadAuditLog()])
   } catch (error: any) {
     showAlert(error.response?.data?.error || '拒绝申诉失败', '错误')
   }
@@ -496,6 +567,28 @@ const getCompensationBadge = (status: string) => {
               <div class="form-group">
                 <label>审核备注:</label>
                 <textarea v-model="reviewNote" placeholder="输入审核备注..."></textarea>
+              </div>
+            </div>
+          </div>
+
+          <div class="detail-section">
+            <h3>封禁处置</h3>
+            <div class="review-form">
+              <div class="form-group">
+                <label>封禁截止时间:</label>
+                <input v-model="enforcementUntil" type="datetime-local" />
+              </div>
+              <div class="form-group">
+                <label>处置原因:</label>
+                <textarea v-model="enforcementReason" placeholder="请输入封禁或解封原因"></textarea>
+              </div>
+              <div class="modal-actions">
+                <button class="btn btn-danger" :disabled="enforcementLoading" @click="handlePanelBan">
+                  执行封禁
+                </button>
+                <button class="btn btn-secondary" :disabled="enforcementLoading" @click="handlePanelUnban">
+                  解除封禁
+                </button>
               </div>
             </div>
           </div>

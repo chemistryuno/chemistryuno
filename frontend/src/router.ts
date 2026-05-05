@@ -6,6 +6,7 @@ const Register = () => import('./pages/Register.vue')
 const Lobby = () => import('./pages/Lobby.vue')
 const GameRoom = () => import('./pages/GameRoom.vue')
 const Profile = () => import('./pages/Profile.vue')
+const Appeals = () => import('./pages/Appeals.vue')
 const Admin = () => import('./pages/Admin.vue')
 const AdminPlugins = () => import('./pages/AdminPlugins.vue')
 const AdminSurveyResponses = () => import('./pages/AdminSurveyResponses.vue')
@@ -69,6 +70,12 @@ const routes = [
     path: '/profile/:tab',
     name: 'ProfileTab',
     component: Profile,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/appeals',
+    name: 'Appeals',
+    component: Appeals,
     meta: { requiresAuth: true }
   },
   {

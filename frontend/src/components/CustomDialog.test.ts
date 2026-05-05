@@ -27,6 +27,7 @@ describe('CustomDialog viewport placement', () => {
     const overlay = document.body.querySelector('.viewport-modal-overlay')
     expect(overlay).toBeTruthy()
     expect(overlay?.parentElement).toBe(document.body)
+    expect(overlay?.classList.contains('z-[10000]')).toBe(true)
     expect(overlay?.classList.contains('absolute')).toBe(false)
     expect(document.body.querySelector('.viewport-modal-panel')).toBeTruthy()
 

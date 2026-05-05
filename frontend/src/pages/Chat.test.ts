@@ -1,7 +1,7 @@
 import { mount, flushPromises } from '@vue/test-utils'
 import { describe, expect, it, beforeEach, vi } from 'vitest'
 import Chat from './Chat.vue'
-import UserAvatar from '../components/UserAvatar.vue'
+import { useDialog } from '../utils/dialog'
 
 // Mock the API and websocket
 vi.mock('../utils/api', () => ({
@@ -13,7 +13,7 @@ vi.mock('../utils/api', () => ({
     remove: vi.fn(() => Promise.resolve({ data: {} }))
   },
   authAPI: {
-    getUserInfo: vi.fn(() => Promise.resolve({ 
+    getUserInfo: vi.fn(() => Promise.resolve({
       data: {
         uid: 1,
         username: 'testuser'
@@ -32,6 +32,17 @@ vi.mock('../utils/websocket', () => ({
     on: vi.fn(),
     off: vi.fn()
   }
+}))
+
+vi.mock('vue-router', () => ({
+  useRouter: () => ({
+    back: vi.fn(),
+    push: vi.fn()
+  }),
+  useRoute: () => ({
+    query: {},
+    params: {}
+  })
 }))
 
 vi.mock('../utils/banState', () => ({
@@ -68,11 +79,41 @@ vi.mock('../utils/banState', () => ({
   })
 }))
 
+const dialogState = {
+  show: false,
+  type: 'alert',
+  resolve: null as ((value: any) => void) | null
+}
+
 vi.mock('../utils/dialog', () => ({
   useDialog: () => ({
-    showAlert: vi.fn(),
-    showConfirm: vi.fn(),
-    showPrompt: vi.fn()
+    state: dialogState,
+    showAlert: vi.fn(() => {
+      dialogState.show = true
+      dialogState.type = 'alert'
+      return new Promise<void>((resolve) => {
+        dialogState.resolve = resolve
+      })
+    }),
+    showConfirm: vi.fn(() => {
+      dialogState.show = true
+      dialogState.type = 'confirm'
+      return new Promise<boolean>((resolve) => {
+        dialogState.resolve = resolve
+      })
+    }),
+    showPrompt: vi.fn(() => {
+      dialogState.show = true
+      dialogState.type = 'prompt'
+      return new Promise<string | null>((resolve) => {
+        dialogState.resolve = resolve
+      })
+    }),
+    handleCancel: vi.fn(() => {
+      dialogState.show = false
+      dialogState.resolve?.(null)
+      dialogState.resolve = null
+    })
   })
 }))
 
@@ -80,6 +121,12 @@ describe('Chat - Private Chat Restrictions for Banned Users', () => {
   beforeEach(() => {
     localStorage.clear()
     vi.clearAllMocks()
+    document.documentElement.style.overflow = ''
+    document.body.style.overflow = ''
+    document.body.innerHTML = ''
+    dialogState.show = false
+    dialogState.type = 'alert'
+    dialogState.resolve = null
   })
 
   it('should load without errors for non-banned user', async () => {
@@ -130,7 +177,7 @@ describe('Chat - Private Chat Restrictions for Banned Users', () => {
     })
 
     await flushPromises()
-    
+
     // Component should mount without errors
     expect(wrapper.exists()).toBe(true)
     expect(wrapper.vm.banState).toBeDefined()
@@ -159,7 +206,7 @@ describe('Chat - Private Chat Restrictions for Banned Users', () => {
     })
 
     await flushPromises()
-    
+
     // Ban state should not be set
     expect(wrapper.vm.banState.isBanned).toBe(false)
 
@@ -342,5 +389,92 @@ describe('Chat - Private Chat Restrictions for Banned Users', () => {
     expect(wrapper.vm.banState).toBeDefined()
 
     wrapper.unmount()
+  })
+
+  it('teleports page modals to body and keeps only one chat modal open', async () => {
+    localStorage.setItem('user', JSON.stringify({
+      uid: 1,
+      username: 'testuser',
+      banned_until: null
+    }))
+
+    const wrapper = mount(Chat, {
+      attachTo: document.body,
+      global: {
+        stubs: {
+          UserAvatar: true,
+          teleport: false
+        },
+        mocks: {
+          $route: { params: {} },
+          $router: { push: vi.fn() }
+        }
+      }
+    })
+
+    await flushPromises()
+
+    wrapper.vm.focusSearch()
+    await wrapper.vm.$nextTick()
+
+    let overlays = document.body.querySelectorAll('.chat-page-modal-overlay')
+    expect(overlays).toHaveLength(1)
+    expect(overlays[0].parentElement).toBe(document.body)
+    expect(wrapper.vm.showSearchModal).toBe(true)
+    expect(wrapper.vm.showRequestsModal).toBe(false)
+    expect(document.body.style.overflow).toBe('hidden')
+
+    wrapper.vm.openRequestsModal()
+    await flushPromises()
+    await wrapper.vm.$nextTick()
+
+    overlays = document.body.querySelectorAll('.chat-page-modal-overlay')
+    expect(overlays).toHaveLength(1)
+    expect(wrapper.vm.showSearchModal).toBe(false)
+    expect(wrapper.vm.showRequestsModal).toBe(true)
+
+    wrapper.unmount()
+    expect(document.body.querySelector('.chat-page-modal-overlay')).toBeNull()
+    expect(document.body.style.overflow).toBe('')
+  })
+
+  it('keeps the connect prompt above the uid search modal', async () => {
+    localStorage.setItem('user', JSON.stringify({
+      uid: 1,
+      username: 'testuser',
+      banned_until: null
+    }))
+
+    const wrapper = mount(Chat, {
+      attachTo: document.body,
+      global: {
+        stubs: {
+          UserAvatar: true,
+          teleport: false
+        },
+        mocks: {
+          $route: { params: {} },
+          $router: { push: vi.fn() }
+        }
+      }
+    })
+
+    await flushPromises()
+
+    wrapper.vm.focusSearch()
+    await wrapper.vm.$nextTick()
+
+    const pageOverlay = document.body.querySelector('.chat-page-modal-overlay')
+    expect(pageOverlay?.classList.contains('z-[9990]')).toBe(true)
+
+    void wrapper.vm.sendRequest(2)
+    await wrapper.vm.$nextTick()
+
+    const dialog = useDialog()
+    expect(dialog.state.show).toBe(true)
+    expect(dialog.state.type).toBe('prompt')
+
+    wrapper.unmount()
+    dialog.handleCancel()
   })
 })

@@ -437,6 +437,14 @@ const handleOAuthUnbind = async (provider: 'github' | 'ms' | 'google' | 'apple')
         </nav>
 
         <router-link 
+          to="/appeals" 
+          class="flex items-center gap-2 px-4 py-2 bg-sky-500/10 border border-sky-500/20 rounded-xl text-sky-600 dark:text-sky-400 hover:bg-sky-500/20 transition-all font-black text-[10px] uppercase tracking-widest"
+        >
+          <Shield class="w-3.5 h-3.5" />
+          申诉中心
+        </router-link>
+
+        <router-link 
           to="/ranking" 
           class="flex items-center gap-2 px-4 py-2 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-500 hover:bg-amber-500/20 transition-all font-black text-[10px] uppercase tracking-widest"
         >

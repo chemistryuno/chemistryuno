@@ -153,6 +153,46 @@ func ExportAuditLog(c *gin.Context) {
 	globalAnticheatHandler.ExportAuditLog(c)
 }
 
+func SubmitAppeal(c *gin.Context) {
+	if globalAnticheatHandler == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "anticheat handler not initialized"})
+		return
+	}
+	globalAnticheatHandler.SubmitAppeal(c)
+}
+
+func GetPlayerAppeals(c *gin.Context) {
+	if globalAnticheatHandler == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "anticheat handler not initialized"})
+		return
+	}
+	globalAnticheatHandler.GetPlayerAppeals(c)
+}
+
+func GetPlayerSanctions(c *gin.Context) {
+	if globalAnticheatHandler == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "anticheat handler not initialized"})
+		return
+	}
+	globalAnticheatHandler.GetPlayerSanctions(c)
+}
+
+func BanFromAnticheatPanel(c *gin.Context) {
+	if globalAnticheatHandler == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "anticheat handler not initialized"})
+		return
+	}
+	globalAnticheatHandler.BanFromAnticheatPanel(c)
+}
+
+func UnbanFromAnticheatPanel(c *gin.Context) {
+	if globalAnticheatHandler == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "anticheat handler not initialized"})
+		return
+	}
+	globalAnticheatHandler.UnbanFromAnticheatPanel(c)
+}
+
 // NewAnticheatHandler 创建反作弊处理程序
 func NewAnticheatHandler(acSystem *anticheat.System) *AnticheatHandler {
 	handler := &AnticheatHandler{
@@ -816,6 +856,7 @@ func (h *AnticheatHandler) SubmitAppeal(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Appeal submitted",
+		"appeal":  appeal,
 		"data":    appeal,
 	})
 }
@@ -840,9 +881,130 @@ func (h *AnticheatHandler) GetPlayerAppeals(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"count": len(appeals),
-		"data":  appeals,
+		"appeals":        appeals,
+		"count":          len(appeals),
+		"current_status": latestAppealStatus(appeals),
+		"data":           appeals,
+		"total":          len(appeals),
 	})
+}
+
+func latestAppealStatus(appeals []database.CheatAppeal) string {
+	if len(appeals) == 0 {
+		return "none"
+	}
+	return appeals[0].Status
+}
+
+func getOperatorUID(c *gin.Context) *uint {
+	uid, ok := getAuthenticatedUID(c)
+	if !ok {
+		return nil
+	}
+	return &uid
+}
+
+func (h *AnticheatHandler) BanFromAnticheatPanel(c *gin.Context) {
+	if h.acSystem == nil || h.acSystem.Repository == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "anticheat system not initialized"})
+		return
+	}
+
+	var req struct {
+		PlayerUID   uint   `json:"player_uid"`
+		BannedUntil string `json:"banned_until"`
+		Reason      string `json:"reason"`
+		RoomID      string `json:"room_id"`
+		RiskScoreID *uint  `json:"risk_score_id"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if req.PlayerUID == 0 || strings.TrimSpace(req.BannedUntil) == "" || strings.TrimSpace(req.Reason) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "player_uid, banned_until and reason are required"})
+		return
+	}
+	bannedUntil, err := time.Parse(time.RFC3339, req.BannedUntil)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid banned_until"})
+		return
+	}
+	if !bannedUntil.After(time.Now()) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "banned_until must be in the future"})
+		return
+	}
+
+	if err := repository.NewUserRepository().UpdateBanStatusWithReason(req.PlayerUID, &bannedUntil, req.Reason); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	details, _ := json.Marshal(gin.H{"expires_at": bannedUntil, "source": "admin_anticheat_panel"})
+	audit := &database.CheatAuditLog{
+		EventType:   "ban",
+		RoomID:      req.RoomID,
+		PlayerUID:   req.PlayerUID,
+		OperatorUID: getOperatorUID(c),
+		RiskScoreID: req.RiskScoreID,
+		SanctionType: "ban",
+		NewStatus:   "active",
+		Details:     details,
+		Remark:      req.Reason,
+	}
+	if err := h.acSystem.Repository.SaveAuditLog(audit); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "player banned", "audit": auditLogDTO(*audit)})
+}
+
+func (h *AnticheatHandler) UnbanFromAnticheatPanel(c *gin.Context) {
+	if h.acSystem == nil || h.acSystem.Repository == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "anticheat system not initialized"})
+		return
+	}
+
+	var req struct {
+		PlayerUID uint   `json:"player_uid"`
+		Reason    string `json:"reason"`
+		RoomID    string `json:"room_id"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if req.PlayerUID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "player_uid is required"})
+		return
+	}
+	if strings.TrimSpace(req.Reason) == "" {
+		req.Reason = "Manual unban from anticheat panel"
+	}
+
+	if err := repository.NewUserRepository().UpdateBanStatusWithReason(req.PlayerUID, nil, ""); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	details, _ := json.Marshal(gin.H{"source": "admin_anticheat_panel"})
+	audit := &database.CheatAuditLog{
+		EventType:   "unban",
+		RoomID:      req.RoomID,
+		PlayerUID:   req.PlayerUID,
+		OperatorUID: getOperatorUID(c),
+		OldStatus:   "active",
+		NewStatus:   "revoked",
+		Details:     details,
+		Remark:      req.Reason,
+	}
+	if err := h.acSystem.Repository.SaveAuditLog(audit); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "player unbanned", "audit": auditLogDTO(*audit)})
 }
 
 // GetPlayerSanctions 获取玩家当前处罚
@@ -865,8 +1027,10 @@ func (h *AnticheatHandler) GetPlayerSanctions(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"count": len(sanctions),
-		"data":  sanctions,
+		"count":     len(sanctions),
+		"data":      sanctions,
+		"sanctions": sanctions,
+		"total":     len(sanctions),
 	})
 }
 

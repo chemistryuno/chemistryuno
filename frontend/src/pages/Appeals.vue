@@ -190,8 +190,14 @@ onMounted(loadPanel)
 </script>
 
 <template>
-  <div class="min-h-screen bg-slate-50 text-slate-900 dark:bg-[#08090b] dark:text-white">
-    <main class="mx-auto flex w-full max-w-6xl flex-col gap-5 px-4 py-6 sm:px-6 lg:px-8">
+  <div class="min-h-screen bg-slate-50 text-slate-900 dark:bg-[#0a0a0c] dark:text-white selection:bg-blue-500/30">
+    <!-- Background Effects -->
+    <div class="fixed inset-0 overflow-hidden pointer-events-none z-0">
+      <div class="absolute top-[-10%] right-[-10%] w-[50%] h-[50%] bg-blue-500/5 rounded-full blur-[120px]" />
+      <div class="absolute bottom-[-10%] left-[-10%] w-[50%] h-[50%] bg-purple-500/5 rounded-full blur-[120px]" />
+    </div>
+
+    <main class="relative z-10 mx-auto flex w-full max-w-6xl flex-col gap-5 px-4 py-6 sm:px-6 lg:px-8">
       <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <RouterLink to="/profile" class="mb-3 inline-flex items-center gap-2 text-xs font-bold text-slate-500 transition-colors hover:text-slate-900 dark:text-slate-400 dark:hover:text-white">
@@ -217,11 +223,12 @@ onMounted(loadPanel)
         <button class="rounded-md border border-current px-3 py-1 text-xs font-bold" @click="loadPanel">重试</button>
       </div>
 
-      <div class="grid gap-5 lg:grid-cols-[360px_1fr]">
-        <section class="space-y-5">
-          <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-[#111318]">
-            <div class="flex items-center gap-3">
-              <div class="flex h-11 w-11 items-center justify-center rounded-lg bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-300">
+      <div class="grid gap-6 lg:grid-cols-[380px_1fr]">
+        <section class="space-y-6">
+          <div class="group relative overflow-hidden rounded-2xl border border-white/60 bg-white/60 p-6 shadow-xl shadow-blue-900/5 backdrop-blur-xl transition-all hover:shadow-2xl hover:shadow-blue-900/10 dark:border-white/10 dark:bg-black/40 dark:shadow-none dark:hover:bg-black/50">
+            <div class="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-rose-500/5 blur-3xl transition-all group-hover:bg-rose-500/10"></div>
+            <div class="relative flex items-center gap-4">
+              <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-rose-500/10 to-rose-500/5 text-rose-600 ring-1 ring-inset ring-rose-500/20 dark:text-rose-400">
                 <ShieldAlert class="h-5 w-5" />
               </div>
               <div>
@@ -248,9 +255,10 @@ onMounted(loadPanel)
             </div>
           </div>
 
-          <form class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-[#111318]" @submit.prevent="submitAppeal">
-            <div class="flex items-center gap-3">
-              <div class="flex h-11 w-11 items-center justify-center rounded-lg bg-sky-50 text-sky-600 dark:bg-sky-500/10 dark:text-sky-300">
+          <form class="group relative overflow-hidden rounded-2xl border border-white/60 bg-white/60 p-6 shadow-xl shadow-blue-900/5 backdrop-blur-xl transition-all hover:shadow-2xl hover:shadow-blue-900/10 dark:border-white/10 dark:bg-black/40 dark:shadow-none dark:hover:bg-black/50" @submit.prevent="submitAppeal">
+            <div class="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-sky-500/5 blur-3xl transition-all group-hover:bg-sky-500/10"></div>
+            <div class="relative flex items-center gap-4">
+              <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500/10 to-sky-500/5 text-sky-600 ring-1 ring-inset ring-sky-500/20 dark:text-sky-400">
                 <FileText class="h-5 w-5" />
               </div>
               <div>
@@ -266,29 +274,33 @@ onMounted(loadPanel)
             <div class="mt-4 grid gap-3">
               <label class="grid gap-1 text-xs font-bold text-slate-500 dark:text-slate-400">
                 房间 ID
-                <input v-model="roomId" class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-sky-400 dark:border-white/10 dark:bg-black/20 dark:text-white" placeholder="不知道可留空" />
+                <input v-model="roomId" class="h-10 rounded-lg border border-slate-200/50 bg-white/50 px-3 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-sky-500 focus:bg-white focus:ring-4 focus:ring-sky-500/10 dark:border-white/10 dark:bg-black/20 dark:text-white dark:focus:bg-black/40" placeholder="不知道可留空" />
               </label>
               <div class="grid grid-cols-2 gap-3">
-                <label class="grid gap-1 text-xs font-bold text-slate-500 dark:text-slate-400">
-                  风险记录
-                  <input v-model="riskScoreId" type="number" min="0" class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-sky-400 dark:border-white/10 dark:bg-black/20 dark:text-white" />
-                </label>
-                <label class="grid gap-1 text-xs font-bold text-slate-500 dark:text-slate-400">
-                  处罚记录
-                  <input v-model="sanctionId" type="number" min="0" class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-sky-400 dark:border-white/10 dark:bg-black/20 dark:text-white" />
-                </label>
+                <div class="grid gap-1">
+                  <span class="text-xs font-bold text-slate-500 dark:text-slate-400">风险记录</span>
+                  <div class="flex h-10 items-center rounded-lg bg-slate-50 px-3 text-sm font-medium text-slate-600 dark:bg-white/5 dark:text-slate-300">
+                    {{ riskScoreId || '暂无相关记录' }}
+                  </div>
+                </div>
+                <div class="grid gap-1">
+                  <span class="text-xs font-bold text-slate-500 dark:text-slate-400">处罚记录</span>
+                  <div class="flex h-10 items-center rounded-lg bg-slate-50 px-3 text-sm font-medium text-slate-600 dark:bg-white/5 dark:text-slate-300">
+                    {{ sanctionId || '暂无相关记录' }}
+                  </div>
+                </div>
               </div>
               <label class="grid gap-1 text-xs font-bold text-slate-500 dark:text-slate-400">
                 申诉理由
-                <textarea v-model="reason" rows="4" class="resize-none rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-900 outline-none focus:border-sky-400 dark:border-white/10 dark:bg-black/20 dark:text-white" placeholder="请说明为什么该异常行为可能是误判" />
+                <textarea v-model="reason" rows="4" class="resize-none rounded-lg border border-slate-200/50 bg-white/50 p-3 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-sky-500 focus:bg-white focus:ring-4 focus:ring-sky-500/10 dark:border-white/10 dark:bg-black/20 dark:text-white dark:focus:bg-black/40" placeholder="请说明为什么该异常行为可能是误判" />
               </label>
               <label class="grid gap-1 text-xs font-bold text-slate-500 dark:text-slate-400">
                 补充说明
-                <textarea v-model="evidence" rows="4" class="resize-none rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-900 outline-none focus:border-sky-400 dark:border-white/10 dark:bg-black/20 dark:text-white" placeholder="网络波动、设备问题、回放时间点等" />
+                <textarea v-model="evidence" rows="4" class="resize-none rounded-lg border border-slate-200/50 bg-white/50 p-3 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-sky-500 focus:bg-white focus:ring-4 focus:ring-sky-500/10 dark:border-white/10 dark:bg-black/20 dark:text-white dark:focus:bg-black/40" placeholder="网络波动、设备问题、回放时间点等" />
                 <span class="text-right text-[11px]" :class="evidence.length > evidenceLimit ? 'text-rose-500' : 'text-slate-400'">{{ evidence.length }}/{{ evidenceLimit }}</span>
               </label>
               <div v-if="fieldError" class="text-xs font-bold text-rose-500">{{ fieldError }}</div>
-              <button class="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-sky-600 px-4 text-sm font-black text-white transition-colors hover:bg-sky-500 disabled:cursor-not-allowed disabled:bg-slate-400" :disabled="!canSubmit">
+              <button class="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-sky-600 to-blue-600 px-4 text-sm font-black text-white shadow-lg shadow-sky-500/20 transition-all hover:scale-[1.02] hover:from-sky-500 hover:to-blue-500 hover:shadow-sky-500/30 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 disabled:grayscale" :disabled="!canSubmit">
                 <Loader2 v-if="submitting" class="h-4 w-4 animate-spin" />
                 <Send v-else class="h-4 w-4" />
                 提交申诉
@@ -297,20 +309,23 @@ onMounted(loadPanel)
           </form>
         </section>
 
-        <section class="rounded-lg border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-[#111318]">
-          <div class="border-b border-slate-200 p-5 dark:border-white/10">
-            <h2 class="text-sm font-black">申诉历史</h2>
-            <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">共 {{ appeals.length }} 条记录</p>
-          </div>
-          <div v-if="loading" class="flex min-h-[320px] items-center justify-center text-slate-400">
-            <Loader2 class="h-6 w-6 animate-spin" />
-          </div>
-          <div v-else-if="appeals.length === 0" class="flex min-h-[320px] flex-col items-center justify-center p-8 text-center text-slate-400">
-            <AlertTriangle class="mb-3 h-8 w-8" />
-            <p class="text-sm font-bold">暂无申诉记录</p>
-          </div>
-          <div v-else class="divide-y divide-slate-200 dark:divide-white/10">
-            <article v-for="appeal in appeals" :key="appeal.id" class="p-5">
+        <div class="relative lg:h-full">
+          <div class="flex h-full flex-col lg:absolute lg:inset-0">
+            <section class="flex flex-1 flex-col overflow-hidden rounded-2xl border border-white/60 bg-white/60 shadow-xl shadow-blue-900/5 backdrop-blur-xl transition-all dark:border-white/10 dark:bg-black/40 dark:shadow-none">
+              <div class="shrink-0 border-b border-slate-200/50 p-6 dark:border-white/10">
+                <h2 class="text-base font-black">申诉历史</h2>
+                <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">共 {{ appeals.length }} 条记录</p>
+              </div>
+              <div class="flex-1 overflow-y-auto custom-scrollbar">
+                <div v-if="loading" class="flex min-h-[320px] items-center justify-center text-slate-400">
+                  <Loader2 class="h-6 w-6 animate-spin" />
+                </div>
+                <div v-else-if="appeals.length === 0" class="flex min-h-[320px] flex-col items-center justify-center p-8 text-center text-slate-400">
+                  <AlertTriangle class="mb-3 h-8 w-8" />
+                  <p class="text-sm font-bold">暂无申诉记录</p>
+                </div>
+                <div v-else class="divide-y divide-slate-200/50 dark:divide-white/10">
+            <article v-for="appeal in appeals" :key="appeal.id" class="group/item p-6 transition-colors hover:bg-white/40 dark:hover:bg-white/[0.02]">
               <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <div class="flex items-center gap-2">
@@ -323,13 +338,13 @@ onMounted(loadPanel)
                   {{ statusMeta(appeal.status).label }}
                 </span>
               </div>
-              <div class="mt-4 rounded-lg bg-slate-50 p-3 text-sm leading-relaxed text-slate-700 dark:bg-black/20 dark:text-slate-200">
+              <div class="mt-4 rounded-xl border border-slate-200/50 bg-white/50 p-4 text-sm leading-relaxed text-slate-700 shadow-sm transition-all group-hover/item:bg-white dark:border-white/5 dark:bg-black/20 dark:text-slate-200 dark:group-hover/item:bg-black/40">
                 {{ appeal.reason }}
               </div>
               <div v-if="appeal.evidence" class="mt-3 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
                 {{ appeal.evidence }}
               </div>
-              <div v-if="appeal.review_remark" class="mt-3 rounded-lg border border-slate-200 p-3 text-xs text-slate-600 dark:border-white/10 dark:text-slate-300">
+              <div v-if="appeal.review_remark" class="mt-3 rounded-xl border border-slate-200/50 bg-slate-50/50 p-4 text-xs leading-relaxed text-slate-600 dark:border-white/5 dark:bg-white/[0.02] dark:text-slate-300">
                 审核备注：{{ appeal.review_remark }}
               </div>
               <div v-if="appeal.status === 'approved' && (appeal.compensation_amount || appeal.compensation_note)" class="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-200">
@@ -351,9 +366,12 @@ onMounted(loadPanel)
                   </button>
                 </div>
               </div>
-            </article>
+                  </article>
+                </div>
+              </div>
+            </section>
           </div>
-        </section>
+        </div>
       </div>
     </main>
   </div>

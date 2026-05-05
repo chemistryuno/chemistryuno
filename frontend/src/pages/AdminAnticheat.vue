@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue'
+import { RouterLink } from 'vue-router'
 import { useDialog } from '../utils/dialog'
 import { adminAPI } from '../utils/api'
 import {
   Shield,
   Search as SearchIcon,
+  ArrowLeft,
   ChevronLeft,
   ChevronRight,
   CheckCircle,
@@ -399,1457 +401,475 @@ const getCompensationBadge = (status: string) => {
 </script>
 
 <template>
-  <div class="admin-anticheat">
-    <div class="header">
-      <div class="title-bar">
-        <Shield class="icon" />
-        <h1>反作弊系统管理</h1>
-      </div>
+  <div class="min-h-screen bg-slate-50 text-slate-900 dark:bg-[#0a0a0c] dark:text-white selection:bg-blue-500/30">
+    <!-- Background Effects -->
+    <div class="fixed inset-0 overflow-hidden pointer-events-none z-0">
+      <div class="absolute top-[-10%] right-[-10%] w-[50%] h-[50%] bg-blue-500/5 rounded-full blur-[120px]" />
+      <div class="absolute bottom-[-10%] left-[-10%] w-[50%] h-[50%] bg-purple-500/5 rounded-full blur-[120px]" />
     </div>
 
-    <!-- Tabs -->
-    <div class="tabs">
-      <button
-        v-for="tab in ['detection', 'appeals', 'config', 'audit']"
-        :key="tab"
-        :class="['tab', { active: activeTab === tab }]"
-        @click="activeTab = tab as any"
-      >
-        {{ 
-          tab === 'detection' ? '检测管理' :
-          tab === 'appeals' ? '申诉管理' :
-          tab === 'config' ? '配置管理' :
-          '审计日志'
-        }}
-      </button>
-    </div>
-
-    <!-- Detection Tab -->
-    <div v-if="activeTab === 'detection'" class="tab-content">
-      <div class="controls">
-        <div class="search-box">
-          <SearchIcon class="icon" />
-          <input 
-            v-model="detectionSearchTerm"
-            type="text"
-            placeholder="搜索玩家ID或房间ID"
-            @input="detectionPage = 1"
-          />
-        </div>
-
-        <select v-model="detectionStatusFilter" @change="detectionPage = 1">
-          <option value="all">所有状态</option>
-          <option value="observe">观察</option>
-          <option value="warning">警告</option>
-          <option value="mute">禁言</option>
-          <option value="ban">封号</option>
-        </select>
-      </div>
-
-      <div class="table-container">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>玩家ID</th>
-              <th>房间ID</th>
-              <th>风险分数</th>
-              <th>处罚类型</th>
-              <th>检测时间</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-if="filteredDetections.length === 0">
-              <td colspan="6" class="empty">暂无检测记录</td>
-            </tr>
-            <tr v-for="detection in filteredDetections" :key="detection.id">
-              <td>{{ detection.player_id }}</td>
-              <td>{{ detection.room_id }}</td>
-              <td>
-                <span :class="['risk-score', getRiskColor(detection.risk_score)]">
-                  {{ detection.risk_score.toFixed(1) }}
-                </span>
-              </td>
-              <td>
-                <span :class="['badge', getSanctionBadge(detection.sanction_type).color]">
-                  {{ getSanctionBadge(detection.sanction_type).label }}
-                </span>
-              </td>
-              <td>{{ new Date(detection.created_at).toLocaleString('zh-CN') }}</td>
-              <td>
-                <button class="btn-small btn-primary" @click="openDetectionDetail(detection)">
-                  <Eye class="icon" />
-                  查看
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <!-- Pagination -->
-      <div class="pagination">
-        <button :disabled="detectionPage === 1" @click="detectionPage--">
-          <ChevronLeft class="icon" /> 上一页
-        </button>
-        <span class="page-info">第 {{ detectionPage }} 页，共 {{ Math.ceil(detectionTotal / detectionLimit) }} 页</span>
-        <button :disabled="detectionPage * detectionLimit >= detectionTotal" @click="detectionPage++">
-          下一页 <ChevronRight class="icon" />
-        </button>
-      </div>
-    </div>
-
-    <Teleport to="body">
-      <!-- Detection Detail Modal -->
-      <div v-if="showDetailModal" class="modal-overlay" @click.self="showDetailModal = false">
-      <div class="modal-content">
-        <h2>检测详情</h2>
-        <div v-if="selectedDetection" class="detail-content">
-          <div class="detail-grid">
-            <div class="detail-item">
-              <label>玩家ID:</label>
-              <span>{{ selectedDetection.player_id }}</span>
-            </div>
-            <div class="detail-item">
-              <label>房间ID:</label>
-              <span>{{ selectedDetection.room_id }}</span>
-            </div>
-            <div class="detail-item">
-              <label>风险分数:</label>
-              <span :class="getRiskColor(selectedDetection.risk_score)">
-                {{ selectedDetection.risk_score.toFixed(1) }}
-              </span>
-            </div>
-            <div class="detail-item">
-              <label>处罚类型:</label>
-              <span :class="['badge', getSanctionBadge(selectedDetection.sanction_type).color]">
-                {{ getSanctionBadge(selectedDetection.sanction_type).label }}
-              </span>
-            </div>
-          </div>
-
-          <div class="detail-section">
-            <h3>维度分数</h3>
-            <div class="dimension-scores">
-              <div class="score-item">
-                <span>响应时间:</span>
-                <span>{{ selectedDetection.response_time_score?.toFixed(1) || 'N/A' }}</span>
-              </div>
-              <div class="score-item">
-                <span>操作频率:</span>
-                <span>{{ selectedDetection.frequency_score?.toFixed(1) || 'N/A' }}</span>
-              </div>
-              <div class="score-item">
-                <span>胜率异常:</span>
-                <span>{{ selectedDetection.win_rate_score?.toFixed(1) || 'N/A' }}</span>
-              </div>
-              <div class="score-item">
-                <span>操作模式:</span>
-                <span>{{ selectedDetection.pattern_score?.toFixed(1) || 'N/A' }}</span>
-              </div>
-              <div class="score-item">
-                <span>账号年龄:</span>
-                <span>{{ selectedDetection.account_age_score?.toFixed(1) || 'N/A' }}</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="detail-section">
-            <h3>人工审核</h3>
-            <div class="review-form">
-              <div class="form-group">
-                <label>审核决策:</label>
-                <select v-model="reviewDecision">
-                  <option value="confirm">确认处罚</option>
-                  <option value="override">推翻处罚</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label>审核备注:</label>
-                <textarea v-model="reviewNote" placeholder="输入审核备注..."></textarea>
-              </div>
-            </div>
-          </div>
-
-          <div class="detail-section">
-            <h3>封禁处置</h3>
-            <div class="review-form">
-              <div class="form-group">
-                <label>封禁截止时间:</label>
-                <input v-model="enforcementUntil" type="datetime-local" />
-              </div>
-              <div class="form-group">
-                <label>处置原因:</label>
-                <textarea v-model="enforcementReason" placeholder="请输入封禁或解封原因"></textarea>
-              </div>
-              <div class="modal-actions">
-                <button class="btn btn-danger" :disabled="enforcementLoading" @click="handlePanelBan">
-                  执行封禁
-                </button>
-                <button class="btn btn-secondary" :disabled="enforcementLoading" @click="handlePanelUnban">
-                  解除封禁
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="modal-actions">
-          <button class="btn btn-primary" @click="submitReview">
-            <Save class="icon" /> 提交审核
-          </button>
-          <button class="btn btn-secondary" @click="showDetailModal = false">关闭</button>
+    <main class="relative z-10 mx-auto flex w-full max-w-6xl flex-col gap-5 px-4 py-6 sm:px-6 lg:px-8">
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <RouterLink to="/lobby" class="mb-3 inline-flex items-center gap-2 text-xs font-bold text-slate-500 transition-colors hover:text-slate-900 dark:text-slate-400 dark:hover:text-white">
+            <ArrowLeft class="h-4 w-4" />
+            返回大厅
+          </RouterLink>
+          <h1 class="text-2xl font-black tracking-tight sm:text-3xl flex items-center gap-2">
+            <Shield class="w-6 h-6 text-sky-500" />
+            反作弊系统管理
+          </h1>
+          <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">检测记录管理、申诉处理及系统配置。</p>
         </div>
       </div>
-      </div>
-    </Teleport>
 
-    <!-- Appeals Tab -->
-    <div v-if="activeTab === 'appeals'" class="tab-content">
-      <div class="controls">
-        <div class="search-box">
-          <SearchIcon class="icon" />
-          <input 
-            v-model="appealsSearchTerm"
-            type="text"
-            placeholder="搜索玩家ID或房间ID"
-            @input="appealsPage = 1"
-          />
-        </div>
-
-        <select v-model="appealsStatusFilter" @change="appealsPage = 1">
-          <option value="all">所有状态</option>
-          <option value="pending">待审核</option>
-          <option value="approved">已批准</option>
-          <option value="rejected">已拒绝</option>
-        </select>
-      </div>
-
-      <div class="table-container">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>玩家ID</th>
-              <th>申诉理由</th>
-              <th>状态</th>
-              <th>申诉时间</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-if="filteredAppeals.length === 0">
-              <td colspan="5" class="empty">暂无申诉记录</td>
-            </tr>
-            <tr v-for="appeal in filteredAppeals" :key="appeal.id">
-              <td>{{ appeal.player_id || appeal.player_uid }}</td>
-              <td class="appeal-reason">{{ appeal.reason }}</td>
-              <td>
-                <span :class="['badge', getStatusBadge(appeal.status).color]">
-                  {{ getStatusBadge(appeal.status).label }}
-                </span>
-              </td>
-              <td>{{ new Date(appeal.created_at).toLocaleString('zh-CN') }}</td>
-              <td v-if="appeal.status === 'pending'" class="actions">
-                <button class="btn-small btn-success" @click="handleApproveAppeal(appeal.id)">
-                  <CheckCircle class="icon" /> 批准
-                </button>
-                <button class="btn-small btn-danger" @click="handleRejectAppeal(appeal.id)">
-                  <XCircle class="icon" /> 拒绝
-                </button>
-              </td>
-              <td v-else>-</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <!-- Pagination -->
-      <div class="pagination">
-        <button :disabled="appealsPage === 1" @click="appealsPage--">
-          <ChevronLeft class="icon" /> 上一页
-        </button>
-        <span class="page-info">第 {{ appealsPage }} 页，共 {{ Math.ceil(appealsTotal / appealsLimit) }} 页</span>
-        <button :disabled="appealsPage * appealsLimit >= appealsTotal" @click="appealsPage++">
-          下一页 <ChevronRight class="icon" />
+      <!-- Tabs -->
+      <div class="flex gap-2 overflow-x-auto border-b border-slate-200 pb-2 dark:border-white/10 custom-scrollbar">
+        <button
+          v-for="tab in ['detection', 'appeals', 'config', 'audit']"
+          :key="tab"
+          :class="['whitespace-nowrap rounded-lg px-4 py-2 text-sm font-bold transition-colors', activeTab === tab ? 'bg-sky-600 text-white shadow-sm dark:bg-sky-500' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-white/5']"
+          @click="activeTab = tab as any"
+        >
+          {{ 
+            tab === 'detection' ? '检测管理' :
+            tab === 'appeals' ? '申诉管理' :
+            tab === 'config' ? '配置管理' :
+            '审计日志'
+          }}
         </button>
       </div>
 
-      <Teleport to="body">
-        <!-- Approval Modal with Compensation -->
-        <div v-if="showApprovalModal" class="modal-overlay" @click.self="cancelApproval">
-        <div class="modal-content modal-approval">
-          <h2>批准申诉并发放补偿</h2>
-          
-          <div class="approval-content">
-            <!-- 主要内容：消息和补偿 -->
-            <div class="main-info">
-              <div class="info-section">
-                <h3>向玩家发送的消息</h3>
-                <div class="message-display">
-                  <div class="message-box">
-                    {{ compensationMessage }}
-                  </div>
-                </div>
-              </div>
-
-              <div class="info-section">
-                <h3>补偿数额</h3>
-                <div class="compensation-display">
-                  <div class="compensation-badge">
-                    <span class="amount">{{ compensationAmount }}</span>
-                    <span class="unit">燃素</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- 可选调整 -->
-            <div class="adjustment-section">
-              <details>
-                <summary>调整补偿配置</summary>
-                <div class="adjustment-form">
-                  <div class="form-group">
-                    <label>补偿金额（燃素）:</label>
-                    <div class="input-with-hint">
-                      <input v-model.number="compensationAmount" type="number" min="0" step="1" />
-                      <span class="hint">默认: 100</span>
-                    </div>
-                  </div>
-
-                  <div class="form-group">
-                    <label>补偿文案:</label>
-                    <textarea 
-                      v-model="compensationMessage" 
-                      placeholder="输入自定义补偿文案..."
-                      rows="4"
-                    ></textarea>
-                    <button class="btn-reset-text" @click="compensationMessage = defaultCompensationMessage">
-                      恢复默认文案
-                    </button>
-                  </div>
-                </div>
-              </details>
-            </div>
-
-            <!-- 审核备注 -->
-            <div class="form-group">
-              <label>审核备注（可选）:</label>
-              <textarea v-model="approvalNote" placeholder="输入审核备注..."></textarea>
-            </div>
-          </div>
-
-          <div class="modal-actions">
-            <button class="btn btn-primary" @click="confirmApproval">
-              <CheckCircle class="icon" /> 确认批准
-            </button>
-            <button class="btn btn-secondary" @click="cancelApproval">取消</button>
-          </div>
-        </div>
-        </div>
-      </Teleport>
-    </div>
-    <div v-if="activeTab === 'config'" class="tab-content">
-      <div v-if="!editingConfig && configData" class="config-view">
-        <button class="btn btn-primary" @click="startEditConfig">
-          <Settings class="icon" /> 编辑配置
-        </button>
-
-        <div class="config-grid">
-          <div class="config-section">
-            <h3>检测权重</h3>
-            <div class="config-item">
-              <label>响应时间权重:</label>
-              <span>{{ configData.dimensions?.response_time?.weight || 0.25 }}</span>
-            </div>
-            <div class="config-item">
-              <label>操作频率权重:</label>
-              <span>{{ configData.dimensions?.frequency?.weight || 0.25 }}</span>
-            </div>
-            <div class="config-item">
-              <label>胜率异常权重:</label>
-              <span>{{ configData.dimensions?.win_rate?.weight || 0.20 }}</span>
-            </div>
-            <div class="config-item">
-              <label>操作模式权重:</label>
-              <span>{{ configData.dimensions?.pattern?.weight || 0.15 }}</span>
-            </div>
-            <div class="config-item">
-              <label>账号年龄权重:</label>
-              <span>{{ configData.dimensions?.account_age?.weight || 0.15 }}</span>
-            </div>
-          </div>
-
-          <div class="config-section">
-            <h3>处罚阈值</h3>
-            <div class="config-item">
-              <label>观察阈值:</label>
-              <span>{{ configData.sanctions?.observe || 20 }}-40</span>
-            </div>
-            <div class="config-item">
-              <label>警告阈值:</label>
-              <span>{{ configData.sanctions?.warning || 40 }}-60</span>
-            </div>
-            <div class="config-item">
-              <label>禁言阈值:</label>
-              <span>{{ configData.sanctions?.mute || 60 }}-80</span>
-            </div>
-            <div class="config-item">
-              <label>封号阈值:</label>
-              <span>{{ configData.sanctions?.ban || 80 }}-100</span>
-            </div>
-          </div>
-
-          <div class="config-section">
-            <h3>解封补偿</h3>
-            <div class="config-item">
-              <label>补偿金额:</label>
-              <span>{{ configData.unban?.compensation_amount || 100 }} 燃素</span>
-            </div>
-            <div class="config-item config-item-wide">
-              <label>默认文案:</label>
-            </div>
-            <div class="config-message">
-              {{ configData.unban?.default_message || '由于反作弊系统将您误封，在此，ChemistryUNO开发组向受到影响的研究员提供燃素补偿，感谢研究员对维护纯净游戏环境做出的贡献' }}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div v-if="editingConfig && tempConfig" class="config-edit">
-        <h3>编辑配置</h3>
-        <!-- Response Time -->
-        <div class="edit-section">
-          <h4>响应时间检测</h4>
-          <div class="form-group">
-            <label>权重:</label>
-            <input v-model.number="tempConfig.dimensions.response_time.weight" type="number" step="0.01" min="0" max="1" />
-          </div>
-          <div class="form-group">
-            <label>阈值 (ms):</label>
-            <input v-model.number="tempConfig.dimensions.response_time.threshold" type="number" />
-          </div>
-        </div>
-
-        <!-- Frequency -->
-        <div class="edit-section">
-          <h4>操作频率检测</h4>
-          <div class="form-group">
-            <label>权重:</label>
-            <input v-model.number="tempConfig.dimensions.frequency.weight" type="number" step="0.01" min="0" max="1" />
-          </div>
-          <div class="form-group">
-            <label>阈值 (每10秒):</label>
-            <input v-model.number="tempConfig.dimensions.frequency.threshold" type="number" />
-          </div>
-        </div>
-
-        <!-- Win Rate -->
-        <div class="edit-section">
-          <h4>胜率异常检测</h4>
-          <div class="form-group">
-            <label>权重:</label>
-            <input v-model.number="tempConfig.dimensions.win_rate.weight" type="number" step="0.01" min="0" max="1" />
-          </div>
-          <div class="form-group">
-            <label>胜率阈值:</label>
-            <input v-model.number="tempConfig.dimensions.win_rate.threshold" type="number" step="0.01" min="0" max="1" />
-          </div>
-        </div>
-
-        <!-- Sanctions -->
-        <div class="edit-section">
-          <h4>处罚阈值</h4>
-          <div class="form-group">
-            <label>观察下界:</label>
-            <input v-model.number="tempConfig.sanctions.observe" type="number" min="0" max="100" />
-          </div>
-          <div class="form-group">
-            <label>警告下界:</label>
-            <input v-model.number="tempConfig.sanctions.warning" type="number" min="0" max="100" />
-          </div>
-          <div class="form-group">
-            <label>禁言下界:</label>
-            <input v-model.number="tempConfig.sanctions.mute" type="number" min="0" max="100" />
-          </div>
-          <div class="form-group">
-            <label>封号下界:</label>
-            <input v-model.number="tempConfig.sanctions.ban" type="number" min="0" max="100" />
-          </div>
-        </div>
-
-        <!-- Unban Compensation -->
-        <div class="edit-section">
-          <h4>解封补偿配置</h4>
-          <div class="form-group">
-            <label>补偿金额（燃素）:</label>
+      <!-- Detection Tab -->
+      <div v-if="activeTab === 'detection'" class="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div class="flex flex-wrap items-center gap-3">
+          <div class="flex-1 flex items-center gap-2 h-10 rounded-lg border border-slate-200 bg-white px-3 focus-within:border-sky-400 dark:border-white/10 dark:bg-[#111318]">
+            <SearchIcon class="h-4 w-4 text-slate-400" />
             <input 
-              v-model.number="tempConfig.unban.compensation_amount" 
-              type="number" 
-              min="0" 
-              step="1"
+              v-model="detectionSearchTerm"
+              type="text"
+              placeholder="搜索玩家ID或房间ID"
+              class="w-full bg-transparent text-sm text-slate-900 outline-none dark:text-white placeholder:text-slate-400"
+              @input="detectionPage = 1"
             />
           </div>
-          <div class="form-group">
-            <label>默认补偿文案:</label>
-            <textarea 
-              v-model="tempConfig.unban.default_message"
-              rows="4"
-              placeholder="输入默认补偿文案..."
-            ></textarea>
-            <div class="message-preview" v-if="tempConfig.unban.default_message">
-              <div class="preview-label">预览：</div>
-              <div class="preview-content">{{ tempConfig.unban.default_message }}</div>
+          <select v-model="detectionStatusFilter" @change="detectionPage = 1" class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-sky-400 dark:border-white/10 dark:bg-[#111318] dark:text-white">
+            <option value="all">所有状态</option>
+            <option value="observe">观察</option>
+            <option value="warning">警告</option>
+            <option value="mute">禁言</option>
+            <option value="ban">封号</option>
+          </select>
+        </div>
+
+        <div class="rounded-lg border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-[#111318] overflow-x-auto">
+          <table class="w-full text-left text-sm whitespace-nowrap">
+            <thead class="border-b border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-black/20">
+              <tr>
+                <th class="p-4 font-black">玩家ID</th>
+                <th class="p-4 font-black">房间ID</th>
+                <th class="p-4 font-black">风险分数</th>
+                <th class="p-4 font-black">处罚类型</th>
+                <th class="p-4 font-black">检测时间</th>
+                <th class="p-4 font-black text-right">操作</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-200 dark:divide-white/10">
+              <tr v-if="filteredDetections.length === 0">
+                <td colspan="6" class="p-8 text-center text-slate-400 font-bold">暂无检测记录</td>
+              </tr>
+              <tr v-for="detection in filteredDetections" :key="detection.id" class="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
+                <td class="p-4">{{ detection.player_id }}</td>
+                <td class="p-4">{{ detection.room_id }}</td>
+                <td class="p-4">
+                  <span :class="['font-black', getRiskColor(detection.risk_score)]">
+                    {{ detection.risk_score.toFixed(1) }}
+                  </span>
+                </td>
+                <td class="p-4">
+                  <span :class="['inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-black', getSanctionBadge(detection.sanction_type).color]">
+                    {{ getSanctionBadge(detection.sanction_type).label }}
+                  </span>
+                </td>
+                <td class="p-4 text-slate-500">{{ new Date(detection.created_at).toLocaleString('zh-CN') }}</td>
+                <td class="p-4 text-right">
+                  <button class="inline-flex items-center gap-1 rounded-lg bg-sky-50 px-3 py-1.5 text-xs font-black text-sky-600 transition-colors hover:bg-sky-100 dark:bg-sky-500/10 dark:text-sky-300 dark:hover:bg-sky-500/20" @click="openDetectionDetail(detection)">
+                    <Eye class="h-3.5 w-3.5" />
+                    查看
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pagination -->
+        <div class="flex items-center justify-center gap-4 text-sm font-bold">
+          <button :disabled="detectionPage === 1" @click="detectionPage--" class="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 transition-colors hover:bg-slate-50 disabled:opacity-50 dark:border-white/10 dark:bg-[#111318] dark:hover:bg-white/5">
+            <ChevronLeft class="h-4 w-4" /> 上一页
+          </button>
+          <span class="text-slate-500">第 {{ detectionPage }} 页，共 {{ Math.ceil(detectionTotal / detectionLimit) || 1 }} 页</span>
+          <button :disabled="detectionPage * detectionLimit >= detectionTotal" @click="detectionPage++" class="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 transition-colors hover:bg-slate-50 disabled:opacity-50 dark:border-white/10 dark:bg-[#111318] dark:hover:bg-white/5">
+            下一页 <ChevronRight class="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      <!-- Appeals Tab -->
+      <div v-if="activeTab === 'appeals'" class="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div class="flex flex-wrap items-center gap-3">
+          <div class="flex-1 flex items-center gap-2 h-10 rounded-lg border border-slate-200 bg-white px-3 focus-within:border-sky-400 dark:border-white/10 dark:bg-[#111318]">
+            <SearchIcon class="h-4 w-4 text-slate-400" />
+            <input 
+              v-model="appealsSearchTerm"
+              type="text"
+              placeholder="搜索玩家ID或房间ID"
+              class="w-full bg-transparent text-sm text-slate-900 outline-none dark:text-white placeholder:text-slate-400"
+              @input="appealsPage = 1"
+            />
+          </div>
+          <select v-model="appealsStatusFilter" @change="appealsPage = 1" class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-sky-400 dark:border-white/10 dark:bg-[#111318] dark:text-white">
+            <option value="all">所有状态</option>
+            <option value="pending">待审核</option>
+            <option value="approved">已批准</option>
+            <option value="rejected">已拒绝</option>
+          </select>
+        </div>
+
+        <div class="rounded-lg border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-[#111318] overflow-x-auto">
+          <table class="w-full text-left text-sm whitespace-nowrap">
+            <thead class="border-b border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-black/20">
+              <tr>
+                <th class="p-4 font-black">玩家ID</th>
+                <th class="p-4 font-black max-w-[200px]">申诉理由</th>
+                <th class="p-4 font-black">状态</th>
+                <th class="p-4 font-black">申诉时间</th>
+                <th class="p-4 font-black text-right">操作</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-200 dark:divide-white/10">
+              <tr v-if="filteredAppeals.length === 0">
+                <td colspan="5" class="p-8 text-center text-slate-400 font-bold">暂无申诉记录</td>
+              </tr>
+              <tr v-for="appeal in filteredAppeals" :key="appeal.id" class="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
+                <td class="p-4">{{ appeal.player_id || appeal.player_uid }}</td>
+                <td class="p-4 max-w-[200px] truncate" :title="appeal.reason">{{ appeal.reason }}</td>
+                <td class="p-4">
+                  <span :class="['inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-black', getStatusBadge(appeal.status).color]">
+                    {{ getStatusBadge(appeal.status).label }}
+                  </span>
+                </td>
+                <td class="p-4 text-slate-500">{{ new Date(appeal.created_at).toLocaleString('zh-CN') }}</td>
+                <td class="p-4 text-right">
+                  <div v-if="appeal.status === 'pending'" class="flex items-center justify-end gap-2">
+                    <button class="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-black text-emerald-600 transition-colors hover:bg-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:bg-emerald-500/20" @click="handleApproveAppeal(appeal.id)">
+                      <CheckCircle class="h-3.5 w-3.5" /> 批准
+                    </button>
+                    <button class="inline-flex items-center gap-1 rounded-lg bg-rose-50 px-3 py-1.5 text-xs font-black text-rose-600 transition-colors hover:bg-rose-100 dark:bg-rose-500/10 dark:text-rose-300 dark:hover:bg-rose-500/20" @click="handleRejectAppeal(appeal.id)">
+                      <XCircle class="h-3.5 w-3.5" /> 拒绝
+                    </button>
+                  </div>
+                  <span v-else class="text-slate-400">-</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pagination -->
+        <div class="flex items-center justify-center gap-4 text-sm font-bold">
+          <button :disabled="appealsPage === 1" @click="appealsPage--" class="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 transition-colors hover:bg-slate-50 disabled:opacity-50 dark:border-white/10 dark:bg-[#111318] dark:hover:bg-white/5">
+            <ChevronLeft class="h-4 w-4" /> 上一页
+          </button>
+          <span class="text-slate-500">第 {{ appealsPage }} 页，共 {{ Math.ceil(appealsTotal / appealsLimit) || 1 }} 页</span>
+          <button :disabled="appealsPage * appealsLimit >= appealsTotal" @click="appealsPage++" class="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 transition-colors hover:bg-slate-50 disabled:opacity-50 dark:border-white/10 dark:bg-[#111318] dark:hover:bg-white/5">
+            下一页 <ChevronRight class="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      <!-- Config Tab -->
+      <div v-if="activeTab === 'config'" class="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div v-if="!editingConfig && configData" class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-[#111318]">
+          <div class="mb-5 flex items-center justify-between">
+            <h2 class="text-lg font-black">反作弊策略配置</h2>
+            <button class="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-4 py-2 text-sm font-black text-white transition-colors hover:bg-sky-500" @click="startEditConfig">
+              <Settings class="h-4 w-4" /> 编辑配置
+            </button>
+          </div>
+          <div class="grid gap-6 md:grid-cols-2">
+            <!-- Details -->
+            <div class="rounded-xl border border-slate-100 bg-slate-50 p-4 dark:border-white/5 dark:bg-black/20">
+              <h3 class="mb-3 text-sm font-black text-slate-500 dark:text-slate-400">检测权重</h3>
+              <div class="space-y-2 text-sm">
+                <div class="flex justify-between py-1"><span class="text-slate-500">响应时间权重:</span> <span class="font-bold">{{ configData.dimensions?.response_time?.weight || 0.25 }}</span></div>
+                <div class="flex justify-between py-1"><span class="text-slate-500">操作频率权重:</span> <span class="font-bold">{{ configData.dimensions?.frequency?.weight || 0.25 }}</span></div>
+                <div class="flex justify-between py-1"><span class="text-slate-500">胜率异常权重:</span> <span class="font-bold">{{ configData.dimensions?.win_rate?.weight || 0.20 }}</span></div>
+                <div class="flex justify-between py-1"><span class="text-slate-500">操作模式权重:</span> <span class="font-bold">{{ configData.dimensions?.pattern?.weight || 0.15 }}</span></div>
+                <div class="flex justify-between py-1"><span class="text-slate-500">账号年龄权重:</span> <span class="font-bold">{{ configData.dimensions?.account_age?.weight || 0.15 }}</span></div>
+              </div>
+            </div>
+            
+            <div class="rounded-xl border border-slate-100 bg-slate-50 p-4 dark:border-white/5 dark:bg-black/20">
+              <h3 class="mb-3 text-sm font-black text-slate-500 dark:text-slate-400">处罚阈值</h3>
+              <div class="space-y-2 text-sm">
+                <div class="flex justify-between py-1"><span class="text-slate-500">观察阈值:</span> <span class="font-bold">{{ configData.sanctions?.observe || 20 }}-40</span></div>
+                <div class="flex justify-between py-1"><span class="text-slate-500">警告阈值:</span> <span class="font-bold">{{ configData.sanctions?.warning || 40 }}-60</span></div>
+                <div class="flex justify-between py-1"><span class="text-slate-500">禁言阈值:</span> <span class="font-bold">{{ configData.sanctions?.mute || 60 }}-80</span></div>
+                <div class="flex justify-between py-1"><span class="text-slate-500">封号阈值:</span> <span class="font-bold">{{ configData.sanctions?.ban || 80 }}-100</span></div>
+              </div>
+            </div>
+
+            <div class="rounded-xl border border-slate-100 bg-slate-50 p-4 dark:border-white/5 dark:bg-black/20 md:col-span-2">
+              <h3 class="mb-3 text-sm font-black text-slate-500 dark:text-slate-400">解封补偿</h3>
+              <div class="space-y-2 text-sm">
+                <div class="flex justify-between py-1"><span class="text-slate-500">补偿金额:</span> <span class="font-bold text-emerald-600">{{ configData.unban?.compensation_amount || 100 }} 燃素</span></div>
+                <div class="py-1">
+                  <span class="block text-slate-500 mb-2">默认文案:</span> 
+                  <div class="rounded-lg border border-slate-200 bg-white p-3 text-slate-700 dark:border-white/10 dark:bg-[#111318] dark:text-slate-300">
+                    {{ configData.unban?.default_message || '由于反作弊系统将您误封，在此，ChemistryUNO开发组向受到影响的研究员提供燃素补偿，感谢研究员对维护纯净游戏环境做出的贡献' }}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
-        <div class="modal-actions">
-          <button class="btn btn-primary" @click="saveConfig">
-            <Save class="icon" /> 保存配置
+        <div v-if="editingConfig && tempConfig" class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-[#111318]">
+          <h2 class="mb-5 text-lg font-black">编辑配置</h2>
+          
+          <div class="grid gap-6 md:grid-cols-2">
+            <!-- Edit Forms -->
+            <div class="space-y-4">
+              <h4 class="font-bold border-b border-slate-100 pb-2 dark:border-white/10">响应时间检测</h4>
+              <label class="block text-sm font-bold text-slate-500">权重: <input v-model.number="tempConfig.dimensions.response_time.weight" type="number" step="0.01" min="0" max="1" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-sky-400 dark:border-white/10 dark:bg-black/20" /></label>
+              <label class="block text-sm font-bold text-slate-500">阈值 (ms): <input v-model.number="tempConfig.dimensions.response_time.threshold" type="number" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-sky-400 dark:border-white/10 dark:bg-black/20" /></label>
+            </div>
+
+            <div class="space-y-4">
+              <h4 class="font-bold border-b border-slate-100 pb-2 dark:border-white/10">操作频率检测</h4>
+              <label class="block text-sm font-bold text-slate-500">权重: <input v-model.number="tempConfig.dimensions.frequency.weight" type="number" step="0.01" min="0" max="1" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-sky-400 dark:border-white/10 dark:bg-black/20" /></label>
+              <label class="block text-sm font-bold text-slate-500">阈值 (每10秒): <input v-model.number="tempConfig.dimensions.frequency.threshold" type="number" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-sky-400 dark:border-white/10 dark:bg-black/20" /></label>
+            </div>
+
+            <div class="space-y-4">
+              <h4 class="font-bold border-b border-slate-100 pb-2 dark:border-white/10">胜率异常检测</h4>
+              <label class="block text-sm font-bold text-slate-500">权重: <input v-model.number="tempConfig.dimensions.win_rate.weight" type="number" step="0.01" min="0" max="1" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-sky-400 dark:border-white/10 dark:bg-black/20" /></label>
+              <label class="block text-sm font-bold text-slate-500">胜率阈值: <input v-model.number="tempConfig.dimensions.win_rate.threshold" type="number" step="0.01" min="0" max="1" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-sky-400 dark:border-white/10 dark:bg-black/20" /></label>
+            </div>
+
+            <div class="space-y-4">
+              <h4 class="font-bold border-b border-slate-100 pb-2 dark:border-white/10">处罚阈值</h4>
+              <label class="block text-sm font-bold text-slate-500">观察下界: <input v-model.number="tempConfig.sanctions.observe" type="number" min="0" max="100" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-sky-400 dark:border-white/10 dark:bg-black/20" /></label>
+              <label class="block text-sm font-bold text-slate-500">警告下界: <input v-model.number="tempConfig.sanctions.warning" type="number" min="0" max="100" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-sky-400 dark:border-white/10 dark:bg-black/20" /></label>
+              <label class="block text-sm font-bold text-slate-500">禁言下界: <input v-model.number="tempConfig.sanctions.mute" type="number" min="0" max="100" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-sky-400 dark:border-white/10 dark:bg-black/20" /></label>
+              <label class="block text-sm font-bold text-slate-500">封号下界: <input v-model.number="tempConfig.sanctions.ban" type="number" min="0" max="100" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-sky-400 dark:border-white/10 dark:bg-black/20" /></label>
+            </div>
+            
+            <div class="space-y-4 md:col-span-2">
+              <h4 class="font-bold border-b border-slate-100 pb-2 dark:border-white/10">解封补偿配置</h4>
+              <label class="block text-sm font-bold text-slate-500">补偿金额（燃素）: <input v-model.number="tempConfig.unban.compensation_amount" type="number" min="0" step="1" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-sky-400 dark:border-white/10 dark:bg-black/20" /></label>
+              <label class="block text-sm font-bold text-slate-500">默认补偿文案: <textarea v-model="tempConfig.unban.default_message" rows="4" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-sky-400 dark:border-white/10 dark:bg-black/20 resize-none"></textarea></label>
+            </div>
+          </div>
+
+          <div class="mt-6 flex gap-3 justify-end">
+            <button class="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-4 py-2 text-sm font-black text-white hover:bg-sky-500" @click="saveConfig">
+              <Save class="h-4 w-4" /> 保存配置
+            </button>
+            <button class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-bold hover:bg-slate-50 dark:border-white/10 dark:hover:bg-white/5" @click="cancelEditConfig">取消</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Audit Log Tab -->
+      <div v-if="activeTab === 'audit'" class="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div class="flex flex-wrap items-center gap-3">
+          <div class="flex-1 flex items-center gap-2 h-10 rounded-lg border border-slate-200 bg-white px-3 focus-within:border-sky-400 dark:border-white/10 dark:bg-[#111318]">
+            <SearchIcon class="h-4 w-4 text-slate-400" />
+            <input 
+              v-model="auditSearchTerm"
+              type="text"
+              placeholder="搜索玩家ID"
+              class="w-full bg-transparent text-sm text-slate-900 outline-none dark:text-white placeholder:text-slate-400"
+            />
+          </div>
+          <input v-model="auditStartDate" type="date" class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-sky-400 dark:border-white/10 dark:bg-[#111318] dark:text-white" />
+          <input v-model="auditEndDate" type="date" class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-sky-400 dark:border-white/10 dark:bg-[#111318] dark:text-white" />
+          <button class="inline-flex items-center gap-2 h-10 rounded-lg bg-sky-600 px-4 text-sm font-black text-white hover:bg-sky-500" @click="loadAuditLog">
+            <Filter class="h-4 w-4" /> 查询
           </button>
-          <button class="btn btn-secondary" @click="cancelEditConfig">取消</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Audit Log Tab -->
-    <div v-if="activeTab === 'audit'" class="tab-content">
-      <div class="controls">
-        <div class="search-box">
-          <SearchIcon class="icon" />
-          <input 
-            v-model="auditSearchTerm"
-            type="text"
-            placeholder="搜索玩家ID"
-          />
+          <button class="inline-flex items-center gap-2 h-10 rounded-lg border border-slate-200 bg-white px-4 text-sm font-bold hover:bg-slate-50 dark:border-white/10 dark:bg-[#111318] dark:hover:bg-white/5" @click="exportAuditLog">
+            <Download class="h-4 w-4" /> 导出
+          </button>
         </div>
 
-        <input 
-          v-model="auditStartDate"
-          type="date"
-          placeholder="开始日期"
-        />
+        <div class="rounded-lg border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-[#111318] overflow-x-auto">
+          <table class="w-full text-left text-sm whitespace-nowrap">
+            <thead class="border-b border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-black/20">
+              <tr>
+                <th class="p-4 font-black">玩家ID</th>
+                <th class="p-4 font-black">操作类型</th>
+                <th class="p-4 font-black max-w-[300px]">详情</th>
+                <th class="p-4 font-black">补偿状态</th>
+                <th class="p-4 font-black">时间</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-200 dark:divide-white/10">
+              <tr v-if="auditLogs.length === 0">
+                <td colspan="5" class="p-8 text-center text-slate-400 font-bold">暂无审计日志</td>
+              </tr>
+              <tr v-for="log in auditLogs" :key="log.id" class="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
+                <td class="p-4">{{ log.player_id }}</td>
+                <td class="p-4 font-medium">{{ log.action_type }}</td>
+                <td class="p-4 max-w-[300px] truncate" :title="log.details">{{ log.details }}</td>
+                <td class="p-4">
+                  <div v-if="log.compensation_status" class="flex flex-col gap-1">
+                    <span :class="['inline-flex w-fit items-center rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-widest', getCompensationBadge(log.compensation_status).color]">
+                      {{ getCompensationBadge(log.compensation_status).label }}
+                    </span>
+                    <span v-if="log.compensation_amount" class="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
+                      {{ log.compensation_amount }}燃素
+                    </span>
+                  </div>
+                  <span v-else class="text-slate-400">-</span>
+                </td>
+                <td class="p-4 text-slate-500">{{ new Date(log.created_at).toLocaleString('zh-CN') }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
 
-        <input 
-          v-model="auditEndDate"
-          type="date"
-          placeholder="结束日期"
-        />
-
-        <button class="btn btn-primary" @click="loadAuditLog">
-          <Filter class="icon" /> 查询
-        </button>
-
-        <button class="btn btn-secondary" @click="exportAuditLog">
-          <Download class="icon" /> 导出
-        </button>
+        <!-- Pagination -->
+        <div class="flex items-center justify-center gap-4 text-sm font-bold">
+          <button :disabled="auditPage === 1" @click="auditPage--" class="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 transition-colors hover:bg-slate-50 disabled:opacity-50 dark:border-white/10 dark:bg-[#111318] dark:hover:bg-white/5">
+            <ChevronLeft class="h-4 w-4" /> 上一页
+          </button>
+          <span class="text-slate-500">第 {{ auditPage }} 页，共 {{ Math.ceil(auditTotal / auditLimit) || 1 }} 页</span>
+          <button :disabled="auditPage * auditLimit >= auditTotal" @click="auditPage++" class="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 transition-colors hover:bg-slate-50 disabled:opacity-50 dark:border-white/10 dark:bg-[#111318] dark:hover:bg-white/5">
+            下一页 <ChevronRight class="h-4 w-4" />
+          </button>
+        </div>
       </div>
+    </main>
 
-      <div class="table-container">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>玩家ID</th>
-              <th>操作类型</th>
-              <th>详情</th>
-              <th>补偿状态</th>
-              <th>时间</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-if="auditLogs.length === 0">
-              <td colspan="5" class="empty">暂无审计日志</td>
-            </tr>
-            <tr v-for="log in auditLogs" :key="log.id">
-              <td>{{ log.player_id }}</td>
-              <td>{{ log.action_type }}</td>
-              <td class="log-detail">{{ log.details }}</td>
-              <td>
-                <div v-if="log.compensation_status" class="compensation-info">
-                  <span :class="['badge', getCompensationBadge(log.compensation_status).color]">
-                    {{ getCompensationBadge(log.compensation_status).label }}
-                  </span>
-                  <span v-if="log.compensation_amount" class="compensation-amount">
-                    {{ log.compensation_amount }}燃素
-                  </span>
+    <!-- Modals -->
+    <Teleport to="body">
+      <!-- Detection Detail Modal -->
+      <div v-if="showDetailModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm" @click.self="showDetailModal = false">
+        <div class="w-full max-w-2xl max-h-[90vh] overflow-y-auto custom-scrollbar rounded-2xl bg-white p-6 shadow-2xl dark:bg-[#111318] border border-slate-200 dark:border-white/10 animate-in zoom-in-95 duration-200">
+          <h2 class="mb-6 text-xl font-black">检测详情</h2>
+          <div v-if="selectedDetection" class="space-y-6">
+            <div class="grid grid-cols-2 gap-4 rounded-xl border border-slate-100 bg-slate-50 p-4 dark:border-white/5 dark:bg-black/20">
+              <div><span class="text-xs font-bold uppercase tracking-widest text-slate-500 block mb-1">玩家ID</span><span class="font-medium">{{ selectedDetection.player_id }}</span></div>
+              <div><span class="text-xs font-bold uppercase tracking-widest text-slate-500 block mb-1">房间ID</span><span class="font-medium">{{ selectedDetection.room_id }}</span></div>
+              <div><span class="text-xs font-bold uppercase tracking-widest text-slate-500 block mb-1">风险分数</span><span :class="['font-black', getRiskColor(selectedDetection.risk_score)]">{{ selectedDetection.risk_score.toFixed(1) }}</span></div>
+              <div><span class="text-xs font-bold uppercase tracking-widest text-slate-500 block mb-1">处罚类型</span><span :class="['inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-black', getSanctionBadge(selectedDetection.sanction_type).color]">{{ getSanctionBadge(selectedDetection.sanction_type).label }}</span></div>
+            </div>
+
+            <div>
+              <h3 class="mb-3 text-sm font-black border-b border-slate-100 pb-2 dark:border-white/10">维度分数</h3>
+              <div class="grid grid-cols-2 gap-3 text-sm">
+                <div class="flex justify-between rounded-lg bg-slate-50 px-3 py-2 dark:bg-black/20"><span class="text-slate-500">响应时间</span><span class="font-bold">{{ selectedDetection.response_time_score?.toFixed(1) || 'N/A' }}</span></div>
+                <div class="flex justify-between rounded-lg bg-slate-50 px-3 py-2 dark:bg-black/20"><span class="text-slate-500">操作频率</span><span class="font-bold">{{ selectedDetection.frequency_score?.toFixed(1) || 'N/A' }}</span></div>
+                <div class="flex justify-between rounded-lg bg-slate-50 px-3 py-2 dark:bg-black/20"><span class="text-slate-500">胜率异常</span><span class="font-bold">{{ selectedDetection.win_rate_score?.toFixed(1) || 'N/A' }}</span></div>
+                <div class="flex justify-between rounded-lg bg-slate-50 px-3 py-2 dark:bg-black/20"><span class="text-slate-500">操作模式</span><span class="font-bold">{{ selectedDetection.pattern_score?.toFixed(1) || 'N/A' }}</span></div>
+                <div class="flex justify-between rounded-lg bg-slate-50 px-3 py-2 dark:bg-black/20"><span class="text-slate-500">账号年龄</span><span class="font-bold">{{ selectedDetection.account_age_score?.toFixed(1) || 'N/A' }}</span></div>
+              </div>
+            </div>
+
+            <div>
+              <h3 class="mb-3 text-sm font-black border-b border-slate-100 pb-2 dark:border-white/10">人工审核</h3>
+              <div class="space-y-3">
+                <label class="block text-sm font-bold text-slate-500">审核决策:
+                  <select v-model="reviewDecision" class="mt-1 block w-full rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-sky-400 dark:border-white/10 dark:bg-black/20">
+                    <option value="confirm">确认处罚</option>
+                    <option value="override">推翻处罚</option>
+                  </select>
+                </label>
+                <label class="block text-sm font-bold text-slate-500">审核备注:
+                  <textarea v-model="reviewNote" rows="3" class="mt-1 block w-full rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-sky-400 dark:border-white/10 dark:bg-black/20 resize-none" placeholder="输入审核备注..."></textarea>
+                </label>
+              </div>
+            </div>
+
+            <div>
+              <h3 class="mb-3 text-sm font-black border-b border-slate-100 pb-2 dark:border-white/10 text-rose-600">封禁处置</h3>
+              <div class="space-y-3">
+                <label class="block text-sm font-bold text-slate-500">封禁截止时间:
+                  <input v-model="enforcementUntil" type="datetime-local" class="mt-1 block w-full rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-rose-400 dark:border-white/10 dark:bg-black/20" />
+                </label>
+                <label class="block text-sm font-bold text-slate-500">处置原因:
+                  <textarea v-model="enforcementReason" rows="2" class="mt-1 block w-full rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-rose-400 dark:border-white/10 dark:bg-black/20 resize-none" placeholder="请输入封禁或解封原因"></textarea>
+                </label>
+                <div class="flex gap-2 justify-end pt-2">
+                  <button class="rounded-lg bg-rose-600 px-4 py-2 text-sm font-black text-white hover:bg-rose-500 disabled:opacity-50" :disabled="enforcementLoading" @click="handlePanelBan">执行封禁</button>
+                  <button class="rounded-lg bg-slate-200 px-4 py-2 text-sm font-black text-slate-700 hover:bg-slate-300 disabled:opacity-50 dark:bg-white/10 dark:text-slate-300 dark:hover:bg-white/20" :disabled="enforcementLoading" @click="handlePanelUnban">解除封禁</button>
                 </div>
-                <span v-else class="text-muted">-</span>
-              </td>
-              <td>{{ new Date(log.created_at).toLocaleString('zh-CN') }}</td>
-            </tr>
-          </tbody>
-        </table>
+              </div>
+            </div>
+          </div>
+          <div class="mt-8 flex gap-3 justify-end border-t border-slate-100 pt-4 dark:border-white/10">
+            <button class="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-4 py-2 text-sm font-black text-white hover:bg-sky-500" @click="submitReview">
+              <Save class="h-4 w-4" /> 提交审核
+            </button>
+            <button class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-bold hover:bg-slate-50 dark:border-white/10 dark:hover:bg-white/5" @click="showDetailModal = false">关闭</button>
+          </div>
+        </div>
       </div>
 
-      <!-- Pagination -->
-      <div class="pagination">
-        <button :disabled="auditPage === 1" @click="auditPage--">
-          <ChevronLeft class="icon" /> 上一页
-        </button>
-        <span class="page-info">第 {{ auditPage }} 页，共 {{ Math.ceil(auditTotal / auditLimit) }} 页</span>
-        <button :disabled="auditPage * auditLimit >= auditTotal" @click="auditPage++">
-          下一页 <ChevronRight class="icon" />
-        </button>
+      <!-- Approval Modal with Compensation -->
+      <div v-if="showApprovalModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm" @click.self="cancelApproval">
+        <div class="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl dark:bg-[#111318] border border-slate-200 dark:border-white/10 animate-in zoom-in-95 duration-200">
+          <h2 class="mb-6 text-xl font-black">批准申诉并发放补偿</h2>
+          
+          <div class="space-y-6">
+            <div class="rounded-xl border border-emerald-100 bg-emerald-50 p-4 dark:border-emerald-500/10 dark:bg-emerald-500/5">
+              <h3 class="mb-2 text-sm font-bold text-emerald-700 dark:text-emerald-400">向玩家发送的消息</h3>
+              <div class="rounded-lg bg-white p-3 text-sm text-slate-700 dark:bg-black/20 dark:text-slate-300 border border-emerald-100 dark:border-emerald-500/20">
+                {{ compensationMessage }}
+              </div>
+              <h3 class="mt-4 mb-2 text-sm font-bold text-emerald-700 dark:text-emerald-400">补偿数额</h3>
+              <div class="flex items-center gap-1 font-black text-emerald-600 dark:text-emerald-400">
+                <span class="text-2xl">{{ compensationAmount }}</span>
+                <span class="text-sm">燃素</span>
+              </div>
+            </div>
+
+            <details class="group rounded-xl border border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-black/20">
+              <summary class="cursor-pointer p-4 text-sm font-bold text-slate-600 outline-none dark:text-slate-300 flex items-center justify-between">
+                调整补偿配置
+                <ChevronRight class="h-4 w-4 transition-transform group-open:rotate-90" />
+              </summary>
+              <div class="border-t border-slate-200 p-4 space-y-4 dark:border-white/10">
+                <label class="block text-sm font-bold text-slate-500">补偿金额（燃素）:
+                  <div class="flex items-center gap-2 mt-1">
+                    <input v-model.number="compensationAmount" type="number" min="0" step="1" class="flex-1 rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-sky-400 dark:border-white/10 dark:bg-black/40" />
+                    <span class="text-xs text-slate-400">默认: 100</span>
+                  </div>
+                </label>
+                <label class="block text-sm font-bold text-slate-500">补偿文案:
+                  <textarea v-model="compensationMessage" rows="3" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-sky-400 dark:border-white/10 dark:bg-black/40 resize-none" placeholder="输入自定义补偿文案..."></textarea>
+                </label>
+                <button class="text-xs font-bold text-sky-600 hover:text-sky-500 dark:text-sky-400" @click="compensationMessage = defaultCompensationMessage">恢复默认文案</button>
+              </div>
+            </details>
+
+            <label class="block text-sm font-bold text-slate-500">审核备注（可选）:
+              <textarea v-model="approvalNote" rows="2" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-sky-400 dark:border-white/10 dark:bg-black/20 resize-none" placeholder="输入审核备注..."></textarea>
+            </label>
+          </div>
+
+          <div class="mt-8 flex gap-3 justify-end border-t border-slate-100 pt-4 dark:border-white/10">
+            <button class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-black text-white hover:bg-emerald-500" @click="confirmApproval">
+              <CheckCircle class="h-4 w-4" /> 确认批准
+            </button>
+            <button class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-bold hover:bg-slate-50 dark:border-white/10 dark:hover:bg-white/5" @click="cancelApproval">取消</button>
+          </div>
+        </div>
       </div>
-    </div>
+    </Teleport>
   </div>
 </template>
 
-<style scoped>
-.admin-anticheat {
-  padding: 20px;
-  background: #f5f5f5;
-  min-height: 100vh;
-}
 
-.header {
-  margin-bottom: 30px;
-}
-
-.title-bar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 20px;
-}
-
-.title-bar h1 {
-  font-size: 28px;
-  font-weight: 600;
-  color: #333;
-  margin: 0;
-}
-
-.title-bar .icon {
-  width: 32px;
-  height: 32px;
-  color: #0066cc;
-}
-
-.tabs {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 20px;
-  border-bottom: 2px solid #e0e0e0;
-}
-
-.tab {
-  padding: 12px 20px;
-  border: none;
-  background: none;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  color: #666;
-  border-bottom: 3px solid transparent;
-  transition: all 0.3s ease;
-}
-
-.tab.active {
-  color: #0066cc;
-  border-bottom-color: #0066cc;
-}
-
-.tab:hover:not(.active) {
-  color: #333;
-}
-
-.tab-content {
-  background: white;
-  border-radius: 8px;
-  padding: 20px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-.controls {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 20px;
-  flex-wrap: wrap;
-  align-items: center;
-}
-
-.search-box {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-  min-width: 250px;
-  background: #f5f5f5;
-  border-radius: 6px;
-  padding: 8px 12px;
-}
-
-.search-box .icon {
-  width: 18px;
-  height: 18px;
-  color: #999;
-  flex-shrink: 0;
-}
-
-.search-box input {
-  border: none;
-  background: none;
-  outline: none;
-  font-size: 14px;
-  flex: 1;
-}
-
-.controls select,
-.controls input[type="date"],
-.controls button {
-  padding: 8px 12px;
-  border-radius: 6px;
-  border: 1px solid #ddd;
-  font-size: 14px;
-  cursor: pointer;
-  background: white;
-}
-
-.controls select:focus,
-.controls input[type="date"]:focus {
-  outline: none;
-  border-color: #0066cc;
-  box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
-}
-
-.table-container {
-  overflow-x: auto;
-  margin-bottom: 20px;
-}
-
-.data-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 14px;
-}
-
-.data-table thead {
-  background: #f9f9f9;
-  border-top: 1px solid #e0e0e0;
-  border-bottom: 1px solid #e0e0e0;
-}
-
-.data-table th {
-  padding: 12px;
-  text-align: left;
-  font-weight: 600;
-  color: #333;
-}
-
-.data-table td {
-  padding: 12px;
-  border-bottom: 1px solid #e0e0e0;
-  color: #666;
-}
-
-.data-table tbody tr:hover {
-  background: #f9f9f9;
-}
-
-.data-table .empty {
-  text-align: center;
-  color: #999;
-  padding: 40px 12px;
-}
-
-.risk-score {
-  font-weight: 600;
-}
-
-.badge {
-  display: inline-block;
-  padding: 4px 12px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.appeal-reason {
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.actions {
-  display: flex;
-  gap: 8px;
-}
-
-.btn-small {
-  padding: 6px 12px;
-  border: none;
-  border-radius: 4px;
-  font-size: 12px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  transition: all 0.2s ease;
-}
-
-.btn-small .icon {
-  width: 14px;
-  height: 14px;
-}
-
-.btn-primary {
-  background: #0066cc;
-  color: white;
-}
-
-.btn-primary:hover {
-  background: #0052a3;
-}
-
-.btn-success {
-  background: #28a745;
-  color: white;
-}
-
-.btn-success:hover {
-  background: #218838;
-}
-
-.btn-danger {
-  background: #dc3545;
-  color: white;
-}
-
-.btn-danger:hover {
-  background: #c82333;
-}
-
-.btn-secondary {
-  background: #6c757d;
-  color: white;
-}
-
-.btn-secondary:hover {
-  background: #5a6268;
-}
-
-.pagination {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  margin-top: 20px;
-}
-
-.pagination button {
-  padding: 8px 12px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  background: white;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 14px;
-  transition: all 0.2s ease;
-}
-
-.pagination button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.pagination button:not(:disabled):hover {
-  background: #f5f5f5;
-  border-color: #0066cc;
-  color: #0066cc;
-}
-
-.pagination .icon {
-  width: 16px;
-  height: 16px;
-}
-
-.page-info {
-  color: #666;
-  font-size: 14px;
-  min-width: 150px;
-  text-align: center;
-}
-
-/* Modal Styles */
-.modal-overlay {
-  position: fixed;
-  inset: 0 !important;
-  width: 100vw;
-  height: 100vh;
-  min-height: 100vh;
-  background: rgba(0, 0, 0, 0.5);
-  display: grid;
-  place-items: center;
-  padding: 16px;
-  overflow-y: auto;
-  overflow-x: hidden;
-  overscroll-behavior: contain;
-  z-index: 1000;
-  box-sizing: border-box;
-}
-
-@supports (height: 100dvh) {
-  .modal-overlay {
-    height: 100dvh;
-    min-height: 100dvh;
-  }
-}
-
-.modal-content {
-  background: white;
-  border-radius: 8px;
-  padding: 24px;
-  max-width: 600px;
-  max-height: min(90vh, calc(100vh - 2rem));
-  overflow-y: auto;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-@supports (height: 100dvh) {
-  .modal-content {
-    max-height: min(90dvh, calc(100dvh - 2rem));
-  }
-}
-
-.modal-content h2 {
-  margin: 0 0 20px 0;
-  font-size: 20px;
-  color: #333;
-}
-
-.modal-content h3 {
-  margin: 20px 0 12px 0;
-  font-size: 16px;
-  color: #333;
-}
-
-.detail-content {
-  margin-bottom: 20px;
-}
-
-.detail-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-bottom: 20px;
-}
-
-.detail-item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.detail-item label {
-  font-weight: 600;
-  color: #666;
-  font-size: 12px;
-  text-transform: uppercase;
-}
-
-.detail-item span {
-  color: #333;
-  font-size: 14px;
-}
-
-.detail-section {
-  margin-top: 20px;
-  padding-top: 20px;
-  border-top: 1px solid #e0e0e0;
-}
-
-.dimension-scores {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-}
-
-.score-item {
-  display: flex;
-  justify-content: space-between;
-  padding: 8px 12px;
-  background: #f5f5f5;
-  border-radius: 4px;
-}
-
-.score-item span:first-child {
-  color: #666;
-  font-weight: 500;
-}
-
-.score-item span:last-child {
-  color: #333;
-  font-weight: 600;
-}
-
-.review-form {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.form-group label {
-  font-weight: 600;
-  color: #666;
-  font-size: 14px;
-}
-
-.form-group select,
-.form-group textarea {
-  padding: 8px 12px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 14px;
-  font-family: inherit;
-}
-
-.form-group select:focus,
-.form-group textarea:focus {
-  outline: none;
-  border-color: #0066cc;
-  box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
-}
-
-.form-group textarea {
-  min-height: 80px;
-  resize: vertical;
-}
-
-.modal-actions {
-  display: flex;
-  gap: 12px;
-  justify-content: flex-end;
-  margin-top: 20px;
-}
-
-.btn {
-  padding: 10px 20px;
-  border: none;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  transition: all 0.2s ease;
-}
-
-.btn .icon {
-  width: 16px;
-  height: 16px;
-}
-
-/* Config View/Edit */
-.config-view {
-  padding: 20px;
-}
-
-.config-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 30px;
-  margin-top: 20px;
-}
-
-.config-section {
-  background: #f9f9f9;
-  padding: 20px;
-  border-radius: 8px;
-}
-
-.config-section h3 {
-  margin: 0 0 16px 0;
-  font-size: 16px;
-  color: #333;
-}
-
-.config-item {
-  display: flex;
-  justify-content: space-between;
-  padding: 8px 0;
-  border-bottom: 1px solid #e0e0e0;
-  font-size: 14px;
-}
-
-.config-item:last-child {
-  border-bottom: none;
-}
-
-.config-item label {
-  color: #666;
-  font-weight: 500;
-}
-
-.config-item span {
-  color: #333;
-  font-weight: 600;
-}
-
-.config-item-wide {
-  border-bottom: none;
-  padding-bottom: 0;
-  margin-bottom: 0;
-}
-
-.config-message {
-  padding: 12px;
-  background: white;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 13px;
-  color: #333;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  word-wrap: break-word;
-  margin-top: 8px;
-  border-top: none;
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
-}
-
-.config-edit {
-  padding: 20px;
-}
-
-.config-edit h3 {
-  margin: 0 0 20px 0;
-  font-size: 18px;
-  color: #333;
-}
-
-.edit-section {
-  margin-bottom: 24px;
-  padding-bottom: 24px;
-  border-bottom: 1px solid #e0e0e0;
-}
-
-.edit-section:last-child {
-  border-bottom: none;
-}
-
-.edit-section h4 {
-  margin: 0 0 12px 0;
-  font-size: 14px;
-  color: #333;
-  font-weight: 600;
-}
-
-.edit-section .form-group {
-  margin-bottom: 12px;
-}
-
-.form-group input[type="number"] {
-  padding: 8px 12px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 14px;
-}
-
-.form-group input[type="number"]:focus {
-  outline: none;
-  border-color: #0066cc;
-  box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
-}
-
-.log-detail {
-  max-width: 400px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.compensation-info {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  align-items: flex-start;
-}
-
-.compensation-amount {
-  font-size: 12px;
-  color: #666;
-  font-weight: 500;
-}
-
-.text-muted {
-  color: #999;
-}
-
-/* Approval and Compensation Styles */
-.approval-form {
-  margin-bottom: 20px;
-}
-
-.form-group {
-  margin-bottom: 16px;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 8px;
-  font-weight: 600;
-  color: #333;
-  font-size: 14px;
-}
-
-.form-group input[type="text"],
-.form-group input[type="number"],
-.form-group textarea,
-.form-group select {
-  width: 100%;
-  padding: 8px 12px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 14px;
-  font-family: inherit;
-}
-
-.form-group input[type="text"]:focus,
-.form-group input[type="number"]:focus,
-.form-group textarea:focus,
-.form-group select:focus {
-  outline: none;
-  border-color: #0066cc;
-  box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
-}
-
-.form-group textarea {
-  resize: vertical;
-  min-height: 80px;
-}
-
-.input-with-hint {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.input-with-hint input {
-  flex: 1;
-}
-
-.input-with-hint .hint {
-  position: absolute;
-  right: 12px;
-  font-size: 12px;
-  color: #999;
-}
-
-.compensation-section {
-  background: #f9f9f9;
-  padding: 16px;
-  border-radius: 6px;
-  margin: 16px 0;
-}
-
-.compensation-section h3 {
-  margin: 0 0 16px 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: #333;
-}
-
-.btn-reset-text {
-  display: inline-block;
-  padding: 4px 12px;
-  background: #e8e8e8;
-  color: #333;
-  border: none;
-  border-radius: 4px;
-  font-size: 12px;
-  cursor: pointer;
-  margin-top: 8px;
-  transition: all 0.2s ease;
-}
-
-.btn-reset-text:hover {
-  background: #d0d0d0;
-}
-
-.message-preview {
-  margin-top: 16px;
-  padding: 12px;
-  background: white;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-}
-
-.preview-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: #666;
-  margin-bottom: 8px;
-}
-
-.preview-content {
-  font-size: 13px;
-  color: #333;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  word-wrap: break-word;
-}
-
-.modal-actions {
-  display: flex;
-  gap: 12px;
-  justify-content: flex-end;
-  margin-top: 24px;
-  padding-top: 20px;
-  border-top: 1px solid #e0e0e0;
-}
-
-/* Approval Modal Specific Styles */
-.modal-approval {
-  max-width: 700px;
-}
-
-.approval-content {
-  margin-bottom: 20px;
-}
-
-.main-info {
-  background: linear-gradient(135deg, #f0f8ff 0%, #f5f5ff 100%);
-  border: 2px solid #0066cc;
-  border-radius: 8px;
-  padding: 24px;
-  margin-bottom: 24px;
-}
-
-.info-section {
-  margin-bottom: 16px;
-}
-
-.info-section:last-child {
-  margin-bottom: 0;
-}
-
-.info-section h3 {
-  margin: 0 0 12px 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: #0066cc;
-  text-transform: uppercase;
-}
-
-.message-display {
-  background: white;
-  border-radius: 6px;
-  padding: 4px;
-}
-
-.message-box {
-  background: white;
-  padding: 16px;
-  border-radius: 4px;
-  border-left: 4px solid #0066cc;
-  font-size: 14px;
-  color: #333;
-  line-height: 1.6;
-  white-space: pre-wrap;
-  word-wrap: break-word;
-  min-height: 80px;
-}
-
-.compensation-display {
-  background: white;
-  border-radius: 6px;
-  padding: 4px;
-}
-
-.compensation-badge {
-  background: linear-gradient(135deg, #0066cc 0%, #0052a3 100%);
-  color: white;
-  padding: 20px;
-  border-radius: 4px;
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  font-weight: 600;
-}
-
-.compensation-badge .amount {
-  font-size: 32px;
-  font-weight: 700;
-}
-
-.compensation-badge .unit {
-  font-size: 14px;
-  font-weight: 600;
-  opacity: 0.9;
-}
-
-.adjustment-section {
-  margin: 20px 0;
-}
-
-.adjustment-section details {
-  background: #f9f9f9;
-  border: 1px solid #e0e0e0;
-  border-radius: 6px;
-  padding: 12px;
-}
-
-.adjustment-section summary {
-  cursor: pointer;
-  font-weight: 600;
-  color: #666;
-  padding: 8px;
-  user-select: none;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.adjustment-section summary:hover {
-  color: #0066cc;
-}
-
-.adjustment-form {
-  padding: 16px 0;
-  margin-top: 12px;
-  border-top: 1px solid #e0e0e0;
-}
-
-@media (max-width: 768px) {
-  .config-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .detail-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .dimension-scores {
-    grid-template-columns: 1fr;
-  }
-
-  .controls {
-    flex-direction: column;
-  }
-
-  .search-box {
-    min-width: auto;
-    flex: 1;
-    width: 100%;
-  }
-
-  .pagination {
-    flex-direction: column;
-  }
-
-  .modal-content {
-    max-width: 90vw;
-  }
-}
-</style>

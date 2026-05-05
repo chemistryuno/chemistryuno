@@ -3,6 +3,7 @@ package anticheat
 import (
 	"chemistryuno/backend/database"
 	"chemistryuno/backend/repository"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -35,6 +36,10 @@ func NewAppealManager(repo *repository.CheatRepository, userRepo *repository.Use
 
 // SubmitAppeal 提交申诉
 func (am *AppealManager) SubmitAppeal(roomID string, playerUID uint, riskScoreID uint, sanctionID *uint, reason, evidence string) (*database.CheatAppeal, error) {
+	return am.SubmitAppealWithRooms(roomID, playerUID, riskScoreID, sanctionID, reason, evidence, nil)
+}
+
+func (am *AppealManager) SubmitAppealWithRooms(roomID string, playerUID uint, riskScoreID uint, sanctionID *uint, reason, evidence string, roomIDs []string) (*database.CheatAppeal, error) {
 	hasPending, err := am.repository.HasPendingAppealForContext(playerUID, riskScoreID, sanctionID)
 	if err != nil {
 		return nil, err
@@ -50,6 +55,18 @@ func (am *AppealManager) SubmitAppeal(roomID string, playerUID uint, riskScoreID
 		Reason:      reason,
 		Evidence:    evidence,
 		Status:      "pending",
+	}
+	if riskScoreID > 0 {
+		if score, err := am.repository.GetRiskScoreByID(riskScoreID); err == nil && score != nil {
+			appeal.ReplayID = score.ReplayID
+			appeal.GameHistoryID = score.GameHistoryID
+			appeal.PrimaryEvidence = score.PrimaryEvidence
+			appeal.RelatedEvidence = score.RelatedEvidence
+		}
+	}
+	if len(roomIDs) > 0 {
+		lockedRooms, _ := json.Marshal(roomIDs)
+		appeal.RoomIDs = lockedRooms
 	}
 
 	if sanctionID != nil {
@@ -68,6 +85,10 @@ func (am *AppealManager) SubmitAppeal(roomID string, playerUID uint, riskScoreID
 		PlayerUID:   playerUID,
 		RiskScoreID: &riskScoreID,
 		AppealID:    &appeal.ID,
+		ReplayID:    appeal.ReplayID,
+		GameHistoryID: appeal.GameHistoryID,
+		PrimaryEvidence: appeal.PrimaryEvidence,
+		RelatedEvidence: appeal.RelatedEvidence,
 		NewStatus:   "pending",
 		Remark:      reason,
 	}
@@ -151,6 +172,10 @@ func (am *AppealManager) ApproveAppealWithCompensation(appealID uint, reviewerUI
 		PlayerUID:           appeal.PlayerUID,
 		OperatorUID:         &reviewerUID,
 		AppealID:            &appealID,
+		ReplayID:            appeal.ReplayID,
+		GameHistoryID:       appeal.GameHistoryID,
+		PrimaryEvidence:     appeal.PrimaryEvidence,
+		RelatedEvidence:     appeal.RelatedEvidence,
 		OldStatus:           appeal.Status,
 		NewStatus:           "approved",
 		Remark:              remark,
@@ -238,6 +263,10 @@ func (am *AppealManager) ClaimCompensation(appealID uint, playerUID uint) (*Appr
 		RoomID:             appeal.RoomID,
 		PlayerUID:          appeal.PlayerUID,
 		AppealID:           &appealID,
+		ReplayID:           appeal.ReplayID,
+		GameHistoryID:      appeal.GameHistoryID,
+		PrimaryEvidence:    appeal.PrimaryEvidence,
+		RelatedEvidence:    appeal.RelatedEvidence,
 		NewStatus:          outcome.CompensationStatus,
 		Remark:             outcome.CompensationNote,
 		ApprovalNote:       &approvalNote,

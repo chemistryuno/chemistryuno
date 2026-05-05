@@ -73,6 +73,33 @@ describe('API adapters', () => {
     })
   })
 
+  it('sends replay evidence metadata with feedback reports', async () => {
+    const { authAPI } = await import('./api')
+    vi.mocked(apiInstance.post).mockResolvedValueOnce({ data: { message: 'ok' } })
+
+    await authAPI.submitFeedback('reported suspicious event', 'report', {
+      room_id: 'room-1',
+      reported_uid: 42,
+      replay_anchor: {
+        game_history_id: 77,
+        event_index: 3,
+        event_id: 'evt-3',
+      },
+    })
+
+    expect(apiInstance.post).toHaveBeenCalledWith('/feedback', {
+      content: 'reported suspicious event',
+      type: 'report',
+      room_id: 'room-1',
+      reported_uid: 42,
+      replay_anchor: {
+        game_history_id: 77,
+        event_index: 3,
+        event_id: 'evt-3',
+      },
+    })
+  })
+
   it('surfaces validation errors from admin API calls', async () => {
     const { adminAPI } = await import('./api')
     const validationError = { response: { status: 400, data: { error: 'invalid compensation' } } }

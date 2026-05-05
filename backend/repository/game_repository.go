@@ -3,6 +3,7 @@ package repository
 import (
 	"chemistryuno/backend/database"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -12,6 +13,8 @@ import (
 type GameRepository struct {
 	db *gorm.DB
 }
+
+var ErrReplayProtectedByAnticheat = errors.New("replay is protected by anticheat evidence")
 
 func NewGameRepository() *GameRepository {
 	return &GameRepository{db: database.DB}
@@ -165,6 +168,31 @@ func (r *GameRepository) FindByID(id uint) (*database.GameHistory, error) {
 
 // ClearReplayByID 清空某条历史的回放内容（管理员手动消除）
 func (r *GameRepository) ClearReplayByID(id uint) error {
+	history, err := r.FindByID(id)
+	if err != nil {
+		return err
+	}
+	protected, reasons, err := NewCheatRepository(r.db).IsReplayProtected(history.ID, history.RoomID, fmt.Sprintf("%d", history.ID))
+	if err != nil {
+		return err
+	}
+	if protected {
+		details, _ := json.Marshal(map[string]interface{}{
+			"attempt":          "manual_clear",
+			"protected_replay": id,
+			"reasons":          reasons,
+			"result":           "rejected",
+		})
+		_ = NewCheatRepository(r.db).SaveAuditLog(&database.CheatAuditLog{
+			EventType:     "replay_clear_rejected",
+			RoomID:        history.RoomID,
+			ReplayID:      fmt.Sprintf("%d", history.ID),
+			GameHistoryID: history.ID,
+			Details:       details,
+			Remark:        "manual replay clear rejected because replay is protected by anticheat evidence",
+		})
+		return ErrReplayProtectedByAnticheat
+	}
 	now := time.Now()
 	result := r.db.Model(&database.GameHistory{}).
 		Where("id = ?", id).
@@ -185,7 +213,44 @@ func (r *GameRepository) ClearReplayByID(id uint) error {
 
 // CleanupExpiredReplays 清理超过保留期限的普通回放（永久回放不受影响）
 func (r *GameRepository) CleanupExpiredReplays(now time.Time) (int64, error) {
+	var histories []database.GameHistory
+	if err := r.db.Where("replay_permanent = ?", false).
+		Where("replay_log IS NOT NULL AND replay_log != ''").
+		Where("replay_expires_at IS NOT NULL AND replay_expires_at < ?", now).
+		Find(&histories).Error; err != nil {
+		return 0, err
+	}
+	ids := make([]uint, 0, len(histories))
+	cheatRepo := NewCheatRepository(r.db)
+	for _, history := range histories {
+		protected, reasons, err := cheatRepo.IsReplayProtected(history.ID, history.RoomID, fmt.Sprintf("%d", history.ID))
+		if err != nil {
+			return 0, err
+		}
+		if protected {
+			details, _ := json.Marshal(map[string]interface{}{
+				"attempt":          "expiration_cleanup",
+				"protected_replay": history.ID,
+				"reasons":          reasons,
+				"result":           "skipped",
+			})
+			_ = cheatRepo.SaveAuditLog(&database.CheatAuditLog{
+				EventType:     "replay_cleanup_skipped",
+				RoomID:        history.RoomID,
+				ReplayID:      fmt.Sprintf("%d", history.ID),
+				GameHistoryID: history.ID,
+				Details:       details,
+				Remark:        "expired replay cleanup skipped because replay is protected by anticheat evidence",
+			})
+			continue
+		}
+		ids = append(ids, history.ID)
+	}
+	if len(ids) == 0 {
+		return 0, nil
+	}
 	result := r.db.Model(&database.GameHistory{}).
+		Where("id IN ?", ids).
 		Where("replay_permanent = ?", false).
 		Where("replay_log IS NOT NULL AND replay_log != ''").
 		Where("replay_expires_at IS NOT NULL AND replay_expires_at < ?", now).

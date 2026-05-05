@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { authAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
 import ws from '../utils/websocket'
@@ -20,6 +20,7 @@ import {
 import FeedbackButton from '../components/FeedbackButton.vue'
 
 const router = useRouter()
+const route = useRoute()
 const { showAlert, showConfirm } = useDialog()
 const feedbackButtonRef = ref<InstanceType<typeof FeedbackButton> | null>(null)
 const feedbacks = ref<any[]>([])
@@ -66,7 +67,12 @@ const handleWithdraw = async (id: number) => {
   }
 }
 
-onMounted(load)
+onMounted(async () => {
+  await load()
+  if (route.query.compose === '1') {
+    feedbackButtonRef.value?.prefill('', 'general')
+  }
+})
 
 onMounted(() => {
   ws.connect()

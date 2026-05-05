@@ -55,3 +55,50 @@ The system SHALL provide read-only historical ledger of all ban/unban actions an
 - **THEN** system downloads audit data as CSV file
 - **AND** includes all visible columns and rows
 
+### Requirement: Admin can jump from suspicious point to replay operation
+The admin anticheat panel SHALL allow administrators to open the exact replay operation for each suspicious point.
+
+#### Scenario: Admin opens suspicious point replay
+- **WHEN** admin opens `http://localhost:5000/admin/anticheat` and selects a detection detail
+- **THEN** each suspicious point displays its room ID, replay event position, operation type, player, timestamp, score contribution, and explanation
+- **AND** each operation-level suspicious point provides an action to open the replay at that operation
+
+#### Scenario: Replay anchor is room-level only
+- **WHEN** a suspicious point only has room-level evidence
+- **THEN** the panel displays that precise operation positioning is unavailable
+- **AND** the replay action opens the room replay without pretending to seek to a specific operation
+
+### Requirement: Admin report review shows replay evidence
+The admin anticheat panel SHALL display replay evidence for player reports that contribute to anticheat risk.
+
+#### Scenario: Admin reviews report contribution
+- **WHEN** admin views the indicator details for a risk record with report contribution
+- **THEN** the panel displays the report reason, report contribution, deduplication status, and replay anchor
+- **AND** admin can open the reported replay point when the anchor is operation-level
+
+### Requirement: Admin processing preserves replay evidence
+The admin anticheat panel SHALL keep replay evidence visible after review and punishment decision changes.
+
+#### Scenario: Admin processes detection
+- **WHEN** admin processes a detection entry
+- **THEN** the processed detail view still displays the original replay evidence anchors
+- **AND** any later punishment decision change keeps the same evidence chain attached unless a new evidence note is appended
+
+#### Scenario: Admin changes punishment decision
+- **WHEN** admin changes the punishment decision for a processed detection
+- **THEN** the panel requires a reason
+- **AND** the request includes the detection evidence reference so the audit log can preserve the replay evidence chain
+
+### Requirement: Admin anticheat panel has disposal flow test coverage
+The admin anticheat panel SHALL have automated tests covering detection detail display and punishment disposal actions.
+
+#### Scenario: Admin panel renders detection evidence
+- **WHEN** the admin panel test provides a detection record with risk score, indicators, report contribution, replay evidence, suggested action, and review status
+- **THEN** the panel renders the detection details needed for admin review
+- **AND** exposes the action controls for processing and permitted punishment decision changes
+
+#### Scenario: Admin panel rejects cancellation interaction
+- **WHEN** the admin panel test attempts to submit a cancellation-style punishment decision for a processed detection
+- **THEN** the UI does not treat it as a successful allowed disposal
+- **AND** displays the backend rejection when the API rejects the request
+

@@ -18,6 +18,22 @@ import {
   Filter,
 } from 'lucide-vue-next'
 
+type ReplayEvidenceAnchor = {
+  room_id?: string
+  game_history_id?: number
+  replay_id?: string
+  event_index?: number
+  event_id?: string
+  event_type?: string
+  player_uid?: number
+  event_timestamp_ms?: number
+  turn_number?: number
+  action_summary?: string
+  evidence_precision?: string
+  compatibility_level?: string
+  navigation_url?: string
+}
+
 const { showAlert, showPrompt } = useDialog()
 const activeTab = ref<'detection' | 'appeals' | 'config' | 'audit'>('detection')
 const loading = ref(false)
@@ -70,6 +86,111 @@ const reviewNote = ref('')
 const enforcementReason = ref('Anticheat panel manual enforcement')
 const enforcementUntil = ref('')
 const enforcementLoading = ref(false)
+const punishmentDecision = ref<'observe' | 'warning' | 'mute' | 'ban'>('ban')
+const punishmentChangeLoading = ref(false)
+
+const decodeJSONMaybe = (value: any) => {
+  if (typeof value !== 'string') return value
+  const trimmed = value.trim()
+  if (!trimmed || (!trimmed.startsWith('{') && !trimmed.startsWith('['))) return value
+  try {
+    return JSON.parse(trimmed)
+  } catch {
+    return value
+  }
+}
+
+const normalizeAnchor = (value: any): ReplayEvidenceAnchor | null => {
+  const anchor = decodeJSONMaybe(value)
+  if (!anchor || typeof anchor !== 'object' || Array.isArray(anchor)) return null
+  if (!anchor.game_history_id && !anchor.replay_id && !anchor.room_id) return null
+  return {
+    ...anchor,
+    event_index: Number(anchor.event_index || 0) || undefined,
+    game_history_id: Number(anchor.game_history_id || 0) || undefined,
+    player_uid: Number(anchor.player_uid || 0) || undefined,
+    event_timestamp_ms: Number(anchor.event_timestamp_ms || 0) || undefined,
+  }
+}
+
+const anchorKey = (anchor: ReplayEvidenceAnchor) => [
+  anchor.game_history_id || '',
+  anchor.replay_id || '',
+  anchor.event_id || '',
+  anchor.event_index || '',
+  anchor.event_timestamp_ms || '',
+].join(':')
+
+const normalizeAnchorList = (value: any): ReplayEvidenceAnchor[] => {
+  const decoded = decodeJSONMaybe(value)
+  if (!decoded) return []
+  if (Array.isArray(decoded)) {
+    return decoded.map(normalizeAnchor).filter(Boolean) as ReplayEvidenceAnchor[]
+  }
+  const one = normalizeAnchor(decoded)
+  return one ? [one] : []
+}
+
+const anchorsFromIndicator = (indicator: any): ReplayEvidenceAnchor[] => {
+  const anchors = normalizeAnchorList(indicator?.evidence_anchors)
+  if (anchors.length) return anchors
+  const anchor = normalizeAnchor(indicator?.primary_evidence || indicator?.replay_anchor)
+  return anchor ? [anchor] : []
+}
+
+const anchorsFromReportContribution = (report: any): ReplayEvidenceAnchor[] => {
+  return normalizeAnchorList(report?.evidence_anchors || report?.anchors || report?.primary_evidence)
+}
+
+const primaryEvidenceAnchor = computed(() => normalizeAnchor(selectedDetection.value?.primary_evidence || selectedDetection.value?.replay_navigation))
+
+const relatedEvidenceAnchors = computed(() => {
+  const anchors = normalizeAnchorList(selectedDetection.value?.related_evidence)
+  const primary = primaryEvidenceAnchor.value
+  if (primary && !anchors.some(anchor => anchorKey(anchor) === anchorKey(primary))) {
+    anchors.unshift(primary)
+  }
+  return anchors
+})
+
+const replayRouteForAnchor = (anchorLike: any) => {
+  const anchor = normalizeAnchor(anchorLike)
+  if (!anchor) return ''
+  const replayTarget = anchor.game_history_id || anchor.replay_id
+  if (!replayTarget) return ''
+
+  const query = new URLSearchParams()
+  query.set('scope', 'admin')
+  query.set('from', '/admin/anticheat')
+  if (anchor.event_index) query.set('event_index', String(anchor.event_index))
+  if (anchor.event_id) query.set('event_id', anchor.event_id)
+  if (anchor.event_timestamp_ms) query.set('timestamp_ms', String(anchor.event_timestamp_ms))
+  if (anchor.player_uid) query.set('uid', String(anchor.player_uid))
+  return `/replay/${replayTarget}?${query.toString()}`
+}
+
+const formatAnchorPosition = (anchorLike: any) => {
+  const anchor = normalizeAnchor(anchorLike)
+  if (!anchor) return '-'
+  const parts = []
+  if (anchor.event_index) parts.push(`#${anchor.event_index}`)
+  if (anchor.event_id) parts.push(anchor.event_id)
+  if (!parts.length && anchor.event_timestamp_ms) parts.push(`${anchor.event_timestamp_ms}ms`)
+  return parts.join(' / ') || 'room'
+}
+
+const formatAnchorTime = (anchorLike: any) => {
+  const anchor = normalizeAnchor(anchorLike)
+  if (!anchor?.event_timestamp_ms) return '-'
+  const date = new Date(anchor.event_timestamp_ms)
+  return Number.isNaN(date.getTime()) ? '-' : date.toLocaleString('zh-CN')
+}
+
+const precisionLabel = (precision?: string) => {
+  if (precision === 'operation') return 'operation'
+  if (precision === 'room') return 'room-level'
+  return precision || 'unknown'
+}
 
 const normalizeDetectionDetail = (payload: any, fallback: any) => {
   const risk = payload?.risk_score || payload || {}
@@ -83,6 +204,18 @@ const normalizeDetectionDetail = (payload: any, fallback: any) => {
     room_id: risk.room_id || fallback.room_id,
     risk_score: risk.risk_score ?? fallback.risk_score ?? 0,
     sanction_type: fallback.sanction_type || sanctions[0]?.sanction_type || 'observe',
+    suggested_action: risk.suggested_action || fallback.suggested_action || fallback.sanction_type || 'observe',
+    review_status: risk.review_status || fallback.review_status || 'pending',
+    punishment_decision: risk.punishment_decision || fallback.punishment_decision || fallback.sanction_type || 'observe',
+    sanction_id: risk.sanction_id || fallback.sanction_id || sanctions[0]?.id,
+    replay_id: risk.replay_id || fallback.replay_id || risk.room_id || fallback.room_id,
+    operation_index: risk.operation_index ?? fallback.operation_index ?? 0,
+    operation_timestamp: risk.operation_timestamp || fallback.operation_timestamp,
+    indicator_details: risk.indicator_details || fallback.indicator_details || [],
+    report_contribution: risk.report_contribution || fallback.report_contribution || null,
+    primary_evidence: risk.primary_evidence || fallback.primary_evidence || risk.replay_navigation || fallback.replay_navigation || null,
+    related_evidence: risk.related_evidence || fallback.related_evidence || [],
+    replay_navigation: risk.replay_navigation || fallback.replay_navigation || risk.primary_evidence || fallback.primary_evidence || null,
     sanctions,
   }
 }
@@ -95,9 +228,29 @@ const openDetectionDetail = async (detection: any) => {
     selectedDetection.value = normalizeDetectionDetail(response.data, detection)
     enforcementReason.value = 'Anticheat panel manual enforcement'
     enforcementUntil.value = defaultBanUntil()
+    punishmentDecision.value = (selectedDetection.value.punishment_decision || selectedDetection.value.suggested_action || 'ban') as any
     showDetailModal.value = true
   } catch (error: any) {
     showAlert(error.response?.data?.error || '加载检测详情失败', '错误')
+  }
+}
+
+const changePunishmentDecision = async () => {
+  if (!selectedDetection.value) return
+  punishmentChangeLoading.value = true
+  try {
+    await adminAPI.changeDetectionPunishment(selectedDetection.value.id, {
+      punishment_decision: punishmentDecision.value,
+      sanction_id: Number(selectedDetection.value.sanction_id) || undefined,
+      reason: enforcementReason.value.trim() || 'Punishment decision adjusted after review',
+    })
+    showAlert('处罚决定已更新', '操作完成')
+    await Promise.all([loadDetections(), loadAuditLog()])
+    selectedDetection.value.punishment_decision = punishmentDecision.value
+  } catch (error: any) {
+    showAlert(error.response?.data?.error || '处罚决定更新失败', '操作失败')
+  } finally {
+    punishmentChangeLoading.value = false
   }
 }
 
@@ -381,6 +534,13 @@ const getSanctionBadge = (type: string) => {
   return badges[type] || { color: 'bg-gray-100 text-gray-800', label: type }
 }
 
+const formatEvidenceTime = (value?: string) => {
+  if (!value) return '未记录'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '未记录'
+  return date.toLocaleString('zh-CN')
+}
+
 const getStatusBadge = (status: string) => {
   const badges: Record<string, { color: string; label: string }> = {
     pending: { color: 'bg-gray-100 text-gray-800', label: '待审核' },
@@ -469,14 +629,15 @@ const getCompensationBadge = (status: string) => {
                 <th class="p-4 font-black">玩家ID</th>
                 <th class="p-4 font-black">房间ID</th>
                 <th class="p-4 font-black">风险分数</th>
-                <th class="p-4 font-black">处罚类型</th>
+                <th class="p-4 font-black">建议操作</th>
+                <th class="p-4 font-black">处理状态</th>
                 <th class="p-4 font-black">检测时间</th>
                 <th class="p-4 font-black text-right">操作</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-200 dark:divide-white/10">
               <tr v-if="filteredDetections.length === 0">
-                <td colspan="6" class="p-8 text-center text-slate-400 font-bold">暂无检测记录</td>
+                <td colspan="7" class="p-8 text-center text-slate-400 font-bold">暂无检测记录</td>
               </tr>
               <tr v-for="detection in filteredDetections" :key="detection.id" class="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
                 <td class="p-4">{{ detection.player_id }}</td>
@@ -488,7 +649,12 @@ const getCompensationBadge = (status: string) => {
                 </td>
                 <td class="p-4">
                   <span :class="['inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-black', getSanctionBadge(detection.sanction_type).color]">
-                    {{ getSanctionBadge(detection.sanction_type).label }}
+                    {{ getSanctionBadge(detection.suggested_action || detection.sanction_type).label }}
+                  </span>
+                </td>
+                <td class="p-4">
+                  <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-black text-slate-700 dark:bg-white/10 dark:text-slate-200">
+                    {{ detection.review_status === 'processed' ? '已处理' : '待处理' }}
                   </span>
                 </td>
                 <td class="p-4 text-slate-500">{{ new Date(detection.created_at).toLocaleString('zh-CN') }}</td>
@@ -553,7 +719,19 @@ const getCompensationBadge = (status: string) => {
               </tr>
               <tr v-for="appeal in filteredAppeals" :key="appeal.id" class="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
                 <td class="p-4">{{ appeal.player_id || appeal.player_uid }}</td>
-                <td class="p-4 max-w-[200px] truncate" :title="appeal.reason">{{ appeal.reason }}</td>
+                <td class="p-4 max-w-[200px]">
+                  <div class="truncate" :title="appeal.reason">{{ appeal.reason }}</div>
+                  <div v-if="normalizeAnchor(appeal.primary_evidence)" class="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-slate-500">
+                    <span>{{ formatAnchorPosition(appeal.primary_evidence) }} · {{ precisionLabel(normalizeAnchor(appeal.primary_evidence)?.evidence_precision) }}</span>
+                    <RouterLink
+                      v-if="replayRouteForAnchor(appeal.primary_evidence)"
+                      :to="replayRouteForAnchor(appeal.primary_evidence)"
+                      class="font-black text-cyan-700 hover:text-cyan-600 dark:text-cyan-300"
+                    >
+                      Replay
+                    </RouterLink>
+                  </div>
+                </td>
                 <td class="p-4">
                   <span :class="['inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-black', getStatusBadge(appeal.status).color]">
                     {{ getStatusBadge(appeal.status).label }}
@@ -722,7 +900,19 @@ const getCompensationBadge = (status: string) => {
               <tr v-for="log in auditLogs" :key="log.id" class="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
                 <td class="p-4">{{ log.player_id }}</td>
                 <td class="p-4 font-medium">{{ log.action_type }}</td>
-                <td class="p-4 max-w-[300px] truncate" :title="log.details">{{ log.details }}</td>
+                <td class="p-4 max-w-[300px]">
+                  <div class="truncate" :title="log.details">{{ log.details }}</div>
+                  <div v-if="normalizeAnchor(log.primary_evidence)" class="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-slate-500">
+                    <span>{{ formatAnchorPosition(log.primary_evidence) }} · {{ precisionLabel(normalizeAnchor(log.primary_evidence)?.evidence_precision) }}</span>
+                    <RouterLink
+                      v-if="replayRouteForAnchor(log.primary_evidence)"
+                      :to="replayRouteForAnchor(log.primary_evidence)"
+                      class="font-black text-cyan-700 hover:text-cyan-600 dark:text-cyan-300"
+                    >
+                      Replay
+                    </RouterLink>
+                  </div>
+                </td>
                 <td class="p-4">
                   <div v-if="log.compensation_status" class="flex flex-col gap-1">
                     <span :class="['inline-flex w-fit items-center rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-widest', getCompensationBadge(log.compensation_status).color]">
@@ -760,21 +950,108 @@ const getCompensationBadge = (status: string) => {
         <div class="w-full max-w-2xl max-h-[90vh] overflow-y-auto custom-scrollbar rounded-2xl bg-white p-6 shadow-2xl dark:bg-[#111318] border border-slate-200 dark:border-white/10 animate-in zoom-in-95 duration-200">
           <h2 class="mb-6 text-xl font-black">检测详情</h2>
           <div v-if="selectedDetection" class="space-y-6">
+            <div>
+              <h3 class="mb-3 text-sm font-black border-b border-slate-100 pb-2 dark:border-white/10">Replay Evidence</h3>
+              <div v-if="relatedEvidenceAnchors.length" class="space-y-2 text-sm">
+                <div
+                  v-for="anchor in relatedEvidenceAnchors"
+                  :key="anchorKey(anchor)"
+                  class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-white/10 dark:bg-black/20"
+                >
+                  <div class="flex flex-wrap items-center justify-between gap-2">
+                    <span class="font-bold text-slate-700 dark:text-slate-200">
+                      {{ anchor.event_type || 'room' }} · {{ formatAnchorPosition(anchor) }}
+                    </span>
+                    <RouterLink
+                      v-if="replayRouteForAnchor(anchor)"
+                      :to="replayRouteForAnchor(anchor)"
+                      class="inline-flex items-center rounded-md border border-cyan-500/20 bg-cyan-500/10 px-2 py-1 text-[10px] font-black uppercase tracking-widest text-cyan-700 hover:bg-cyan-500/20 dark:text-cyan-300"
+                    >
+                      Open replay point
+                    </RouterLink>
+                  </div>
+                  <div class="mt-1 grid gap-1 text-xs text-slate-500 sm:grid-cols-2">
+                    <span>Player: {{ anchor.player_uid || '-' }}</span>
+                    <span>Time: {{ formatAnchorTime(anchor) }}</span>
+                    <span>Precision: {{ precisionLabel(anchor.evidence_precision) }}</span>
+                    <span class="truncate" :title="anchor.action_summary">Summary: {{ anchor.action_summary || '-' }}</span>
+                  </div>
+                </div>
+              </div>
+              <div v-else class="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-400 dark:bg-black/20">No replay evidence anchor</div>
+            </div>
             <div class="grid grid-cols-2 gap-4 rounded-xl border border-slate-100 bg-slate-50 p-4 dark:border-white/5 dark:bg-black/20">
               <div><span class="text-xs font-bold uppercase tracking-widest text-slate-500 block mb-1">玩家ID</span><span class="font-medium">{{ selectedDetection.player_id }}</span></div>
               <div><span class="text-xs font-bold uppercase tracking-widest text-slate-500 block mb-1">房间ID</span><span class="font-medium">{{ selectedDetection.room_id }}</span></div>
               <div><span class="text-xs font-bold uppercase tracking-widest text-slate-500 block mb-1">风险分数</span><span :class="['font-black', getRiskColor(selectedDetection.risk_score)]">{{ selectedDetection.risk_score.toFixed(1) }}</span></div>
-              <div><span class="text-xs font-bold uppercase tracking-widest text-slate-500 block mb-1">处罚类型</span><span :class="['inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-black', getSanctionBadge(selectedDetection.sanction_type).color]">{{ getSanctionBadge(selectedDetection.sanction_type).label }}</span></div>
+              <div><span class="text-xs font-bold uppercase tracking-widest text-slate-500 block mb-1">建议操作</span><span :class="['inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-black', getSanctionBadge(selectedDetection.suggested_action).color]">{{ getSanctionBadge(selectedDetection.suggested_action).label }}</span></div>
+              <div><span class="text-xs font-bold uppercase tracking-widest text-slate-500 block mb-1">回放ID</span><span class="font-medium">{{ selectedDetection.replay_id || '未记录' }}</span></div>
+              <div><span class="text-xs font-bold uppercase tracking-widest text-slate-500 block mb-1">操作序号</span><span class="font-medium">{{ selectedDetection.operation_index || '未记录' }}</span></div>
+              <div><span class="text-xs font-bold uppercase tracking-widest text-slate-500 block mb-1">操作时间</span><span class="font-medium">{{ formatEvidenceTime(selectedDetection.operation_timestamp) }}</span></div>
+              <div><span class="text-xs font-bold uppercase tracking-widest text-slate-500 block mb-1">处理状态</span><span class="font-medium">{{ selectedDetection.review_status === 'processed' ? '已处理' : '待处理' }}</span></div>
             </div>
 
             <div>
-              <h3 class="mb-3 text-sm font-black border-b border-slate-100 pb-2 dark:border-white/10">维度分数</h3>
-              <div class="grid grid-cols-2 gap-3 text-sm">
-                <div class="flex justify-between rounded-lg bg-slate-50 px-3 py-2 dark:bg-black/20"><span class="text-slate-500">响应时间</span><span class="font-bold">{{ selectedDetection.response_time_score?.toFixed(1) || 'N/A' }}</span></div>
-                <div class="flex justify-between rounded-lg bg-slate-50 px-3 py-2 dark:bg-black/20"><span class="text-slate-500">操作频率</span><span class="font-bold">{{ selectedDetection.frequency_score?.toFixed(1) || 'N/A' }}</span></div>
-                <div class="flex justify-between rounded-lg bg-slate-50 px-3 py-2 dark:bg-black/20"><span class="text-slate-500">胜率异常</span><span class="font-bold">{{ selectedDetection.win_rate_score?.toFixed(1) || 'N/A' }}</span></div>
-                <div class="flex justify-between rounded-lg bg-slate-50 px-3 py-2 dark:bg-black/20"><span class="text-slate-500">操作模式</span><span class="font-bold">{{ selectedDetection.pattern_score?.toFixed(1) || 'N/A' }}</span></div>
-                <div class="flex justify-between rounded-lg bg-slate-50 px-3 py-2 dark:bg-black/20"><span class="text-slate-500">账号年龄</span><span class="font-bold">{{ selectedDetection.account_age_score?.toFixed(1) || 'N/A' }}</span></div>
+              <h3 class="mb-3 text-sm font-black border-b border-slate-100 pb-2 dark:border-white/10">作弊判定指标</h3>
+              <div class="space-y-2 text-sm">
+                <div v-for="indicator in selectedDetection.indicator_details" :key="indicator.name" class="rounded-lg bg-slate-50 px-3 py-2 dark:bg-black/20">
+                  <div class="flex items-center justify-between gap-3">
+                    <span class="font-bold text-slate-700 dark:text-slate-200">{{ indicator.name }}</span>
+                    <span class="font-black">{{ Number(indicator.contribution || 0).toFixed(1) }}</span>
+                  </div>
+                  <div class="mt-1 text-xs text-slate-500">
+                    原始值 {{ indicator.raw_value }} · 归一化 {{ Number(indicator.normalized_score || 0).toFixed(1) }} · 权重 {{ indicator.weight }}
+                  </div>
+                  <div v-if="indicator.explanation" class="mt-1 text-xs text-slate-400">{{ indicator.explanation }}</div>
+                  <div v-if="anchorsFromIndicator(indicator).length" class="mt-2 space-y-1">
+                    <div
+                      v-for="anchor in anchorsFromIndicator(indicator)"
+                      :key="`indicator-${indicator.name}-${anchorKey(anchor)}`"
+                      class="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs dark:border-white/10 dark:bg-black/20"
+                    >
+                      <span>
+                        {{ anchor.event_type || 'room' }} · {{ formatAnchorPosition(anchor) }} · UID {{ anchor.player_uid || '-' }} · {{ precisionLabel(anchor.evidence_precision) }}
+                      </span>
+                      <RouterLink
+                        v-if="replayRouteForAnchor(anchor)"
+                        :to="replayRouteForAnchor(anchor)"
+                        class="font-black text-cyan-700 hover:text-cyan-600 dark:text-cyan-300"
+                      >
+                        Open replay point
+                      </RouterLink>
+                    </div>
+                  </div>
+                </div>
+                <div v-if="!selectedDetection.indicator_details?.length" class="rounded-lg bg-slate-50 px-3 py-2 text-slate-400 dark:bg-black/20">暂无指标明细</div>
+              </div>
+            </div>
+
+            <div v-if="selectedDetection.report_contribution">
+              <h3 class="mb-3 text-sm font-black border-b border-slate-100 pb-2 dark:border-white/10">举报贡献</h3>
+              <div class="rounded-lg bg-slate-50 px-3 py-2 text-sm dark:bg-black/20">
+                去重举报数：<b>{{ selectedDetection.report_contribution.deduplicated_count }}</b>
+                · 贡献分：<b>{{ Number(selectedDetection.report_contribution.contribution || 0).toFixed(1) }}</b>
+                <div class="mt-1 text-xs text-slate-500">{{ selectedDetection.report_contribution.source_summary }}</div>
+                <div class="mt-2 text-xs text-slate-500">
+                  Weight: {{ selectedDetection.report_contribution.weight ?? '-' }}
+                  · Precision: {{ anchorsFromReportContribution(selectedDetection.report_contribution).map(anchor => precisionLabel(anchor.evidence_precision)).join(', ') || 'unknown' }}
+                </div>
+                <div v-if="anchorsFromReportContribution(selectedDetection.report_contribution).length" class="mt-2 space-y-1">
+                  <div
+                    v-for="anchor in anchorsFromReportContribution(selectedDetection.report_contribution)"
+                    :key="`report-${anchorKey(anchor)}`"
+                    class="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs dark:border-white/10 dark:bg-black/20"
+                  >
+                    <span>{{ anchor.event_type || 'report' }} · {{ formatAnchorPosition(anchor) }} · {{ anchor.action_summary || 'reported replay point' }}</span>
+                    <RouterLink
+                      v-if="replayRouteForAnchor(anchor)"
+                      :to="replayRouteForAnchor(anchor)"
+                      class="font-black text-cyan-700 hover:text-cyan-600 dark:text-cyan-300"
+                    >
+                      Open replay point
+                    </RouterLink>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -784,12 +1061,24 @@ const getCompensationBadge = (status: string) => {
                 <label class="block text-sm font-bold text-slate-500">审核决策:
                   <select v-model="reviewDecision" class="mt-1 block w-full rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-sky-400 dark:border-white/10 dark:bg-black/20">
                     <option value="confirm">确认处罚</option>
-                    <option value="override">推翻处罚</option>
                   </select>
                 </label>
                 <label class="block text-sm font-bold text-slate-500">审核备注:
                   <textarea v-model="reviewNote" rows="3" class="mt-1 block w-full rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-sky-400 dark:border-white/10 dark:bg-black/20 resize-none" placeholder="输入审核备注..."></textarea>
                 </label>
+              </div>
+            </div>
+
+            <div v-if="selectedDetection.review_status === 'processed'">
+              <h3 class="mb-3 text-sm font-black border-b border-slate-100 pb-2 dark:border-white/10">更改处罚决定</h3>
+              <div class="space-y-3">
+                <select v-model="punishmentDecision" class="block w-full rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-sky-400 dark:border-white/10 dark:bg-black/20">
+                  <option value="observe">观察</option>
+                  <option value="warning">警告</option>
+                  <option value="mute">禁言</option>
+                  <option value="ban">封号</option>
+                </select>
+                <button class="rounded-lg bg-sky-600 px-4 py-2 text-sm font-black text-white hover:bg-sky-500 disabled:opacity-50" :disabled="punishmentChangeLoading" @click="changePunishmentDecision">保存处罚决定</button>
               </div>
             </div>
 
@@ -804,7 +1093,6 @@ const getCompensationBadge = (status: string) => {
                 </label>
                 <div class="flex gap-2 justify-end pt-2">
                   <button class="rounded-lg bg-rose-600 px-4 py-2 text-sm font-black text-white hover:bg-rose-500 disabled:opacity-50" :disabled="enforcementLoading" @click="handlePanelBan">执行封禁</button>
-                  <button class="rounded-lg bg-slate-200 px-4 py-2 text-sm font-black text-slate-700 hover:bg-slate-300 disabled:opacity-50 dark:bg-white/10 dark:text-slate-300 dark:hover:bg-white/20" :disabled="enforcementLoading" @click="handlePanelUnban">解除封禁</button>
                 </div>
               </div>
             </div>

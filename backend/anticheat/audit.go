@@ -49,17 +49,69 @@ func (al *AuditLogger) LogDetection(roomID string, playerUID uint, riskScoreID u
 	return nil
 }
 
+// LogDetectionEvidence records the complete risk evidence snapshot for admin review.
+func (al *AuditLogger) LogDetectionEvidence(roomID string, playerUID uint, riskScoreID uint, result *RiskScoringResult) error {
+	if result == nil {
+		return nil
+	}
+	details, _ := json.Marshal(result.Dimensions)
+	auditLog := &database.CheatAuditLog{
+		EventType:          "detection",
+		RoomID:             roomID,
+		PlayerUID:          playerUID,
+		RiskScoreID:        &riskScoreID,
+		RiskScore:          &result.RiskScore,
+		ReplayID:           result.ReplayID,
+		GameHistoryID:      result.GameHistoryID,
+		OperationIndex:     result.OperationIndex,
+		OperationTimestamp: result.OperationTimestamp,
+		PrimaryEvidence:    MarshalReplayEvidenceAnchor(result.PrimaryEvidence),
+		RelatedEvidence:    MarshalReplayEvidenceAnchors(result.RelatedEvidence),
+		SuggestedAction:    result.SuggestedAction,
+		IndicatorDetails:   MarshalIndicatorDetails(result.IndicatorDetails),
+		ReportContribution: MarshalReportContribution(result.ReportContribution),
+		Details:            details,
+		Remark:             result.SuggestionReason,
+	}
+
+	if err := al.repository.SaveAuditLog(auditLog); err != nil {
+		errorLog := &database.CheatAuditLog{
+			EventType: "detection_error",
+			RoomID:    roomID,
+			PlayerUID: playerUID,
+			Remark:    "检测证据日志记录失败: " + err.Error(),
+		}
+		al.repository.SaveAuditLog(errorLog)
+		return err
+	}
+
+	log.Printf("[审计] 记录检测证据: 房间 %s, 玩家 %d, 风险分数: %.1f", roomID, playerUID, result.RiskScore)
+	return nil
+}
+
 // LogSanction 记录处罚日志
 func (al *AuditLogger) LogSanction(roomID string, playerUID uint, riskScoreID, sanctionID uint, sanctionType string, reason string) error {
 	auditLog := &database.CheatAuditLog{
-		EventType:   "sanction",
-		RoomID:      roomID,
-		PlayerUID:   playerUID,
-		RiskScoreID: &riskScoreID,
-		SanctionID:  &sanctionID,
+		EventType:    "sanction",
+		RoomID:       roomID,
+		PlayerUID:    playerUID,
+		RiskScoreID:  &riskScoreID,
+		SanctionID:   &sanctionID,
 		SanctionType: sanctionType,
-		NewStatus:   "active",
-		Remark:      reason,
+		NewStatus:    "active",
+		Remark:       reason,
+	}
+	if al.repository != nil {
+		if score, err := al.repository.GetRiskScoreByID(riskScoreID); err == nil && score != nil {
+			auditLog.ReplayID = score.ReplayID
+			auditLog.GameHistoryID = score.GameHistoryID
+			auditLog.OperationIndex = score.OperationIndex
+			auditLog.OperationTimestamp = score.OperationTimestamp
+			auditLog.PrimaryEvidence = score.PrimaryEvidence
+			auditLog.RelatedEvidence = score.RelatedEvidence
+			auditLog.IndicatorDetails = score.IndicatorDetails
+			auditLog.ReportContribution = score.ReportContribution
+		}
 	}
 
 	if err := al.repository.SaveAuditLog(auditLog); err != nil {
@@ -73,12 +125,12 @@ func (al *AuditLogger) LogSanction(roomID string, playerUID uint, riskScoreID, s
 // LogAppealSubmitted 记录申诉提交日志
 func (al *AuditLogger) LogAppealSubmitted(roomID string, playerUID uint, appealID uint, reason string) error {
 	auditLog := &database.CheatAuditLog{
-		EventType:   "appeal",
-		RoomID:      roomID,
-		PlayerUID:   playerUID,
-		AppealID:    &appealID,
-		NewStatus:   "pending",
-		Remark:      reason,
+		EventType: "appeal",
+		RoomID:    roomID,
+		PlayerUID: playerUID,
+		AppealID:  &appealID,
+		NewStatus: "pending",
+		Remark:    reason,
 	}
 
 	if err := al.repository.SaveAuditLog(auditLog); err != nil {
@@ -198,14 +250,14 @@ func (al *AuditLogger) GetAuditStatistics(startTime, endTime time.Time) (map[str
 	}
 
 	stats := map[string]interface{}{
-		"period_start":        startTime,
-		"period_end":          endTime,
-		"total_detections":    len(detectionLogs),
-		"total_sanctions":     len(sanctionLogs),
-		"total_appeals":       len(appealLogs),
-		"total_reviews":       len(reviewLogs),
-		"sanction_types":      sanctionTypeCount,
-		"appeal_results":      appealResultCount,
+		"period_start":     startTime,
+		"period_end":       endTime,
+		"total_detections": len(detectionLogs),
+		"total_sanctions":  len(sanctionLogs),
+		"total_appeals":    len(appealLogs),
+		"total_reviews":    len(reviewLogs),
+		"sanction_types":   sanctionTypeCount,
+		"appeal_results":   appealResultCount,
 	}
 
 	return stats, nil

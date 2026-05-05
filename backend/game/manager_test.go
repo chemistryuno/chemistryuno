@@ -4,7 +4,13 @@ import (
 	"testing"
 	"time"
 
+	"chemistryuno/backend/anticheat"
+	"chemistryuno/backend/database"
 	"chemistryuno/backend/models"
+	"chemistryuno/backend/repository"
+
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
 // TestLeaveRoom_ObserverPromotion 测试观战者升级逻辑
@@ -226,6 +232,118 @@ func TestSpectatorsSync(t *testing.T) {
 	}
 
 	t.Logf("✅ Spectators同步测试通过: 升级后GameState.Spectators = %v", gameRoom.GameState.Spectators)
+}
+
+func TestCollectAnticheatDataIncludesReplayBoundReports(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	if err := db.AutoMigrate(&database.User{}, &database.Feedback{}); err != nil {
+		t.Fatalf("migrate feedback tables: %v", err)
+	}
+	previousDB := database.DB
+	previousFeedbackRepo := repository.FeedbackRepo
+	database.DB = db
+	repository.FeedbackRepo = repository.NewFeedbackRepository()
+	t.Cleanup(func() {
+		database.DB = previousDB
+		repository.FeedbackRepo = previousFeedbackRepo
+	})
+
+	anchor := database.ReplayEvidenceAnchor{
+		RoomID:           "report-room",
+		GameHistoryID:    77,
+		ReplayID:         "77",
+		EventIndex:       3,
+		EventID:          "evt-3",
+		EventType:        "play_card",
+		PlayerUID:        1001,
+		EventTimestampMs: 1710000000000,
+		ActionSummary:    "played H2O",
+	}
+	feedbacks := []database.Feedback{
+		{
+			UserUID:         2001,
+			Type:            "report",
+			Content:         "suspicious replay point",
+			RoomID:          "report-room",
+			ReportedUID:     1001,
+			ReplayID:        "77",
+			GameHistoryID:   77,
+			PrimaryEvidence: anticheat.MarshalReplayEvidenceAnchor(anchor),
+			Status:          "pending",
+		},
+		{
+			UserUID:         2001,
+			Type:            "report",
+			Content:         "duplicate same reporter",
+			RoomID:          "report-room",
+			ReportedUID:     1001,
+			PrimaryEvidence: anticheat.MarshalReplayEvidenceAnchor(anchor),
+			Status:          "pending",
+		},
+		{
+			UserUID:         2002,
+			Type:            "report",
+			Content:         "second reporter",
+			RoomID:          "report-room",
+			ReportedUID:     1001,
+			PrimaryEvidence: anticheat.MarshalReplayEvidenceAnchor(anchor),
+			Status:          "pending",
+		},
+		{
+			UserUID:     2003,
+			Type:        "report",
+			Content:     "unbound report should not score",
+			RoomID:      "report-room",
+			ReportedUID: 1001,
+			Status:      "pending",
+		},
+	}
+	for i := range feedbacks {
+		if err := db.Create(&feedbacks[i]).Error; err != nil {
+			t.Fatalf("create feedback: %v", err)
+		}
+	}
+
+	gameRoom := &GameRoom{
+		Room: &models.Room{
+			ID:      "report-room",
+			Players: []int{1001, 1002},
+		},
+		GameState: &models.GameState{
+			Players: []*models.PlayerState{
+				{UID: 1001, Username: "reported"},
+				{UID: 1002, Username: "other"},
+			},
+		},
+		ReplayEvents: []map[string]interface{}{
+			{
+				"event":          "play_card",
+				"event_index":    3,
+				"event_id":       "evt-3",
+				"uid":            1001,
+				"unix_ms":        float64(1710000000000),
+				"action_summary": "played H2O",
+			},
+		},
+	}
+
+	contexts := gameRoom.collectAnticheatDataLocked()
+	reported := contexts[1001]
+	if reported == nil {
+		t.Fatal("expected context for reported player")
+	}
+	if reported.ReportCount != 2 || len(reported.ReportEvidence) != 2 {
+		t.Fatalf("expected two deduplicated replay-bound reports, got count=%d evidence=%d", reported.ReportCount, len(reported.ReportEvidence))
+	}
+	if reported.ReportEvidence[0].EventID != "evt-3" || reported.ReportSummary == "" {
+		t.Fatalf("expected replay report evidence details, got summary=%q anchors=%+v", reported.ReportSummary, reported.ReportEvidence)
+	}
+	if other := contexts[1002]; other == nil || other.ReportCount != 0 || len(other.ReportEvidence) != 0 {
+		t.Fatalf("expected unrelated player to have no report contribution, got %+v", other)
+	}
 }
 
 // BenchmarkLeaveRoomPromotion 性能测试：观战者升级

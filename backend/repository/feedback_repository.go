@@ -39,6 +39,18 @@ func (r *FeedbackRepository) FindByUserUID(uid uint) ([]database.Feedback, error
 	return feedbacks, err
 }
 
+func (r *FeedbackRepository) FindEvidenceReportsByRoomAndReportedUID(roomID string, reportedUID uint) ([]database.Feedback, error) {
+	var feedbacks []database.Feedback
+	if r == nil || r.db == nil || roomID == "" || reportedUID == 0 {
+		return feedbacks, nil
+	}
+	err := r.db.Where("type = ? AND room_id = ? AND reported_uid = ?", "report", roomID, reportedUID).
+		Where("primary_evidence IS NOT NULL AND primary_evidence != ''").
+		Order("created_at ASC, id ASC").
+		Find(&feedbacks).Error
+	return feedbacks, err
+}
+
 // FindAll 查找所有反馈（管理员）
 func (r *FeedbackRepository) FindAll() ([]database.Feedback, error) {
 	var feedbacks []database.Feedback

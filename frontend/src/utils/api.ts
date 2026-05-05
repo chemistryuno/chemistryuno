@@ -276,8 +276,8 @@ export const authAPI = {
     api.delete('/user/account', { data: { security_answer: securityAnswer } }),
   searchUsers: (query: string) =>
     api.get(`/users/search?q=${encodeURIComponent(query)}`),
-  submitFeedback: (content: string, type: string) =>
-    api.post('/feedback', { content, type }),
+  submitFeedback: (content: string, type: string, metadata?: { room_id?: string; reported_uid?: number; replay_anchor?: any }) =>
+    api.post('/feedback', { content, type, ...(metadata || {}) }),
   getMyFeedbacks: () =>
     api.get('/feedbacks/my'),
   urgeFeedback: (id: number) =>
@@ -304,6 +304,8 @@ export const authAPI = {
     api.get('/player/anticheat/stats'),
   getPlayerAppeals: () =>
     api.get('/player/appeals'),
+  getAppealEntryStatus: () =>
+    api.get('/player/appeals/entry'),
   claimAppealCompensation: (id: number) =>
     api.post(`/player/appeals/${id}/claim`),
   getPlayerSanctions: () =>
@@ -479,6 +481,8 @@ export const adminAPI = {
     api.get(`/admin/anticheat/detection/${id}`),
   reviewDetection: (id: string | number, data: { decision: string; note?: string }) =>
     api.post(`/admin/anticheat/detection/${id}/review`, data),
+  changeDetectionPunishment: (id: string | number, data: { punishment_decision: string; sanction_id?: number; reason?: string; duration?: number; effective_until?: string }) =>
+    api.post(`/admin/anticheat/detection/${id}/punishment`, data),
   banFromAnticheatPanel: (data: { player_uid: number; banned_until: string; reason: string; room_id?: string; risk_score_id?: number }) =>
     api.post('/admin/anticheat/ban', data),
   unbanFromAnticheatPanel: (data: { player_uid: number; reason?: string; room_id?: string }) =>

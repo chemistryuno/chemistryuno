@@ -273,18 +273,23 @@ func (Substance) TableName() string {
 
 // Feedback GORM模型 - 用户反馈表
 type Feedback struct {
-	ID             uint       `gorm:"primaryKey;autoIncrement" json:"id"`
-	UserUID        uint       `gorm:"not null;index" json:"user_uid"`
-	Type           string     `gorm:"not null;size:20" json:"type"`
-	Content        string     `gorm:"not null;type:text" json:"content"`
-	Status         string     `gorm:"default:pending;size:20" json:"status"`
-	ProcessedByUID *uint      `json:"processed_by_uid"`
-	ProcessedAt    *time.Time `json:"processed_at"`
-	LastUrgedAt    *time.Time `json:"last_urged_at"`
-	UrgeCount      int        `gorm:"default:0" json:"urge_count"`
-	ResolutionNote string     `gorm:"type:text" json:"resolution_note"`
-	RemoveAt       *time.Time `json:"remove_at"`
-	CreatedAt      time.Time  `gorm:"autoCreateTime" json:"created_at"`
+	ID              uint       `gorm:"primaryKey;autoIncrement" json:"id"`
+	UserUID         uint       `gorm:"not null;index" json:"user_uid"`
+	Type            string     `gorm:"not null;size:20" json:"type"`
+	Content         string     `gorm:"not null;type:text" json:"content"`
+	RoomID          string     `gorm:"size:50;index" json:"room_id,omitempty"`
+	ReportedUID     uint       `gorm:"index" json:"reported_uid,omitempty"`
+	ReplayID        string     `gorm:"size:100;index" json:"replay_id,omitempty"`
+	GameHistoryID   uint       `gorm:"index" json:"game_history_id,omitempty"`
+	PrimaryEvidence JSON       `gorm:"type:json" json:"primary_evidence,omitempty"`
+	Status          string     `gorm:"default:pending;size:20" json:"status"`
+	ProcessedByUID  *uint      `json:"processed_by_uid"`
+	ProcessedAt     *time.Time `json:"processed_at"`
+	LastUrgedAt     *time.Time `json:"last_urged_at"`
+	UrgeCount       int        `gorm:"default:0" json:"urge_count"`
+	ResolutionNote  string     `gorm:"type:text" json:"resolution_note"`
+	RemoveAt        *time.Time `json:"remove_at"`
+	CreatedAt       time.Time  `gorm:"autoCreateTime" json:"created_at"`
 }
 
 func (Feedback) TableName() string {
@@ -404,6 +409,23 @@ func (GameHistory) TableName() string {
 	return "game_history"
 }
 
+// ReplayEvidenceAnchor stores a stable pointer to a replay event used as anticheat evidence.
+type ReplayEvidenceAnchor struct {
+	RoomID             string `json:"room_id,omitempty"`
+	GameHistoryID      uint   `json:"game_history_id,omitempty"`
+	ReplayID           string `json:"replay_id,omitempty"`
+	EventIndex         int    `json:"event_index,omitempty"`
+	EventID            string `json:"event_id,omitempty"`
+	EventType          string `json:"event_type,omitempty"`
+	PlayerUID          uint   `json:"player_uid,omitempty"`
+	EventTimestampMs   int64  `json:"event_timestamp_ms,omitempty"`
+	TurnNumber         int    `json:"turn_number,omitempty"`
+	ActionSummary      string `json:"action_summary,omitempty"`
+	EvidencePrecision  string `json:"evidence_precision,omitempty"`
+	CompatibilityLevel string `json:"compatibility_level,omitempty"`
+	NavigationURL      string `json:"navigation_url,omitempty"`
+}
+
 // Bounty GORM模型 - 悬赏表
 type Bounty struct {
 	ID        uint       `gorm:"primaryKey;autoIncrement" json:"id"`
@@ -454,17 +476,29 @@ func (SystemConfig) TableName() string {
 
 // CheatRiskScore GORM模型 - 作弊风险评分表
 type CheatRiskScore struct {
-	ID                 uint          `gorm:"primaryKey;autoIncrement" json:"id"`
-	RoomID             string        `gorm:"not null;size:50;index" json:"room_id"`
-	PlayerUID          uint          `gorm:"not null;index" json:"player_uid"`
-	RiskScore          float64       `gorm:"not null;default:0;index" json:"risk_score"`
-	ResponseTimeDim    float64       `gorm:"not null;default:0" json:"response_time_dim"`
-	FrequencyDim       float64       `gorm:"not null;default:0" json:"frequency_dim"`
-	WinRateDim         float64       `gorm:"not null;default:0" json:"win_rate_dim"`
-	PatternDim         float64       `gorm:"not null;default:0" json:"pattern_dim"`
-	AccountAgeDim      float64       `gorm:"not null;default:0" json:"account_age_dim"`
-	DetectionTime      time.Time     `gorm:"not null;autoCreateTime" json:"detection_time"`
-	CreatedAt          time.Time     `gorm:"autoCreateTime" json:"created_at"`
+	ID                 uint       `gorm:"primaryKey;autoIncrement" json:"id"`
+	RoomID             string     `gorm:"not null;size:50;index" json:"room_id"`
+	PlayerUID          uint       `gorm:"not null;index" json:"player_uid"`
+	ReplayID           string     `gorm:"size:100;index" json:"replay_id"`
+	GameHistoryID      uint       `gorm:"index" json:"game_history_id"`
+	OperationIndex     int        `gorm:"default:0" json:"operation_index"`
+	OperationTimestamp *time.Time `json:"operation_timestamp"`
+	PrimaryEvidence    JSON       `gorm:"type:json" json:"primary_evidence,omitempty"`
+	RelatedEvidence    JSON       `gorm:"type:json" json:"related_evidence,omitempty"`
+	RiskScore          float64    `gorm:"not null;default:0;index" json:"risk_score"`
+	ResponseTimeDim    float64    `gorm:"not null;default:0" json:"response_time_dim"`
+	FrequencyDim       float64    `gorm:"not null;default:0" json:"frequency_dim"`
+	WinRateDim         float64    `gorm:"not null;default:0" json:"win_rate_dim"`
+	PatternDim         float64    `gorm:"not null;default:0" json:"pattern_dim"`
+	AccountAgeDim      float64    `gorm:"not null;default:0" json:"account_age_dim"`
+	ReportContribution JSON       `gorm:"type:json" json:"report_contribution,omitempty"`
+	IndicatorDetails   JSON       `gorm:"type:json" json:"indicator_details,omitempty"`
+	SuggestedAction    string     `gorm:"size:30;index;default:observe" json:"suggested_action"`
+	SuggestionReason   string     `gorm:"type:text" json:"suggestion_reason"`
+	ReviewStatus       string     `gorm:"size:30;index;default:pending" json:"review_status"`
+	PunishmentDecision string     `gorm:"size:30;index;default:none" json:"punishment_decision"`
+	DetectionTime      time.Time  `gorm:"not null;autoCreateTime" json:"detection_time"`
+	CreatedAt          time.Time  `gorm:"autoCreateTime" json:"created_at"`
 }
 
 func (CheatRiskScore) TableName() string {
@@ -473,19 +507,22 @@ func (CheatRiskScore) TableName() string {
 
 // CheatSanction GORM模型 - 作弊处罚表
 type CheatSanction struct {
-	ID             uint       `gorm:"primaryKey;autoIncrement" json:"id"`
-	RoomID         string     `gorm:"not null;size:50;index" json:"room_id"`
-	PlayerUID      uint       `gorm:"not null;index" json:"player_uid"`
-	RiskScoreID    uint       `gorm:"index" json:"risk_score_id"`
-	SanctionType   string     `gorm:"not null;size:20;index" json:"sanction_type"` // "observe", "warning", "mute", "ban"
-	RiskScore      float64    `gorm:"not null" json:"risk_score"`
-	Reason         string     `gorm:"type:text" json:"reason"`
-	Duration       *int       `gorm:"comment:禁言/封号时长(分钟)" json:"duration"`
-	AppliedAt      time.Time  `gorm:"not null;autoCreateTime" json:"applied_at"`
-	EffectiveUntil *time.Time `json:"effective_until"`
-	Status         string     `gorm:"default:active;size:20" json:"status"` // "active", "revoked", "expired"
-	CreatedAt      time.Time  `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt      time.Time  `gorm:"autoUpdateTime" json:"updated_at"`
+	ID              uint       `gorm:"primaryKey;autoIncrement" json:"id"`
+	RoomID          string     `gorm:"not null;size:50;index" json:"room_id"`
+	PlayerUID       uint       `gorm:"not null;index" json:"player_uid"`
+	RiskScoreID     uint       `gorm:"index" json:"risk_score_id"`
+	ReplayID        string     `gorm:"size:100;index" json:"replay_id"`
+	GameHistoryID   uint       `gorm:"index" json:"game_history_id"`
+	PrimaryEvidence JSON       `gorm:"type:json" json:"primary_evidence,omitempty"`
+	SanctionType    string     `gorm:"not null;size:20;index" json:"sanction_type"` // "observe", "warning", "mute", "ban"
+	RiskScore       float64    `gorm:"not null" json:"risk_score"`
+	Reason          string     `gorm:"type:text" json:"reason"`
+	Duration        *int       `gorm:"comment:禁言/封号时长(分钟)" json:"duration"`
+	AppliedAt       time.Time  `gorm:"not null;autoCreateTime" json:"applied_at"`
+	EffectiveUntil  *time.Time `json:"effective_until"`
+	Status          string     `gorm:"default:active;size:20" json:"status"` // "active", "revoked", "expired"
+	CreatedAt       time.Time  `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt       time.Time  `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
 func (CheatSanction) TableName() string {
@@ -494,23 +531,28 @@ func (CheatSanction) TableName() string {
 
 // CheatAppeal GORM模型 - 作弊申诉表
 type CheatAppeal struct {
-	ID                    uint       `gorm:"primaryKey;autoIncrement" json:"id"`
-	RoomID                string     `gorm:"not null;size:50;index" json:"room_id"`
-	PlayerUID             uint       `gorm:"not null;index" json:"player_uid"`
-	RiskScoreID           uint       `gorm:"index" json:"risk_score_id"`
-	SanctionID            uint       `gorm:"index" json:"sanction_id"`
-	Reason                string     `gorm:"not null;type:text" json:"reason"`
-	Evidence              string     `gorm:"type:text" json:"evidence"`
-	Status                string     `gorm:"not null;default:pending;size:20;index" json:"status"` // "pending", "under_review", "approved", "rejected"
-	ReviewerUID           *uint      `gorm:"index" json:"reviewer_uid"`
-	ReviewedAt            *time.Time `json:"reviewed_at"`
-	ReviewRemark          string     `gorm:"type:text" json:"review_remark"`
-	CompensationAmount    int        `gorm:"default:0" json:"compensation_amount"`
-	CompensationStatus    string     `gorm:"size:20;default:'pending'" json:"compensation_status"` // "pending", "completed", "failed"
-	CompensationNote      string     `gorm:"type:text" json:"compensation_note"`
-	SubmittedAt           time.Time  `gorm:"not null;autoCreateTime" json:"submitted_at"`
-	CreatedAt             time.Time  `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt             time.Time  `gorm:"autoUpdateTime" json:"updated_at"`
+	ID                 uint       `gorm:"primaryKey;autoIncrement" json:"id"`
+	RoomID             string     `gorm:"not null;size:50;index" json:"room_id"`
+	RoomIDs            JSON       `gorm:"type:json" json:"room_ids,omitempty"`
+	PlayerUID          uint       `gorm:"not null;index" json:"player_uid"`
+	RiskScoreID        uint       `gorm:"index" json:"risk_score_id"`
+	SanctionID         uint       `gorm:"index" json:"sanction_id"`
+	ReplayID           string     `gorm:"size:100;index" json:"replay_id"`
+	GameHistoryID      uint       `gorm:"index" json:"game_history_id"`
+	PrimaryEvidence    JSON       `gorm:"type:json" json:"primary_evidence,omitempty"`
+	RelatedEvidence    JSON       `gorm:"type:json" json:"related_evidence,omitempty"`
+	Reason             string     `gorm:"not null;type:text" json:"reason"`
+	Evidence           string     `gorm:"type:text" json:"evidence"`
+	Status             string     `gorm:"not null;default:pending;size:20;index" json:"status"` // "pending", "under_review", "approved", "rejected"
+	ReviewerUID        *uint      `gorm:"index" json:"reviewer_uid"`
+	ReviewedAt         *time.Time `json:"reviewed_at"`
+	ReviewRemark       string     `gorm:"type:text" json:"review_remark"`
+	CompensationAmount int        `gorm:"default:0" json:"compensation_amount"`
+	CompensationStatus string     `gorm:"size:20;default:'pending'" json:"compensation_status"` // "pending", "completed", "failed"
+	CompensationNote   string     `gorm:"type:text" json:"compensation_note"`
+	SubmittedAt        time.Time  `gorm:"not null;autoCreateTime" json:"submitted_at"`
+	CreatedAt          time.Time  `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt          time.Time  `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
 func (CheatAppeal) TableName() string {
@@ -519,27 +561,38 @@ func (CheatAppeal) TableName() string {
 
 // CheatAuditLog GORM模型 - 作弊审计日志表
 type CheatAuditLog struct {
-	ID                      uint          `gorm:"primaryKey;autoIncrement" json:"id"`
-	EventType               string        `gorm:"not null;size:50;index" json:"event_type"` // "detection", "sanction", "appeal", "review", "revoke"
-	RoomID                  string        `gorm:"size:50;index" json:"room_id"`
-	PlayerUID               uint          `gorm:"index" json:"player_uid"`
-	OperatorUID             *uint         `gorm:"index" json:"operator_uid"` // 操作人(审核人或系统)
-	RiskScoreID             *uint         `json:"risk_score_id"`
-	SanctionID              *uint         `json:"sanction_id"`
-	AppealID                *uint         `json:"appeal_id"`
-	RiskScore               *float64      `json:"risk_score"`
-	SanctionType            string        `gorm:"size:20" json:"sanction_type"`
-	OldStatus               string        `gorm:"size:50" json:"old_status"`
-	NewStatus               string        `gorm:"size:50" json:"new_status"`
-	Details                 JSON          `gorm:"type:json" json:"details"`
-	Remark                  string        `gorm:"type:text" json:"remark"`
-	ApprovalNote            *string       `gorm:"type:text" json:"approval_note"`           // Admin notes during appeal approval
-	CompensationAmount      *int          `gorm:"index" json:"compensation_amount"`         // Fuel amount for unban compensation
-	CompensationStatus      *string       `gorm:"size:20" json:"compensation_status"`       // pending/ok/failed
-	CompensationMessage     *string       `gorm:"type:text" json:"compensation_message"`    // Message sent to player
-	CompensationNote        *string       `gorm:"type:text" json:"compensation_note"`       // Failure reason or notes
-	CompensationDate        *time.Time    `gorm:"index" json:"compensation_date"`           // When compensation was issued/attempted
-	CreatedAt               time.Time     `gorm:"not null;autoCreateTime;index" json:"created_at"`
+	ID                  uint       `gorm:"primaryKey;autoIncrement" json:"id"`
+	EventType           string     `gorm:"not null;size:50;index" json:"event_type"` // "detection", "sanction", "appeal", "review", "revoke"
+	RoomID              string     `gorm:"size:50;index" json:"room_id"`
+	PlayerUID           uint       `gorm:"index" json:"player_uid"`
+	OperatorUID         *uint      `gorm:"index" json:"operator_uid"` // 操作人(审核人或系统)
+	RiskScoreID         *uint      `json:"risk_score_id"`
+	SanctionID          *uint      `json:"sanction_id"`
+	AppealID            *uint      `json:"appeal_id"`
+	RiskScore           *float64   `json:"risk_score"`
+	ReplayID            string     `gorm:"size:100;index" json:"replay_id"`
+	GameHistoryID       uint       `gorm:"index" json:"game_history_id"`
+	OperationIndex      int        `json:"operation_index"`
+	OperationTimestamp  *time.Time `json:"operation_timestamp"`
+	PrimaryEvidence     JSON       `gorm:"type:json" json:"primary_evidence,omitempty"`
+	RelatedEvidence     JSON       `gorm:"type:json" json:"related_evidence,omitempty"`
+	SuggestedAction     string     `gorm:"size:30" json:"suggested_action"`
+	IndicatorDetails    JSON       `gorm:"type:json" json:"indicator_details,omitempty"`
+	ReportContribution  JSON       `gorm:"type:json" json:"report_contribution,omitempty"`
+	SanctionType        string     `gorm:"size:20" json:"sanction_type"`
+	OldStatus           string     `gorm:"size:50" json:"old_status"`
+	NewStatus           string     `gorm:"size:50" json:"new_status"`
+	OldDecision         string     `gorm:"size:50" json:"old_decision"`
+	NewDecision         string     `gorm:"size:50" json:"new_decision"`
+	Details             JSON       `gorm:"type:json" json:"details"`
+	Remark              string     `gorm:"type:text" json:"remark"`
+	ApprovalNote        *string    `gorm:"type:text" json:"approval_note"`        // Admin notes during appeal approval
+	CompensationAmount  *int       `gorm:"index" json:"compensation_amount"`      // Fuel amount for unban compensation
+	CompensationStatus  *string    `gorm:"size:20" json:"compensation_status"`    // pending/ok/failed
+	CompensationMessage *string    `gorm:"type:text" json:"compensation_message"` // Message sent to player
+	CompensationNote    *string    `gorm:"type:text" json:"compensation_note"`    // Failure reason or notes
+	CompensationDate    *time.Time `gorm:"index" json:"compensation_date"`        // When compensation was issued/attempted
+	CreatedAt           time.Time  `gorm:"not null;autoCreateTime;index" json:"created_at"`
 }
 
 func (CheatAuditLog) TableName() string {
@@ -559,4 +612,3 @@ type FuelCompensationRecord struct {
 func (FuelCompensationRecord) TableName() string {
 	return "fuel_compensation_records"
 }
-

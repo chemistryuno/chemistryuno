@@ -25,10 +25,10 @@ func NewSanctionDecider(config *RiskScoringConfig, repo *repository.CheatReposit
 
 // Decision 处罚决策
 type Decision struct {
-	SanctionType string    // "none", "observe", "warning", "mute", "ban"
-	RiskScore    float64
-	Reason       string
-	Duration     *int       // 处罚时长(分钟)
+	SanctionType   string // "none", "observe", "warning", "mute", "ban"
+	RiskScore      float64
+	Reason         string
+	Duration       *int       // 处罚时长(分钟)
 	EffectiveUntil *time.Time // 处罚有效期
 }
 
@@ -86,15 +86,22 @@ func (sd *SanctionDecider) ApplySanction(decision *Decision, roomID string, play
 	}
 
 	sanction := &database.CheatSanction{
-		RoomID:      roomID,
-		PlayerUID:   playerUID,
-		RiskScoreID: riskScoreID,
-		SanctionType: decision.SanctionType,
-		RiskScore:   decision.RiskScore,
-		Reason:      decision.Reason,
-		Duration:    decision.Duration,
+		RoomID:         roomID,
+		PlayerUID:      playerUID,
+		RiskScoreID:    riskScoreID,
+		SanctionType:   decision.SanctionType,
+		RiskScore:      decision.RiskScore,
+		Reason:         decision.Reason,
+		Duration:       decision.Duration,
 		EffectiveUntil: decision.EffectiveUntil,
-		Status:      "active",
+		Status:         "active",
+	}
+	if sd.repository != nil && riskScoreID > 0 {
+		if score, err := sd.repository.GetRiskScoreByID(riskScoreID); err == nil && score != nil {
+			sanction.ReplayID = score.ReplayID
+			sanction.GameHistoryID = score.GameHistoryID
+			sanction.PrimaryEvidence = score.PrimaryEvidence
+		}
 	}
 
 	// 保存到数据库

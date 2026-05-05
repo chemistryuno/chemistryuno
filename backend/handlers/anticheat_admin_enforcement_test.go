@@ -89,6 +89,75 @@ func TestAnticheatPanelBanWritesAuditLog(t *testing.T) {
 	}
 }
 
+func TestAnticheatPanelBanRetainsRiskEvidence(t *testing.T) {
+	router, db := setupAdminEnforcementTest(t)
+	repo := repository.NewCheatRepository(db)
+	primary := anticheat.MarshalReplayEvidenceAnchor(database.ReplayEvidenceAnchor{
+		RoomID:           "room-evidence",
+		GameHistoryID:    77,
+		ReplayID:         "77",
+		EventIndex:       3,
+		EventID:          "evt-3",
+		EventType:        "play_card",
+		PlayerUID:        1001,
+		EventTimestampMs: 1710000000000,
+		ActionSummary:    "played H2O",
+	})
+	related := anticheat.MarshalReplayEvidenceAnchors([]database.ReplayEvidenceAnchor{{
+		RoomID:        "room-evidence",
+		GameHistoryID: 77,
+		ReplayID:      "77",
+		EventIndex:    3,
+		EventID:       "evt-3",
+		EventType:     "play_card",
+		PlayerUID:     1001,
+	}})
+	score := database.CheatRiskScore{
+		RoomID:          "room-evidence",
+		PlayerUID:       1001,
+		ReplayID:        "77",
+		GameHistoryID:   77,
+		OperationIndex:  3,
+		PrimaryEvidence: primary,
+		RelatedEvidence: related,
+		RiskScore:       91,
+	}
+	if err := repo.SaveRiskScore(&score); err != nil {
+		t.Fatalf("save source risk score: %v", err)
+	}
+
+	body := map[string]any{
+		"player_uid":    1001,
+		"banned_until":  time.Now().Add(2 * time.Hour).Format(time.RFC3339),
+		"reason":        "manual evidence enforcement",
+		"risk_score_id": score.ID,
+	}
+	payload, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPost, "/api/admin/anticheat/ban", bytes.NewReader(payload))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected ban success, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var sanction database.CheatSanction
+	if err := db.Where("risk_score_id = ? AND sanction_type = ?", score.ID, "ban").First(&sanction).Error; err != nil {
+		t.Fatalf("load evidence sanction: %v", err)
+	}
+	if sanction.ReplayID != "77" || sanction.GameHistoryID != 77 || len(sanction.PrimaryEvidence) == 0 {
+		t.Fatalf("expected sanction to retain replay evidence, got replay=%q history=%d evidence=%s", sanction.ReplayID, sanction.GameHistoryID, string(sanction.PrimaryEvidence))
+	}
+
+	var audit database.CheatAuditLog
+	if err := db.Where("risk_score_id = ? AND event_type = ?", score.ID, "ban").First(&audit).Error; err != nil {
+		t.Fatalf("load evidence audit: %v", err)
+	}
+	if audit.ReplayID != "77" || audit.GameHistoryID != 77 || len(audit.PrimaryEvidence) == 0 || len(audit.RelatedEvidence) == 0 {
+		t.Fatalf("expected audit to retain replay evidence, got replay=%q history=%d primary=%s related=%s", audit.ReplayID, audit.GameHistoryID, string(audit.PrimaryEvidence), string(audit.RelatedEvidence))
+	}
+}
+
 func TestAnticheatPanelUnbanWritesAuditLog(t *testing.T) {
 	router, db := setupAdminEnforcementTest(t)
 	bannedUntil := time.Now().Add(2 * time.Hour)

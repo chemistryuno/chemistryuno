@@ -31,6 +31,12 @@ const replayStartIndexQuery = computed(() => {
   }
   return Math.floor(raw)
 })
+const replayAnchorQuery = computed(() => ({
+  eventIndex: Number(route.query.event_index || 0),
+  eventID: String(route.query.event_id || '').trim(),
+  timestampMs: Number(route.query.timestamp_ms || 0),
+  uid: Number(route.query.uid || 0),
+}))
 const isReplayBridgeMode = computed(() => Number.isFinite(replayHistoryQueryID.value) && replayHistoryQueryID.value > 0)
 const isReplayRoomPath = computed(() => String(id) === 'replay')
 const replayScopeAdmin = computed(() => String(route.query.scope || '') === 'admin')
@@ -525,7 +531,12 @@ const handleReportPlayer = async (player: any) => {
   if (!reason) return
   
   try {
-    await authAPI.submitFeedback(`举报用户: ${displayName} (UID: ${player.uid})\n原因: ${reason}`, 'report')
+    const replayAnchor = currentReplayEvidenceAnchor(Number(player.uid))
+    await authAPI.submitFeedback(`举报用户: ${displayName} (UID: ${player.uid})\n原因: ${reason}`, 'report', replayAnchor ? {
+      room_id: replayAnchor.room_id,
+      reported_uid: Number(player.uid),
+      replay_anchor: replayAnchor,
+    } : undefined)
     showToast('举报已提交，系统正在量子分析中。', '已收到报告', 'success')
   } catch (err: any) {
     showToast(err.response?.data?.error || '无法建立举报链路', '网络干扰', 'error')
@@ -1142,6 +1153,8 @@ const generateTutorialHint = () => {
 }
 
 const parseReplayTimestampMs = (event: any): number | null => {
+  const unixMs = Number(event?.unix_ms || 0)
+  if (Number.isFinite(unixMs) && unixMs > 0) return unixMs
   const timeStr = event?.at || event?.timestamp
   if (!timeStr) return null
   const normalized = String(timeStr).includes('T') ? String(timeStr) : String(timeStr).replace(' ', 'T')
@@ -1155,6 +1168,8 @@ const normalizeReplayEvents = (events: any[]) => {
       ...event,
       __index: index,
       __type: event?.type || event?.event || '',
+      __eventIndex: Number(event?.event_index || 0) || index + 1,
+      __eventID: String(event?.event_id || ''),
       __actorUID: Number(event?.actor_uid ?? event?.uid ?? 0),
       __payload: event?.payload || {},
       __timeMs: parseReplayTimestampMs(event)
@@ -1166,6 +1181,10 @@ const normalizeReplayEvents = (events: any[]) => {
       if (a.__timeMs !== b.__timeMs) return a.__timeMs - b.__timeMs
       return a.__index - b.__index
     })
+    .map((event: any, sortedIndex: number) => ({
+      ...event,
+      __sortedIndex: sortedIndex,
+    }))
 }
 
 const resolveReplayCardKeyFromObject = (card: any) => {
@@ -1396,6 +1415,22 @@ const normalizeReplaySeekIndex = (targetIndex: number) => {
     return 0
   }
   return Math.max(0, Math.min(Math.floor(targetIndex), replayEvents.value.length))
+}
+
+const findReplayStartIndexFromAnchor = (events: any[]) => {
+  const query = replayAnchorQuery.value
+  if (!(query.eventIndex > 0) && !query.eventID && !(query.timestampMs > 0)) {
+    return replayStartIndexQuery.value
+  }
+  const matched = events.find((event: any) => {
+    if (query.eventID && event.__eventID === query.eventID) return true
+    if (query.eventIndex > 0 && Number(event.__eventIndex || event.__index + 1) === query.eventIndex) return true
+    if (query.timestampMs > 0 && Number(event.__timeMs || 0) === query.timestampMs) return true
+    return false
+  })
+  if (!matched) return replayStartIndexQuery.value
+  const sortedIndex = Number(matched.__sortedIndex)
+  return Number.isFinite(sortedIndex) && sortedIndex >= 0 ? sortedIndex : replayStartIndexQuery.value
 }
 
 const seekReplayToIndex = (targetIndex: number) => {
@@ -1662,6 +1697,37 @@ const restartReplayPlayback = (startIndex = 0) => {
   startReplayPlayback(true, startIndex)
 }
 
+const currentReplayEvidenceAnchor = (reportedUID?: number) => {
+  if (!isReplayBridgeMode.value) return null
+  const currentIndex = Math.max(0, Math.min(replayPlaybackIndex.value - 1, replayEvents.value.length - 1))
+  const event = replayEvents.value[currentIndex]
+  if (!event) {
+    return {
+      room_id: undefined,
+      game_history_id: replayHistoryQueryID.value,
+      replay_id: String(replayHistoryQueryID.value),
+      event_index: replayAnchorQuery.value.eventIndex || undefined,
+      event_id: replayAnchorQuery.value.eventID || undefined,
+      event_timestamp_ms: replayAnchorQuery.value.timestampMs || undefined,
+      player_uid: reportedUID || replayAnchorQuery.value.uid || undefined,
+      evidence_precision: replayAnchorQuery.value.eventIndex || replayAnchorQuery.value.eventID || replayAnchorQuery.value.timestampMs ? 'operation' : 'room',
+      action_summary: 'replay report',
+    }
+  }
+  return {
+    room_id: roomInfo.value?.id === `replay-${replayHistoryQueryID.value}` ? undefined : roomInfo.value?.id,
+    game_history_id: replayHistoryQueryID.value,
+    replay_id: String(replayHistoryQueryID.value),
+    event_index: Number(event.__eventIndex || event.__index + 1),
+    event_id: event.__eventID || undefined,
+    event_type: event.__type || undefined,
+    player_uid: reportedUID || Number(event.__actorUID || 0) || undefined,
+    event_timestamp_ms: Number(event.__timeMs || 0) || undefined,
+    action_summary: event.action_summary || event.__type || 'replay report',
+    evidence_precision: 'operation',
+  }
+}
+
 const loadReplaySimulationState = async () => {
   loading.value = true
   loadError.value = null
@@ -1789,7 +1855,7 @@ const loadReplaySimulationState = async () => {
     }
 
     replayEvents.value = normalizedReplayEvents
-    restartReplayPlayback(replayStartIndexQuery.value)
+    restartReplayPlayback(findReplayStartIndexFromAnchor(normalizedReplayEvents))
   } catch (error: any) {
     console.error('[GameRoom] 加载回放模拟失败:', error)
     loadError.value = error?.response?.data?.error || error?.message || '回放模拟加载失败'
@@ -3881,7 +3947,7 @@ watch(() => gameState.value?.current_player, () => {
                      >
                        <UserPlus class="w-2.5 h-2.5" />
                      </button>
-                     <button v-if="Number(player.uid) !== Number(user.uid) && !isReplayBridgeMode"
+                     <button v-if="Number(player.uid) !== Number(user.uid) && (!isReplayBridgeMode || Number(player.uid) > 0)"
                              @click.stop="handleReportPlayer(player)"
                              :class="cn('p-0.5 rounded-md transition-all active:scale-90', gameState?.current_player === index ? 'bg-white/20 text-white' : 'bg-slate-200/50 dark:bg-white/5 text-slate-500')"
                      >

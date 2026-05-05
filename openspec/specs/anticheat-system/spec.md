@@ -83,3 +83,58 @@ The system SHALL persist compensation metadata in audit trail.
 - **AND** supports filtering by compensation_status
 - **AND** CSV export includes all compensation columns
 
+### Requirement: Risk indicators map to replay evidence anchors
+The anticheat system SHALL persist replay evidence anchors for each risk score and each contributing risk indicator.
+
+#### Scenario: Risk score is created with operation evidence
+- **WHEN** the anticheat engine creates a risk score for a player in a room
+- **THEN** the risk record includes a primary replay evidence anchor
+- **AND** each indicator detail includes its own replay evidence anchor or a documented room-level evidence anchor
+- **AND** the primary anchor points to the highest-risk operation when multiple operations contributed
+
+#### Scenario: Risk score includes multiple suspicious operations
+- **WHEN** several replay operations contribute to one player's risk score
+- **THEN** the system stores all related replay evidence anchors in the indicator details
+- **AND** the detection detail API returns those anchors in event order or contribution order
+
+### Requirement: Anticheat API exposes replay evidence for review
+The anticheat system SHALL expose replay evidence anchors through admin-facing detection, report, sanction, appeal, and audit APIs.
+
+#### Scenario: Admin queries detection detail
+- **WHEN** admin calls the detection detail endpoint for a risk record
+- **THEN** the response includes the primary replay anchor
+- **AND** includes indicator-level replay anchors with score contribution and explanation
+- **AND** includes a replay navigation URL or enough route parameters for the frontend to build one
+
+#### Scenario: Appeal entry reads anticheat evidence rooms
+- **WHEN** the player appeal entry endpoint builds the locked room list
+- **THEN** it uses rooms from the latest anticheat evidence chain
+- **AND** preserves the replay evidence references for admin-side appeal review
+
+### Requirement: Reports contribute to risk only with evidence binding
+The anticheat system SHALL include player report signals in risk scoring only when the report has a valid evidence binding.
+
+#### Scenario: Valid report contributes to risk
+- **WHEN** a player report has a validated replay evidence anchor
+- **THEN** the report can contribute to the risk score according to configured report weight and deduplication policy
+- **AND** the contribution records the report anchor and report source summary
+
+#### Scenario: Unbound report is stored outside risk scoring
+- **WHEN** a report does not have a valid replay evidence anchor
+- **THEN** the system may store it as general feedback or moderation context
+- **AND** it MUST NOT increase the anticheat risk score
+
+### Requirement: Anticheat system is testable as a discovery-to-disposal flow
+The anticheat system SHALL expose stable behavior that can be verified by automated tests from cheat discovery through punishment and appeal entry.
+
+#### Scenario: Automated test creates full anticheat flow
+- **WHEN** an automated test initializes the anticheat system with deterministic test configuration
+- **THEN** the test can create a high-risk detection
+- **AND** process the detection through admin APIs
+- **AND** verify sanction, audit, ban status, and appeal entry outcomes without external services
+
+#### Scenario: Test fixture does not depend on real time instability
+- **WHEN** the anticheat flow test builds its cheating fixture
+- **THEN** the fixture uses fixed timestamps, fixed risk inputs, and deterministic thresholds
+- **AND** the expected result does not depend on wall-clock race conditions
+

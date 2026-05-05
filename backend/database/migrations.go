@@ -35,6 +35,21 @@ func MigrateCheatTables(db *gorm.DB) error {
 	if err := db.Migrator().CreateIndex(&CheatRiskScore{}, "player_uid"); err != nil {
 		log.Printf("Warning: Failed to create index on CheatRiskScore.player_uid: %v", err)
 	}
+	if err := db.Migrator().CreateIndex(&CheatRiskScore{}, "replay_id"); err != nil {
+		log.Printf("Warning: Failed to create index on CheatRiskScore.replay_id: %v", err)
+	}
+	if err := db.Migrator().CreateIndex(&CheatRiskScore{}, "game_history_id"); err != nil {
+		log.Printf("Warning: Failed to create index on CheatRiskScore.game_history_id: %v", err)
+	}
+	if err := db.Migrator().CreateIndex(&CheatRiskScore{}, "suggested_action"); err != nil {
+		log.Printf("Warning: Failed to create index on CheatRiskScore.suggested_action: %v", err)
+	}
+	if err := db.Migrator().CreateIndex(&CheatRiskScore{}, "review_status"); err != nil {
+		log.Printf("Warning: Failed to create index on CheatRiskScore.review_status: %v", err)
+	}
+	if err := db.Migrator().CreateIndex(&CheatRiskScore{}, "punishment_decision"); err != nil {
+		log.Printf("Warning: Failed to create index on CheatRiskScore.punishment_decision: %v", err)
+	}
 
 	if err := db.Migrator().CreateIndex(&CheatSanction{}, "player_uid"); err != nil {
 		log.Printf("Warning: Failed to create index on CheatSanction.player_uid: %v", err)
@@ -42,12 +57,24 @@ func MigrateCheatTables(db *gorm.DB) error {
 	if err := db.Migrator().CreateIndex(&CheatSanction{}, "sanction_type"); err != nil {
 		log.Printf("Warning: Failed to create index on CheatSanction.sanction_type: %v", err)
 	}
+	if err := db.Migrator().CreateIndex(&CheatSanction{}, "replay_id"); err != nil {
+		log.Printf("Warning: Failed to create index on CheatSanction.replay_id: %v", err)
+	}
+	if err := db.Migrator().CreateIndex(&CheatSanction{}, "game_history_id"); err != nil {
+		log.Printf("Warning: Failed to create index on CheatSanction.game_history_id: %v", err)
+	}
 
 	if err := db.Migrator().CreateIndex(&CheatAppeal{}, "player_uid"); err != nil {
 		log.Printf("Warning: Failed to create index on CheatAppeal.player_uid: %v", err)
 	}
 	if err := db.Migrator().CreateIndex(&CheatAppeal{}, "status"); err != nil {
 		log.Printf("Warning: Failed to create index on CheatAppeal.status: %v", err)
+	}
+	if err := db.Migrator().CreateIndex(&CheatAppeal{}, "replay_id"); err != nil {
+		log.Printf("Warning: Failed to create index on CheatAppeal.replay_id: %v", err)
+	}
+	if err := db.Migrator().CreateIndex(&CheatAppeal{}, "game_history_id"); err != nil {
+		log.Printf("Warning: Failed to create index on CheatAppeal.game_history_id: %v", err)
 	}
 
 	if err := db.Migrator().CreateIndex(&CheatAuditLog{}, "event_type"); err != nil {
@@ -65,10 +92,16 @@ func MigrateCheatTables(db *gorm.DB) error {
 	if err := db.Migrator().CreateIndex(&CheatAuditLog{}, "compensation_date"); err != nil {
 		log.Printf("Warning: Failed to create index on CheatAuditLog.compensation_date: %v", err)
 	}
+	if err := db.Migrator().CreateIndex(&CheatAuditLog{}, "replay_id"); err != nil {
+		log.Printf("Warning: Failed to create index on CheatAuditLog.replay_id: %v", err)
+	}
+	if err := db.Migrator().CreateIndex(&CheatAuditLog{}, "game_history_id"); err != nil {
+		log.Printf("Warning: Failed to create index on CheatAuditLog.game_history_id: %v", err)
+	}
 
-	// Auto-migrate to add new compensation columns if they don't exist
-	if err := db.Migrator().AutoMigrate(&CheatAuditLog{}); err != nil {
-		log.Printf("Warning: Auto-migration for CheatAuditLog failed: %v", err)
+	// Auto-migrate to add new evidence, appeal and audit columns if they don't exist.
+	if err := db.Migrator().AutoMigrate(&CheatRiskScore{}, &CheatSanction{}, &CheatAppeal{}, &CheatAuditLog{}); err != nil {
+		log.Printf("Warning: Auto-migration for anticheat evidence columns failed: %v", err)
 	}
 
 	log.Println("Anticheat migrations completed successfully")

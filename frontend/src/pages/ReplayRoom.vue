@@ -16,6 +16,7 @@ const loadError = ref('')
 const selectedPerspectiveUID = ref<number | null>(null)
 const focusPerspectiveOnly = ref(false)
 const replayViewMode = ref<'game' | 'timeline'>('timeline')
+const eventRowRefs = ref<Record<string, HTMLElement>>({})
 
 const OPERATION_FAST_THRESHOLD_MS = 3000
 const operationEventTypes = new Set(['play_card', 'double_play', 'draw_card'])
@@ -136,6 +137,9 @@ const historyId = computed(() => {
 
 const switchToGameView = (startIndex?: number | null) => {
   if (!historyId.value) return
+  const resolvedStartIndex = startIndex != null && Number.isFinite(startIndex)
+    ? startIndex
+    : requestedReplayStartIndex.value
   if (isGameRoomReplayRoute.value && (startIndex == null || !Number.isFinite(startIndex))) {
     replayViewMode.value = 'game'
     return
@@ -143,9 +147,13 @@ const switchToGameView = (startIndex?: number | null) => {
 
   const query = new URLSearchParams()
   query.set('replay_history_id', String(historyId.value))
-  if (startIndex != null && Number.isFinite(startIndex) && startIndex >= 0) {
-    query.set('replay_start_index', String(Math.floor(startIndex)))
+  if (resolvedStartIndex != null && Number.isFinite(resolvedStartIndex) && resolvedStartIndex >= 0) {
+    query.set('replay_start_index', String(Math.floor(resolvedStartIndex)))
   }
+  if (route.query.event_index) query.set('event_index', String(route.query.event_index))
+  if (route.query.event_id) query.set('event_id', String(route.query.event_id))
+  if (route.query.timestamp_ms) query.set('timestamp_ms', String(route.query.timestamp_ms))
+  if (route.query.uid) query.set('uid', String(route.query.uid))
   if (useAdminScope.value) {
     query.set('scope', 'admin')
   }
@@ -194,6 +202,18 @@ const parseReplayTimeMs = (timeLike: any) => {
   return Number.isFinite(ms) ? ms : null
 }
 
+const readPositiveNumberQuery = (key: string) => {
+  const raw = Number(route.query[key] || 0)
+  return Number.isFinite(raw) && raw > 0 ? raw : 0
+}
+
+const requestedReplayAnchor = computed(() => ({
+  eventIndex: readPositiveNumberQuery('event_index'),
+  eventID: String(route.query.event_id || '').trim(),
+  timestampMs: readPositiveNumberQuery('timestamp_ms'),
+  uid: readPositiveNumberQuery('uid')
+}))
+
 const events = computed(() => {
   const rawEvents = replayData.value?.replay?.events
   if (!Array.isArray(rawEvents)) {
@@ -202,13 +222,19 @@ const events = computed(() => {
 
   const normalizedEvents = rawEvents.map((evt: any, index: number) => {
     const at = evt?.at || evt?.timestamp || ''
+    const unixMs = Number(evt?.unix_ms || 0)
+    const parsedAtMs = parseReplayTimeMs(at)
     return {
       ...evt,
       __index: index,
       eventType: evt?.type || evt?.event || '',
+      eventIndex: Number(evt?.event_index || 0) || index + 1,
+      eventID: String(evt?.event_id || ''),
       actorUID: Number(evt?.actor_uid ?? evt?.uid ?? 0),
       at,
-      atMs: parseReplayTimeMs(at),
+      atMs: Number.isFinite(unixMs) && unixMs > 0 ? unixMs : parsedAtMs,
+      unixMs: Number.isFinite(unixMs) && unixMs > 0 ? unixMs : parsedAtMs,
+      actionSummary: evt?.action_summary || '',
       payload: evt?.payload || {}
     }
   })
@@ -258,6 +284,52 @@ const events = computed(() => {
     }
   })
 })
+
+const eventDomKey = (evt: any) => String(evt?.eventID || evt?.eventIndex || evt?.__sortedIndex || evt?.__index || 'event')
+
+const setEventRowRef = (evt: any, el: any) => {
+  const key = eventDomKey(evt)
+  if (el) {
+    eventRowRefs.value[key] = el as HTMLElement
+  } else {
+    delete eventRowRefs.value[key]
+  }
+}
+
+const matchesRequestedAnchor = (evt: any) => {
+  const requested = requestedReplayAnchor.value
+  if (!requested.eventIndex && !requested.eventID && !requested.timestampMs) {
+    return false
+  }
+  if (requested.eventID && evt.eventID === requested.eventID) {
+    return true
+  }
+  if (requested.eventIndex && Number(evt.eventIndex || evt.__index + 1) === requested.eventIndex) {
+    return true
+  }
+  if (requested.timestampMs && Number(evt.unixMs || evt.atMs || 0) === requested.timestampMs) {
+    return true
+  }
+  return false
+}
+
+const requestedReplayEvent = computed(() => events.value.find(matchesRequestedAnchor) || null)
+const requestedReplayStartIndex = computed(() => {
+  const idx = Number(requestedReplayEvent.value?.__sortedIndex)
+  return Number.isFinite(idx) && idx >= 0 ? idx : null
+})
+
+const isFocusedReplayEvent = (evt: any) => {
+  return requestedReplayEvent.value != null && eventDomKey(evt) === eventDomKey(requestedReplayEvent.value)
+}
+
+const scrollFocusedEventIntoView = () => {
+  const focused = requestedReplayEvent.value
+  if (!focused || replayViewMode.value !== 'timeline') return
+  requestAnimationFrame(() => {
+    eventRowRefs.value[eventDomKey(focused)]?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  })
+}
 
 const startReplayFromEvent = (evt: any) => {
   const startIndex = Number(evt?.__sortedIndex)
@@ -432,12 +504,14 @@ const loadReplay = async () => {
 
     replayData.value = response.data
     chooseDefaultPerspective()
+    scrollFocusedEventIntoView()
   } catch (error: any) {
     if (!useAdminScope.value && isAdmin.value) {
       try {
         const fallback = await adminAPI.getGameReplay(historyId.value)
         replayData.value = fallback.data
         chooseDefaultPerspective()
+        scrollFocusedEventIntoView()
         loading.value = false
         return
       } catch {
@@ -497,6 +571,10 @@ const kickFromReplay = async (profile: any) => {
 onMounted(() => {
   lockPageScroll()
   loadReplay()
+})
+
+watch([requestedReplayEvent, replayViewMode], () => {
+  scrollFocusedEventIntoView()
 })
 
 onUnmounted(() => {
@@ -691,7 +769,7 @@ onUnmounted(() => {
                   :key="`game-mode-${evt.at || idx}-${idx}`"
                   :class="cn(
                     'rounded-xl border px-3 py-2',
-                    evt.isFastOperation ? 'border-rose-400/40 bg-rose-500/10' : 'border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5'
+                    isFocusedReplayEvent(evt) ? 'border-cyan-500 bg-cyan-500/10 ring-2 ring-cyan-400/40' : (evt.isFastOperation ? 'border-rose-400/40 bg-rose-500/10' : 'border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5')
                   )"
                 >
                   <div class="flex items-center justify-between gap-2 mb-1">
@@ -738,7 +816,11 @@ onUnmounted(() => {
             <div
               v-for="(evt, idx) in visibleEvents"
               :key="`${evt.at || idx}-${idx}`"
-              class="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-black/20 px-4 py-3"
+              :ref="(el) => setEventRowRef(evt, el)"
+              :class="cn(
+                'rounded-2xl border px-4 py-3',
+                isFocusedReplayEvent(evt) ? 'border-cyan-500 bg-cyan-500/10 ring-2 ring-cyan-400/40' : 'border-slate-200 dark:border-white/10 bg-white dark:bg-black/20'
+              )"
             >
               <div class="flex items-center justify-between gap-3 mb-1">
                 <span class="text-[10px] px-2 py-1 rounded-md bg-slate-100 dark:bg-white/10 text-slate-500 uppercase font-black tracking-wider">{{ formatEventType(evt.eventType) }}</span>

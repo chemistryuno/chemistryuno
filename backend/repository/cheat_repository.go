@@ -2,6 +2,9 @@ package repository
 
 import (
 	"chemistryuno/backend/database"
+	"encoding/json"
+	"errors"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -28,6 +31,21 @@ func NewCheatRepository(db *gorm.DB) *CheatRepository {
 	return &CheatRepository{db: db}
 }
 
+func (cr *CheatRepository) GetUserBanStatus(uid uint) (bannedUntil *time.Time, frozenUntil *time.Time, banReason string, err error) {
+	if !cr.db.Migrator().HasTable(&database.User{}) {
+		return nil, nil, "", nil
+	}
+	var user database.User
+	err = cr.db.Select("banned_until, frozen_until, ban_reason").First(&user, uid).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil, "", nil
+	}
+	if err != nil {
+		return nil, nil, "", err
+	}
+	return user.BannedUntil, user.FrozenUntil, user.BanReason, nil
+}
+
 // SaveRiskScore 保存风险评分
 func (cr *CheatRepository) SaveRiskScore(score *database.CheatRiskScore) error {
 	return cr.db.Create(score).Error
@@ -37,6 +55,26 @@ func (cr *CheatRepository) SaveRiskScore(score *database.CheatRiskScore) error {
 func (cr *CheatRepository) GetRiskScoreByID(id uint) (*database.CheatRiskScore, error) {
 	var score database.CheatRiskScore
 	if err := cr.db.First(&score, id).Error; err != nil {
+		return nil, err
+	}
+	return &score, nil
+}
+
+func (cr *CheatRepository) UpdateRiskScoreReview(id uint, reviewStatus string, punishmentDecision string) error {
+	updates := map[string]interface{}{
+		"review_status": reviewStatus,
+	}
+	if punishmentDecision != "" {
+		updates["punishment_decision"] = punishmentDecision
+	}
+	return cr.db.Model(&database.CheatRiskScore{}).Where("id = ?", id).Updates(updates).Error
+}
+
+func (cr *CheatRepository) GetLatestRiskScoreByPlayer(playerUID uint) (*database.CheatRiskScore, error) {
+	var score database.CheatRiskScore
+	if err := cr.db.Where("player_uid = ?", playerUID).
+		Order("detection_time DESC, created_at DESC, id DESC").
+		First(&score).Error; err != nil {
 		return nil, err
 	}
 	return &score, nil
@@ -68,6 +106,49 @@ func (cr *CheatRepository) GetRiskScoresByRoom(roomID string) ([]database.CheatR
 	return scores, nil
 }
 
+func (cr *CheatRepository) GetGameHistoriesForPlayerSince(playerUID uint, since time.Time) ([]database.GameHistory, error) {
+	if !cr.db.Migrator().HasTable(&database.GameHistory{}) {
+		return nil, nil
+	}
+	var histories []database.GameHistory
+	query := cr.db.Where("(finished_at >= ? OR created_at >= ?)", since, since).
+		Order("finished_at ASC, created_at ASC, id ASC")
+	if err := query.Find(&histories).Error; err != nil {
+		return nil, err
+	}
+
+	result := make([]database.GameHistory, 0, len(histories))
+	for _, history := range histories {
+		if gameHistoryIncludesPlayer(history, playerUID) {
+			result = append(result, history)
+		}
+	}
+	return result, nil
+}
+
+func gameHistoryIncludesPlayer(history database.GameHistory, playerUID uint) bool {
+	if len(history.Players) == 0 {
+		return false
+	}
+	var players []uint
+	if err := json.Unmarshal(history.Players, &players); err == nil {
+		for _, uid := range players {
+			if uid == playerUID {
+				return true
+			}
+		}
+	}
+	var ints []int
+	if err := json.Unmarshal(history.Players, &ints); err == nil {
+		for _, uid := range ints {
+			if uid > 0 && uint(uid) == playerUID {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // SaveSanction 保存处罚记录
 func (cr *CheatRepository) GetCheatDetectedGameHistories(limit int) ([]database.GameHistory, error) {
 	if !cr.db.Migrator().HasTable(&database.GameHistory{}) {
@@ -97,6 +178,54 @@ func (cr *CheatRepository) GetGameHistoryByID(id uint) (*database.GameHistory, e
 	return &history, nil
 }
 
+func (cr *CheatRepository) IsReplayProtected(gameHistoryID uint, roomID string, replayID string) (bool, []string, error) {
+	reasons := []string{}
+	if cr == nil || cr.db == nil {
+		return false, reasons, nil
+	}
+	check := func(model interface{}, label string) error {
+		query := cr.db.Model(model)
+		conditions := []string{}
+		args := []interface{}{}
+		if gameHistoryID > 0 {
+			conditions = append(conditions, "game_history_id = ?")
+			args = append(args, gameHistoryID)
+		}
+		if replayID != "" {
+			conditions = append(conditions, "replay_id = ?")
+			args = append(args, replayID)
+		}
+		if roomID != "" {
+			conditions = append(conditions, "room_id = ?")
+			args = append(args, roomID)
+		}
+		if len(conditions) == 0 {
+			return nil
+		}
+		var count int64
+		if err := query.Where(strings.Join(conditions, " OR "), args...).Count(&count).Error; err != nil {
+			return err
+		}
+		if count > 0 {
+			reasons = append(reasons, label)
+		}
+		return nil
+	}
+	if err := check(&database.CheatRiskScore{}, "risk_score"); err != nil {
+		return false, reasons, err
+	}
+	if err := check(&database.CheatSanction{}, "sanction"); err != nil {
+		return false, reasons, err
+	}
+	if err := check(&database.CheatAppeal{}, "appeal"); err != nil {
+		return false, reasons, err
+	}
+	if err := check(&database.CheatAuditLog{}, "audit"); err != nil {
+		return false, reasons, err
+	}
+	return len(reasons) > 0, reasons, nil
+}
+
 func (cr *CheatRepository) SaveSanction(sanction *database.CheatSanction) error {
 	return cr.db.Create(sanction).Error
 }
@@ -108,6 +237,17 @@ func (cr *CheatRepository) GetSanctionByID(id uint) (*database.CheatSanction, er
 		return nil, err
 	}
 	return &sanction, nil
+}
+
+func (cr *CheatRepository) UpdateSanctionDecision(sanctionID uint, sanctionType string, reason string, duration *int, effectiveUntil *time.Time) error {
+	updates := map[string]interface{}{
+		"sanction_type":   sanctionType,
+		"reason":          reason,
+		"duration":        duration,
+		"effective_until": effectiveUntil,
+		"status":          "active",
+	}
+	return cr.db.Model(&database.CheatSanction{}).Where("id = ?", sanctionID).Updates(updates).Error
 }
 
 // GetActiveSanctionsByPlayer 获取玩家的活跃处罚

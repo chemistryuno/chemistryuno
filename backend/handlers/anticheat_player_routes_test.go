@@ -58,6 +58,62 @@ func setupPlayerAppealHandlerTest(t *testing.T) (*gin.Engine, *gorm.DB) {
 	return router, db
 }
 
+func seedBannedAppealContext(t *testing.T, db *gorm.DB, uid uint, roomID string, riskScoreID uint) {
+	t.Helper()
+	bannedUntil := time.Now().Add(2 * time.Hour)
+	if err := db.AutoMigrate(&database.User{}, &database.GameHistory{}); err != nil {
+		t.Fatalf("migrate appeal context tables: %v", err)
+	}
+	if err := db.Create(&database.User{UID: uid, Username: "appeal-user", BannedUntil: &bannedUntil, BanReason: "anticheat ban"}).Error; err != nil {
+		t.Fatalf("create banned user: %v", err)
+	}
+	score := database.CheatRiskScore{
+		ID:             riskScoreID,
+		RoomID:         roomID,
+		PlayerUID:      uid,
+		ReplayID:       "77",
+		GameHistoryID:  77,
+		OperationIndex: 3,
+		PrimaryEvidence: anticheat.MarshalReplayEvidenceAnchor(database.ReplayEvidenceAnchor{
+			RoomID:           roomID,
+			GameHistoryID:    77,
+			ReplayID:         "77",
+			EventIndex:       3,
+			EventID:          "evt-3",
+			EventType:        "play_card",
+			PlayerUID:        uid,
+			EventTimestampMs: 1710000000000,
+			ActionSummary:    "played H2O",
+		}),
+		RelatedEvidence: anticheat.MarshalReplayEvidenceAnchors([]database.ReplayEvidenceAnchor{{
+			RoomID:        roomID,
+			GameHistoryID: 77,
+			ReplayID:      "77",
+			EventIndex:    3,
+			EventID:       "evt-3",
+			EventType:     "play_card",
+			PlayerUID:     uid,
+		}}),
+		RiskScore:          88,
+		SuggestedAction:    "ban",
+		PunishmentDecision: "ban",
+		ReviewStatus:       "processed",
+		DetectionTime:      time.Now().Add(-time.Minute),
+	}
+	if err := db.Create(&score).Error; err != nil {
+		t.Fatalf("create risk score: %v", err)
+	}
+	players, _ := json.Marshal([]uint{uid})
+	if err := db.Create(&database.GameHistory{
+		RoomID:     roomID,
+		Players:    players,
+		StartedAt:  time.Now().Add(-2 * time.Minute),
+		FinishedAt: time.Now(),
+	}).Error; err != nil {
+		t.Fatalf("create game history: %v", err)
+	}
+}
+
 func TestPlayerAppealsRequireAuthenticatedUID(t *testing.T) {
 	router, _ := setupPlayerAppealHandlerTest(t)
 
@@ -72,6 +128,7 @@ func TestPlayerAppealsRequireAuthenticatedUID(t *testing.T) {
 
 func TestSubmitAppealUsesAuthenticatedUID(t *testing.T) {
 	router, db := setupPlayerAppealHandlerTest(t)
+	seedBannedAppealContext(t, db, 1001, "room-1", 44)
 	body := map[string]any{
 		"player_uid":    9999,
 		"risk_score_id": 44,
@@ -98,6 +155,27 @@ func TestSubmitAppealUsesAuthenticatedUID(t *testing.T) {
 	}
 	if appeal.RoomID != "room-1" || appeal.Status != "pending" {
 		t.Fatalf("unexpected appeal state: room=%q status=%q", appeal.RoomID, appeal.Status)
+	}
+	var roomIDs []string
+	if err := json.Unmarshal(appeal.RoomIDs, &roomIDs); err != nil {
+		t.Fatalf("decode locked room ids: %v", err)
+	}
+	if len(roomIDs) != 1 || roomIDs[0] != "room-1" {
+		t.Fatalf("expected locked room list from server, got %#v", roomIDs)
+	}
+}
+
+func TestSubmitAppealRejectsUnbannedPlayer(t *testing.T) {
+	router, _ := setupPlayerAppealHandlerTest(t)
+	payload, _ := json.Marshal(map[string]any{
+		"reason": "I am not banned.",
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/game/room-1/appeal", bytes.NewReader(payload))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected unbanned appeal to be forbidden, got %d: %s", w.Code, w.Body.String())
 	}
 }
 
@@ -326,6 +404,7 @@ func TestAppealWorkflowSubmitAdminListRejectPlayerHistoryAndAudit(t *testing.T) 
 	if err := database.MigrateCheatTables(db); err != nil {
 		t.Fatalf("migrate cheat tables: %v", err)
 	}
+	seedBannedAppealContext(t, db, 1001, "room-workflow", 77)
 
 	repo := repository.NewCheatRepository(db)
 	userRepo := repository.NewUserRepository(db)
@@ -427,5 +506,12 @@ func TestAppealWorkflowSubmitAdminListRejectPlayerHistoryAndAudit(t *testing.T) 
 	}
 	if auditCount < 2 {
 		t.Fatalf("expected submit and reject audit logs, got %d", auditCount)
+	}
+	var rejectAudit database.CheatAuditLog
+	if err := db.Where("appeal_id = ? AND new_status = ?", submitPayload.Appeal.ID, "rejected").First(&rejectAudit).Error; err != nil {
+		t.Fatalf("load reject audit: %v", err)
+	}
+	if rejectAudit.ReplayID != "77" || rejectAudit.GameHistoryID != 77 || len(rejectAudit.PrimaryEvidence) == 0 || len(rejectAudit.RelatedEvidence) == 0 {
+		t.Fatalf("expected reject audit to retain replay evidence, got replay=%q history=%d primary=%s related=%s", rejectAudit.ReplayID, rejectAudit.GameHistoryID, string(rejectAudit.PrimaryEvidence), string(rejectAudit.RelatedEvidence))
 	}
 }

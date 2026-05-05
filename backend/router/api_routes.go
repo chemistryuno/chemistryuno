@@ -178,6 +178,7 @@ func RegisterAPIRoutes(r *gin.Engine, startTime time.Time, wsHandler gin.Handler
 			// 反作弊系统 - 玩家端统计
 			auth.GET("/player/anticheat/stats", handlers.GetPlayerAnticheatStats)
 			auth.GET("/anticheat/stats", handlers.GetPlayerAnticheatStats)
+			auth.GET("/player/appeals/entry", handlers.GetAppealEntryStatus)
 			auth.GET("/player/appeals", handlers.GetPlayerAppeals)
 			auth.POST("/player/appeals/:id/claim", handlers.ClaimAppealCompensation)
 			auth.GET("/player/sanctions", handlers.GetPlayerSanctions)
@@ -258,6 +259,7 @@ func RegisterAPIRoutes(r *gin.Engine, startTime time.Time, wsHandler gin.Handler
 			admin.GET("/anticheat/detection-list", middleware.AdminMiddleware(), handlers.GetDetectionList)
 			admin.GET("/anticheat/detection/:id", middleware.AdminMiddleware(), handlers.GetDetectionDetail)
 			admin.POST("/anticheat/detection/:id/review", middleware.AdminMiddleware(), handlers.ReviewDetection)
+			admin.POST("/anticheat/detection/:id/punishment", middleware.AdminMiddleware(), handlers.ChangeDetectionPunishment)
 			admin.POST("/anticheat/ban", middleware.AdminMiddleware(), handlers.BanFromAnticheatPanel)
 			admin.POST("/anticheat/unban", middleware.AdminMiddleware(), handlers.UnbanFromAnticheatPanel)
 			admin.GET("/anticheat/appeals", middleware.AdminMiddleware(), handlers.GetAppealsList)

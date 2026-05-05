@@ -87,14 +87,26 @@ func (s *System) ProcessGameEnd(roomID string, playerUID uint, context *Detectio
 
 	// 2. 保存风险分数
 	riskScore := &database.CheatRiskScore{
-		RoomID:          roomID,
-		PlayerUID:       playerUID,
-		RiskScore:       result.RiskScore,
-		ResponseTimeDim: result.Dimensions["response_time"],
-		FrequencyDim:    result.Dimensions["frequency"],
-		WinRateDim:      result.Dimensions["win_rate"],
-		PatternDim:      result.Dimensions["pattern"],
-		AccountAgeDim:   result.Dimensions["account_age"],
+		RoomID:             roomID,
+		PlayerUID:          playerUID,
+		ReplayID:           result.ReplayID,
+		GameHistoryID:      result.GameHistoryID,
+		OperationIndex:     result.OperationIndex,
+		OperationTimestamp: result.OperationTimestamp,
+		PrimaryEvidence:    MarshalReplayEvidenceAnchor(result.PrimaryEvidence),
+		RelatedEvidence:    MarshalReplayEvidenceAnchors(result.RelatedEvidence),
+		RiskScore:          result.RiskScore,
+		ResponseTimeDim:    result.Dimensions["response_time"],
+		FrequencyDim:       result.Dimensions["frequency"],
+		WinRateDim:         result.Dimensions["win_rate"],
+		PatternDim:         result.Dimensions["pattern"],
+		AccountAgeDim:      result.Dimensions["account_age"],
+		ReportContribution: riskJSONReport(result),
+		IndicatorDetails:   riskJSONIndicators(result),
+		SuggestedAction:    result.SuggestedAction,
+		SuggestionReason:   result.SuggestionReason,
+		ReviewStatus:       "pending",
+		PunishmentDecision: result.SanctionType,
 	}
 
 	if err := s.Repository.SaveRiskScore(riskScore); err != nil {
@@ -103,7 +115,7 @@ func (s *System) ProcessGameEnd(roomID string, playerUID uint, context *Detectio
 	}
 
 	// 3. 记录审计日志
-	if err := s.AuditLogger.LogDetection(roomID, playerUID, riskScore.ID, result.RiskScore, result.Dimensions); err != nil {
+	if err := s.AuditLogger.LogDetectionEvidence(roomID, playerUID, riskScore.ID, result); err != nil {
 		log.Printf("[反作弊] 记录审计日志失败: %v", err)
 	}
 
@@ -132,6 +144,20 @@ func (s *System) ProcessGameEnd(roomID string, playerUID uint, context *Detectio
 	}
 
 	return result, decision, nil
+}
+
+func riskJSONIndicators(result *RiskScoringResult) database.JSON {
+	if result == nil {
+		return nil
+	}
+	return MarshalIndicatorDetails(result.IndicatorDetails)
+}
+
+func riskJSONReport(result *RiskScoringResult) database.JSON {
+	if result == nil {
+		return nil
+	}
+	return MarshalReportContribution(result.ReportContribution)
 }
 
 // GetPlayerStats 获取玩家的反作弊统计信息

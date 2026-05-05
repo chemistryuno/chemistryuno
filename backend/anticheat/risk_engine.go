@@ -1,6 +1,8 @@
 package anticheat
 
 import (
+	"chemistryuno/backend/database"
+	"encoding/json"
 	"log"
 	"sync"
 	"time"
@@ -16,6 +18,14 @@ type DetectionStrategy interface {
 type DetectionContext struct {
 	PlayerUID       int
 	RoomID          string
+	ReplayID        string
+	GameHistoryID   uint
+	OperationIndex  int
+	PrimaryEvidence ReplayEvidenceAnchor
+	RelatedEvidence []ReplayEvidenceAnchor
+	ReportEvidence  []ReplayEvidenceAnchor
+	ReportCount     int
+	ReportSummary   string
 	ResponseTimes   []int64       // 响应时间列表(毫秒)
 	OperationCount  int           // 操作总数
 	TimestampOffset time.Duration // 时间窗口大小
@@ -73,10 +83,40 @@ type SanctionThresholds struct {
 
 // RiskScoringResult 风险评分结果
 type RiskScoringResult struct {
-	RiskScore    float64
-	Dimensions   map[string]float64
-	SanctionType string // "none", "observe", "warning", "mute", "ban"
-	Timestamp    time.Time
+	RiskScore          float64
+	Dimensions         map[string]float64
+	IndicatorDetails   []RiskIndicatorDetail
+	ReportContribution ReportContribution
+	SanctionType       string // "none", "observe", "warning", "mute", "ban"
+	SuggestedAction    string
+	SuggestionReason   string
+	ReplayID           string
+	GameHistoryID      uint
+	OperationIndex     int
+	OperationTimestamp *time.Time
+	PrimaryEvidence    ReplayEvidenceAnchor
+	RelatedEvidence    []ReplayEvidenceAnchor
+	Timestamp          time.Time
+}
+
+// RiskIndicatorDetail snapshots one scoring signal for later review.
+type RiskIndicatorDetail struct {
+	Name            string  `json:"name"`
+	RawValue        float64 `json:"raw_value"`
+	NormalizedScore float64 `json:"normalized_score"`
+	Weight          float64 `json:"weight"`
+	Contribution    float64 `json:"contribution"`
+	Explanation     string  `json:"explanation"`
+	EvidenceAnchors []ReplayEvidenceAnchor `json:"evidence_anchors,omitempty"`
+}
+
+// ReportContribution captures the report signal used in the risk score.
+type ReportContribution struct {
+	DeduplicatedCount int     `json:"deduplicated_count"`
+	Weight            float64 `json:"weight"`
+	Contribution      float64 `json:"contribution"`
+	SourceSummary     string  `json:"source_summary"`
+	EvidenceAnchors   []ReplayEvidenceAnchor `json:"evidence_anchors,omitempty"`
 }
 
 // NewRiskScoringEngine 创建风险评分引擎
@@ -120,15 +160,18 @@ func (rse *RiskScoringEngine) CalculateRiskScore(context *DetectionContext) (*Ri
 	rse.strategyLock.RUnlock()
 
 	result := &RiskScoringResult{
-		RiskScore:  0,
-		Dimensions: make(map[string]float64),
-		Timestamp:  time.Now(),
+		RiskScore:       0,
+		Dimensions:      make(map[string]float64),
+		PrimaryEvidence: EvidenceAnchorFromContext(context),
+		RelatedEvidence: append([]ReplayEvidenceAnchor(nil), context.RelatedEvidence...),
+		Timestamp:       time.Now(),
 	}
 
 	rse.configLock.RLock()
 	defer rse.configLock.RUnlock()
 
 	totalWeight := 0.0
+	weightedTotal := 0.0
 	for _, strategy := range strategies {
 		score, err := strategy.Detect(context)
 		if err != nil {
@@ -148,27 +191,101 @@ func (rse *RiskScoringEngine) CalculateRiskScore(context *DetectionContext) (*Ri
 		}
 
 		result.Dimensions[strategy.Name()] = score
-		result.RiskScore += score * weight
+		contribution := score * weight
+		weightedTotal += contribution
 		totalWeight += weight
+		result.IndicatorDetails = append(result.IndicatorDetails, RiskIndicatorDetail{
+			Name:            strategy.Name(),
+			RawValue:        score,
+			NormalizedScore: clampRiskScore(score),
+			Weight:          weight,
+			Contribution:    contribution,
+			Explanation:     "in-game collected signal",
+			EvidenceAnchors: []ReplayEvidenceAnchor{result.PrimaryEvidence},
+		})
+	}
+
+	if context.ReportCount > 0 {
+		reportWeight := 0.10
+		reportScore := clampRiskScore(float64(context.ReportCount) * 12.5)
+		contribution := reportScore * reportWeight
+		weightedTotal += contribution
+		totalWeight += reportWeight
+		summary := context.ReportSummary
+		if summary == "" {
+			summary = "deduplicated player reports"
+		}
+		result.ReportContribution = ReportContribution{
+			DeduplicatedCount: context.ReportCount,
+			Weight:            reportWeight,
+			Contribution:      contribution,
+			SourceSummary:     summary,
+			EvidenceAnchors:   context.ReportEvidence,
+		}
+		reportAnchors := context.ReportEvidence
+		if len(reportAnchors) == 0 {
+			reportAnchors = []ReplayEvidenceAnchor{result.PrimaryEvidence}
+		}
+		result.IndicatorDetails = append(result.IndicatorDetails, RiskIndicatorDetail{
+			Name:            "player_reports",
+			RawValue:        float64(context.ReportCount),
+			NormalizedScore: reportScore,
+			Weight:          reportWeight,
+			Contribution:    contribution,
+			Explanation:     summary,
+			EvidenceAnchors: reportAnchors,
+		})
 	}
 
 	// 归一化到 0-100
 	if totalWeight > 0 {
-		result.RiskScore = (result.RiskScore / totalWeight)
+		result.RiskScore = weightedTotal / totalWeight
 	}
 
-	// 限制在 0-100 范围内
-	if result.RiskScore > 100 {
-		result.RiskScore = 100
-	}
-	if result.RiskScore < 0 {
-		result.RiskScore = 0
-	}
+	result.RiskScore = clampRiskScore(result.RiskScore)
 
 	// 确定处罚类型
 	result.SanctionType = rse.determineSanctionType(result.RiskScore)
+	result.SuggestedAction = result.SanctionType
+	result.SuggestionReason = rse.suggestionReason(result.RiskScore, result.SanctionType)
+	result.ReplayID = context.ReplayID
+	if result.ReplayID == "" {
+		result.ReplayID = context.RoomID
+	}
+	result.GameHistoryID = context.GameHistoryID
+	result.OperationIndex = context.OperationIndex
+	if result.OperationIndex <= 0 && len(context.OperationTimes) > 0 {
+		result.OperationIndex = len(context.OperationTimes)
+	}
+	if len(context.OperationTimes) > 0 {
+		ts := context.OperationTimes[len(context.OperationTimes)-1]
+		result.OperationTimestamp = &ts
+	}
+	if result.PrimaryEvidence.ReplayID == "" {
+		result.PrimaryEvidence.ReplayID = result.ReplayID
+	}
+	if result.PrimaryEvidence.EventIndex == 0 {
+		result.PrimaryEvidence.EventIndex = result.OperationIndex
+	}
+	if result.PrimaryEvidence.GameHistoryID == 0 {
+		result.PrimaryEvidence.GameHistoryID = result.GameHistoryID
+	}
+	result.PrimaryEvidence = NormalizeReplayEvidenceAnchor(result.PrimaryEvidence)
+	if len(result.RelatedEvidence) == 0 {
+		result.RelatedEvidence = []ReplayEvidenceAnchor{result.PrimaryEvidence}
+	}
 
 	return result, nil
+}
+
+func clampRiskScore(score float64) float64 {
+	if score > 100 {
+		return 100
+	}
+	if score < 0 {
+		return 0
+	}
+	return score
 }
 
 // determineSanctionType 根据风险分数确定处罚类型
@@ -190,6 +307,39 @@ func (rse *RiskScoringEngine) determineSanctionType(riskScore float64) string {
 	default:
 		return "none"
 	}
+}
+
+func (rse *RiskScoringEngine) suggestionReason(riskScore float64, sanctionType string) string {
+	rse.configLock.RLock()
+	defer rse.configLock.RUnlock()
+	switch sanctionType {
+	case "ban":
+		return "risk score reached ban threshold"
+	case "mute":
+		return "risk score reached mute threshold"
+	case "warning":
+		return "risk score reached warning threshold"
+	case "observe":
+		return "risk score reached observe threshold"
+	default:
+		return "risk score below observe threshold"
+	}
+}
+
+func MarshalIndicatorDetails(details []RiskIndicatorDetail) database.JSON {
+	if len(details) == 0 {
+		return nil
+	}
+	data, _ := json.Marshal(details)
+	return data
+}
+
+func MarshalReportContribution(contribution ReportContribution) database.JSON {
+	if contribution.DeduplicatedCount == 0 && contribution.Contribution == 0 {
+		return nil
+	}
+	data, _ := json.Marshal(contribution)
+	return data
 }
 
 // getEnabledStrategies 获取启用的策略列表

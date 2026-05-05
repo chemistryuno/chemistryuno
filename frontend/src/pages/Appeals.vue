@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
 import {
   AlertTriangle,
   ArrowLeft,
@@ -45,6 +45,7 @@ interface SanctionRecord {
 }
 
 const loading = ref(true)
+const router = useRouter()
 const submitting = ref(false)
 const claimingId = ref<number | null>(null)
 const error = ref('')
@@ -52,6 +53,7 @@ const fieldError = ref('')
 const appeals = ref<AppealRecord[]>([])
 const sanctions = ref<SanctionRecord[]>([])
 const roomId = ref('')
+const lockedRoomIds = ref<string[]>([])
 const riskScoreId = ref('')
 const sanctionId = ref('')
 const reason = ref('')
@@ -72,7 +74,9 @@ const activeAppeal = computed(() =>
   appeals.value.find(appeal => appeal.status === 'pending' || appeal.status === 'under_review')
 )
 const latestSanction = computed(() => sanctions.value[0])
-const canSubmit = computed(() => !submitting.value && !activeAppeal.value && reason.value.trim().length > 0)
+const serverBanState = ref<{ is_banned?: boolean; banned_until?: string; ban_reason?: string; can_submit?: boolean }>({})
+const isBannedForAppeal = computed(() => Boolean(serverBanState.value.is_banned || banState.value.isBanned))
+const canSubmit = computed(() => !submitting.value && isBannedForAppeal.value && lockedRoomIds.value.length > 0 && !activeAppeal.value && reason.value.trim().length > 0)
 const evidenceLimit = 1000
 const canClaimCompensation = (appeal: AppealRecord) =>
   appeal.status === 'approved' &&
@@ -85,11 +89,24 @@ const normalizeList = (payload: any, key: string) => {
   return []
 }
 
+const findMatchingSanction = () => {
+  const riskID = Number(riskScoreId.value) || undefined
+  const rooms = lockedRoomIds.value.length ? lockedRoomIds.value : [roomId.value].filter(Boolean)
+  return sanctions.value.find(sanction => {
+    if (riskID && sanction.risk_score_id === riskID) return true
+    if (sanction.room_id && rooms.includes(sanction.room_id)) return true
+    return false
+  })
+}
+
 const loadPanel = async () => {
   loading.value = true
   error.value = ''
   try {
-    const appealResponse = await authAPI.getPlayerAppeals()
+    const [appealResponse, entryResponse] = await Promise.all([
+      authAPI.getPlayerAppeals(),
+      authAPI.getAppealEntryStatus().catch(() => ({ data: null })),
+    ])
     const [sanctionResponse, userResponse] = await Promise.all([
       authAPI.getPlayerSanctions().catch(() => ({ data: { sanctions: [] } })),
       authAPI.refreshUserInfo().catch(() => null),
@@ -100,9 +117,20 @@ const loadPanel = async () => {
     }
     appeals.value = normalizeList(appealResponse.data, 'appeals')
     sanctions.value = normalizeList(sanctionResponse.data, 'sanctions')
+    if (entryResponse.data) {
+      serverBanState.value = entryResponse.data
+      lockedRoomIds.value = Array.isArray(entryResponse.data.room_ids) ? entryResponse.data.room_ids : []
+      roomId.value = lockedRoomIds.value[0] || roomId.value
+      riskScoreId.value = entryResponse.data.latest_risk_score_id ? String(entryResponse.data.latest_risk_score_id) : riskScoreId.value
+    }
+
+    const matchedSanction = findMatchingSanction()
+    if (matchedSanction?.id) {
+      sanctionId.value = String(matchedSanction.id)
+    }
 
     const context = latestSanction.value || appeals.value[0]
-    if (context) {
+    if (context && lockedRoomIds.value.length === 0) {
       roomId.value = context.room_id || roomId.value
       riskScoreId.value = context.risk_score_id ? String(context.risk_score_id) : riskScoreId.value
       sanctionId.value = context.id ? String(context.id) : sanctionId.value
@@ -116,6 +144,14 @@ const loadPanel = async () => {
 
 const validate = () => {
   fieldError.value = ''
+  if (!isBannedForAppeal.value) {
+    promptFeedbackRedirect()
+    return false
+  }
+  if (lockedRoomIds.value.length === 0 && !roomId.value.trim()) {
+    fieldError.value = '系统尚未生成可申诉房间列表'
+    return false
+  }
   if (!reason.value.trim()) {
     fieldError.value = '请填写申诉理由'
     return false
@@ -131,12 +167,19 @@ const validate = () => {
   return true
 }
 
+const promptFeedbackRedirect = () => {
+  const ok = window.confirm('当前账号未处于封禁状态，不能提交申诉。你可以前往反馈页面撰写反馈。')
+  if (ok) {
+    router.push({ path: '/feedbacks', query: { compose: '1' } })
+  }
+}
+
 const submitAppeal = async () => {
   if (!validate()) return
   submitting.value = true
   error.value = ''
   try {
-    await authAPI.submitAppeal(roomId.value.trim() || 'account', {
+    await authAPI.submitAppeal(lockedRoomIds.value[0] || roomId.value.trim(), {
       risk_score_id: Number(riskScoreId.value) || undefined,
       sanction_id: Number(sanctionId.value) || undefined,
       reason: reason.value.trim(),
@@ -243,8 +286,8 @@ onMounted(loadPanel)
                 <div v-if="banState.banReason" class="mt-1 text-xs">原因：{{ banState.banReason }}</div>
               </div>
               <div v-else class="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-200">
-                <div class="font-black">未检测到本地封禁状态</div>
-                <div class="mt-1 text-xs">仍可针对异常检测或处罚记录提交说明。</div>
+                <div class="font-black">账号未处于封禁状态</div>
+                <div class="mt-1 text-xs">申诉仅面向封禁处罚，其他问题请前往反馈。</div>
               </div>
 
               <div v-if="latestSanction" class="rounded-lg border border-slate-200 p-3 dark:border-white/10">
@@ -273,8 +316,13 @@ onMounted(loadPanel)
 
             <div class="mt-4 grid gap-3">
               <label class="grid gap-1 text-xs font-bold text-slate-500 dark:text-slate-400">
-                房间 ID
-                <input v-model="roomId" class="h-10 rounded-lg border border-slate-200/50 bg-white/50 px-3 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-sky-500 focus:bg-white focus:ring-4 focus:ring-sky-500/10 dark:border-white/10 dark:bg-black/20 dark:text-white dark:focus:bg-black/40" placeholder="不知道可留空" />
+                自动关联房间 ID
+                <div class="rounded-lg border border-slate-200/50 bg-slate-50/80 p-3 text-sm text-slate-700 dark:border-white/10 dark:bg-black/20 dark:text-slate-200">
+                  <div v-if="lockedRoomIds.length" class="flex flex-wrap gap-2">
+                    <span v-for="id in lockedRoomIds" :key="id" class="rounded-md bg-white px-2 py-1 text-xs font-black text-slate-700 ring-1 ring-slate-200 dark:bg-white/5 dark:text-slate-200 dark:ring-white/10">{{ id }}</span>
+                  </div>
+                  <span v-else class="text-slate-400">暂无可申诉房间列表</span>
+                </div>
               </label>
               <div class="grid grid-cols-2 gap-3">
                 <div class="grid gap-1">
@@ -300,7 +348,7 @@ onMounted(loadPanel)
                 <span class="text-right text-[11px]" :class="evidence.length > evidenceLimit ? 'text-rose-500' : 'text-slate-400'">{{ evidence.length }}/{{ evidenceLimit }}</span>
               </label>
               <div v-if="fieldError" class="text-xs font-bold text-rose-500">{{ fieldError }}</div>
-              <button class="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-sky-600 to-blue-600 px-4 text-sm font-black text-white shadow-lg shadow-sky-500/20 transition-all hover:scale-[1.02] hover:from-sky-500 hover:to-blue-500 hover:shadow-sky-500/30 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 disabled:grayscale" :disabled="!canSubmit">
+              <button class="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-sky-600 to-blue-600 px-4 text-sm font-black text-white shadow-lg shadow-sky-500/20 transition-all hover:scale-[1.02] hover:from-sky-500 hover:to-blue-500 hover:shadow-sky-500/30 active:scale-[0.98] disabled:opacity-50 disabled:grayscale" :disabled="submitting || !!activeAppeal || reason.trim().length === 0 || (isBannedForAppeal && lockedRoomIds.length === 0 && !roomId.trim())" @click.prevent="submitAppeal">
                 <Loader2 v-if="submitting" class="h-4 w-4 animate-spin" />
                 <Send v-else class="h-4 w-4" />
                 提交申诉

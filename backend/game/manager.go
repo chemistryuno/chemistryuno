@@ -495,13 +495,24 @@ func (gr *GameRoom) resolvePlayerNameLocked(uid int) string {
 
 func (gr *GameRoom) appendReplayEventLocked(eventType string, uid int, payload map[string]interface{}) {
 	now := time.Now()
+	eventIndex := len(gr.ReplayEvents) + 1
+	eventID := fmt.Sprintf("%s-%06d", gr.Room.ID, eventIndex)
+	actionSummary := eventType
+	if payload != nil {
+		if summary, ok := payload["action_summary"].(string); ok && summary != "" {
+			actionSummary = summary
+		}
+	}
 	event := map[string]interface{}{
-		"event":     eventType,
-		"uid":       uid,
-		"nickname":  gr.resolvePlayerNameLocked(uid),
-		"timestamp": now.Format(time.RFC3339Nano),
-		"unix_ms":   now.UnixMilli(),
-		"payload":   copyReplayPayload(payload),
+		"event":          eventType,
+		"event_index":    eventIndex,
+		"event_id":       eventID,
+		"uid":            uid,
+		"nickname":       gr.resolvePlayerNameLocked(uid),
+		"timestamp":      now.Format(time.RFC3339Nano),
+		"unix_ms":        now.UnixMilli(),
+		"action_summary": actionSummary,
+		"payload":        copyReplayPayload(payload),
 	}
 	gr.ReplayEvents = append(gr.ReplayEvents, event)
 }
@@ -605,6 +616,7 @@ func (gr *GameRoom) collectAnticheatDataLocked() map[int]*anticheat.DetectionCon
 	}
 
 	dataMap := make(map[int]*anticheat.DetectionContext)
+	reportEvidenceByUID := gr.collectReportEvidenceByUIDLocked()
 
 	// 遍历所有参与的玩家
 	for _, uid := range gr.Room.Players {
@@ -615,6 +627,7 @@ func (gr *GameRoom) collectAnticheatDataLocked() map[int]*anticheat.DetectionCon
 		context := &anticheat.DetectionContext{
 			PlayerUID:       uid,
 			RoomID:          gr.Room.ID,
+			ReplayID:        gr.Room.ID,
 			ResponseTimes:   []int64{},
 			OperationCount:  0,
 			TimestampOffset: 10 * time.Second,
@@ -635,9 +648,26 @@ func (gr *GameRoom) collectAnticheatDataLocked() map[int]*anticheat.DetectionCon
 		for _, event := range gr.ReplayEvents {
 			if eventUID, ok := event["uid"].(int); ok && eventUID == uid {
 				context.OperationCount++
+				context.OperationIndex = context.OperationCount
+				anchor := anticheat.EvidenceAnchorFromReplayEvent(gr.Room.ID, gr.Room.ID, event)
+				context.PrimaryEvidence = anchor
+				context.RelatedEvidence = append(context.RelatedEvidence, anchor)
 				if eventTime, ok := event["timestamp"].(time.Time); ok {
 					context.OperationTimes = append(context.OperationTimes, eventTime)
+				} else if raw, ok := event["timestamp"].(string); ok {
+					if parsed, err := time.Parse(time.RFC3339Nano, raw); err == nil {
+						context.OperationTimes = append(context.OperationTimes, parsed)
+					}
 				}
+			}
+		}
+
+		if reportEvidence, ok := reportEvidenceByUID[uid]; ok && reportEvidence.count > 0 {
+			context.ReportCount = reportEvidence.count
+			context.ReportEvidence = reportEvidence.anchors
+			context.ReportSummary = reportEvidence.summary
+			if len(context.RelatedEvidence) == 0 {
+				context.RelatedEvidence = append(context.RelatedEvidence, reportEvidence.anchors...)
 			}
 		}
 
@@ -655,6 +685,59 @@ func (gr *GameRoom) collectAnticheatDataLocked() map[int]*anticheat.DetectionCon
 	}
 
 	return dataMap
+}
+
+type replayReportEvidenceSet struct {
+	count   int
+	anchors []anticheat.ReplayEvidenceAnchor
+	summary string
+}
+
+func (gr *GameRoom) collectReportEvidenceByUIDLocked() map[int]replayReportEvidenceSet {
+	result := map[int]replayReportEvidenceSet{}
+	if gr == nil || gr.Room == nil || gr.Room.ID == "" || repository.FeedbackRepo == nil {
+		return result
+	}
+
+	playerUIDs := append([]int(nil), gr.Room.Players...)
+	sort.Ints(playerUIDs)
+	for _, uid := range playerUIDs {
+		if uid <= 0 {
+			continue
+		}
+		reports, err := repository.FeedbackRepo.FindEvidenceReportsByRoomAndReportedUID(gr.Room.ID, uint(uid))
+		if err != nil {
+			log.Printf("[反作弊] 查询举报证据失败 room=%s uid=%d: %v", gr.Room.ID, uid, err)
+			continue
+		}
+		if len(reports) == 0 {
+			continue
+		}
+		seenReporters := map[uint]struct{}{}
+		evidence := replayReportEvidenceSet{
+			anchors: make([]anticheat.ReplayEvidenceAnchor, 0, len(reports)),
+		}
+		for _, report := range reports {
+			if report.UserUID > 0 {
+				if _, exists := seenReporters[report.UserUID]; exists {
+					continue
+				}
+				seenReporters[report.UserUID] = struct{}{}
+			}
+			anchor, ok := anticheat.UnmarshalReplayEvidenceAnchor(report.PrimaryEvidence)
+			if !ok {
+				continue
+			}
+			evidence.count++
+			evidence.anchors = append(evidence.anchors, anchor)
+		}
+		if evidence.count == 0 {
+			continue
+		}
+		evidence.summary = fmt.Sprintf("%d validated replay-bound player report(s)", evidence.count)
+		result[uid] = evidence
+	}
+	return result
 }
 
 func maybeMarkFastHumanPlay(gr *GameRoom, uid int, nickname string, actionAt time.Time) (bool, int64) {

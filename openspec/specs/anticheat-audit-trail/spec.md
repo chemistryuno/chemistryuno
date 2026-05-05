@@ -74,3 +74,29 @@ The system SHALL support exporting audit logs with all relevant fields.
 - **AND** export respects applied filters
 - **AND** exports are timestamped for traceability
 
+### Requirement: Audit trail records replay evidence references
+The audit trail SHALL preserve replay evidence references for anticheat review, punishment, punishment decision change, appeal, and protected replay cleanup events.
+
+#### Scenario: Audit record is created for anticheat review
+- **WHEN** an administrator reviews or processes an anticheat detection
+- **THEN** the audit record includes the detection ID, room ID, replay ID, and primary replay evidence anchor
+- **AND** the record remains queryable even if the risk score policy later changes
+
+#### Scenario: Audit record is created for punishment decision change
+- **WHEN** an administrator changes a processed detection's punishment decision
+- **THEN** the audit record stores the previous decision, new decision, reason, admin ID, and replay evidence reference
+- **AND** the replay evidence reference points back to the original detection evidence chain
+
+#### Scenario: Audit record is created for protected replay cleanup attempt
+- **WHEN** replay cleanup or manual admin action attempts to clear a replay protected by anticheat evidence
+- **THEN** the audit record identifies the protected replay and the evidence type preventing deletion
+- **AND** records whether the attempt was skipped or rejected
+
+### Requirement: Audit export includes replay evidence context
+The audit export SHALL include replay evidence context for anticheat records.
+
+#### Scenario: Admin exports audit records
+- **WHEN** admin exports anticheat audit records
+- **THEN** the export includes room ID, replay ID, event index or event ID, evidence precision, and action summary when present
+- **AND** the export preserves enough fields to reconstruct an admin replay navigation link
+

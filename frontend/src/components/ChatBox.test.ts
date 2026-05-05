@@ -1,7 +1,14 @@
 import { mount, flushPromises } from '@vue/test-utils'
 import { describe, expect, it, beforeEach, vi } from 'vitest'
 import ChatBox from './ChatBox.vue'
-import UserAvatar from './UserAvatar.vue'
+
+const routerPush = vi.fn()
+
+vi.mock('vue-router', () => ({
+  useRouter: () => ({
+    push: routerPush
+  })
+}))
 
 // Mock the API and websocket
 vi.mock('../utils/api', () => ({
@@ -277,10 +284,7 @@ describe('ChatBox - Banned User Display', () => {
     await appealButton.trigger('click')
     await wrapper.vm.$nextTick()
 
-    // Check if appeal status message appears
-    const appealStatus = appealComponent.text()
-    expect(appealStatus).toContain('申诉入口已打开') || 
-    expect(wrapper.vm.appealStatus).toBeTruthy()
+    expect(routerPush).toHaveBeenCalledWith('/appeals')
 
     wrapper.unmount()
   })

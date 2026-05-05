@@ -671,7 +671,7 @@ func (r *UserRepository) AddFuel(uid uint, amount int, compensationID string) (i
 	}
 
 	// 在事务中执行燃素添加和记录
-	return amount, r.db.Transaction(func(tx *gorm.DB) error {
+	err := r.db.Transaction(func(tx *gorm.DB) error {
 		// Keep both legacy fuel and visible points in sync.
 		if err := tx.Model(&database.User{}).Where("uid = ?", uid).Updates(map[string]interface{}{
 			"fuel":   gorm.Expr("fuel + ?", amount),
@@ -693,4 +693,10 @@ func (r *UserRepository) AddFuel(uid uint, amount int, compensationID string) (i
 
 		return nil
 	})
+	if err == nil {
+		_ = cache.InvalidateAllLeaderboardCache(context.Background())
+		_ = cache.InvalidateUserStatsCache(context.Background(), uid)
+	}
+
+	return amount, err
 }

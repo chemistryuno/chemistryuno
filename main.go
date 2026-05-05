@@ -210,6 +210,7 @@ func main() {
 	// 创建Gin路由
 	// 创建Gin引擎（不使用默认中间件）
 	r := gin.New()
+	r.HandleMethodNotAllowed = true
 
 	// 设置最大请求体限制 (15MB，以容纳 10MB 的 base64 头像 + JSON 额外开销)
 	r.MaxMultipartMemory = 15 << 20 // 15 MiB
@@ -583,7 +584,7 @@ func main() {
 				return
 			}
 
-			if !isFrontendRoute(c.Request.URL.Path) && (c.Request.Method == http.MethodGet || c.Request.Method == http.MethodHead) {
+			if !isFrontendRoute(c.Request.URL.Path) {
 				c.Redirect(http.StatusFound, "/")
 				return
 			}

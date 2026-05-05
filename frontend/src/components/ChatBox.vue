@@ -25,7 +25,6 @@ const newMessage = ref('')
 const currentUID = ref(JSON.parse(localStorage.getItem('user') || '{}').uid)
 const scrollContainer = ref<HTMLElement | null>(null)
 const banState = ref(getBanState())
-const appealStatus = ref('')
 
 // 输入法状态标记 - 跟踪用户是否正在使用输入法
 const isComposing = ref(false)
@@ -50,7 +49,7 @@ const refreshBanState = async () => {
 }
 
 const handleAppealAction = () => {
-  appealStatus.value = '申诉入口已打开，请在个人中心或反作弊申诉页面提交复核材料。'
+  router.push('/appeals')
 }
 
 const scrollToBottom = () => {
@@ -102,6 +101,71 @@ const loadHistory = async () => {
   }
 }
 
+const handleChatMessage = (msg: any) => {
+  // 检查是否已存在（避免重复显示历史记录中的消息）
+  const isDuplicate = messages.value.some(m =>
+    m.uid === msg.uid &&
+    m.text === msg.message &&
+    Math.abs(new Date(m.time).getTime() - new Date().getTime()) < 2000
+  )
+  if (isDuplicate) return
+
+  messages.value.push({
+    uid: msg.uid,
+    username: msg.data?.nickname || '研究员',
+    avatar: msg.data?.avatar,
+    text: msg.message,
+    time: new Date(),
+    type: msg.data?.is_system === 'true' ? 'system' : 'normal'
+  })
+  nextTick(scrollToBottom)
+}
+
+const handlePrivateMessage = async (msg: any) => {
+  // 尝试解析游戏邀请消息
+  let isGameInvite = false
+  let gameInviteData = null
+
+  try {
+    const parsed = JSON.parse(msg.message)
+    if (parsed.type === 'game_invite') {
+      isGameInvite = true
+      gameInviteData = parsed
+
+      // 检查房间状态
+      if (gameInviteData.room_id) {
+        gameInviteData.room_status = await checkRoomStatus(gameInviteData.room_id)
+      }
+    }
+  } catch (e) {
+    // 不是JSON或不是游戏邀请，按普通消息处理
+  }
+
+  messages.value.push({
+    uid: msg.uid,
+    target_uid: msg.target_uid,
+    username: msg.data?.nickname || '研究员',
+    avatar: msg.data?.avatar,
+    text: isGameInvite ? '' : msg.message,
+    time: new Date(),
+    type: isGameInvite ? 'game_invite' : 'private',
+    gameInviteData: gameInviteData
+  })
+  nextTick(scrollToBottom)
+}
+
+const handleChatBlocked = (msg: any) => {
+  const next = banStateFromBlockedMessage(msg)
+  if (next.isBanned) {
+    banState.value = next
+  }
+}
+
+const handleStartPrivateChat = (e: CustomEvent) => {
+  privateTarget.value = e.detail as { uid: number, username: string, nickname?: string }
+  chatMode.value = 'private'
+}
+
 onMounted(async () => {
   await refreshBanState()
   // 只有非房间内聊天才加载全服历史并加入大厅频道
@@ -111,83 +175,19 @@ onMounted(async () => {
     websocket.send({ type: 'join_room', room_id: 'lobby' })
   }
 
-  const handleChatMessage = (msg: any) => {
-    // 检查是否已存在（避免重复显示历史记录中的消息）
-    const isDuplicate = messages.value.some(m =>
-      m.uid === msg.uid &&
-      m.text === msg.message &&
-      Math.abs(new Date(m.time).getTime() - new Date().getTime()) < 2000
-    )
-    if (isDuplicate) return
-
-    messages.value.push({
-      uid: msg.uid,
-      username: msg.data?.nickname || '研究员',
-      avatar: msg.data?.avatar,
-      text: msg.message,
-      time: new Date(),
-      type: msg.data?.is_system === 'true' ? 'system' : 'normal'
-    })
-    nextTick(scrollToBottom)
-  }
-
-  const handlePrivateMessage = async (msg: any) => {
-    // 尝试解析游戏邀请消息
-    let isGameInvite = false
-    let gameInviteData = null
-
-    try {
-      const parsed = JSON.parse(msg.message)
-      if (parsed.type === 'game_invite') {
-        isGameInvite = true
-        gameInviteData = parsed
-
-        // 检查房间状态
-        if (gameInviteData.room_id) {
-          gameInviteData.room_status = await checkRoomStatus(gameInviteData.room_id)
-        }
-      }
-    } catch (e) {
-      // 不是JSON或不是游戏邀请，按普通消息处理
-    }
-
-    messages.value.push({
-      uid: msg.uid,
-      target_uid: msg.target_uid,
-      username: msg.data?.nickname || '研究员',
-      avatar: msg.data?.avatar,
-      text: isGameInvite ? '' : msg.message,
-      time: new Date(),
-      type: isGameInvite ? 'game_invite' : 'private',
-      gameInviteData: gameInviteData
-    })
-    nextTick(scrollToBottom)
-  }
-
   websocket.on('chat', handleChatMessage)
   websocket.on('private_chat', handlePrivateMessage)
-  const handleChatBlocked = (msg: any) => {
-    const next = banStateFromBlockedMessage(msg)
-    if (next.isBanned) {
-      banState.value = next
-    }
-  }
   websocket.on('chat_blocked', handleChatBlocked)
-
-  const handleStartPrivateChat = (e: CustomEvent) => {
-    privateTarget.value = e.detail as { uid: number, username: string, nickname?: string }
-    chatMode.value = 'private'
-  }
 
   // 监听外部私聊请求
   window.addEventListener('start-private-chat', handleStartPrivateChat as any)
+})
 
-  onUnmounted(() => {
-    websocket.off('chat', handleChatMessage)
-    websocket.off('private_chat', handlePrivateMessage)
-    websocket.off('chat_blocked', handleChatBlocked)
-    window.removeEventListener('start-private-chat', handleStartPrivateChat as any)
-  })
+onUnmounted(() => {
+  websocket.off('chat', handleChatMessage)
+  websocket.off('private_chat', handlePrivateMessage)
+  websocket.off('chat_blocked', handleChatBlocked)
+  window.removeEventListener('start-private-chat', handleStartPrivateChat as any)
 })
 
 const handleSend = () => {
@@ -307,9 +307,6 @@ const formatTime = (date: Date) => {
           >
             提交或查看申诉
           </button>
-          <p v-if="appealStatus" class="mt-3 text-xs font-bold text-rose-600 dark:text-rose-300">
-            {{ appealStatus }}
-          </p>
         </div>
       </div>
     </div>

@@ -32,6 +32,8 @@ type ReplayEvidenceAnchor = {
   evidence_precision?: string
   compatibility_level?: string
   navigation_url?: string
+  has_replay?: boolean
+  replay_available?: boolean
 }
 
 const { showAlert, showPrompt } = useDialog()
@@ -153,10 +155,24 @@ const relatedEvidenceAnchors = computed(() => {
   return anchors
 })
 
+const parseReplayTargetID = (anchor: ReplayEvidenceAnchor) => {
+  const rawTarget = anchor.game_history_id || anchor.replay_id
+  if (rawTarget == null || rawTarget === '') return ''
+  const target = String(rawTarget).trim()
+  return /^\d+$/.test(target) ? target : ''
+}
+
+const hasReplayForAnchor = (anchorLike: any) => {
+  const anchor = normalizeAnchor(anchorLike)
+  if (!anchor) return false
+  if (anchor.has_replay === false || anchor.replay_available === false) return false
+  return Boolean(parseReplayTargetID(anchor))
+}
+
 const replayRouteForAnchor = (anchorLike: any) => {
   const anchor = normalizeAnchor(anchorLike)
-  if (!anchor) return ''
-  const replayTarget = anchor.game_history_id || anchor.replay_id
+  if (!anchor || !hasReplayForAnchor(anchor)) return ''
+  const replayTarget = parseReplayTargetID(anchor)
   if (!replayTarget) return ''
 
   const query = new URLSearchParams()
@@ -208,7 +224,7 @@ const normalizeDetectionDetail = (payload: any, fallback: any) => {
     review_status: risk.review_status || fallback.review_status || 'pending',
     punishment_decision: risk.punishment_decision || fallback.punishment_decision || fallback.sanction_type || 'observe',
     sanction_id: risk.sanction_id || fallback.sanction_id || sanctions[0]?.id,
-    replay_id: risk.replay_id || fallback.replay_id || risk.room_id || fallback.room_id,
+    replay_id: risk.replay_id || fallback.replay_id || '',
     operation_index: risk.operation_index ?? fallback.operation_index ?? 0,
     operation_timestamp: risk.operation_timestamp || fallback.operation_timestamp,
     indicator_details: risk.indicator_details || fallback.indicator_details || [],

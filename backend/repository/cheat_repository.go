@@ -253,7 +253,7 @@ func (cr *CheatRepository) UpdateSanctionDecision(sanctionID uint, sanctionType 
 // GetActiveSanctionsByPlayer 获取玩家的活跃处罚
 func (cr *CheatRepository) GetActiveSanctionsByPlayer(playerUID uint) ([]database.CheatSanction, error) {
 	var sanctions []database.CheatSanction
-	if err := cr.db.Where("player_uid = ? AND status = ?", playerUID, "active").
+	if err := cr.db.Where("player_uid = ? AND (status = ? OR status = ? OR status IS NULL)", playerUID, "active", "").
 		Order("applied_at DESC").
 		Find(&sanctions).Error; err != nil {
 		return nil, err
@@ -289,7 +289,7 @@ func (cr *CheatRepository) UpdateSanctionStatus(sanctionID uint, status string) 
 
 func (cr *CheatRepository) RevokeActiveBanSanctionsByPlayer(playerUID uint) error {
 	return cr.db.Model(&database.CheatSanction{}).
-		Where("player_uid = ? AND sanction_type = ? AND status = ?", playerUID, "ban", "active").
+		Where("player_uid = ? AND sanction_type = ? AND (status = ? OR status = ? OR status IS NULL)", playerUID, "ban", "active", "").
 		Update("status", "revoked").Error
 }
 

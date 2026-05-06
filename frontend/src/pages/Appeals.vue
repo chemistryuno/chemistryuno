@@ -15,6 +15,7 @@ import {
 } from 'lucide-vue-next'
 import { authAPI } from '../utils/api'
 import { formatBanUntil, getBanState } from '../utils/banState'
+import { useDialog } from '../utils/dialog'
 
 type AppealStatus = 'pending' | 'under_review' | 'approved' | 'rejected' | string
 
@@ -39,13 +40,16 @@ interface SanctionRecord {
   room_id?: string
   risk_score_id?: number
   sanction_type?: string
+  status?: string
   reason?: string
+  effective_until?: string
   expires_at?: string
   created_at?: string
 }
 
 const loading = ref(true)
 const router = useRouter()
+const { showConfirm } = useDialog()
 const submitting = ref(false)
 const claimingId = ref<number | null>(null)
 const error = ref('')
@@ -75,8 +79,41 @@ const activeAppeal = computed(() =>
 )
 const latestSanction = computed(() => sanctions.value[0])
 const serverBanState = ref<{ is_banned?: boolean; banned_until?: string; ban_reason?: string; can_submit?: boolean }>({})
-const isBannedForAppeal = computed(() => Boolean(serverBanState.value.is_banned || banState.value.isBanned))
-const canSubmit = computed(() => !submitting.value && isBannedForAppeal.value && lockedRoomIds.value.length > 0 && !activeAppeal.value && reason.value.trim().length > 0)
+const appealEntryLoaded = ref(false)
+const banStatusQueryFailed = ref(false)
+const isFutureOrOpenEnded = (value?: string) => {
+  if (!value) return true
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) || date > new Date()
+}
+const activeBanSanction = computed(() =>
+  sanctions.value.find(sanction =>
+    sanction.sanction_type === 'ban' &&
+    (!sanction.status || sanction.status === 'active') &&
+    isFutureOrOpenEnded(sanction.effective_until || sanction.expires_at)
+  )
+)
+const displayBanState = computed(() => {
+  if (activeBanSanction.value) {
+    return {
+      isBanned: true,
+      bannedUntil: activeBanSanction.value.effective_until || activeBanSanction.value.expires_at || serverBanState.value.banned_until || banState.value.bannedUntil,
+      banReason: activeBanSanction.value.reason || serverBanState.value.ban_reason || banState.value.banReason || '',
+    }
+  }
+  if (!appealEntryLoaded.value) return banState.value
+  if (!serverBanState.value.is_banned) return { isBanned: false }
+  return {
+    isBanned: true,
+    bannedUntil: serverBanState.value.banned_until || banState.value.bannedUntil,
+    banReason: serverBanState.value.ban_reason || banState.value.banReason || '',
+  }
+})
+const isBannedForAppeal = computed(() => {
+  if (activeBanSanction.value) return true
+  return appealEntryLoaded.value ? Boolean(serverBanState.value.is_banned) : banState.value.isBanned
+})
+const canSubmit = computed(() => !submitting.value && isBannedForAppeal.value && !activeAppeal.value && reason.value.trim().length > 0)
 const evidenceLimit = 1000
 const canClaimCompensation = (appeal: AppealRecord) =>
   appeal.status === 'approved' &&
@@ -102,13 +139,32 @@ const findMatchingSanction = () => {
 const loadPanel = async () => {
   loading.value = true
   error.value = ''
+  appealEntryLoaded.value = false
+  serverBanState.value = {}
+  banStatusQueryFailed.value = false
   try {
+    const loadAppealEntry = async () => {
+      try {
+        return await authAPI.getAppealEntryStatus()
+      } catch {
+        banStatusQueryFailed.value = true
+        return { data: null }
+      }
+    }
+    const loadSanctions = async () => {
+      try {
+        return await authAPI.getPlayerSanctions()
+      } catch {
+        banStatusQueryFailed.value = true
+        return { data: { sanctions: [] } }
+      }
+    }
     const [appealResponse, entryResponse] = await Promise.all([
       authAPI.getPlayerAppeals(),
-      authAPI.getAppealEntryStatus().catch(() => ({ data: null })),
+      loadAppealEntry(),
     ])
     const [sanctionResponse, userResponse] = await Promise.all([
-      authAPI.getPlayerSanctions().catch(() => ({ data: { sanctions: [] } })),
+      loadSanctions(),
       authAPI.refreshUserInfo().catch(() => null),
     ])
     if (userResponse?.data) {
@@ -119,6 +175,7 @@ const loadPanel = async () => {
     sanctions.value = normalizeList(sanctionResponse.data, 'sanctions')
     if (entryResponse.data) {
       serverBanState.value = entryResponse.data
+      appealEntryLoaded.value = true
       lockedRoomIds.value = Array.isArray(entryResponse.data.room_ids) ? entryResponse.data.room_ids : []
       roomId.value = lockedRoomIds.value[0] || roomId.value
       riskScoreId.value = entryResponse.data.latest_risk_score_id ? String(entryResponse.data.latest_risk_score_id) : riskScoreId.value
@@ -142,14 +199,10 @@ const loadPanel = async () => {
   }
 }
 
-const validate = () => {
+const validate = async () => {
   fieldError.value = ''
   if (!isBannedForAppeal.value) {
-    promptFeedbackRedirect()
-    return false
-  }
-  if (lockedRoomIds.value.length === 0 && !roomId.value.trim()) {
-    fieldError.value = '系统尚未生成可申诉房间列表'
+    await promptFeedbackRedirect()
     return false
   }
   if (!reason.value.trim()) {
@@ -167,24 +220,33 @@ const validate = () => {
   return true
 }
 
-const promptFeedbackRedirect = () => {
-  const ok = window.confirm('当前账号未处于封禁状态，不能提交申诉。你可以前往反馈页面撰写反馈。')
+const promptFeedbackRedirect = async () => {
+  const ok = await showConfirm(
+    '当前账号未处于封禁状态，不能提交申诉。你可以前往反馈页面撰写反馈。',
+    '申诉受限',
+    '前往反馈',
+    '留在本页'
+  )
   if (ok) {
     router.push({ path: '/feedbacks', query: { compose: '1' } })
   }
 }
 
 const submitAppeal = async () => {
-  if (!validate()) return
+  if (!(await validate())) return
   submitting.value = true
   error.value = ''
   try {
-    await authAPI.submitAppeal(lockedRoomIds.value[0] || roomId.value.trim(), {
-      risk_score_id: Number(riskScoreId.value) || undefined,
-      sanction_id: Number(sanctionId.value) || undefined,
+    const payload: { risk_score_id?: number; sanction_id?: number; reason: string; evidence?: string } = {
       reason: reason.value.trim(),
-      evidence: evidence.value.trim(),
-    })
+    }
+    const parsedRiskScoreID = Number(riskScoreId.value)
+    if (parsedRiskScoreID) payload.risk_score_id = parsedRiskScoreID
+    const parsedSanctionID = Number(sanctionId.value)
+    if (parsedSanctionID) payload.sanction_id = parsedSanctionID
+    const trimmedEvidence = evidence.value.trim()
+    if (trimmedEvidence) payload.evidence = trimmedEvidence
+    await authAPI.submitAppeal(lockedRoomIds.value[0] || roomId.value.trim() || 'account', payload)
     reason.value = ''
     evidence.value = ''
     await loadPanel()
@@ -280,10 +342,14 @@ onMounted(loadPanel)
               </div>
             </div>
             <div class="mt-5 space-y-3 text-sm">
-              <div v-if="banState.isBanned" class="rounded-lg border border-rose-200 bg-rose-50 p-3 text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200">
+              <div v-if="displayBanState.isBanned" class="rounded-lg border border-rose-200 bg-rose-50 p-3 text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200">
                 <div class="font-black">账号处于封禁中</div>
-                <div class="mt-1 text-xs">截止时间：{{ formatBanUntil(banState.bannedUntil) }}</div>
-                <div v-if="banState.banReason" class="mt-1 text-xs">原因：{{ banState.banReason }}</div>
+                <div class="mt-1 text-xs">截止时间：{{ formatBanUntil(displayBanState.bannedUntil) }}</div>
+                <div v-if="displayBanState.banReason" class="mt-1 text-xs">原因：{{ displayBanState.banReason }}</div>
+              </div>
+              <div v-else-if="banStatusQueryFailed" class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200">
+                <div class="font-black">账号封禁状态查询失败</div>
+                <div class="mt-1 text-xs">请刷新后重试，或重新登录后再进入申诉中心。</div>
               </div>
               <div v-else class="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-200">
                 <div class="font-black">账号未处于封禁状态</div>
@@ -348,7 +414,7 @@ onMounted(loadPanel)
                 <span class="text-right text-[11px]" :class="evidence.length > evidenceLimit ? 'text-rose-500' : 'text-slate-400'">{{ evidence.length }}/{{ evidenceLimit }}</span>
               </label>
               <div v-if="fieldError" class="text-xs font-bold text-rose-500">{{ fieldError }}</div>
-              <button class="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-sky-600 to-blue-600 px-4 text-sm font-black text-white shadow-lg shadow-sky-500/20 transition-all hover:scale-[1.02] hover:from-sky-500 hover:to-blue-500 hover:shadow-sky-500/30 active:scale-[0.98] disabled:opacity-50 disabled:grayscale" :disabled="submitting || !!activeAppeal || reason.trim().length === 0 || (isBannedForAppeal && lockedRoomIds.length === 0 && !roomId.trim())" @click.prevent="submitAppeal">
+              <button class="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-sky-600 to-blue-600 px-4 text-sm font-black text-white shadow-lg shadow-sky-500/20 transition-all hover:scale-[1.02] hover:from-sky-500 hover:to-blue-500 hover:shadow-sky-500/30 active:scale-[0.98] disabled:opacity-50 disabled:grayscale" :disabled="!canSubmit" @click.prevent="submitAppeal">
                 <Loader2 v-if="submitting" class="h-4 w-4 animate-spin" />
                 <Send v-else class="h-4 w-4" />
                 提交申诉

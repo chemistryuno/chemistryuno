@@ -93,6 +93,9 @@ type GameRoom struct {
 
 // BroadcastSystemMessage 广播一条系统级信息到房间聊天室
 func (gr *GameRoom) BroadcastSystemMessage(msg string) {
+	if websocket.GlobalHub == nil {
+		return
+	}
 	websocket.GlobalHub.BroadcastToRoom(gr.Room.ID, websocket.Message{
 		Type:    "chat",
 		UID:     0, // 0 表示系统
@@ -123,6 +126,182 @@ func (gr *GameRoom) hasHumanPlayersLocked() bool {
 	return false
 }
 
+func containsInt(values []int, target int) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
+}
+
+func appendUniqueInt(values []int, target int) []int {
+	if containsInt(values, target) {
+		return values
+	}
+	return append(values, target)
+}
+
+func (gr *GameRoom) isFinishedLocked(uid int) bool {
+	if gr.GameState == nil {
+		return false
+	}
+	return containsInt(gr.GameState.FinishedPlayers, uid)
+}
+
+func (gr *GameRoom) isExitedLocked(uid int) bool {
+	if gr.GameState == nil {
+		return false
+	}
+	return containsInt(gr.GameState.ExitedPlayers, uid)
+}
+
+func (gr *GameRoom) markUnfinishedHumanExitedLocked(uid int) bool {
+	if uid <= 0 || gr.GameState == nil || gr.GameState.Status != "playing" {
+		return false
+	}
+	if gr.isFinishedLocked(uid) || gr.isExitedLocked(uid) {
+		return false
+	}
+	gr.GameState.ExitedPlayers = append(gr.GameState.ExitedPlayers, uid)
+	if gr.GameState.PointsChanges == nil {
+		gr.GameState.PointsChanges = make(map[int]int)
+	}
+	if gr.GameState.XPChanges == nil {
+		gr.GameState.XPChanges = make(map[int]int)
+	}
+	gr.GameState.PointsChanges[uid] = 0
+	gr.GameState.XPChanges[uid] = 0
+	return true
+}
+
+func (gr *GameRoom) participantUIDsLocked() []int {
+	if gr == nil || gr.Room == nil {
+		return nil
+	}
+	uids := make([]int, 0)
+	if gr.GameState != nil {
+		for _, uid := range gr.GameState.FinishedPlayers {
+			uids = appendUniqueInt(uids, uid)
+		}
+		for _, ps := range gr.GameState.Players {
+			if ps != nil {
+				uids = appendUniqueInt(uids, ps.UID)
+			}
+		}
+		for _, uid := range gr.GameState.ExitedPlayers {
+			uids = appendUniqueInt(uids, uid)
+		}
+	}
+	for _, uid := range gr.Room.Players {
+		uids = appendUniqueInt(uids, uid)
+	}
+	return uids
+}
+
+func (gr *GameRoom) playerStateUIDsLocked() []int {
+	if gr == nil || gr.GameState == nil {
+		return nil
+	}
+	uids := make([]int, 0, len(gr.GameState.Players))
+	for _, ps := range gr.GameState.Players {
+		if ps != nil {
+			uids = appendUniqueInt(uids, ps.UID)
+		}
+	}
+	return uids
+}
+
+func (gr *GameRoom) humanParticipantUIDsLocked() []int {
+	all := gr.participantUIDsLocked()
+	humans := make([]int, 0, len(all))
+	for _, uid := range all {
+		if uid > 0 {
+			humans = appendUniqueInt(humans, uid)
+		}
+	}
+	return humans
+}
+
+func (gr *GameRoom) unfinishedRewardableHumanUIDsLocked() []int {
+	if gr.GameState == nil {
+		return nil
+	}
+	uids := make([]int, 0)
+	for _, ps := range gr.GameState.Players {
+		if ps == nil || ps.UID <= 0 {
+			continue
+		}
+		if gr.isFinishedLocked(ps.UID) || gr.isExitedLocked(ps.UID) {
+			continue
+		}
+		uids = appendUniqueInt(uids, ps.UID)
+	}
+	return uids
+}
+
+func (gr *GameRoom) hasRewardableFinishedHumanLocked() bool {
+	if gr.GameState == nil {
+		return false
+	}
+	for _, uid := range gr.GameState.FinishedPlayers {
+		if uid > 0 && !gr.isExitedLocked(uid) {
+			return true
+		}
+	}
+	return false
+}
+
+func (gr *GameRoom) shouldEndAfterHumanExitLocked() (finalize bool, allZero bool) {
+	if gr.GameState == nil || gr.GameState.Status != "playing" {
+		return false, false
+	}
+
+	activeHumans := gr.unfinishedRewardableHumanUIDsLocked()
+	hasFinishedHuman := gr.hasRewardableFinishedHumanLocked()
+	if !gr.hasHumanPlayersLocked() {
+		if hasFinishedHuman {
+			return true, false
+		}
+		return false, true
+	}
+
+	if len(gr.GameState.ExitedPlayers) == 0 {
+		return false, false
+	}
+	if len(activeHumans) == 0 && hasFinishedHuman {
+		return true, false
+	}
+	if len(activeHumans) == 1 {
+		uid := activeHumans[0]
+		if !gr.isFinishedLocked(uid) {
+			gr.GameState.FinishedPlayers = append(gr.GameState.FinishedPlayers, uid)
+		}
+		return true, false
+	}
+	return false, false
+}
+
+func (gr *GameRoom) rewardableHumanRankingLocked() []int {
+	if gr.GameState == nil {
+		return nil
+	}
+
+	ranking := make([]int, 0)
+	for _, uid := range gr.GameState.FinishedPlayers {
+		if uid > 0 && !gr.isExitedLocked(uid) {
+			ranking = appendUniqueInt(ranking, uid)
+		}
+	}
+	for _, ps := range gr.GameState.Players {
+		if ps == nil || ps.UID <= 0 || gr.isExitedLocked(ps.UID) {
+			continue
+		}
+		ranking = appendUniqueInt(ranking, ps.UID)
+	}
+	return ranking
+}
+
 func (gr *GameRoom) shouldTerminateRoom() bool {
 	if gr.Room.Status != "playing" {
 		return false
@@ -134,6 +313,10 @@ func (gr *GameRoom) shouldTerminateRoom() bool {
 		if pid > 0 {
 			humanPlayers++
 		}
+	}
+
+	if gr.GameState != nil && len(gr.GameState.ExitedPlayers) > 0 && humanPlayers > 0 {
+		return false
 	}
 
 	// 新规则：总玩家 < 2 或人类玩家 < 1 时，进入无效对局判定倒计时
@@ -178,6 +361,14 @@ func (gr *GameRoom) checkAutoStart() {
 	roomID := gr.Room.ID
 	numPlayers := len(gr.Room.Players)
 	maxPlayers := gr.Room.MaxPlayers
+
+	if !gr.hasHumanPlayersLocked() {
+		if gr.StartTimer != nil || gr.Room.Countdown != 0 {
+			gr.cancelStartTimer()
+			gr.broadcastRoomUpdate()
+		}
+		return
+	}
 
 	// 统计准备的玩家（只要还在房间内就计数，不检查实时在线状态以防刷新导致的频繁重置）
 	numReady := len(gr.Room.ReadyUIDs)
@@ -1254,35 +1445,6 @@ func GetRoomStatus(roomID string) (exists bool, status string) {
 
 // 积分结算逻辑
 func handlePointsCalculation(gr *GameRoom) {
-	finished := gr.GameState.FinishedPlayers
-
-	// 确保所有玩家都在排名列表中（即使没打完）
-	allUIDs := []int{}
-	for _, p := range gr.GameState.Players {
-		allUIDs = append(allUIDs, p.UID)
-	}
-
-	fullRanking := append([]int{}, finished...)
-	for _, uid := range allUIDs {
-		exists := false
-		for _, fuid := range finished {
-			if fuid == uid {
-				exists = true
-				break
-			}
-		}
-		if !exists {
-			fullRanking = append(fullRanking, uid)
-		}
-	}
-
-	// 1. 计算总人数（包括已退出的玩家，反映原本的对局规模）
-	totalPlayers := gr.GameState.OriginalPlayerCount
-	if totalPlayers <= 0 {
-		totalPlayers = len(fullRanking)
-	}
-
-	// 2. 如果 PointsChanges 还没初始化，初始化它
 	if gr.GameState.PointsChanges == nil {
 		gr.GameState.PointsChanges = make(map[int]int)
 	}
@@ -1290,88 +1452,75 @@ func handlePointsCalculation(gr *GameRoom) {
 		gr.GameState.XPChanges = make(map[int]int)
 	}
 
+	allUIDs := gr.participantUIDsLocked()
+	for _, uid := range allUIDs {
+		if uid < 0 || gr.isExitedLocked(uid) {
+			gr.GameState.PointsChanges[uid] = 0
+			gr.GameState.XPChanges[uid] = 0
+		}
+	}
+
+	fullRanking := gr.rewardableHumanRankingLocked()
+	totalPlayers := len(fullRanking)
+	if totalPlayers == 0 {
+		return
+	}
+
 	for i, uid := range fullRanking {
 		rank := i + 1
 
-		// 3. 处理积分
 		points := 0
+		if prevPoints, ok := gr.GameState.PointsChanges[uid]; ok && prevPoints > 0 {
+			points = prevPoints
+		} else {
+			if gr.Room.IsPvE {
+				baseBonus := (totalPlayers - rank + 1) * 10
+				if rank == 1 {
+					baseBonus += totalPlayers * 25
+				}
+				points = baseBonus
 
-		// AI 玩家（UID < 0）和已退出玩家不获得额外积分
-		if uid > 0 {
-			// 如果已经在中间实时结算过了，不再重复增加数据库积分，仅确保 PointsChanges 中有值
-			if prevPoints, ok := gr.GameState.PointsChanges[uid]; ok && prevPoints > 0 {
-				points = prevPoints
-			} else {
-				// 4. 计算应得积分
-				if gr.Room.IsPvE {
-					// 仅在 AI 模式（PvE）下使用动态人数加成规则
-					baseBonus := (totalPlayers - rank + 1) * 10
-					if rank == 1 {
-						baseBonus += totalPlayers * 25 // 获胜者额外加成
-					}
-					points = baseBonus
-
-					// PvE 模式积分难度系数修正
-					if gr.Room.PvEDifficulty < 50 {
-						points = 0
-					} else {
-						points = int(float64(points) * float64(gr.Room.PvEDifficulty) / 100.0)
-					}
+				if gr.Room.PvEDifficulty < 50 {
+					points = 0
 				} else {
-					// PvP 模式（常规对局）
-					// 基础规则：100 / 排名
-					points = 100 / rank
-
-					// 如果是最后一名，只获得 5 分参与奖
-					if rank == len(fullRanking) && len(fullRanking) > 1 {
-						points = 5
-					}
-
-					// 结算倍率（只有常规对局启用）：每有一个玩家离开，结算减少 1/总人数
-					multiplier := 1.0
-					if configRepo.GetBoolValue("points_scaling_enabled", true) && totalPlayers > 0 {
-						multiplier = 1.0 - (float64(gr.GameState.QuittedCount) / float64(totalPlayers))
-						if multiplier < 0 {
-							multiplier = 0
-						}
-					}
-					points = int(float64(points) * multiplier)
+					points = int(float64(points) * float64(gr.Room.PvEDifficulty) / 100.0)
 				}
-
-				if points < 1 && (!gr.Room.IsPvE || gr.Room.PvEDifficulty >= 50) {
-					points = 1
+			} else {
+				points = 100 / rank
+				if rank == len(fullRanking) && len(fullRanking) > 1 {
+					points = 5
 				}
+			}
 
-				// 仅对尚未结算过的玩家执行数据库增加
-				if points > 0 {
-					repository.UserRepo.IncrementPoints(uint(uid), points)
-					repository.UserRepo.IncrementMonthlyPoints(uint(uid), points)
-				}
+			if points < 1 && (!gr.Room.IsPvE || gr.Room.PvEDifficulty >= 50) {
+				points = 1
+			}
+
+			if points > 0 && repository.UserRepo != nil {
+				repository.UserRepo.IncrementPoints(uint(uid), points)
+				repository.UserRepo.IncrementMonthlyPoints(uint(uid), points)
 			}
 		}
 
 		gr.GameState.PointsChanges[uid] = points
 
-		// 2. 处理 XP
-		if uid > 0 {
-			// 如果 XPChanges 还没算过（通常最后结算时大家都没算过）
-			if _, ok := gr.GameState.XPChanges[uid]; !ok {
-				xp := CalculateXPReward(gr, uid, rank)
-				gr.GameState.XPChanges[uid] = xp
-				if xp > 0 {
-					go AwardXP(uid, xp)
-				}
+		if _, ok := gr.GameState.XPChanges[uid]; !ok {
+			xp := CalculateXPReward(gr, uid, rank)
+			gr.GameState.XPChanges[uid] = xp
+			if xp > 0 {
+				go AwardXP(uid, xp)
 			}
-		} else {
-			gr.GameState.XPChanges[uid] = 0
 		}
 	}
 
 	// 悬赏逻辑处理（仅奖励第一名）
-	if len(finished) > 0 {
-		winnerUID := finished[0]
+	if repository.BountyRepo != nil && len(fullRanking) > 0 {
+		winnerUID := fullRanking[0]
 		totalBountyForWinner := 0
 		for _, targetUID := range allUIDs {
+			if targetUID <= 0 || gr.isExitedLocked(targetUID) {
+				continue
+			}
 			bounties, err := repository.BountyRepo.FindActiveByTarget(uint(targetUID))
 			if err != nil {
 				continue
@@ -1395,7 +1544,7 @@ func handlePointsCalculation(gr *GameRoom) {
 			}
 		}
 
-		if totalBountyForWinner > 0 {
+		if totalBountyForWinner > 0 && repository.UserRepo != nil {
 			repository.UserRepo.IncrementPoints(uint(winnerUID), totalBountyForWinner)
 			repository.UserRepo.IncrementMonthlyPoints(uint(winnerUID), totalBountyForWinner)
 			gr.GameState.PointsChanges[winnerUID] += totalBountyForWinner
@@ -1405,28 +1554,6 @@ func handlePointsCalculation(gr *GameRoom) {
 
 // handleXPCalculation 处理经验值计算（用于非积分模式）
 func handleXPCalculation(gr *GameRoom) {
-	finished := gr.GameState.FinishedPlayers
-
-	// 确保所有玩家都在排名列表中（即使没打完）
-	allUIDs := []int{}
-	for _, p := range gr.GameState.Players {
-		allUIDs = append(allUIDs, p.UID)
-	}
-
-	fullRanking := append([]int{}, finished...)
-	for _, uid := range allUIDs {
-		exists := false
-		for _, fuid := range finished {
-			if fuid == uid {
-				exists = true
-				break
-			}
-		}
-		if !exists {
-			fullRanking = append(fullRanking, uid)
-		}
-	}
-
 	// 初始化 XPChanges 和 PointsChanges map
 	if gr.GameState.XPChanges == nil {
 		gr.GameState.XPChanges = make(map[int]int)
@@ -1435,13 +1562,18 @@ func handleXPCalculation(gr *GameRoom) {
 		gr.GameState.PointsChanges = make(map[int]int)
 	}
 
+	for _, uid := range gr.participantUIDsLocked() {
+		if uid < 0 || gr.isExitedLocked(uid) {
+			gr.GameState.PointsChanges[uid] = 0
+			gr.GameState.XPChanges[uid] = 0
+		}
+	}
+
+	fullRanking := gr.rewardableHumanRankingLocked()
+
 	// 计算并存储每个玩家的 XP 变化（非积分模式积分为0，仅用于前端显示排名）
 	for i, uid := range fullRanking {
 		gr.GameState.PointsChanges[uid] = 0 // 非积分模式不发放积分
-		if uid < 0 {
-			gr.GameState.XPChanges[uid] = 0
-			continue
-		}
 		rank := i + 1
 		xp := CalculateXPReward(gr, uid, rank)
 		gr.GameState.XPChanges[uid] = xp
@@ -1684,9 +1816,12 @@ func (gr *GameRoom) kickPlayer(uid int, reason string) {
 	gr.Room.Players = newPlayers
 
 	// 如果所有玩家都离开了，关闭房间
-	if len(gr.Room.Players) == 0 {
+	if len(gr.Room.Players) == 0 && gr.Room.Status != "playing" {
 		gr.mutex.Unlock()
-		gr.terminateRoom("由于没有研究员留守，实验室已自动关闭")
+		if err := AdminTerminateRoom(roomID, "由于没有真人玩家留守，实验室已自动关闭"); err != nil {
+			log.Printf("自动结束空房间失败: %v", err)
+		}
+		BroadcastRoomsUpdate()
 		return
 	}
 
@@ -1711,6 +1846,7 @@ func (gr *GameRoom) kickPlayer(uid int, reason string) {
 		}
 
 		if !isFinished && kickedIndex != -1 {
+			gr.markUnfinishedHumanExitedLocked(uid)
 			gr.GameState.QuittedCount++
 		}
 
@@ -1728,8 +1864,34 @@ func (gr *GameRoom) kickPlayer(uid int, reason string) {
 	}
 
 	if gr.GameState != nil && gr.GameState.Status == "playing" && !gr.hasHumanPlayersLocked() {
+		remainingPlayers := len(gr.Room.Players)
 		gr.mutex.Unlock()
-		gr.terminateAsInvalidGame("房间内已无真人玩家，本局已自动结束，相关 AI 进程已停止")
+		emitPlayerLeave(roomID, uid, remainingPlayers, "kick_player")
+		gr.terminateAllHumanExitedGame("所有真人玩家均已离开，本局提前结束且所有真人收益归零")
+		return
+	}
+
+	if gr.Room.Status == "waiting" && !gr.hasHumanPlayersLocked() {
+		gr.mutex.Unlock()
+		if err := AdminTerminateRoom(roomID, "所有真人玩家已离开，房间自动结束"); err != nil {
+			log.Printf("自动结束等待房间失败: %v", err)
+		}
+		BroadcastRoomsUpdate()
+		return
+	}
+
+	if finalizeAfterExit, allZero := gr.shouldEndAfterHumanExitLocked(); allZero {
+		remainingPlayers := len(gr.Room.Players)
+		gr.mutex.Unlock()
+		emitPlayerLeave(roomID, uid, remainingPlayers, "kick_player")
+		gr.terminateAllHumanExitedGame("所有真人玩家均已离开，本局提前结束且所有真人收益归零")
+		return
+	} else if finalizeAfterExit {
+		remainingPlayers := len(gr.Room.Players)
+		gr.InsufficientSince = nil
+		finalizeGame(gr)
+		gr.mutex.Unlock()
+		emitPlayerLeave(roomID, uid, remainingPlayers, "kick_player")
 		return
 	}
 
@@ -1778,6 +1940,84 @@ func (gr *GameRoom) terminateRoom(reason string) {
 			Message: reason,
 		})
 	}
+}
+
+func (gr *GameRoom) terminateAllHumanExitedGame(reason string) {
+	roomID := gr.Room.ID
+	var replayMeta *gameReplayMeta
+
+	gr.mutex.Lock()
+	if gr.Room.Status == "terminated" || gr.Room.Status == "finished" {
+		gr.mutex.Unlock()
+		return
+	}
+
+	playersSnapshot := gr.humanParticipantUIDsLocked()
+	statePlayersSnapshot := gr.playerStateUIDsLocked()
+	originalPlayerCount := len(playersSnapshot)
+	quittedCount := 0
+	if gr.GameState != nil {
+		originalPlayerCount = gr.GameState.OriginalPlayerCount
+		quittedCount = gr.GameState.QuittedCount
+		if gr.GameState.PointsChanges == nil {
+			gr.GameState.PointsChanges = make(map[int]int)
+		}
+		if gr.GameState.XPChanges == nil {
+			gr.GameState.XPChanges = make(map[int]int)
+		}
+		for _, uid := range playersSnapshot {
+			gr.GameState.PointsChanges[uid] = 0
+			gr.GameState.XPChanges[uid] = 0
+			gr.GameState.ExitedPlayers = appendUniqueInt(gr.GameState.ExitedPlayers, uid)
+		}
+		gr.GameState.Status = "terminated"
+	}
+	gr.appendReplayEventLocked("game_terminated_all_humans_exited", 0, map[string]interface{}{
+		"reason":           reason,
+		"human_players":    append([]int(nil), playersSnapshot...),
+		"state_players":    append([]int(nil), statePlayersSnapshot...),
+		"points_zeroed":    true,
+		"action_summary":   reason,
+		"settlement_state": "all_zero",
+	})
+	replayLog, cheatUIDs, cheatDetected := gr.captureReplaySnapshotLocked(reason)
+	replayMeta = &gameReplayMeta{
+		ReplayLog:       replayLog,
+		ReplayPermanent: false,
+		CheatDetected:   cheatDetected,
+		CheatUIDs:       cheatUIDs,
+		StartedAt:       gr.GameStartedAt,
+	}
+
+	gr.Room.Status = "terminated"
+	gr.InsufficientSince = nil
+	gr.mutex.Unlock()
+
+	saveGameHistory(roomID, 0, statePlayersSnapshot, originalPlayerCount, quittedCount, nil, true, reason, replayMeta)
+
+	privateChatRepo := repository.NewPrivateChatRepository()
+	if err := privateChatRepo.DeleteGameInvitesByRoom(roomID); err != nil {
+		log.Printf("清理房间 %s 的游戏邀请失败: %v", roomID, err)
+	}
+
+	emitRoomClosed(roomID, reason, "all_humans_exited", len(playersSnapshot))
+	roomMutex.Lock()
+	delete(rooms, roomID)
+	roomMutex.Unlock()
+	BroadcastRoomsUpdate()
+
+	if websocket.GlobalHub != nil {
+		websocket.GlobalHub.BroadcastToRoom(roomID, websocket.Message{
+			Type:    "room_terminated",
+			Message: reason,
+			Data: map[string]interface{}{
+				"points_changes": map[int]int{},
+				"all_zero":       true,
+			},
+		})
+	}
+
+	log.Printf("[自动结束] 房间 %s 已因所有真人玩家退出而结束，所有真人收益归零", roomID)
 }
 
 func (gr *GameRoom) terminateAsInvalidGame(reason string) {
@@ -2229,6 +2469,18 @@ func LeaveRoom(roomID string, uid int) error {
 
 	// 检查自动开始状态
 	if gameRoom.Room.Status == "waiting" {
+		if !gameRoom.hasHumanPlayersLocked() {
+			remainingPlayers := len(gameRoom.Room.Players)
+			gameRoom.mutex.Unlock()
+			if removedPlayer {
+				emitPlayerLeave(roomID, uid, remainingPlayers, "leave_room")
+			}
+			if err := AdminTerminateRoom(roomID, "所有真人玩家已离开，房间自动结束"); err != nil {
+				log.Printf("自动结束等待房间失败: %v", err)
+			}
+			BroadcastRoomsUpdate()
+			return nil
+		}
 		gameRoom.checkAutoStart()
 	}
 
@@ -2254,6 +2506,7 @@ func LeaveRoom(roomID string, uid int) error {
 
 		// 只有未完成比赛的玩家离开才算作中途退出
 		if !isFinished && leftIndex != -1 {
+			gameRoom.markUnfinishedHumanExitedLocked(uid)
 			gameRoom.GameState.QuittedCount++
 		}
 
@@ -2295,7 +2548,18 @@ func LeaveRoom(roomID string, uid int) error {
 
 	if gameRoom.GameState != nil && gameRoom.GameState.Status == "playing" && !gameRoom.hasHumanPlayersLocked() {
 		gameRoom.mutex.Unlock()
-		gameRoom.terminateAsInvalidGame("房间内已无真人玩家，本局已自动结束，相关 AI 进程已停止")
+		gameRoom.terminateAllHumanExitedGame("所有真人玩家均已离开，本局提前结束且所有真人收益归零")
+		return nil
+	}
+
+	if finalizeAfterExit, allZero := gameRoom.shouldEndAfterHumanExitLocked(); allZero {
+		gameRoom.mutex.Unlock()
+		gameRoom.terminateAllHumanExitedGame("所有真人玩家均已离开，本局提前结束且所有真人收益归零")
+		return nil
+	} else if finalizeAfterExit {
+		gameRoom.InsufficientSince = nil
+		finalizeGame(gameRoom)
+		gameRoom.mutex.Unlock()
 		return nil
 	}
 
@@ -2410,6 +2674,7 @@ func StartGame(roomID string, uid int) error {
 	gameRoom.GameState = &models.GameState{
 		RoomID:              roomID,
 		Players:             []*models.PlayerState{},
+		ExitedPlayers:       []int{},
 		OriginalPlayerCount: len(gameRoom.Room.Players),
 		QuittedCount:        0,
 		CurrentPlayer:       0,

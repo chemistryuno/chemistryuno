@@ -80,17 +80,17 @@ func (am *AppealManager) SubmitAppealWithRooms(roomID string, playerUID uint, ri
 
 	log.Printf("[申诉] 玩家 %d 对房间 %s 提交申诉 (ID: %d)", playerUID, roomID, appeal.ID)
 	auditLog := &database.CheatAuditLog{
-		EventType:   "appeal",
-		RoomID:      roomID,
-		PlayerUID:   playerUID,
-		RiskScoreID: &riskScoreID,
-		AppealID:    &appeal.ID,
-		ReplayID:    appeal.ReplayID,
-		GameHistoryID: appeal.GameHistoryID,
+		EventType:       "appeal",
+		RoomID:          roomID,
+		PlayerUID:       playerUID,
+		RiskScoreID:     &riskScoreID,
+		AppealID:        &appeal.ID,
+		ReplayID:        appeal.ReplayID,
+		GameHistoryID:   appeal.GameHistoryID,
 		PrimaryEvidence: appeal.PrimaryEvidence,
 		RelatedEvidence: appeal.RelatedEvidence,
-		NewStatus:   "pending",
-		Remark:      reason,
+		NewStatus:       "pending",
+		Remark:          reason,
 	}
 	if sanctionID != nil {
 		auditLog.SanctionID = sanctionID
@@ -126,11 +126,8 @@ func (am *AppealManager) ApproveAppealWithCompensation(appealID uint, reviewerUI
 	}
 
 	if appeal.Status == "approved" && appeal.CompensationStatus == "ok" {
-		if am.userRepo != nil {
-			if err := am.userRepo.UpdateBanStatusWithReason(appeal.PlayerUID, nil, ""); err != nil {
-				log.Printf("[appeal] failed to clear account ban for player %d: %v", appeal.PlayerUID, err)
-				return nil, err
-			}
+		if err := am.clearApprovedAppealBanState(appeal); err != nil {
+			return nil, err
 		}
 		return &ApprovalOutcome{
 			Appeal:              appeal,
@@ -161,6 +158,9 @@ func (am *AppealManager) ApproveAppealWithCompensation(appealID uint, reviewerUI
 			log.Printf("[appeal] failed to clear account ban for player %d: %v", appeal.PlayerUID, err)
 			return nil, err
 		}
+	}
+	if err := am.revokeApprovedAppealActiveBanSanctions(appeal); err != nil {
+		return nil, err
 	}
 
 	now := time.Now()
@@ -205,6 +205,30 @@ func (am *AppealManager) ApproveAppealWithCompensation(appealID uint, reviewerUI
 	outcome.Appeal.CompensationNote = outcome.CompensationNote
 	log.Printf("[申诉] 已批准申诉 ID: %d (玩家: %d，审核人: %d)，补偿待玩家主动领取", appealID, appeal.PlayerUID, reviewerUID)
 	return outcome, nil
+}
+
+func (am *AppealManager) revokeApprovedAppealActiveBanSanctions(appeal *database.CheatAppeal) error {
+	if am == nil || am.repository == nil || appeal == nil {
+		return nil
+	}
+	if err := am.repository.RevokeActiveBanSanctionsByPlayer(appeal.PlayerUID); err != nil {
+		log.Printf("[appeal] failed to revoke active ban sanctions for player %d: %v", appeal.PlayerUID, err)
+		return err
+	}
+	return nil
+}
+
+func (am *AppealManager) clearApprovedAppealBanState(appeal *database.CheatAppeal) error {
+	if appeal == nil {
+		return nil
+	}
+	if am.userRepo != nil {
+		if err := am.userRepo.UpdateBanStatusWithReason(appeal.PlayerUID, nil, ""); err != nil {
+			log.Printf("[appeal] failed to clear account ban for player %d: %v", appeal.PlayerUID, err)
+			return err
+		}
+	}
+	return am.revokeApprovedAppealActiveBanSanctions(appeal)
 }
 
 func (am *AppealManager) ClaimCompensation(appealID uint, playerUID uint) (*ApprovalOutcome, error) {

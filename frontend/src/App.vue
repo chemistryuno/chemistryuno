@@ -5,6 +5,7 @@ import websocket from './utils/websocket'
 import feedback from './utils/feedback'
 import { useDialog } from './utils/dialog'
 import { clearAuthState } from './utils/api'
+import { formatBanUntil } from './utils/banState'
 import AnnouncementTicker from './components/AnnouncementTicker.vue'
 
 const CustomDialog = defineAsyncComponent(() => import('./components/CustomDialog.vue'))
@@ -97,6 +98,36 @@ const handleForceLogout = async (msg: any) => {
   const reason = msg?.message || msg?.data || '您已被管理员强制下线'
   await showAlert(reason, '账号操作通知')
   router.push('/login')
+}
+
+const updateStoredBanState = (data: any) => {
+  const bannedUntil = data?.banned_until || data?.bannedUntil
+  const banReason = data?.ban_reason || data?.banReason || ''
+  if (!bannedUntil) return
+
+  try {
+    const user = JSON.parse(localStorage.getItem('user') || '{}')
+    localStorage.setItem('user', JSON.stringify({
+      ...user,
+      banned_until: bannedUntil,
+      ban_reason: banReason,
+    }))
+  } catch {
+    // Keep the active session untouched even if the cached user payload is malformed.
+  }
+}
+
+const handleBanNotification = async (msg: any) => {
+  const data = typeof msg?.data === 'object' && msg.data ? msg.data : {}
+  updateStoredBanState(data)
+  const reason = data.ban_reason || data.banReason || ''
+  const bannedUntil = data.banned_until || data.bannedUntil
+  const lines = [msg?.message || '您的账号已被封禁，系统将返回大厅。']
+  if (bannedUntil) lines.push(`封禁截止：${formatBanUntil(bannedUntil)}`)
+  if (reason) lines.push(`封禁原因：${reason}`)
+  const redirectTo = typeof data.redirect_to === 'string' && data.redirect_to.startsWith('/') ? data.redirect_to : '/'
+  void router.push(redirectTo)
+  await showAlert(lines.join('\n'), '账号封禁通知')
 }
 
 const handleSystemAnnouncement = (msg: any) => {
@@ -222,6 +253,8 @@ onMounted(() => {
     websocket.on('duel_declined', handleDuelDeclined)
     websocket.on('system_announcement', handleSystemAnnouncement)
     websocket.on('force_logout', handleForceLogout)
+    websocket.on('ban_notification', handleBanNotification)
+    websocket.on('player_banned', handleBanNotification)
     websocket.on('admin_broadcast', handleAdminBroadcast)
     websocket.on('server_restart', handleServerRestart)
     websocket.on('server_restart_now', handleServerRestartNow)
@@ -245,6 +278,8 @@ onUnmounted(() => {
   websocket.off('duel_declined', handleDuelDeclined)
   websocket.off('system_announcement', handleSystemAnnouncement)
   websocket.off('force_logout', handleForceLogout)
+  websocket.off('ban_notification', handleBanNotification)
+  websocket.off('player_banned', handleBanNotification)
   websocket.off('admin_broadcast', handleAdminBroadcast)
   websocket.off('server_restart', handleServerRestart)
   websocket.off('server_restart_now', handleServerRestartNow)

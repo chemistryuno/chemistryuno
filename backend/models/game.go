@@ -103,6 +103,7 @@ type GameState struct {
 	Players             []*PlayerState `json:"players"`
 	Spectators          []int          `json:"spectators"`
 	FinishedPlayers     []int          `json:"finished_players"` // 已完成比赛的玩家UID列表
+	ExitedPlayers       []int          `json:"exited_players"`   // 开局后未完成即退出/被移除的真人玩家UID列表
 	CurrentPlayer       int            `json:"current_player"`
 	Direction           int            `json:"direction"` // 1: 顺时针, -1: 逆时针
 	LastCard            *PlayedCard    `json:"last_card"`

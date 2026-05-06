@@ -1,6 +1,7 @@
 import { mount, flushPromises } from '@vue/test-utils'
 import { describe, expect, it, beforeEach, vi } from 'vitest'
 import ChatBox from './ChatBox.vue'
+import { adminAPI, authAPI } from '../utils/api'
 
 const routerPush = vi.fn()
 
@@ -14,10 +15,19 @@ vi.mock('vue-router', () => ({
 vi.mock('../utils/api', () => ({
   authAPI: {
     getUserInfo: vi.fn(),
-    getGlobalChatHistory: vi.fn(() => Promise.resolve({ data: [] }))
+    getGlobalChatHistory: vi.fn(() => Promise.resolve({ data: [] })),
+    getPlayerAppeals: vi.fn(),
+    getAppealEntryStatus: vi.fn(),
+    claimAppealCompensation: vi.fn(),
+    submitAppeal: vi.fn()
   },
   gameAPI: {
     checkRoomStatus: vi.fn()
+  },
+  adminAPI: {
+    unbanUser: vi.fn(),
+    unbanFromAnticheatPanel: vi.fn(),
+    approveAppeal: vi.fn()
   }
 }))
 
@@ -254,7 +264,7 @@ describe('ChatBox - Banned User Display', () => {
     wrapper.unmount()
   })
 
-  it('should handle appeal button click', async () => {
+  it('should handle appeal button click as navigation only', async () => {
     const futureDate = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
     localStorage.setItem('user', JSON.stringify({
       uid: 1,
@@ -285,6 +295,13 @@ describe('ChatBox - Banned User Display', () => {
     await wrapper.vm.$nextTick()
 
     expect(routerPush).toHaveBeenCalledWith('/appeals')
+    expect(authAPI.getPlayerAppeals).not.toHaveBeenCalled()
+    expect(authAPI.getAppealEntryStatus).not.toHaveBeenCalled()
+    expect(authAPI.claimAppealCompensation).not.toHaveBeenCalled()
+    expect(authAPI.submitAppeal).not.toHaveBeenCalled()
+    expect(adminAPI.unbanUser).not.toHaveBeenCalled()
+    expect(adminAPI.unbanFromAnticheatPanel).not.toHaveBeenCalled()
+    expect(adminAPI.approveAppeal).not.toHaveBeenCalled()
 
     wrapper.unmount()
   })

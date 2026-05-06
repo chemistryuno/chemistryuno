@@ -242,7 +242,7 @@ describe('AdminAnticheat', () => {
     expect(wrapper.text()).toContain('封禁处置')
 
     const untilInput = wrapper.find('input[type="datetime-local"]')
-    await untilInput.setValue('2026-05-06T10:00')
+    await untilInput.setValue('2026-05-07T10:00')
     const textareas = wrapper.findAll('textarea')
     await textareas[textareas.length - 1].setValue('manual evidence review')
 
@@ -251,7 +251,7 @@ describe('AdminAnticheat', () => {
 
     expect(adminAPI.banFromAnticheatPanel).toHaveBeenCalledWith({
       player_uid: 42,
-      banned_until: new Date('2026-05-06T10:00').toISOString(),
+      banned_until: new Date('2026-05-07T10:00').toISOString(),
       reason: 'manual evidence review',
       room_id: 'room-1',
       risk_score_id: 7,
@@ -290,6 +290,78 @@ describe('AdminAnticheat', () => {
       sanction_id: 88,
       reason: 'Anticheat panel manual enforcement',
     })
+  })
+
+  it('hides replay links when evidence has no corresponding replay', async () => {
+    const wrapper = await mountAdminAnticheat([{
+      id: 7,
+      player_id: 42,
+      room_id: 'room-1',
+      risk_score: 86,
+      sanction_type: 'ban',
+      review_status: 'processed',
+      created_at: '2026-05-03T00:00:00Z',
+    }])
+    vi.mocked(adminAPI.getDetectionDetail).mockResolvedValueOnce(apiResponse({
+      risk_score: {
+        id: 7,
+        player_uid: 42,
+        room_id: 'room-1',
+        risk_score: 86,
+        review_status: 'processed',
+        punishment_decision: 'ban',
+        replay_id: '',
+        game_history_id: 0,
+        has_replay: false,
+        primary_evidence: {
+          room_id: 'room-1',
+          has_replay: false,
+          replay_available: false,
+          evidence_precision: 'room',
+          action_summary: 'room-level evidence without stored replay',
+        },
+        related_evidence: [{
+          room_id: 'room-1',
+          has_replay: false,
+          replay_available: false,
+          evidence_precision: 'room',
+        }],
+        indicator_details: [{
+          name: 'response_time',
+          raw_value: 12,
+          normalized_score: 90,
+          weight: 0.25,
+          contribution: 22.5,
+          explanation: 'fast operation',
+          evidence_anchors: [{
+            room_id: 'room-1',
+            has_replay: false,
+            replay_available: false,
+            evidence_precision: 'room',
+          }],
+        }],
+        report_contribution: {
+          deduplicated_count: 1,
+          weight: 0.1,
+          contribution: 6,
+          source_summary: 'player report',
+          evidence_anchors: [{
+            room_id: 'room-1',
+            has_replay: false,
+            replay_available: false,
+            evidence_precision: 'room',
+          }],
+        },
+      },
+      sanctions: [{ id: 88, sanction_type: 'ban' }],
+    }))
+
+    await wrapper.find('tbody button').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Replay Evidence')
+    expect(wrapper.text()).not.toContain('Open replay point')
+    expect(wrapper.html()).not.toContain('/replay/')
   })
 
   it('shows backend rejection when a processed punishment cancellation is attempted', async () => {

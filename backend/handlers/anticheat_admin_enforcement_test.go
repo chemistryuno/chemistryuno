@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 
@@ -47,6 +48,14 @@ func setupAdminEnforcementTest(t *testing.T) (*gin.Engine, *gorm.DB) {
 	router.POST("/api/admin/anticheat/unban", func(c *gin.Context) {
 		c.Set("uid", 9001)
 		handler.UnbanFromAnticheatPanel(c)
+	})
+	router.POST("/api/admin/anticheat/detection/:id/review", func(c *gin.Context) {
+		c.Set("uid", 9001)
+		handler.ReviewDetection(c)
+	})
+	router.POST("/api/admin/anticheat/detection/:id/punishment", func(c *gin.Context) {
+		c.Set("uid", 9001)
+		handler.ChangeDetectionPunishment(c)
 	})
 	return router, db
 }
@@ -155,6 +164,143 @@ func TestAnticheatPanelBanRetainsRiskEvidence(t *testing.T) {
 	}
 	if audit.ReplayID != "77" || audit.GameHistoryID != 77 || len(audit.PrimaryEvidence) == 0 || len(audit.RelatedEvidence) == 0 {
 		t.Fatalf("expected audit to retain replay evidence, got replay=%q history=%d primary=%s related=%s", audit.ReplayID, audit.GameHistoryID, string(audit.PrimaryEvidence), string(audit.RelatedEvidence))
+	}
+}
+
+func TestAnticheatDetectionReviewBanEnforcesAccountBan(t *testing.T) {
+	router, db := setupAdminEnforcementTest(t)
+	repo := repository.NewCheatRepository(db)
+	primary := anticheat.MarshalReplayEvidenceAnchor(database.ReplayEvidenceAnchor{
+		RoomID:        "room-review",
+		GameHistoryID: 88,
+		ReplayID:      "88",
+		EventIndex:    4,
+		EventID:       "evt-review-ban",
+		EventType:     "play_card",
+		PlayerUID:     1001,
+	})
+	score := database.CheatRiskScore{
+		RoomID:             "room-review",
+		PlayerUID:          1001,
+		ReplayID:           "88",
+		GameHistoryID:      88,
+		OperationIndex:     4,
+		PrimaryEvidence:    primary,
+		RiskScore:          93,
+		SuggestedAction:    "ban",
+		PunishmentDecision: "none",
+		ReviewStatus:       "pending",
+		SuggestionReason:   "high confidence replay evidence",
+	}
+	if err := repo.SaveRiskScore(&score); err != nil {
+		t.Fatalf("save review risk score: %v", err)
+	}
+
+	body := map[string]any{
+		"decision": "confirm",
+		"remark":   "confirmed ban after replay review",
+	}
+	payload, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPost, "/api/admin/anticheat/detection/"+strconv.Itoa(int(score.ID))+"/review", bytes.NewReader(payload))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected review success, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var user database.User
+	if err := db.First(&user, 1001).Error; err != nil {
+		t.Fatalf("load user: %v", err)
+	}
+	if user.BannedUntil == nil || !user.BannedUntil.After(time.Now()) || user.BanReason != "confirmed ban after replay review" {
+		t.Fatalf("expected account ban from review, got until=%v reason=%q", user.BannedUntil, user.BanReason)
+	}
+	var reviewed database.CheatRiskScore
+	if err := db.First(&reviewed, score.ID).Error; err != nil {
+		t.Fatalf("load reviewed score: %v", err)
+	}
+	if reviewed.ReviewStatus != "processed" || reviewed.PunishmentDecision != "ban" {
+		t.Fatalf("expected review to keep ban decision, got review=%q punishment=%q", reviewed.ReviewStatus, reviewed.PunishmentDecision)
+	}
+	var sanction database.CheatSanction
+	if err := db.Where("risk_score_id = ? AND sanction_type = ? AND status = ?", score.ID, "ban", "active").First(&sanction).Error; err != nil {
+		t.Fatalf("expected review to create active ban sanction: %v", err)
+	}
+	if sanction.EffectiveUntil == nil || sanction.ReplayID != "88" || len(sanction.PrimaryEvidence) == 0 {
+		t.Fatalf("expected review sanction to retain ban expiry and evidence, got %+v", sanction)
+	}
+	var banAudit database.CheatAuditLog
+	if err := db.Where("risk_score_id = ? AND event_type = ?", score.ID, "ban").First(&banAudit).Error; err != nil {
+		t.Fatalf("expected review ban audit: %v", err)
+	}
+	if banAudit.OperatorUID == nil || *banAudit.OperatorUID != 9001 || banAudit.SanctionID == nil {
+		t.Fatalf("unexpected review ban audit: %+v", banAudit)
+	}
+}
+
+func TestAnticheatPunishmentChangeBanEnforcesAccountBan(t *testing.T) {
+	router, db := setupAdminEnforcementTest(t)
+	repo := repository.NewCheatRepository(db)
+	score := database.CheatRiskScore{
+		RoomID:             "room-change",
+		PlayerUID:          1001,
+		ReplayID:           "99",
+		GameHistoryID:      99,
+		OperationIndex:     7,
+		PrimaryEvidence:    anticheat.MarshalReplayEvidenceAnchor(database.ReplayEvidenceAnchor{RoomID: "room-change", GameHistoryID: 99, ReplayID: "99", EventIndex: 7, PlayerUID: 1001}),
+		RiskScore:          82,
+		SuggestedAction:    "mute",
+		PunishmentDecision: "mute",
+		ReviewStatus:       "processed",
+	}
+	if err := repo.SaveRiskScore(&score); err != nil {
+		t.Fatalf("save change risk score: %v", err)
+	}
+	duration := 45
+	effectiveUntil := time.Now().Add(time.Duration(duration) * time.Minute).UTC().Format(time.RFC3339)
+	body := map[string]any{
+		"punishment_decision": "ban",
+		"reason":              "escalated after admin review",
+		"duration":            duration,
+		"effective_until":     effectiveUntil,
+	}
+	payload, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPost, "/api/admin/anticheat/detection/"+strconv.Itoa(int(score.ID))+"/punishment", bytes.NewReader(payload))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected punishment change success, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var user database.User
+	if err := db.First(&user, 1001).Error; err != nil {
+		t.Fatalf("load user: %v", err)
+	}
+	if user.BannedUntil == nil || !user.BannedUntil.After(time.Now()) || user.BanReason != "escalated after admin review" {
+		t.Fatalf("expected account ban from punishment change, got until=%v reason=%q", user.BannedUntil, user.BanReason)
+	}
+	var sanction database.CheatSanction
+	if err := db.Where("risk_score_id = ? AND sanction_type = ? AND status = ?", score.ID, "ban", "active").First(&sanction).Error; err != nil {
+		t.Fatalf("expected punishment change to create active ban sanction: %v", err)
+	}
+	if sanction.Duration == nil || *sanction.Duration != duration || sanction.EffectiveUntil == nil {
+		t.Fatalf("expected punishment change sanction duration/expiry, got %+v", sanction)
+	}
+	var changed database.CheatRiskScore
+	if err := db.First(&changed, score.ID).Error; err != nil {
+		t.Fatalf("load changed score: %v", err)
+	}
+	if changed.PunishmentDecision != "ban" {
+		t.Fatalf("expected changed punishment ban, got %q", changed.PunishmentDecision)
+	}
+	var banAudit database.CheatAuditLog
+	if err := db.Where("risk_score_id = ? AND event_type = ?", score.ID, "ban").First(&banAudit).Error; err != nil {
+		t.Fatalf("expected punishment change ban audit: %v", err)
+	}
+	if banAudit.SanctionID == nil || banAudit.Remark != "escalated after admin review" {
+		t.Fatalf("unexpected punishment change ban audit: %+v", banAudit)
 	}
 }
 

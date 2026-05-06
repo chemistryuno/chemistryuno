@@ -34,6 +34,7 @@ func setupPlayerAppealHandlerTest(t *testing.T) (*gin.Engine, *gorm.DB) {
 	userRepo := repository.NewUserRepository(db)
 	system := &anticheat.System{
 		AppealManager: anticheat.NewAppealManager(cheatRepo, userRepo),
+		Decider:       anticheat.NewSanctionDecider(nil, cheatRepo),
 		Repository:    cheatRepo,
 	}
 	handler := NewAnticheatHandler(system)
@@ -42,6 +43,10 @@ func setupPlayerAppealHandlerTest(t *testing.T) (*gin.Engine, *gorm.DB) {
 	router.GET("/api/player/appeals", func(c *gin.Context) {
 		c.Set("uid", 1001)
 		handler.GetPlayerAppeals(c)
+	})
+	router.GET("/api/player/appeals/entry", func(c *gin.Context) {
+		c.Set("uid", 1001)
+		handler.GetAppealEntryStatus(c)
 	})
 	router.GET("/api/player/appeals/anonymous", handler.GetPlayerAppeals)
 	router.POST("/api/player/appeals/:id/claim", func(c *gin.Context) {
@@ -114,6 +119,57 @@ func seedBannedAppealContext(t *testing.T, db *gorm.DB, uid uint, roomID string,
 	}
 }
 
+func seedActiveBanSanction(t *testing.T, db *gorm.DB, uid uint, roomID string, riskScoreID uint, bannedUntil time.Time) database.CheatSanction {
+	t.Helper()
+	sanction := database.CheatSanction{
+		RoomID:         roomID,
+		PlayerUID:      uid,
+		RiskScoreID:    riskScoreID,
+		SanctionType:   "ban",
+		RiskScore:      90,
+		Reason:         "active anticheat ban",
+		EffectiveUntil: &bannedUntil,
+		Status:         "active",
+	}
+	if err := db.Create(&sanction).Error; err != nil {
+		t.Fatalf("create active ban sanction: %v", err)
+	}
+	return sanction
+}
+
+func assertAccountBanActive(t *testing.T, db *gorm.DB, uid uint) {
+	t.Helper()
+	var user database.User
+	if err := db.First(&user, uid).Error; err != nil {
+		t.Fatalf("load user: %v", err)
+	}
+	if user.BannedUntil == nil || !user.BannedUntil.After(time.Now()) || user.BanReason == "" {
+		t.Fatalf("expected account ban to remain active, got until=%v reason=%q", user.BannedUntil, user.BanReason)
+	}
+}
+
+func assertSanctionActive(t *testing.T, db *gorm.DB, sanctionID uint) {
+	t.Helper()
+	var sanction database.CheatSanction
+	if err := db.First(&sanction, sanctionID).Error; err != nil {
+		t.Fatalf("load sanction: %v", err)
+	}
+	if sanction.Status != "active" || sanction.SanctionType != "ban" {
+		t.Fatalf("expected ban sanction to remain active, got type=%q status=%q", sanction.SanctionType, sanction.Status)
+	}
+}
+
+func assertNoUnbanAudit(t *testing.T, db *gorm.DB, uid uint) {
+	t.Helper()
+	var unbanAudits int64
+	if err := db.Model(&database.CheatAuditLog{}).Where("player_uid = ? AND event_type = ?", uid, "unban").Count(&unbanAudits).Error; err != nil {
+		t.Fatalf("count unban audits: %v", err)
+	}
+	if unbanAudits != 0 {
+		t.Fatalf("expected no unban audit events, got %d", unbanAudits)
+	}
+}
+
 func TestPlayerAppealsRequireAuthenticatedUID(t *testing.T) {
 	router, _ := setupPlayerAppealHandlerTest(t)
 
@@ -129,9 +185,15 @@ func TestPlayerAppealsRequireAuthenticatedUID(t *testing.T) {
 func TestSubmitAppealUsesAuthenticatedUID(t *testing.T) {
 	router, db := setupPlayerAppealHandlerTest(t)
 	seedBannedAppealContext(t, db, 1001, "room-1", 44)
+	var bannedUser database.User
+	if err := db.First(&bannedUser, 1001).Error; err != nil {
+		t.Fatalf("load banned user: %v", err)
+	}
+	sanction := seedActiveBanSanction(t, db, 1001, "room-1", 44, *bannedUser.BannedUntil)
 	body := map[string]any{
 		"player_uid":    9999,
 		"risk_score_id": 44,
+		"sanction_id":   sanction.ID,
 		"reason":        "This detection was a false positive.",
 		"evidence":      "Replay timing looked normal from my side.",
 	}
@@ -153,7 +215,7 @@ func TestSubmitAppealUsesAuthenticatedUID(t *testing.T) {
 	if appeal.PlayerUID != 1001 {
 		t.Fatalf("expected authenticated uid 1001, got %d", appeal.PlayerUID)
 	}
-	if appeal.RoomID != "room-1" || appeal.Status != "pending" {
+	if appeal.RoomID != "room-1" || appeal.Status != "pending" || appeal.SanctionID != sanction.ID {
 		t.Fatalf("unexpected appeal state: room=%q status=%q", appeal.RoomID, appeal.Status)
 	}
 	var roomIDs []string
@@ -163,6 +225,9 @@ func TestSubmitAppealUsesAuthenticatedUID(t *testing.T) {
 	if len(roomIDs) != 1 || roomIDs[0] != "room-1" {
 		t.Fatalf("expected locked room list from server, got %#v", roomIDs)
 	}
+	assertAccountBanActive(t, db, 1001)
+	assertSanctionActive(t, db, sanction.ID)
+	assertNoUnbanAudit(t, db, 1001)
 }
 
 func TestSubmitAppealRejectsUnbannedPlayer(t *testing.T) {
@@ -176,6 +241,256 @@ func TestSubmitAppealRejectsUnbannedPlayer(t *testing.T) {
 	router.ServeHTTP(w, req)
 	if w.Code != http.StatusForbidden {
 		t.Fatalf("expected unbanned appeal to be forbidden, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestSubmitAppealRequiresOnlyReasonForBannedPlayer(t *testing.T) {
+	router, db := setupPlayerAppealHandlerTest(t)
+	bannedUntil := time.Now().Add(2 * time.Hour)
+	if err := db.AutoMigrate(&database.User{}); err != nil {
+		t.Fatalf("migrate user table: %v", err)
+	}
+	if err := db.Create(&database.User{
+		UID:         1001,
+		Username:    "reason-only-appeal",
+		BannedUntil: &bannedUntil,
+		BanReason:   "manual account ban",
+	}).Error; err != nil {
+		t.Fatalf("create banned user: %v", err)
+	}
+	payload, _ := json.Marshal(map[string]any{
+		"reason": "Please review my account ban.",
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/game/account/appeal", bytes.NewReader(payload))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected reason-only appeal success, got %d: %s", w.Code, w.Body.String())
+	}
+	var appeal database.CheatAppeal
+	if err := db.First(&appeal).Error; err != nil {
+		t.Fatalf("load saved appeal: %v", err)
+	}
+	if appeal.RoomID != "account" || appeal.PlayerUID != 1001 || appeal.RiskScoreID != 0 || appeal.SanctionID != 0 || appeal.Evidence != "" || appeal.Status != "pending" {
+		t.Fatalf("unexpected reason-only appeal: %+v", appeal)
+	}
+	assertAccountBanActive(t, db, 1001)
+	assertNoUnbanAudit(t, db, 1001)
+}
+
+func TestAppealEntryUsesActiveBanSanctionWhenAccountBanMissing(t *testing.T) {
+	router, db := setupPlayerAppealHandlerTest(t)
+	if err := db.AutoMigrate(&database.User{}, &database.GameHistory{}); err != nil {
+		t.Fatalf("migrate context tables: %v", err)
+	}
+	if err := db.Create(&database.User{UID: 1001, Username: "sanction-only-ban"}).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	score := database.CheatRiskScore{
+		ID:                 55,
+		RoomID:             "room-sanction-only",
+		PlayerUID:          1001,
+		RiskScore:          91,
+		SuggestedAction:    "ban",
+		PunishmentDecision: "ban",
+		ReviewStatus:       "processed",
+		DetectionTime:      time.Now().Add(-time.Minute),
+	}
+	if err := db.Create(&score).Error; err != nil {
+		t.Fatalf("create risk score: %v", err)
+	}
+	bannedUntil := time.Now().Add(2 * time.Hour)
+	if err := db.Create(&database.CheatSanction{
+		RoomID:         "room-sanction-only",
+		PlayerUID:      1001,
+		RiskScoreID:    score.ID,
+		SanctionType:   "ban",
+		RiskScore:      91,
+		Reason:         "active anticheat sanction",
+		EffectiveUntil: &bannedUntil,
+		Status:         "active",
+	}).Error; err != nil {
+		t.Fatalf("create ban sanction: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/player/appeals/entry", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected appeal entry success, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var payload struct {
+		IsBanned          bool     `json:"is_banned"`
+		BanReason         string   `json:"ban_reason"`
+		LatestRiskScoreID uint     `json:"latest_risk_score_id"`
+		RoomIDs           []string `json:"room_ids"`
+		CanSubmit         bool     `json:"can_submit"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if !payload.IsBanned || !payload.CanSubmit || payload.BanReason != "active anticheat sanction" {
+		t.Fatalf("expected active sanction to drive banned entry state, got %+v", payload)
+	}
+	if payload.LatestRiskScoreID != score.ID || len(payload.RoomIDs) != 1 || payload.RoomIDs[0] != "room-sanction-only" {
+		t.Fatalf("unexpected appeal context from sanction-only ban: %+v", payload)
+	}
+}
+
+func TestAppealEntryPreservesAccountBanAndActiveSanction(t *testing.T) {
+	router, db := setupPlayerAppealHandlerTest(t)
+	seedBannedAppealContext(t, db, 1001, "room-entry-preserve", 58)
+	var bannedUser database.User
+	if err := db.First(&bannedUser, 1001).Error; err != nil {
+		t.Fatalf("load banned user: %v", err)
+	}
+	sanction := seedActiveBanSanction(t, db, 1001, "room-entry-preserve", 58, *bannedUser.BannedUntil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/player/appeals/entry", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected appeal entry success, got %d: %s", w.Code, w.Body.String())
+	}
+	var payload struct {
+		IsBanned  bool     `json:"is_banned"`
+		CanSubmit bool     `json:"can_submit"`
+		RoomIDs   []string `json:"room_ids"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if !payload.IsBanned || !payload.CanSubmit || len(payload.RoomIDs) == 0 || payload.RoomIDs[0] != "room-entry-preserve" {
+		t.Fatalf("unexpected appeal entry state: %+v", payload)
+	}
+	assertAccountBanActive(t, db, 1001)
+	assertSanctionActive(t, db, sanction.ID)
+	assertNoUnbanAudit(t, db, 1001)
+}
+
+func TestAppealEntryUsesActiveBanSanctionWithoutDecider(t *testing.T) {
+	router, db := setupPlayerAppealHandlerTest(t)
+	router = gin.New()
+	repo := repository.NewCheatRepository(db)
+	handler := NewAnticheatHandler(&anticheat.System{
+		AppealManager: anticheat.NewAppealManager(repo, repository.NewUserRepository(db)),
+		Repository:    repo,
+	})
+	router.GET("/api/player/appeals/entry", func(c *gin.Context) {
+		c.Set("uid", 1001)
+		handler.GetAppealEntryStatus(c)
+	})
+
+	if err := db.AutoMigrate(&database.User{}, &database.GameHistory{}); err != nil {
+		t.Fatalf("migrate context tables: %v", err)
+	}
+	if err := db.Create(&database.User{UID: 1001, Username: "sanction-only-ban"}).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	score := database.CheatRiskScore{
+		ID:                 56,
+		RoomID:             "room-no-decider",
+		PlayerUID:          1001,
+		RiskScore:          91,
+		SuggestedAction:    "ban",
+		PunishmentDecision: "ban",
+		ReviewStatus:       "processed",
+		DetectionTime:      time.Now().Add(-time.Minute),
+	}
+	if err := db.Create(&score).Error; err != nil {
+		t.Fatalf("create risk score: %v", err)
+	}
+	bannedUntil := time.Now().Add(2 * time.Hour)
+	if err := db.Create(&database.CheatSanction{
+		RoomID:         "room-no-decider",
+		PlayerUID:      1001,
+		RiskScoreID:    score.ID,
+		SanctionType:   "ban",
+		RiskScore:      91,
+		Reason:         "active ban without decider",
+		EffectiveUntil: &bannedUntil,
+		Status:         "active",
+	}).Error; err != nil {
+		t.Fatalf("create ban sanction: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/player/appeals/entry", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected appeal entry success, got %d: %s", w.Code, w.Body.String())
+	}
+	var payload struct {
+		IsBanned  bool   `json:"is_banned"`
+		BanReason string `json:"ban_reason"`
+		CanSubmit bool   `json:"can_submit"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if !payload.IsBanned || !payload.CanSubmit || payload.BanReason != "active ban without decider" {
+		t.Fatalf("expected repository fallback to detect active ban, got %+v", payload)
+	}
+}
+
+func TestAppealEntryTreatsBlankSanctionStatusAsActive(t *testing.T) {
+	router, db := setupPlayerAppealHandlerTest(t)
+	if err := db.AutoMigrate(&database.User{}, &database.GameHistory{}); err != nil {
+		t.Fatalf("migrate context tables: %v", err)
+	}
+	if err := db.Create(&database.User{UID: 1001, Username: "legacy-sanction"}).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	score := database.CheatRiskScore{
+		ID:                 57,
+		RoomID:             "room-legacy-status",
+		PlayerUID:          1001,
+		RiskScore:          91,
+		SuggestedAction:    "ban",
+		PunishmentDecision: "ban",
+		ReviewStatus:       "processed",
+		DetectionTime:      time.Now().Add(-time.Minute),
+	}
+	if err := db.Create(&score).Error; err != nil {
+		t.Fatalf("create risk score: %v", err)
+	}
+	bannedUntil := time.Now().Add(2 * time.Hour)
+	if err := db.Create(&database.CheatSanction{
+		RoomID:         "room-legacy-status",
+		PlayerUID:      1001,
+		RiskScoreID:    score.ID,
+		SanctionType:   "ban",
+		RiskScore:      91,
+		Reason:         "legacy active ban",
+		EffectiveUntil: &bannedUntil,
+		Status:         "",
+	}).Error; err != nil {
+		t.Fatalf("create legacy ban sanction: %v", err)
+	}
+	if err := db.Model(&database.CheatSanction{}).Where("risk_score_id = ?", score.ID).Update("status", "").Error; err != nil {
+		t.Fatalf("force blank status: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/player/appeals/entry", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected appeal entry success, got %d: %s", w.Code, w.Body.String())
+	}
+	var payload struct {
+		IsBanned  bool   `json:"is_banned"`
+		BanReason string `json:"ban_reason"`
+		CanSubmit bool   `json:"can_submit"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if !payload.IsBanned || !payload.CanSubmit || payload.BanReason != "legacy active ban" {
+		t.Fatalf("expected blank status sanction to count as active ban, got %+v", payload)
 	}
 }
 
@@ -336,7 +651,7 @@ func TestGetPlayerAppealsReturnsOnlyAuthenticatedPlayerAndNormalizedPayload(t *t
 	}
 }
 
-func TestGetPlayerAppealsRepairsApprovedAppealBanState(t *testing.T) {
+func TestGetPlayerAppealsDoesNotRepairApprovedAppealBanState(t *testing.T) {
 	router, db := setupPlayerAppealHandlerTest(t)
 	database.DB = db
 	if err := db.AutoMigrate(&database.User{}, &database.FuelCompensationRecord{}); err != nil {
@@ -383,16 +698,17 @@ func TestGetPlayerAppealsRepairsApprovedAppealBanState(t *testing.T) {
 	if err := db.First(&user, 1001).Error; err != nil {
 		t.Fatalf("load user: %v", err)
 	}
-	if user.BannedUntil != nil || user.BanReason != "" {
-		t.Fatalf("expected approved appeal to repair account ban, got until=%v reason=%q", user.BannedUntil, user.BanReason)
+	if user.BannedUntil == nil || !user.BannedUntil.After(time.Now()) || user.BanReason != "legacy ban" {
+		t.Fatalf("expected appeal history read to preserve account ban, got until=%v reason=%q", user.BannedUntil, user.BanReason)
 	}
 	var activeBans int64
 	if err := db.Model(&database.CheatSanction{}).Where("player_uid = ? AND sanction_type = ? AND status = ?", 1001, "ban", "active").Count(&activeBans).Error; err != nil {
 		t.Fatalf("count active bans: %v", err)
 	}
-	if activeBans != 0 {
-		t.Fatalf("expected approved appeal to revoke active bans, got %d", activeBans)
+	if activeBans != 1 {
+		t.Fatalf("expected appeal history read to preserve active bans, got %d", activeBans)
 	}
+	assertNoUnbanAudit(t, db, 1001)
 }
 
 func TestAppealWorkflowSubmitAdminListRejectPlayerHistoryAndAudit(t *testing.T) {

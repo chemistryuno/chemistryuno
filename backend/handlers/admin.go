@@ -363,17 +363,7 @@ func BanUser(c *gin.Context) {
 		return
 	}
 
-	// 通过 WebSocket 立即踢出玩家（无提示弹窗，直接断开）
-	if websocket.GlobalHub != nil {
-		websocket.GlobalHub.SendToUID(req.TargetUID, websocket.Message{
-			Type:    "force_logout",
-			Message: "您的账号已被封禁",
-		})
-	}
-
-	// 封禁后强制登出
-	sessionRepo := repository.NewSessionRepository()
-	_ = sessionRepo.DeleteByUserUID(uint(req.TargetUID))
+	sendBanNotification(uint(req.TargetUID), &bannedUntil, req.Reason)
 
 	c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("用户已被封禁至 %s", bannedUntil.Format("2006-01-02 15:04:05"))})
 }

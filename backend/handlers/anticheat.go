@@ -37,6 +37,8 @@ var playerStatsFallbackLimiter = struct {
 	lastSeen: make(map[uint]time.Time),
 }
 
+const defaultDetectionBanDurationMinutes = 10080
+
 // 全局反作弊系统实例 (由main.go初始化)
 var globalAnticheatSystem *anticheat.System
 
@@ -447,13 +449,14 @@ func auditLogDTO(log database.CheatAuditLog) gin.H {
 		"risk_score":           log.RiskScore,
 		"replay_id":            log.ReplayID,
 		"game_history_id":      log.GameHistoryID,
+		"has_replay":           replayExists(replayHistoryID(log.GameHistoryID, log.ReplayID)),
 		"operation_index":      log.OperationIndex,
 		"operation_timestamp":  log.OperationTimestamp,
 		"primary_evidence":     replayEvidenceOrFallback(log.RoomID, log.ReplayID, log.GameHistoryID, log.OperationIndex, log.PlayerUID, log.PrimaryEvidence),
-		"related_evidence":     jsonRawOrNil(log.RelatedEvidence),
+		"related_evidence":     jsonRawWithReplayAvailability(log.RelatedEvidence),
 		"suggested_action":     log.SuggestedAction,
-		"indicator_details":    jsonRawOrNil(log.IndicatorDetails),
-		"report_contribution":  jsonRawOrNil(log.ReportContribution),
+		"indicator_details":    jsonRawWithReplayAvailability(log.IndicatorDetails),
+		"report_contribution":  jsonRawWithReplayAvailability(log.ReportContribution),
 		"old_decision":         log.OldDecision,
 		"new_decision":         log.NewDecision,
 	}
@@ -470,12 +473,147 @@ func jsonRawOrNil(raw database.JSON) interface{} {
 	return decoded
 }
 
+func jsonRawWithReplayAvailability(raw database.JSON) interface{} {
+	return annotateReplayAvailability(jsonRawOrNil(raw))
+}
+
+func annotateReplayAvailability(value interface{}) interface{} {
+	switch typed := value.(type) {
+	case []interface{}:
+		for i := range typed {
+			typed[i] = annotateReplayAvailability(typed[i])
+		}
+	case map[string]interface{}:
+		for key, child := range typed {
+			typed[key] = annotateReplayAvailability(child)
+		}
+		if isReplayEvidenceMap(typed) {
+			hasReplay := replayExists(replayHistoryIDFromMap(typed))
+			typed["has_replay"] = hasReplay
+			typed["replay_available"] = hasReplay
+			if !hasReplay {
+				typed["navigation_url"] = ""
+			}
+		}
+	}
+	return value
+}
+
+func isReplayEvidenceMap(value map[string]interface{}) bool {
+	if _, ok := value["game_history_id"]; ok {
+		return true
+	}
+	if _, ok := value["replay_id"]; ok {
+		return true
+	}
+	if _, ok := value["navigation_url"]; ok {
+		return true
+	}
+	if _, ok := value["evidence_precision"]; ok {
+		return true
+	}
+	if _, ok := value["event_index"]; ok {
+		_, hasRoom := value["room_id"]
+		return hasRoom
+	}
+	if _, ok := value["event_id"]; ok {
+		_, hasRoom := value["room_id"]
+		return hasRoom
+	}
+	return false
+}
+
+func replayHistoryIDFromMap(value map[string]interface{}) uint {
+	if id := uintFromAny(value["game_history_id"]); id > 0 {
+		return id
+	}
+	return replayHistoryIDFromReplayID(stringFromAny(value["replay_id"]))
+}
+
+func replayHistoryID(gameHistoryID uint, replayID string) uint {
+	if gameHistoryID > 0 {
+		return gameHistoryID
+	}
+	return replayHistoryIDFromReplayID(replayID)
+}
+
+func replayHistoryIDFromReplayID(replayID string) uint {
+	parsed, err := strconv.ParseUint(strings.TrimSpace(replayID), 10, 64)
+	if err != nil || parsed == 0 {
+		return 0
+	}
+	return uint(parsed)
+}
+
+func replayExists(gameHistoryID uint) bool {
+	if gameHistoryID == 0 || database.DB == nil {
+		return false
+	}
+	if !database.DB.Migrator().HasTable(&database.GameHistory{}) {
+		return false
+	}
+	var history database.GameHistory
+	if err := database.DB.Select("id", "replay_log").First(&history, gameHistoryID).Error; err != nil {
+		return false
+	}
+	return strings.TrimSpace(history.ReplayLog) != ""
+}
+
+func uintFromAny(value interface{}) uint {
+	switch typed := value.(type) {
+	case uint:
+		return typed
+	case uint64:
+		return uint(typed)
+	case int:
+		if typed > 0 {
+			return uint(typed)
+		}
+	case int64:
+		if typed > 0 {
+			return uint(typed)
+		}
+	case float64:
+		if typed > 0 {
+			return uint(typed)
+		}
+	case json.Number:
+		parsed, err := typed.Int64()
+		if err == nil && parsed > 0 {
+			return uint(parsed)
+		}
+	case string:
+		return replayHistoryIDFromReplayID(typed)
+	}
+	return 0
+}
+
+func stringFromAny(value interface{}) string {
+	switch typed := value.(type) {
+	case string:
+		return typed
+	case fmt.Stringer:
+		return typed.String()
+	case nil:
+		return ""
+	default:
+		return fmt.Sprint(typed)
+	}
+}
+
 func replayEvidenceOrFallback(roomID string, replayID string, gameHistoryID uint, operationIndex int, playerUID uint, primary database.JSON) gin.H {
 	if anchor, ok := anticheat.UnmarshalReplayEvidenceAnchor(primary); ok {
+		hasReplay := replayExists(replayHistoryID(anchor.GameHistoryID, anchor.ReplayID))
+		navigationURL := anchor.NavigationURL
+		if !hasReplay {
+			navigationURL = ""
+		}
 		return gin.H{
 			"room_id":             anchor.RoomID,
 			"game_history_id":     anchor.GameHistoryID,
 			"replay_id":           anchor.ReplayID,
+			"has_replay":          hasReplay,
+			"replay_available":    hasReplay,
 			"event_index":         anchor.EventIndex,
 			"event_id":            anchor.EventID,
 			"event_type":          anchor.EventType,
@@ -485,23 +623,30 @@ func replayEvidenceOrFallback(roomID string, replayID string, gameHistoryID uint
 			"action_summary":      anchor.ActionSummary,
 			"evidence_precision":  anchor.EvidencePrecision,
 			"compatibility_level": anchor.CompatibilityLevel,
-			"navigation_url":      anchor.NavigationURL,
+			"navigation_url":      navigationURL,
 		}
 	}
 	anchor := anticheat.NormalizeReplayEvidenceAnchor(database.ReplayEvidenceAnchor{
 		RoomID:             roomID,
 		GameHistoryID:      gameHistoryID,
-		ReplayID:           firstNonEmpty(replayID, roomID),
+		ReplayID:           replayID,
 		EventIndex:         operationIndex,
 		PlayerUID:          playerUID,
 		ActionSummary:      "compatibility anticheat evidence",
 		EvidencePrecision:  "room",
 		CompatibilityLevel: "compatibility_index",
 	})
+	hasReplay := replayExists(replayHistoryID(anchor.GameHistoryID, anchor.ReplayID))
+	navigationURL := anchor.NavigationURL
+	if !hasReplay {
+		navigationURL = ""
+	}
 	return gin.H{
 		"room_id":             anchor.RoomID,
 		"game_history_id":     anchor.GameHistoryID,
 		"replay_id":           anchor.ReplayID,
+		"has_replay":          hasReplay,
+		"replay_available":    hasReplay,
 		"event_index":         anchor.EventIndex,
 		"event_id":            anchor.EventID,
 		"event_type":          anchor.EventType,
@@ -511,7 +656,7 @@ func replayEvidenceOrFallback(roomID string, replayID string, gameHistoryID uint
 		"action_summary":      anchor.ActionSummary,
 		"evidence_precision":  anchor.EvidencePrecision,
 		"compatibility_level": anchor.CompatibilityLevel,
-		"navigation_url":      anchor.NavigationURL,
+		"navigation_url":      navigationURL,
 	}
 }
 
@@ -569,25 +714,27 @@ func detectionDTO(score database.CheatRiskScore, sanction *database.CheatSanctio
 		sanctionReason = sanction.Reason
 		sanctionUntil = sanction.EffectiveUntil
 	}
+	hasReplay := replayExists(replayHistoryID(score.GameHistoryID, score.ReplayID))
 	return gin.H{
 		"id":                       score.ID,
 		"room_id":                  score.RoomID,
 		"player_id":                score.PlayerUID,
 		"player_uid":               score.PlayerUID,
 		"risk_score":               score.RiskScore,
-		"replay_id":                firstNonEmpty(score.ReplayID, score.RoomID),
+		"replay_id":                score.ReplayID,
 		"game_history_id":          score.GameHistoryID,
+		"has_replay":               hasReplay,
 		"operation_index":          score.OperationIndex,
 		"operation_timestamp":      score.OperationTimestamp,
 		"primary_evidence":         replayEvidenceOrFallback(score.RoomID, score.ReplayID, score.GameHistoryID, score.OperationIndex, score.PlayerUID, score.PrimaryEvidence),
-		"related_evidence":         jsonRawOrNil(score.RelatedEvidence),
+		"related_evidence":         jsonRawWithReplayAvailability(score.RelatedEvidence),
 		"replay_navigation":        replayEvidenceOrFallback(score.RoomID, score.ReplayID, score.GameHistoryID, score.OperationIndex, score.PlayerUID, score.PrimaryEvidence),
-		"indicator_details":        jsonRawOrNil(score.IndicatorDetails),
-		"report_contribution":      jsonRawOrNil(score.ReportContribution),
+		"indicator_details":        jsonRawWithReplayAvailability(score.IndicatorDetails),
+		"report_contribution":      jsonRawWithReplayAvailability(score.ReportContribution),
 		"suggested_action":         firstNonEmpty(score.SuggestedAction, sanctionType),
 		"suggestion_reason":        score.SuggestionReason,
 		"review_status":            firstNonEmpty(score.ReviewStatus, "pending"),
-		"punishment_decision":      firstNonEmpty(score.PunishmentDecision, sanctionType),
+		"punishment_decision":      punishmentDecisionForScore(score, sanctionType),
 		"response_time_score":      score.ResponseTimeDim,
 		"frequency_score":          score.FrequencyDim,
 		"win_rate_score":           score.WinRateDim,
@@ -614,6 +761,12 @@ func gameHistoryDetectionDTO(history database.GameHistory, playerUID uint) gin.H
 	createdAt := firstNonZeroTime(history.FinishedAt, history.CreatedAt, history.StartedAt)
 	id := fmt.Sprintf("history-%d-%d", history.ID, playerUID)
 	evidence := replayEvidenceOrFallback(history.RoomID, fmt.Sprintf("%d", history.ID), history.ID, 0, playerUID, nil)
+	hasReplay := strings.TrimSpace(history.ReplayLog) != ""
+	evidence["has_replay"] = hasReplay
+	evidence["replay_available"] = hasReplay
+	if !hasReplay {
+		evidence["navigation_url"] = ""
+	}
 	return gin.H{
 		"id":                  id,
 		"history_id":          history.ID,
@@ -623,6 +776,7 @@ func gameHistoryDetectionDTO(history database.GameHistory, playerUID uint) gin.H
 		"risk_score":          20.0,
 		"replay_id":           fmt.Sprintf("%d", history.ID),
 		"game_history_id":     history.ID,
+		"has_replay":          hasReplay,
 		"operation_index":     0,
 		"operation_timestamp": nil,
 		"primary_evidence":    evidence,
@@ -900,7 +1054,7 @@ func (h *AnticheatHandler) ReviewDetection(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "processed punishment cannot be cancelled here"})
 		return
 	}
-	punishmentDecision := firstNonEmpty(score.PunishmentDecision, score.SuggestedAction, "observe")
+	punishmentDecision := punishmentDecisionForScore(*score, "observe")
 	if err := h.acSystem.Repository.UpdateRiskScoreReview(uint(riskScoreID), "processed", punishmentDecision); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -937,6 +1091,13 @@ func (h *AnticheatHandler) ReviewDetection(c *gin.Context) {
 	if err := h.acSystem.Repository.SaveAuditLog(audit); err != nil {
 		log.Printf("Failed to write detection review audit log: %v", err)
 	}
+	if isBanDecision(punishmentDecision) {
+		reason := firstNonEmpty(req.Remark, req.Note, score.SuggestionReason, "Anticheat review confirmed ban")
+		if _, err := h.enforceDetectionBan(c, *score, reason, nil, nil, "admin_anticheat_review", 0); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Review completed",
@@ -951,6 +1112,163 @@ func isCancellationDecision(decision string) bool {
 	default:
 		return false
 	}
+}
+
+func isBanDecision(decision string) bool {
+	return strings.EqualFold(strings.TrimSpace(decision), "ban")
+}
+
+func isActiveSanctionStatus(status string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(status))
+	return normalized == "" || normalized == "active"
+}
+
+func punishmentDecisionForScore(score database.CheatRiskScore, fallback string) string {
+	for _, value := range []string{score.PunishmentDecision, score.SuggestedAction, fallback, "observe"} {
+		decision := strings.TrimSpace(value)
+		if decision != "" && !isCancellationDecision(decision) {
+			return decision
+		}
+	}
+	return "observe"
+}
+
+func (h *AnticheatHandler) enforceDetectionBan(c *gin.Context, score database.CheatRiskScore, reason string, requestedUntil *time.Time, requestedDuration *int, source string, requestedSanctionID uint) (*database.CheatSanction, error) {
+	if h.acSystem == nil || h.acSystem.Repository == nil {
+		return nil, fmt.Errorf("anticheat system not initialized")
+	}
+
+	now := time.Now()
+	if requestedUntil != nil && !requestedUntil.After(now) {
+		return nil, fmt.Errorf("effective_until must be in the future")
+	}
+	if requestedDuration != nil && *requestedDuration <= 0 {
+		return nil, fmt.Errorf("duration must be positive")
+	}
+
+	reason = firstNonEmpty(reason, score.SuggestionReason, "Anticheat review confirmed ban")
+	var sanction *database.CheatSanction
+	if requestedSanctionID > 0 {
+		existing, err := h.acSystem.Repository.GetSanctionByID(requestedSanctionID)
+		if err == nil && existing != nil {
+			if existing.PlayerUID != score.PlayerUID {
+				return nil, fmt.Errorf("sanction does not belong to detection player")
+			}
+			if existing.RiskScoreID != 0 && existing.RiskScoreID != score.ID {
+				return nil, fmt.Errorf("sanction does not belong to detection")
+			}
+			sanction = existing
+		}
+	}
+
+	if sanction == nil {
+		sanctions, err := h.acSystem.Repository.GetSanctionsByRiskScoreIDs([]uint{score.ID})
+		if err != nil {
+			return nil, err
+		}
+		for i := range sanctions[score.ID] {
+			item := sanctions[score.ID][i]
+			if item.PlayerUID == score.PlayerUID && item.SanctionType == "ban" && isActiveSanctionStatus(item.Status) {
+				sanction = &item
+				break
+			}
+		}
+	}
+
+	duration := requestedDuration
+	effectiveUntil := requestedUntil
+	if effectiveUntil == nil && duration != nil {
+		computed := now.Add(time.Duration(*duration) * time.Minute)
+		effectiveUntil = &computed
+	}
+	if effectiveUntil == nil && sanction != nil && sanction.EffectiveUntil != nil && sanction.EffectiveUntil.After(now) {
+		effectiveUntil = sanction.EffectiveUntil
+		if duration == nil {
+			duration = sanction.Duration
+		}
+	}
+	if effectiveUntil == nil {
+		defaultDuration := defaultDetectionBanDurationMinutes
+		duration = &defaultDuration
+		computed := now.Add(time.Duration(defaultDuration) * time.Minute)
+		effectiveUntil = &computed
+	}
+	if duration == nil {
+		minutes := int(time.Until(*effectiveUntil).Minutes())
+		if minutes < 1 {
+			minutes = 1
+		}
+		duration = &minutes
+	}
+
+	if err := repository.NewUserRepository().UpdateBanStatusWithReason(score.PlayerUID, effectiveUntil, reason); err != nil {
+		return nil, err
+	}
+	sendBanNotification(score.PlayerUID, effectiveUntil, reason)
+
+	sanctionCreated := false
+	if sanction != nil {
+		if err := h.acSystem.Repository.UpdateSanctionDecision(sanction.ID, "ban", reason, duration, effectiveUntil); err != nil {
+			return nil, err
+		}
+		sanction.SanctionType = "ban"
+		sanction.Reason = reason
+		sanction.Duration = duration
+		sanction.EffectiveUntil = effectiveUntil
+		sanction.Status = "active"
+	} else {
+		sanction = &database.CheatSanction{
+			RoomID:          score.RoomID,
+			PlayerUID:       score.PlayerUID,
+			RiskScoreID:     score.ID,
+			ReplayID:        score.ReplayID,
+			GameHistoryID:   score.GameHistoryID,
+			PrimaryEvidence: score.PrimaryEvidence,
+			SanctionType:    "ban",
+			RiskScore:       score.RiskScore,
+			Reason:          reason,
+			Duration:        duration,
+			EffectiveUntil:  effectiveUntil,
+			Status:          "active",
+		}
+		if err := h.acSystem.Repository.SaveSanction(sanction); err != nil {
+			return nil, err
+		}
+		sanctionCreated = true
+	}
+
+	details, _ := json.Marshal(gin.H{
+		"expires_at":       effectiveUntil,
+		"source":           source,
+		"sanction_created": sanctionCreated,
+	})
+	audit := &database.CheatAuditLog{
+		EventType:          "ban",
+		RoomID:             score.RoomID,
+		PlayerUID:          score.PlayerUID,
+		OperatorUID:        getOperatorUID(c),
+		RiskScoreID:        &score.ID,
+		SanctionID:         &sanction.ID,
+		RiskScore:          &score.RiskScore,
+		ReplayID:           score.ReplayID,
+		GameHistoryID:      score.GameHistoryID,
+		OperationIndex:     score.OperationIndex,
+		OperationTimestamp: score.OperationTimestamp,
+		PrimaryEvidence:    score.PrimaryEvidence,
+		RelatedEvidence:    score.RelatedEvidence,
+		SuggestedAction:    score.SuggestedAction,
+		IndicatorDetails:   score.IndicatorDetails,
+		ReportContribution: score.ReportContribution,
+		SanctionType:       "ban",
+		NewStatus:          "active",
+		NewDecision:        "ban",
+		Details:            details,
+		Remark:             reason,
+	}
+	if err := h.acSystem.Repository.SaveAuditLog(audit); err != nil {
+		return nil, err
+	}
+	return sanction, nil
 }
 
 func (h *AnticheatHandler) ChangeDetectionPunishment(c *gin.Context) {
@@ -996,12 +1314,28 @@ func (h *AnticheatHandler) ChangeDetectionPunishment(c *gin.Context) {
 		}
 		effectiveUntil = &parsed
 	}
+	if req.Duration != nil && *req.Duration <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "duration must be positive"})
+		return
+	}
+	if effectiveUntil != nil && !effectiveUntil.After(time.Now()) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "effective_until must be in the future"})
+		return
+	}
 	oldDecision := score.PunishmentDecision
 	if err := h.acSystem.Repository.UpdateRiskScoreReview(score.ID, "processed", req.PunishmentDecision); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	if req.SanctionID > 0 {
+
+	var enforcedSanction *database.CheatSanction
+	if isBanDecision(req.PunishmentDecision) {
+		enforcedSanction, err = h.enforceDetectionBan(c, *score, req.Reason, effectiveUntil, req.Duration, "admin_anticheat_punishment_change", req.SanctionID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	} else if req.SanctionID > 0 {
 		if err := h.acSystem.Repository.UpdateSanctionDecision(req.SanctionID, req.PunishmentDecision, req.Reason, req.Duration, effectiveUntil); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -1030,6 +1364,8 @@ func (h *AnticheatHandler) ChangeDetectionPunishment(c *gin.Context) {
 	}
 	if req.SanctionID > 0 {
 		audit.SanctionID = &req.SanctionID
+	} else if enforcedSanction != nil {
+		audit.SanctionID = &enforcedSanction.ID
 	}
 	if err := h.acSystem.Repository.SaveAuditLog(audit); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -1108,8 +1444,9 @@ func appealDTO(appeal database.CheatAppeal) gin.H {
 		"sanction_id":         appeal.SanctionID,
 		"replay_id":           appeal.ReplayID,
 		"game_history_id":     appeal.GameHistoryID,
+		"has_replay":          replayExists(replayHistoryID(appeal.GameHistoryID, appeal.ReplayID)),
 		"primary_evidence":    replayEvidenceOrFallback(appeal.RoomID, appeal.ReplayID, appeal.GameHistoryID, 0, appeal.PlayerUID, appeal.PrimaryEvidence),
-		"related_evidence":    jsonRawOrNil(appeal.RelatedEvidence),
+		"related_evidence":    jsonRawWithReplayAvailability(appeal.RelatedEvidence),
 		"reason":              appeal.Reason,
 		"evidence":            appeal.Evidence,
 		"status":              appeal.Status,
@@ -1494,6 +1831,8 @@ func (h *AnticheatHandler) SubmitAppeal(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	req.Reason = strings.TrimSpace(req.Reason)
+	req.Evidence = strings.TrimSpace(req.Evidence)
 	if req.Reason == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "reason is required"})
 		return
@@ -1508,20 +1847,19 @@ func (h *AnticheatHandler) SubmitAppeal(c *gin.Context) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "appeals are only available for banned accounts", "redirect_to": "/feedbacks", "open_feedback": true})
 		return
 	}
-	if len(entry.RoomIDs) == 0 {
-		fallbackRoomID := strings.TrimSpace(c.Param("roomId"))
-		if fallbackRoomID == "" || fallbackRoomID == "account" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "appeal room list is not available"})
-			return
-		}
+	fallbackRoomID := strings.TrimSpace(c.Param("roomId"))
+	if len(entry.RoomIDs) == 0 && fallbackRoomID != "" && fallbackRoomID != "account" {
 		entry.RoomIDs = []string{fallbackRoomID}
 	}
 	if req.RiskScoreID == 0 && entry.LatestRiskScoreID != nil {
 		req.RiskScoreID = *entry.LatestRiskScoreID
 	}
-	roomID := entry.RoomIDs[0]
+	roomID := fallbackRoomID
+	if len(entry.RoomIDs) > 0 {
+		roomID = entry.RoomIDs[0]
+	}
 	if roomID == "" {
-		roomID = c.Param("roomId")
+		roomID = "account"
 	}
 
 	appeal, err := h.acSystem.AppealManager.SubmitAppealWithRooms(roomID, playerUID, req.RiskScoreID, req.SanctionID, req.Reason, req.Evidence, entry.RoomIDs)
@@ -1561,6 +1899,14 @@ func (h *AnticheatHandler) buildAppealEntry(playerUID uint) (*appealEntryState, 
 		CanSubmit:   false,
 	}
 
+	if !entry.IsBanned {
+		sanctions, sanctionErr := h.activeSanctionsForPlayer(playerUID)
+		if sanctionErr != nil {
+			return nil, sanctionErr
+		}
+		applyAppealEntryBanSanction(entry, sanctions)
+	}
+
 	score, err := h.acSystem.Repository.GetLatestRiskScoreByPlayer(playerUID)
 	if err == nil && score != nil {
 		entry.LatestRiskScoreID = &score.ID
@@ -1585,8 +1931,45 @@ func (h *AnticheatHandler) buildAppealEntry(playerUID uint) (*appealEntryState, 
 			seen[history.RoomID] = struct{}{}
 		}
 	}
-	entry.CanSubmit = entry.IsBanned && len(entry.RoomIDs) > 0
+	entry.CanSubmit = entry.IsBanned
 	return entry, nil
+}
+
+func (h *AnticheatHandler) activeSanctionsForPlayer(playerUID uint) ([]database.CheatSanction, error) {
+	if h.acSystem.Decider != nil {
+		return h.acSystem.Decider.GetActiveSanctionsForPlayer(playerUID)
+	}
+	sanctions, err := h.acSystem.Repository.GetActiveSanctionsByPlayer(playerUID)
+	if err != nil {
+		return nil, err
+	}
+	now := time.Now()
+	activeSanctions := make([]database.CheatSanction, 0, len(sanctions))
+	for i := range sanctions {
+		if sanctions[i].EffectiveUntil != nil && sanctions[i].EffectiveUntil.Before(now) {
+			if updateErr := h.acSystem.Repository.UpdateSanctionStatus(sanctions[i].ID, "expired"); updateErr != nil {
+				log.Printf("[appeal-entry] failed to expire sanction %d: %v", sanctions[i].ID, updateErr)
+			}
+			continue
+		}
+		activeSanctions = append(activeSanctions, sanctions[i])
+	}
+	return activeSanctions, nil
+}
+
+func applyAppealEntryBanSanction(entry *appealEntryState, sanctions []database.CheatSanction) {
+	for i := range sanctions {
+		sanction := sanctions[i]
+		if sanction.SanctionType != "ban" || (sanction.Status != "" && sanction.Status != "active") {
+			continue
+		}
+		entry.IsBanned = true
+		entry.BannedUntil = sanction.EffectiveUntil
+		if entry.BanReason == "" {
+			entry.BanReason = sanction.Reason
+		}
+		break
+	}
 }
 
 func (h *AnticheatHandler) GetAppealEntryStatus(c *gin.Context) {
@@ -1618,10 +2001,6 @@ func (h *AnticheatHandler) GetPlayerAppeals(c *gin.Context) {
 
 	appeals, err := h.acSystem.AppealManager.GetPlayerAppeals(playerUID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	if err := h.reconcileApprovedAppealEffects(playerUID, appeals); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -1669,31 +2048,6 @@ func (h *AnticheatHandler) ClaimAppealCompensation(c *gin.Context) {
 			"amount": outcome.CompensationAmount,
 		},
 	})
-}
-
-func (h *AnticheatHandler) reconcileApprovedAppealEffects(playerUID uint, appeals []database.CheatAppeal) error {
-	if h.acSystem == nil || h.acSystem.Repository == nil {
-		return nil
-	}
-	hasApproved := false
-	for _, appeal := range appeals {
-		if appeal.PlayerUID != playerUID || appeal.Status != "approved" {
-			continue
-		}
-		hasApproved = true
-		if appeal.SanctionID > 0 {
-			if err := h.acSystem.Repository.UpdateSanctionStatus(appeal.SanctionID, "revoked"); err != nil {
-				return err
-			}
-		}
-	}
-	if !hasApproved {
-		return nil
-	}
-	if err := h.acSystem.Repository.RevokeActiveBanSanctionsByPlayer(playerUID); err != nil {
-		return err
-	}
-	return h.acSystem.Repository.ClearPlayerAccountBan(playerUID)
 }
 
 func latestAppealStatus(appeals []database.CheatAppeal) string {
@@ -1753,6 +2107,7 @@ func (h *AnticheatHandler) BanFromAnticheatPanel(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	sendBanNotification(req.PlayerUID, &bannedUntil, req.Reason)
 	sanction := &database.CheatSanction{
 		RoomID:         req.RoomID,
 		PlayerUID:      req.PlayerUID,
@@ -1878,7 +2233,7 @@ func (h *AnticheatHandler) GetPlayerSanctions(c *gin.Context) {
 		return
 	}
 
-	sanctions, err := h.acSystem.Decider.GetActiveSanctionsForPlayer(playerUID)
+	sanctions, err := h.activeSanctionsForPlayer(playerUID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

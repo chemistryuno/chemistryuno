@@ -1,6 +1,7 @@
 package game
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -12,6 +13,70 @@ import (
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
+
+func setupRoomExitTest(t *testing.T) *gorm.DB {
+	t.Helper()
+	db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	if err := db.AutoMigrate(&database.User{}, &database.GameHistory{}, &database.PrivateChat{}, &database.Bounty{}, &database.SystemConfig{}); err != nil {
+		t.Fatalf("migrate room exit tables: %v", err)
+	}
+
+	previousDB := database.DB
+	previousUserRepo := repository.UserRepo
+	previousGameRepo := repository.GameRepo
+	previousBountyRepo := repository.BountyRepo
+	previousConfigRepo := configRepo
+	database.DB = db
+	repository.UserRepo = repository.NewUserRepository(db)
+	repository.GameRepo = repository.NewGameRepository()
+	repository.BountyRepo = repository.NewBountyRepository()
+	configRepo = repository.NewConfigRepository()
+	if err := configRepo.InitDefaultConfigs(); err != nil {
+		t.Fatalf("init configs: %v", err)
+	}
+
+	roomMutex.Lock()
+	previousRooms := rooms
+	rooms = make(map[string]*GameRoom)
+	roomMutex.Unlock()
+
+	t.Cleanup(func() {
+		roomMutex.Lock()
+		rooms = previousRooms
+		roomMutex.Unlock()
+		database.DB = previousDB
+		repository.UserRepo = previousUserRepo
+		repository.GameRepo = previousGameRepo
+		repository.BountyRepo = previousBountyRepo
+		configRepo = previousConfigRepo
+	})
+	return db
+}
+
+func seedRoomExitUsers(t *testing.T, db *gorm.DB, uids ...uint) {
+	t.Helper()
+	for _, uid := range uids {
+		user := database.User{
+			UID:           uid,
+			Username:      fmt.Sprintf("user_%d", uid),
+			Nickname:      fmt.Sprintf("user_%d", uid),
+			Points:        1000,
+			MonthlyPoints: 1000,
+		}
+		if err := db.Create(&user).Error; err != nil {
+			t.Fatalf("seed user %d: %v", uid, err)
+		}
+	}
+}
+
+func putTestRoom(gr *GameRoom) {
+	roomMutex.Lock()
+	rooms[gr.Room.ID] = gr
+	roomMutex.Unlock()
+}
 
 // TestLeaveRoom_ObserverPromotion 测试观战者升级逻辑
 func TestLeaveRoom_ObserverPromotion(t *testing.T) {
@@ -232,6 +297,212 @@ func TestSpectatorsSync(t *testing.T) {
 	}
 
 	t.Logf("✅ Spectators同步测试通过: 升级后GameState.Spectators = %v", gameRoom.GameState.Spectators)
+}
+
+func TestLeaveRoom_WaitingRoomClosesWhenOnlyAIRemains(t *testing.T) {
+	db := setupRoomExitTest(t)
+	seedRoomExitUsers(t, db, 100000000)
+
+	roomID := "waiting-ai-only-room"
+	putTestRoom(&GameRoom{
+		Room: &models.Room{
+			ID:         roomID,
+			Status:     "waiting",
+			MaxPlayers: 2,
+			Players:    []int{100000000, -1},
+			ReadyUIDs:  []int{100000000, -1},
+			Spectators: []int{},
+			CreatedAt:  time.Now(),
+		},
+		OfflineAt: make(map[int]time.Time),
+	})
+
+	if err := LeaveRoom(roomID, 100000000); err != nil {
+		t.Fatalf("leave room: %v", err)
+	}
+
+	if exists, status := GetRoomStatus(roomID); exists {
+		t.Fatalf("expected AI-only waiting room to be removed, got status %q", status)
+	}
+}
+
+func TestLeaveRoom_WaitingSpectatorPromotionKeepsRoomAlive(t *testing.T) {
+	db := setupRoomExitTest(t)
+	seedRoomExitUsers(t, db, 1, 2)
+
+	roomID := "waiting-promotion-room"
+	putTestRoom(&GameRoom{
+		Room: &models.Room{
+			ID:         roomID,
+			Status:     "waiting",
+			MaxPlayers: 4,
+			Players:    []int{1, -1},
+			ReadyUIDs:  []int{1, -1},
+			Spectators: []int{2},
+			CreatedAt:  time.Now(),
+		},
+		GameState: &models.GameState{
+			Spectators: []int{2},
+		},
+		OfflineAt: make(map[int]time.Time),
+	})
+
+	if err := LeaveRoom(roomID, 1); err != nil {
+		t.Fatalf("leave room: %v", err)
+	}
+
+	roomMutex.RLock()
+	gr := rooms[roomID]
+	roomMutex.RUnlock()
+	if gr == nil {
+		t.Fatal("expected room to remain after human spectator promotion")
+	}
+
+	gr.mutex.RLock()
+	defer gr.mutex.RUnlock()
+	if gr.Room.Status != "waiting" {
+		t.Fatalf("expected waiting room, got %q", gr.Room.Status)
+	}
+	if !containsInt(gr.Room.Players, 2) {
+		t.Fatalf("expected spectator 2 to be promoted into players, got %v", gr.Room.Players)
+	}
+	if !gr.hasHumanPlayersLocked() {
+		t.Fatalf("expected promoted human to keep room alive, got players %v", gr.Room.Players)
+	}
+}
+
+func TestStartedRoomTemporaryDisconnectDoesNotMarkExit(t *testing.T) {
+	roomID := "temporary-disconnect-room"
+	gr := &GameRoom{
+		Room: &models.Room{
+			ID:         roomID,
+			Status:     "playing",
+			MaxPlayers: 2,
+			Players:    []int{1, 2},
+		},
+		GameState: &models.GameState{
+			RoomID:              roomID,
+			Status:              "playing",
+			OriginalPlayerCount: 2,
+			Players: []*models.PlayerState{
+				{UID: 1, Username: "p1"},
+				{UID: 2, Username: "p2"},
+			},
+			ExitedPlayers: []int{},
+			PointsChanges: map[int]int{},
+			XPChanges:     map[int]int{},
+		},
+		OfflineAt: map[int]time.Time{
+			1: time.Now(),
+		},
+	}
+
+	gr.mutex.Lock()
+	finalize, allZero := gr.shouldEndAfterHumanExitLocked()
+	gr.mutex.Unlock()
+
+	if finalize || allZero {
+		t.Fatalf("temporary disconnect should not finalize game, finalize=%v allZero=%v", finalize, allZero)
+	}
+	if len(gr.GameState.ExitedPlayers) != 0 {
+		t.Fatalf("temporary disconnect should not mark exits, got %v", gr.GameState.ExitedPlayers)
+	}
+}
+
+func TestStartedRoomAllHumansLeaveEndsWithZeroIncome(t *testing.T) {
+	db := setupRoomExitTest(t)
+	seedRoomExitUsers(t, db, 1)
+
+	roomID := "started-all-humans-left-room"
+	putTestRoom(&GameRoom{
+		Room: &models.Room{
+			ID:           roomID,
+			Status:       "playing",
+			MaxPlayers:   2,
+			Players:      []int{1, -1},
+			IsPointsMode: true,
+		},
+		GameState: &models.GameState{
+			RoomID:              roomID,
+			Status:              "playing",
+			OriginalPlayerCount: 1,
+			Players: []*models.PlayerState{
+				{UID: 1, Username: "p1"},
+				{UID: -1, Username: "ai", IsAI: true},
+			},
+			ExitedPlayers: []int{},
+			PointsChanges: map[int]int{},
+			XPChanges:     map[int]int{},
+			IsPointsMode:  true,
+		},
+		OfflineAt:    make(map[int]time.Time),
+		ReplayEvents: []map[string]interface{}{},
+	})
+
+	if err := LeaveRoom(roomID, 1); err != nil {
+		t.Fatalf("leave room: %v", err)
+	}
+
+	if exists, status := GetRoomStatus(roomID); exists {
+		t.Fatalf("expected all-human-exited started room to be removed, got status %q", status)
+	}
+
+	var user database.User
+	if err := db.Where("uid = ?", 1).First(&user).Error; err != nil {
+		t.Fatalf("load user: %v", err)
+	}
+	if user.Points != 1000 || user.MonthlyPoints != 1000 {
+		t.Fatalf("expected zero-income termination to preserve points, got points=%v monthly=%v", user.Points, user.MonthlyPoints)
+	}
+}
+
+func TestPointsCalculationExitedPlayerZeroAndReducedRanking(t *testing.T) {
+	db := setupRoomExitTest(t)
+	seedRoomExitUsers(t, db, 1, 2, 3, 4)
+
+	gr := &GameRoom{
+		Room: &models.Room{
+			ID:           "reduced-ranking-room",
+			Status:       "playing",
+			MaxPlayers:   4,
+			Players:      []int{1, 2, 3},
+			IsPointsMode: true,
+		},
+		GameState: &models.GameState{
+			RoomID:              "reduced-ranking-room",
+			Status:              "playing",
+			OriginalPlayerCount: 4,
+			FinishedPlayers:     []int{1, 2, 3},
+			ExitedPlayers:       []int{4},
+			Players: []*models.PlayerState{
+				{UID: 1, Username: "p1"},
+				{UID: 2, Username: "p2"},
+				{UID: 3, Username: "p3"},
+			},
+			PointsChanges: map[int]int{},
+			XPChanges:     map[int]int{1: 0, 2: 0, 3: 0, 4: 0},
+			IsPointsMode:  true,
+		},
+	}
+
+	gr.mutex.Lock()
+	handlePointsCalculation(gr)
+	gr.mutex.Unlock()
+
+	expected := map[int]int{1: 100, 2: 50, 3: 5, 4: 0}
+	for uid, want := range expected {
+		if got := gr.GameState.PointsChanges[uid]; got != want {
+			t.Fatalf("uid %d expected points change %d, got %d (all changes: %v)", uid, want, got, gr.GameState.PointsChanges)
+		}
+	}
+
+	var exited database.User
+	if err := db.Where("uid = ?", 4).First(&exited).Error; err != nil {
+		t.Fatalf("load exited user: %v", err)
+	}
+	if exited.Points != 1000 || exited.MonthlyPoints != 1000 {
+		t.Fatalf("expected exited player to receive no DB points, got points=%v monthly=%v", exited.Points, exited.MonthlyPoints)
+	}
 }
 
 func TestCollectAnticheatDataIncludesReplayBoundReports(t *testing.T) {

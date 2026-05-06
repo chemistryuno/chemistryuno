@@ -138,3 +138,29 @@ The anticheat system SHALL expose stable behavior that can be verified by automa
 - **THEN** the fixture uses fixed timestamps, fixed risk inputs, and deterministic thresholds
 - **AND** the expected result does not depend on wall-clock race conditions
 
+### Requirement: Player appeal entry does not clear active bans
+The anticheat system SHALL keep active account bans and active ban sanctions intact when a player opens, reads, or submits through the player-facing appeal flow.
+
+#### Scenario: Banned player opens appeal center from chat
+- **WHEN** a banned player clicks the lobby or chat restricted-state appeal button
+- **THEN** the client navigates to the appeal center
+- **AND** the client MUST NOT call any unban, appeal approval, or compensation claim endpoint
+
+#### Scenario: Appeal entry read preserves ban
+- **WHEN** a banned player calls the player appeal entry endpoint
+- **THEN** the endpoint returns the player's appeal eligibility and locked room context
+- **AND** the endpoint MUST NOT clear `users.banned_until`
+- **AND** the endpoint MUST NOT revoke or expire an unexpired active ban sanction
+
+#### Scenario: Appeal submission preserves ban
+- **WHEN** a banned player submits an appeal
+- **THEN** the system creates a pending appeal record
+- **AND** the player's account ban remains active
+- **AND** the linked active ban sanction remains active
+
+#### Scenario: Unban remains explicit
+- **WHEN** a player only opens the appeal center or submits an appeal
+- **THEN** the system MUST NOT treat that action as an approved appeal
+- **AND** the system MUST NOT perform compensation claim side effects
+- **AND** the system MUST NOT clear ban state unless an admin/manual unban, appeal approval, or ban expiry flow runs
+

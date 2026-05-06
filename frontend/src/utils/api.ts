@@ -9,6 +9,17 @@ interface CacheEntry {
   ttl: number  // 缓存时间（毫秒）
 }
 
+export interface AdminLogFilters {
+  count?: number
+  level?: string
+  uid?: string | number
+  attempted_uid?: string | number
+  category?: string
+  source_ip?: string
+  status_class?: string
+  q?: string
+}
+
 const apiCache = new Map<string, CacheEntry>()
 
 // 缓存辅助函数
@@ -579,10 +590,16 @@ export const adminAPI = {
     api.post('/admin/surveys/import', data),
 
   // 日志管理
-  getLogs: (count?: number, level?: string) => {
+  getLogs: (countOrFilters?: number | AdminLogFilters, level?: string) => {
     const params = new URLSearchParams()
-    if (count) params.append('count', count.toString())
-    if (level) params.append('level', level)
+    const filters = typeof countOrFilters === 'object'
+      ? countOrFilters
+      : { count: countOrFilters, level }
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && String(value).trim() !== '') {
+        params.append(key, String(value))
+      }
+    })
     return api.get(`/admin/logs?${params.toString()}`)
   },
   clearLogs: () =>

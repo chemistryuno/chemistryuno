@@ -3,6 +3,7 @@ package cache
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
@@ -20,6 +21,21 @@ func withMiniRedis(t *testing.T) context.Context {
 	})
 
 	return context.Background()
+}
+
+func TestLeaderboardCacheIncludesLastOfflineAt(t *testing.T) {
+	if LeaderboardCacheIncludesLastOfflineAt(`[{"uid":1001,"last_offline_at":null}]`) != true {
+		t.Fatalf("expected cache with explicit last_offline_at to be valid")
+	}
+	if LeaderboardCacheIncludesLastOfflineAt(`[{"uid":1001}]`) {
+		t.Fatalf("expected legacy cache without last_offline_at to be invalid")
+	}
+
+	offlineAt := time.Date(2026, 5, 6, 8, 30, 0, 0, time.UTC)
+	data := `[{"uid":1001,"last_offline_at":"` + offlineAt.Format(time.RFC3339) + `"}]`
+	if !LeaderboardCacheIncludesLastOfflineAt(data) {
+		t.Fatalf("expected cache with timestamp last_offline_at to be valid")
+	}
 }
 
 func TestUnbanCompensationIdempotencyRedisKeyLifecycle(t *testing.T) {

@@ -108,6 +108,23 @@ describe('API adapters', () => {
     await expect(adminAPI.approveAppeal('appeal-1', { compensation_amount: 0 })).rejects.toEqual(validationError)
   })
 
+  it('sends admin log attribution filters as query parameters', async () => {
+    const { adminAPI } = await import('./api')
+    vi.mocked(apiInstance.get).mockResolvedValueOnce({ data: { logs: [] } })
+
+    await adminAPI.getLogs({
+      count: 25,
+      level: 'WARNING',
+      uid: 100000101,
+      source_ip: '203.0.113',
+      category: 'request',
+      status_class: '4xx',
+      q: 'rooms',
+    })
+
+    expect(apiInstance.get).toHaveBeenCalledWith('/admin/logs?count=25&level=WARNING&uid=100000101&source_ip=203.0.113&category=request&status_class=4xx&q=rooms')
+  })
+
   it('keeps network failures rejected for callers', async () => {
     const { authAPI } = await import('./api')
     const networkError = new Error('network down')

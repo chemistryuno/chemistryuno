@@ -718,16 +718,49 @@ func InvalidateUserStatsCacheMultiple(ctx context.Context, uids ...uint) error {
 
 // LeaderboardCache 缓存的排行榜数据
 type LeaderboardCache struct {
-	UID           uint    `json:"uid"`
-	Username      string  `json:"username"`
-	Nickname      string  `json:"nickname"`
-	Avatar        string  `json:"avatar"`
-	Points        float64 `json:"points"`
-	MonthlyPoints float64 `json:"monthly_points"`
-	Level         int     `json:"level"`
-	TotalXP       int     `json:"total_xp"`
-	WinCount      int     `json:"win_count"`
-	TotalGames    int     `json:"total_games"`
+	UID           uint       `json:"uid"`
+	Username      string     `json:"username"`
+	Nickname      string     `json:"nickname"`
+	Avatar        string     `json:"avatar"`
+	Points        float64    `json:"points"`
+	MonthlyPoints float64    `json:"monthly_points"`
+	Level         int        `json:"level"`
+	TotalXP       int        `json:"total_xp"`
+	WinCount      int        `json:"win_count"`
+	TotalGames    int        `json:"total_games"`
+	LastOfflineAt *time.Time `json:"last_offline_at"`
+}
+
+type leaderboardCacheProbe struct {
+	LastOfflineAt *time.Time `json:"last_offline_at"`
+	HasField      bool
+}
+
+func (p *leaderboardCacheProbe) UnmarshalJSON(data []byte) error {
+	type probe leaderboardCacheProbe
+	var raw struct {
+		probe
+		LastOfflineAt json.RawMessage `json:"last_offline_at"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	*p = leaderboardCacheProbe(raw.probe)
+	p.HasField = raw.LastOfflineAt != nil
+	return nil
+}
+
+func LeaderboardCacheIncludesLastOfflineAt(data string) bool {
+	var entries []leaderboardCacheProbe
+	if err := json.Unmarshal([]byte(data), &entries); err != nil || len(entries) == 0 {
+		return false
+	}
+	for _, entry := range entries {
+		if !entry.HasField {
+			return false
+		}
+	}
+	return true
 }
 
 // Close 关闭 Redis 连接

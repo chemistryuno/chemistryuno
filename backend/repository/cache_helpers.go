@@ -17,7 +17,7 @@ func GetLeaderboardWithCache(ctx context.Context, orderBy string, limit int) ([]
 		log.Printf("⚠️  Redis leaderboard 查询异常: %v", err)
 	} else if cached != "" {
 		var cacheEntries []cache.LeaderboardCache
-		if err := json.Unmarshal([]byte(cached), &cacheEntries); err == nil && len(cacheEntries) > 0 {
+		if err := json.Unmarshal([]byte(cached), &cacheEntries); err == nil && len(cacheEntries) > 0 && cache.LeaderboardCacheIncludesLastOfflineAt(cached) {
 			return cacheEntries, nil
 		}
 	}
@@ -44,6 +44,7 @@ func GetLeaderboardWithCache(ctx context.Context, orderBy string, limit int) ([]
 			TotalXP:       entry.TotalXP,
 			WinCount:      entry.WinCount,
 			TotalGames:    entry.TotalGames,
+			LastOfflineAt: entry.LastOfflineAt,
 		}
 	}
 

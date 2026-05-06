@@ -2,22 +2,24 @@ package repository
 
 import (
 	"chemistryuno/backend/database"
+	"time"
 
 	"gorm.io/gorm"
 )
 
 // LeaderboardEntry 排行榜条目 - 只包含必要的字段
 type LeaderboardEntry struct {
-	UID           uint    `json:"uid" gorm:"column:uid"`
-	Username      string  `json:"username" gorm:"column:username"`
-	Nickname      string  `json:"nickname" gorm:"column:nickname"`
-	Avatar        string  `json:"avatar" gorm:"column:avatar"`
-	Points        float64 `json:"points" gorm:"column:points"`
-	MonthlyPoints float64 `json:"monthly_points" gorm:"column:monthly_points"`
-	Level         int     `json:"level" gorm:"column:level"`
-	TotalXP       int     `json:"total_xp" gorm:"column:total_xp"`
-	WinCount      int     `json:"win_count" gorm:"column:win_count"`
-	TotalGames    int     `json:"total_games" gorm:"column:total_games"`
+	UID           uint       `json:"uid" gorm:"column:uid"`
+	Username      string     `json:"username" gorm:"column:username"`
+	Nickname      string     `json:"nickname" gorm:"column:nickname"`
+	Avatar        string     `json:"avatar" gorm:"column:avatar"`
+	Points        float64    `json:"points" gorm:"column:points"`
+	MonthlyPoints float64    `json:"monthly_points" gorm:"column:monthly_points"`
+	Level         int        `json:"level" gorm:"column:level"`
+	TotalXP       int        `json:"total_xp" gorm:"column:total_xp"`
+	WinCount      int        `json:"win_count" gorm:"column:win_count"`
+	TotalGames    int        `json:"total_games" gorm:"column:total_games"`
+	LastOfflineAt *time.Time `json:"last_offline_at" gorm:"column:last_offline_at"`
 }
 
 // TableName 指定表名
@@ -37,7 +39,7 @@ func (r *UserRepository) GetLeaderboardOptimized(orderBy string, limit int) ([]L
 
 	// 只查询必要的字段
 	err := r.db.
-		Select("uid, username, nickname, avatar, points, monthly_points, level, total_xp, win_count, total_games").
+		Select("uid, username, nickname, avatar, points, monthly_points, level, total_xp, win_count, total_games, last_offline_at").
 		Order(safeOrderBy + " DESC, uid ASC").
 		Limit(limit).
 		Find(&entries).Error

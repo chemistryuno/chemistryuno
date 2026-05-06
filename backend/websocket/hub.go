@@ -1,9 +1,11 @@
 package websocket
 
 import (
+	"chemistryuno/backend/repository"
 	"encoding/json"
 	"log"
 	"sync"
+	"time"
 )
 
 type Hub struct {
@@ -66,10 +68,12 @@ func (h *Hub) Run() {
 			}
 
 		case client := <-h.unregister:
+			shouldRecordOffline := false
 			h.mutex.Lock()
 			if _, ok := h.clients[client]; ok {
 				delete(h.clients, client)
 				close(client.send)
+				shouldRecordOffline = client.uid > 0 && !h.hasUIDLocked(client.uid)
 
 				// 从所有房间中移除
 				for roomID, clients := range h.rooms {
@@ -82,6 +86,9 @@ func (h *Hub) Run() {
 			h.mutex.Unlock()
 			log.Println("👤 用户断开")
 			log.Printf("   ❌ 用户 %d 已断开连接", client.uid)
+			if shouldRecordOffline {
+				h.recordLastOffline(client.uid, time.Now())
+			}
 			h.BroadcastOnlineCount()
 
 		case message := <-h.broadcast:
@@ -123,6 +130,23 @@ func (h *Hub) Register(client *Client) {
 // Unregister 注销一个客户端
 func (h *Hub) Unregister(client *Client) {
 	h.unregister <- client
+}
+
+func (h *Hub) hasUIDLocked(uid int) bool {
+	for client := range h.clients {
+		if client.uid == uid {
+			return true
+		}
+	}
+	return false
+}
+
+func (h *Hub) recordLastOffline(uid int, offlineAt time.Time) {
+	go func() {
+		if err := repository.NewUserRepository().UpdateLastOfflineAt(uint(uid), offlineAt); err != nil {
+			log.Printf("failed to update last_offline_at for uid %d: %v", uid, err)
+		}
+	}()
 }
 
 func (h *Hub) JoinRoom(client *Client, roomID string) {

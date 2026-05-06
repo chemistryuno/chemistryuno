@@ -50,6 +50,12 @@ const announcements = ref<any[]>([])
 const surveys = ref<any[]>([])
 const logs = ref<any[]>([])
 const logFilter = ref<'all' | 'INFO' | 'WARNING' | 'ERROR' | 'DEBUG'>('all')
+const logUIDFilter = ref('')
+const logSourceIPFilter = ref('')
+const logCategoryFilter = ref<'all' | 'request' | 'websocket'>('all')
+const logStatusClassFilter = ref<'all' | '1xx' | '2xx' | '3xx' | '4xx' | '5xx'>('all')
+const logKeywordFilter = ref('')
+const expandedLogKeys = ref<Set<string>>(new Set())
 const autoRefreshLogs = ref(true)
 const showCreateSurveyModal = ref(false)
 const newSurvey = ref<any>({
@@ -368,6 +374,50 @@ const newAnnouncement = ref({
 
 const specialElements = ['He', 'Ne', 'Ar', 'Kr', 'Au', '+2', '+4']
 
+const buildLogFilters = () => ({
+  count: 100,
+  level: logFilter.value === 'all' ? '' : logFilter.value,
+  uid: logUIDFilter.value.trim(),
+  source_ip: logSourceIPFilter.value.trim(),
+  category: logCategoryFilter.value === 'all' ? '' : logCategoryFilter.value,
+  status_class: logStatusClassFilter.value === 'all' ? '' : logStatusClassFilter.value,
+  q: logKeywordFilter.value.trim()
+})
+
+const logKey = (log: any, idx: number) => `${log.timestamp || 'no-time'}-${log.level || 'no-level'}-${idx}`
+
+const toggleLogDetails = (key: string) => {
+  const next = new Set(expandedLogKeys.value)
+  if (next.has(key)) next.delete(key)
+  else next.add(key)
+  expandedLogKeys.value = next
+}
+
+const logUIDLabel = (log: any) => {
+  if (log.uid !== undefined && log.uid !== null) return String(log.uid)
+  if (log.attempted_uid !== undefined && log.attempted_uid !== null) return `尝试 ${log.attempted_uid}`
+  return '匿名'
+}
+
+const logSourceSummary = (log: any) => {
+  const source = log.source || {}
+  const ip = source.client_ip || source.forwarded_for || source.real_ip || '-'
+  const ua = source.user_agent ? ` · ${source.user_agent}` : ''
+  return `${ip}${ua}`
+}
+
+const logRequestSummary = (log: any) => {
+  if (log.request) {
+    const status = log.request.status ? ` ${log.request.status}` : ''
+    const latency = log.request.latency_ms !== undefined ? ` ${log.request.latency_ms}ms` : ''
+    return `${log.request.method || ''} ${log.request.path || ''}${status}${latency}`.trim()
+  }
+  if (log.websocket) {
+    return `WS ${log.websocket.event || ''} ${log.websocket.type || ''}`.trim()
+  }
+  return '-'
+}
+
 const loadData = async () => {
   loading.value = true
   try {
@@ -395,7 +445,7 @@ const loadData = async () => {
         gameTimeConfigs.value = response.data.configs
       }
     } else if (activeTab.value === 'logs') {
-      const response = await adminAPI.getLogs(100, logFilter.value === 'all' ? '' : logFilter.value)
+      const response = await adminAPI.getLogs(buildLogFilters())
       logs.value = response.data?.logs || []
     }
   } catch (error) {
@@ -434,6 +484,12 @@ watch(activeTab, () => {
 })
 
 watch(logFilter, () => {
+  if (activeTab.value === 'logs') {
+    loadData()
+  }
+})
+
+watch([logUIDFilter, logSourceIPFilter, logCategoryFilter, logStatusClassFilter, logKeywordFilter], () => {
   if (activeTab.value === 'logs') {
     loadData()
   }
@@ -1689,7 +1745,7 @@ const filteredHistory = computed(() => {
                   <Terminal class="w-5 h-5 text-green-500 shrink-0" />
                   实时系统日志 <span class="text-slate-400 dark:text-slate-600 font-mono not-italic text-[10px] tracking-normal">/ SYSTEM DEBUG LOG</span>
                 </h3>
-                <div class="flex items-center gap-3">
+                <div class="flex flex-wrap items-center gap-3">
                   <div class="flex items-center gap-2 bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/5 rounded-xl px-3 py-2">
                     <span class="text-[9px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-widest">LEVEL:</span>
                     <select v-model="logFilter" class="bg-transparent text-[10px] font-bold text-slate-900 dark:text-white focus:outline-none uppercase tracking-widest">
@@ -1700,6 +1756,27 @@ const filteredHistory = computed(() => {
                       <option value="DEBUG">DEBUG</option>
                     </select>
                   </div>
+                  <div class="flex items-center gap-2 bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/5 rounded-xl px-3 py-2">
+                    <span class="text-[9px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-widest">CAT:</span>
+                    <select v-model="logCategoryFilter" class="bg-transparent text-[10px] font-bold text-slate-900 dark:text-white focus:outline-none uppercase tracking-widest">
+                      <option value="all">ALL</option>
+                      <option value="request">REQUEST</option>
+                      <option value="websocket">WS</option>
+                    </select>
+                  </div>
+                  <div class="flex items-center gap-2 bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/5 rounded-xl px-3 py-2">
+                    <span class="text-[9px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-widest">STATUS:</span>
+                    <select v-model="logStatusClassFilter" class="bg-transparent text-[10px] font-bold text-slate-900 dark:text-white focus:outline-none uppercase tracking-widest">
+                      <option value="all">ALL</option>
+                      <option value="2xx">2XX</option>
+                      <option value="3xx">3XX</option>
+                      <option value="4xx">4XX</option>
+                      <option value="5xx">5XX</option>
+                    </select>
+                  </div>
+                  <input v-model="logUIDFilter" placeholder="UID" class="w-24 bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/5 rounded-xl px-3 py-2 text-[10px] font-bold text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500/50" />
+                  <input v-model="logSourceIPFilter" placeholder="SOURCE IP" class="w-32 bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/5 rounded-xl px-3 py-2 text-[10px] font-bold text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500/50" />
+                  <input v-model="logKeywordFilter" placeholder="KEYWORD" class="w-36 bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/5 rounded-xl px-3 py-2 text-[10px] font-bold text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500/50" />
                   <label class="flex items-center gap-2 bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/5 rounded-xl px-3 py-2 cursor-pointer hover:border-cyan-500/40 transition-all">
                     <input type="checkbox" v-model="autoRefreshLogs" class="w-3 h-3 rounded cursor-pointer" />
                     <span class="text-[9px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-widest">AUTO</span>
@@ -1716,29 +1793,51 @@ const filteredHistory = computed(() => {
 
               <div class="overflow-hidden border border-slate-200 dark:border-white/5 rounded-[2.5rem] bg-black dark:bg-[#0a0a0b] shadow-xl font-mono">
                 <div class="overflow-x-auto custom-scrollbar h-[600px] overflow-y-auto bg-slate-950 dark:bg-[#000000]">
-                  <div class="text-[9px] text-slate-400 p-4 space-y-1">
+                  <div class="text-[9px] text-slate-400 p-4 space-y-1 min-w-[1080px]">
                     <div v-if="logs.length === 0" class="text-center py-24 text-slate-600">
                       <p class="italic">/ NO_LOGS_LOADED</p>
                       <p v-if="autoRefreshLogs" class="text-[8px] mt-2 text-cyan-500">WAITING FOR EVENTS...</p>
                     </div>
-                    <div v-for="(log, idx) in logs" :key="idx" :class="cn(
-                      'py-1 px-2 rounded transition-all hover:bg-white/5',
+                    <div v-if="logs.length > 0" class="grid grid-cols-[128px_64px_88px_180px_300px_76px_1fr_32px] gap-2 px-2 pb-2 text-[8px] font-black uppercase tracking-widest text-slate-600 border-b border-white/5">
+                      <span>TIME</span>
+                      <span>LEVEL</span>
+                      <span>UID</span>
+                      <span>SOURCE</span>
+                      <span>REQUEST</span>
+                      <span>CAT</span>
+                      <span>MESSAGE</span>
+                      <span></span>
+                    </div>
+                    <div v-for="(log, idx) in logs" :key="logKey(log, idx)" :class="cn(
+                      'rounded transition-all hover:bg-white/5',
                       log.level === 'ERROR' ? 'text-red-400' :
                       log.level === 'WARNING' ? 'text-amber-400' :
                       log.level === 'INFO' ? 'text-green-400' :
                       log.level === 'DEBUG' ? 'text-blue-400' :
                       'text-slate-400'
                     )">
-                      <span class="text-slate-600">{{ log.timestamp }}</span>
-                      <span :class="cn(
-                        'inline-block w-12 text-left font-black ml-2',
-                        log.level === 'ERROR' ? 'text-red-500' :
-                        log.level === 'WARNING' ? 'text-amber-500' :
-                        log.level === 'INFO' ? 'text-green-500' :
-                        log.level === 'DEBUG' ? 'text-blue-500' :
-                        'text-slate-500'
-                      )">[{{ log.level }}]</span>
-                      <span class="text-slate-300 ml-2">{{ log.message }}</span>
+                      <button type="button" @click="toggleLogDetails(logKey(log, idx))" class="w-full grid grid-cols-[128px_64px_88px_180px_300px_76px_1fr_32px] gap-2 items-center py-2 px-2 text-left">
+                        <span class="text-slate-600 truncate">{{ log.timestamp }}</span>
+                        <span :class="cn(
+                          'font-black',
+                          log.level === 'ERROR' ? 'text-red-500' :
+                          log.level === 'WARNING' ? 'text-amber-500' :
+                          log.level === 'INFO' ? 'text-green-500' :
+                          log.level === 'DEBUG' ? 'text-blue-500' :
+                          'text-slate-500'
+                        )">[{{ log.level }}]</span>
+                        <span class="text-cyan-300 truncate">{{ logUIDLabel(log) }}</span>
+                        <span class="text-slate-300 truncate">{{ logSourceSummary(log) }}</span>
+                        <span class="text-slate-300 truncate">{{ logRequestSummary(log) }}</span>
+                        <span class="text-purple-300 uppercase truncate">{{ log.category || '-' }}</span>
+                        <span class="text-slate-300 truncate">{{ log.message }}</span>
+                        <ChevronDown :class="cn('w-3 h-3 text-slate-500 transition-transform', expandedLogKeys.has(logKey(log, idx)) ? 'rotate-180' : '')" />
+                      </button>
+                      <div v-if="expandedLogKeys.has(logKey(log, idx))" class="mx-2 mb-2 grid grid-cols-1 lg:grid-cols-3 gap-2 border-t border-white/5 pt-2 text-[8px] leading-relaxed text-slate-400">
+                        <pre class="whitespace-pre-wrap break-words bg-white/[0.03] rounded-lg p-2">{{ JSON.stringify(log.source || {}, null, 2) }}</pre>
+                        <pre class="whitespace-pre-wrap break-words bg-white/[0.03] rounded-lg p-2">{{ JSON.stringify(log.request || {}, null, 2) }}</pre>
+                        <pre class="whitespace-pre-wrap break-words bg-white/[0.03] rounded-lg p-2">{{ JSON.stringify(log.websocket || { auth_state: log.auth_state, attempted_uid: log.attempted_uid }, null, 2) }}</pre>
+                      </div>
                     </div>
                   </div>
                 </div>

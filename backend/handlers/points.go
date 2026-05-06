@@ -62,20 +62,21 @@ func GetLeaderboard(c *gin.Context) {
 		}
 
 		leaderboard = append(leaderboard, map[string]interface{}{
-			"uid":            entry.UID,
-			"username":       entry.Username,
-			"nickname":       entry.Nickname,
-			"avatar":         entry.Avatar,
-			"points":         entry.Points,
-			"monthly_points": entry.MonthlyPoints,
-			"level":          entry.Level,
-			"tier":           conf.Tier,
-			"tier_name":      conf.TierName,
-			"win_count":      entry.WinCount,
-			"total_games":    entry.TotalGames,
-			"bounty":         totalBounty,
-			"is_online":      isOnline,
-			"is_banned":      isBanned,
+			"uid":             entry.UID,
+			"username":        entry.Username,
+			"nickname":        entry.Nickname,
+			"avatar":          entry.Avatar,
+			"points":          entry.Points,
+			"monthly_points":  entry.MonthlyPoints,
+			"level":           entry.Level,
+			"tier":            conf.Tier,
+			"tier_name":       conf.TierName,
+			"win_count":       entry.WinCount,
+			"total_games":     entry.TotalGames,
+			"bounty":          totalBounty,
+			"is_online":       isOnline,
+			"is_banned":       isBanned,
+			"last_offline_at": entry.LastOfflineAt,
 		})
 	}
 
@@ -105,21 +106,22 @@ func GetLeaderboard(c *gin.Context) {
 			isBanned := user.BannedUntil != nil && time.Now().Before(*user.BannedUntil)
 
 			selfInfo = map[string]interface{}{
-				"uid":            user.UID,
-				"username":       user.Username,
-				"nickname":       user.Nickname,
-				"avatar":         user.Avatar,
-				"points":         user.Points,
-				"monthly_points": user.MonthlyPoints,
-				"level":          user.Level,
-				"tier":           conf.Tier,
-				"tier_name":      conf.TierName,
-				"win_count":      user.WinCount,
-				"total_games":    user.TotalGames,
-				"bounty":         totalBounty,
-				"is_online":      isOnline,
-				"is_banned":      isBanned,
-				"rank":           rank + 1,
+				"uid":             user.UID,
+				"username":        user.Username,
+				"nickname":        user.Nickname,
+				"avatar":          user.Avatar,
+				"points":          user.Points,
+				"monthly_points":  user.MonthlyPoints,
+				"level":           user.Level,
+				"tier":            conf.Tier,
+				"tier_name":       conf.TierName,
+				"win_count":       user.WinCount,
+				"total_games":     user.TotalGames,
+				"bounty":          totalBounty,
+				"is_online":       isOnline,
+				"is_banned":       isBanned,
+				"last_offline_at": user.LastOfflineAt,
+				"rank":            rank + 1,
 			}
 		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})

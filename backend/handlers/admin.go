@@ -1921,25 +1921,11 @@ func BatchRejectReactions(c *gin.Context) {
 
 // GetLogs 获取实时日志（管理员专用）
 func GetLogs(c *gin.Context) {
-	count := 100 // 默认获取最近100条
-	if countStr := c.Query("count"); countStr != "" {
-		if parsedCount, err := strconv.Atoi(countStr); err == nil && parsedCount > 0 {
-			if parsedCount > 1000 {
-				count = 1000 // 最多1000条
-			} else {
-				count = parsedCount
-			}
-		}
+	filter, count, ok := parseAdminLogFilter(c, 100)
+	if !ok {
+		return
 	}
-
-	level := c.Query("level") // 可选：过滤日志级别
-
-	var logs []utils.LogEntry
-	if level != "" {
-		logs = utils.GetLogsByLevel(level, count)
-	} else {
-		logs = utils.GetLogs(count)
-	}
+	logs := utils.GetLogsFiltered(filter, count)
 
 	c.JSON(http.StatusOK, gin.H{
 		"logs":  logs,
@@ -1955,25 +1941,9 @@ func GetLogsStream(c *gin.Context) {
 		return
 	}
 
-	level := strings.ToUpper(strings.TrimSpace(c.Query("level")))
-	if level == "ALL" {
-		level = ""
-	}
-
-	if level != "" && level != "INFO" && level != "WARNING" && level != "ERROR" && level != "DEBUG" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的日志级别过滤参数"})
+	filter, count, ok := parseAdminLogFilter(c, 200)
+	if !ok {
 		return
-	}
-
-	count := 200 // 初次连接默认回放最近200条
-	if countStr := c.Query("count"); countStr != "" {
-		if parsedCount, err := strconv.Atoi(countStr); err == nil && parsedCount > 0 {
-			if parsedCount > 1000 {
-				count = 1000
-			} else {
-				count = parsedCount
-			}
-		}
 	}
 
 	c.Header("Content-Type", "text/event-stream")
@@ -1981,12 +1951,7 @@ func GetLogsStream(c *gin.Context) {
 	c.Header("Connection", "keep-alive")
 	c.Header("X-Accel-Buffering", "no")
 
-	var initialLogs []utils.LogEntry
-	if level != "" {
-		initialLogs = utils.GetLogsByLevel(level, count)
-	} else {
-		initialLogs = utils.GetLogs(count)
-	}
+	initialLogs := utils.GetLogsFiltered(filter, count)
 
 	// 先按时间正序回放最近日志，保证前端底部是最新。
 	for i := len(initialLogs) - 1; i >= 0; i-- {
@@ -2015,7 +1980,7 @@ func GetLogsStream(c *gin.Context) {
 				return
 			}
 
-			if level != "" && entry.Level != level {
+			if !utils.LogEntryMatchesFilter(entry, filter) {
 				continue
 			}
 
@@ -2035,6 +2000,83 @@ func GetLogsStream(c *gin.Context) {
 			flusher.Flush()
 		}
 	}
+}
+
+func parseAdminLogFilter(c *gin.Context, defaultCount int) (utils.LogFilter, int, bool) {
+	count := defaultCount
+	if countStr := c.Query("count"); countStr != "" {
+		parsedCount, err := strconv.Atoi(countStr)
+		if err != nil || parsedCount <= 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "无效的日志数量参数"})
+			return utils.LogFilter{}, 0, false
+		}
+		count = parsedCount
+		if count > 1000 {
+			count = 1000
+		}
+	}
+
+	filter := utils.LogFilter{
+		Level:       strings.ToUpper(strings.TrimSpace(c.Query("level"))),
+		Category:    strings.TrimSpace(c.Query("category")),
+		SourceIP:    strings.TrimSpace(c.Query("source_ip")),
+		StatusClass: strings.TrimSpace(c.Query("status_class")),
+		Keyword:     strings.TrimSpace(firstNonEmptyLogQuery(c.Query("q"), c.Query("keyword"))),
+	}
+	if filter.Level == "ALL" {
+		filter.Level = ""
+	}
+	if filter.Level != "" && filter.Level != "INFO" && filter.Level != "WARNING" && filter.Level != "ERROR" && filter.Level != "DEBUG" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的日志级别过滤参数"})
+		return utils.LogFilter{}, 0, false
+	}
+	if filter.StatusClass != "" && !isValidStatusClass(filter.StatusClass) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的状态码分组过滤参数"})
+		return utils.LogFilter{}, 0, false
+	}
+	if uid, ok := parseOptionalIntQuery(c, "uid"); !ok {
+		return utils.LogFilter{}, 0, false
+	} else {
+		filter.UID = uid
+	}
+	if uid, ok := parseOptionalIntQuery(c, "attempted_uid"); !ok {
+		return utils.LogFilter{}, 0, false
+	} else {
+		filter.AttemptedUID = uid
+	}
+
+	return filter, count, true
+}
+
+func parseOptionalIntQuery(c *gin.Context, key string) (*int, bool) {
+	raw := strings.TrimSpace(c.Query(key))
+	if raw == "" {
+		return nil, true
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的" + key + "过滤参数"})
+		return nil, false
+	}
+	return &value, true
+}
+
+func isValidStatusClass(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "1xx", "2xx", "3xx", "4xx", "5xx":
+		return true
+	default:
+		return false
+	}
+}
+
+func firstNonEmptyLogQuery(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 // ClearLogs 清空日志缓冲（管理员专用）

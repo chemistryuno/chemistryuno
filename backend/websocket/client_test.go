@@ -1,8 +1,14 @@
 package websocket
 
 import (
+	"chemistryuno/backend/database"
+	"chemistryuno/backend/repository"
+	"chemistryuno/backend/utils"
 	"testing"
 	"time"
+
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
 // TestActiveChatBan_NotBanned tests that non-banned users return false
@@ -208,5 +214,98 @@ func TestRejectBannedChat_NilBan(t *testing.T) {
 	// Check that message was queued
 	if len(client.send) == 0 {
 		t.Error("Expected message to be queued for sending")
+	}
+}
+
+func TestWebSocketMessageLogAttributionSuppressesPing(t *testing.T) {
+	if err := utils.InitLogger(20); err != nil {
+		t.Fatalf("init logger: %v", err)
+	}
+	utils.ClearLogs()
+	t.Cleanup(func() {
+		_ = utils.CloseLogger()
+	})
+
+	client := &Client{
+		uid:    100000101,
+		send:   make(chan []byte, 256),
+		source: &utils.LogSource{ClientIP: "127.0.0.1", UserAgent: "test-agent"},
+	}
+
+	client.handleMessage(&Message{Type: "ping", Timestamp: 123})
+	if logs := utils.GetLogsFiltered(utils.LogFilter{Category: "websocket"}, 10); len(logs) != 0 {
+		t.Fatalf("expected ping to be suppressed from websocket logs, got %d", len(logs))
+	}
+	if len(client.send) != 1 {
+		t.Fatalf("expected pong response to be queued")
+	}
+
+	client.handleMessage(&Message{Type: "unknown_event"})
+	logs := utils.GetLogsFiltered(utils.LogFilter{Category: "websocket", UID: utils.IntPtr(100000101)}, 10)
+	if len(logs) != 1 {
+		t.Fatalf("expected one websocket message log, got %d", len(logs))
+	}
+	entry := logs[0]
+	if entry.Source == nil || entry.Source.ClientIP != "127.0.0.1" {
+		t.Fatalf("expected source metadata, got %+v", entry.Source)
+	}
+	if entry.WebSocket == nil || entry.WebSocket.Event != "message" || entry.WebSocket.Type != "unknown_event" {
+		t.Fatalf("unexpected websocket metadata: %+v", entry.WebSocket)
+	}
+}
+
+func TestHubRecordsLastOfflineOnlyAfterFinalUIDConnection(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	if err := db.AutoMigrate(&database.User{}); err != nil {
+		t.Fatalf("migrate users: %v", err)
+	}
+	database.DB = db
+	repository.UserRepo = repository.NewUserRepository(db)
+
+	user := database.User{UID: 100000201, Username: "rank-online"}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+
+	hub := NewHub()
+	first := &Client{uid: int(user.UID), send: make(chan []byte, 1)}
+	second := &Client{uid: int(user.UID), send: make(chan []byte, 1)}
+
+	hub.mutex.Lock()
+	hub.clients[first] = true
+	hub.clients[second] = true
+	delete(hub.clients, first)
+	shouldRecordFirst := first.uid > 0 && !hub.hasUIDLocked(first.uid)
+	hub.mutex.Unlock()
+	if shouldRecordFirst {
+		t.Fatalf("expected first disconnect to keep user online while another connection remains")
+	}
+
+	hub.mutex.Lock()
+	delete(hub.clients, second)
+	shouldRecordSecond := second.uid > 0 && !hub.hasUIDLocked(second.uid)
+	hub.mutex.Unlock()
+	if !shouldRecordSecond {
+		t.Fatalf("expected final disconnect to record offline time")
+	}
+
+	offlineAt := time.Date(2026, 5, 6, 9, 45, 0, 0, time.UTC)
+	hub.recordLastOffline(int(user.UID), offlineAt)
+	deadline := time.Now().Add(time.Second)
+	for {
+		var updated database.User
+		if err := db.First(&updated, user.UID).Error; err != nil {
+			t.Fatalf("load user: %v", err)
+		}
+		if updated.LastOfflineAt != nil && updated.LastOfflineAt.Equal(offlineAt) {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("last_offline_at was not updated, got %v", updated.LastOfflineAt)
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }

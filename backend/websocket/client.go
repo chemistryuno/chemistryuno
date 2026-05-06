@@ -2,8 +2,10 @@ package websocket
 
 import (
 	"chemistryuno/backend/repository"
+	"chemistryuno/backend/utils"
 	"encoding/json"
 	"log"
+	"strconv"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -25,6 +27,7 @@ type Client struct {
 	nickname string
 	avatar   string
 	roomID   string
+	source   *utils.LogSource
 }
 
 type Message struct {
@@ -52,6 +55,27 @@ func NewClient(hub *Hub, conn *websocket.Conn, uid int, username string, nicknam
 		nickname: nickname,
 		avatar:   avatar,
 	}
+}
+
+func (c *Client) SetSource(source *utils.LogSource) {
+	c.source = source
+}
+
+func (c *Client) logWebSocket(event string, msgType string, level string) {
+	roomID := c.roomID
+	utils.LogStructured(utils.LogEntry{
+		Level:     level,
+		Category:  "websocket",
+		Message:   "websocket " + event + " uid=" + strconv.Itoa(c.uid),
+		UID:       utils.IntPtr(c.uid),
+		AuthState: "authenticated",
+		Source:    c.source,
+		WebSocket: &utils.LogWebSocket{
+			Event:  event,
+			Type:   msgType,
+			RoomID: roomID,
+		},
+	})
 }
 
 func (c *Client) activeChatBan() (*chatBanInfo, bool) {
@@ -88,6 +112,7 @@ func (c *Client) rejectBannedChat(action string, ban *chatBanInfo) {
 
 func (c *Client) ReadPump() {
 	defer func() {
+		c.logWebSocket("disconnect", "", "INFO")
 		// 防止在hub已关闭或roomID为空时仍尝试LeaveRoom
 		if c.hub != nil {
 			c.hub.LeaveRoom(c)
@@ -168,7 +193,10 @@ func (c *Client) WritePump() {
 }
 
 func (c *Client) handleMessage(msg *Message) {
-	log.Printf("📡 消息类型: %s (用户 %d)", msg.Type, c.uid)
+	if msg.Type != "ping" {
+		log.Printf("📡 消息类型: %s (用户 %d)", msg.Type, c.uid)
+		c.logWebSocket("message", msg.Type, "INFO")
+	}
 
 	switch msg.Type {
 	case "ping":

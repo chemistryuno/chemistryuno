@@ -17,6 +17,7 @@ import (
 func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var token string
+		c.Set(AuthStateKey, "unauthenticated")
 
 		// 优先从查询参数获取token（用于WebSocket的向后兼容）
 		token = c.Query("token")
@@ -30,6 +31,7 @@ func AuthMiddleware() gin.HandlerFunc {
 		if token == "" {
 			authHeader := c.GetHeader("Authorization")
 			if authHeader == "" {
+				c.Set(AuthStateKey, "anonymous")
 				c.JSON(http.StatusUnauthorized, gin.H{"error": "未提供认证信息"})
 				c.Abort()
 				return
@@ -38,6 +40,7 @@ func AuthMiddleware() gin.HandlerFunc {
 			// Bearer token格式
 			parts := strings.SplitN(authHeader, " ", 2)
 			if len(parts) != 2 || parts[0] != "Bearer" {
+				c.Set(AuthStateKey, "invalid_auth_format")
 				c.JSON(http.StatusUnauthorized, gin.H{"error": "认证格式错误"})
 				c.Abort()
 				return
@@ -47,13 +50,16 @@ func AuthMiddleware() gin.HandlerFunc {
 
 		claims, err := utils.ParseToken(token)
 		if err != nil {
+			c.Set(AuthStateKey, "invalid_token")
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "无效的token"})
 			c.Abort()
 			return
 		}
+		c.Set(AttemptedUIDKey, claims.UID)
 
 		// 检查token类型（API调用只接受access token）
 		if claims.TokenType != "access" && claims.TokenType != "" {
+			c.Set(AuthStateKey, "invalid_token_type")
 			// TokenType为空表示旧版token（兼容），为"refresh"表示刷新令牌不能用于API调用
 			if claims.TokenType == "refresh" {
 				c.JSON(http.StatusUnauthorized, gin.H{"error": "刷新令牌不能用于API调用，请刷新后重试"})
@@ -66,6 +72,7 @@ func AuthMiddleware() gin.HandlerFunc {
 
 		// 强制要求 SID 存在（防止旧版 Token 或非法 Token 绕过会话检查）
 		if claims.SID == "" {
+			c.Set(AuthStateKey, "missing_sid")
 			log.Printf("[强制踢出] Token中缺少SID: UID=%d, IP=%s", claims.UID, c.ClientIP())
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "认证信息不完整，请重新登录"})
 			c.Abort()
@@ -80,6 +87,7 @@ func AuthMiddleware() gin.HandlerFunc {
 			c.Set("uid", claims.UID)
 			c.Set("is_admin", models.RoleHasAdminAccess(normalizedRole))
 			c.Set("role", normalizedRole)
+			c.Set(AuthStateKey, "authenticated")
 			c.Next()
 			return
 		}
@@ -90,12 +98,14 @@ func AuthMiddleware() gin.HandlerFunc {
 		// 使用缓存验证会话 - 先查Redis，miss后查DB
 		sessionValid, err := repository.ValidateSessionWithCache(ctx, claims.SID)
 		if err != nil {
+			c.Set(AuthStateKey, "session_error")
 			log.Printf("❌ 会话验证失败 SID=%s: %v", claims.SID, err)
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "会话验证失败"})
 			c.Abort()
 			return
 		}
 		if !sessionValid {
+			c.Set(AuthStateKey, "invalid_session")
 			log.Printf("[会话失效] UID=%d, SID=%s, IP=%s", claims.UID, claims.SID, c.ClientIP())
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "会话已过期或在其他设备登出"})
 			c.Abort()
@@ -105,12 +115,14 @@ func AuthMiddleware() gin.HandlerFunc {
 		// 验证会话是否属于该用户（防止会话劫持）
 		userValid, err := repository.ValidateSessionForUserWithCache(ctx, claims.SID, uint(claims.UID))
 		if err != nil {
+			c.Set(AuthStateKey, "session_error")
 			log.Printf("❌ 会话用户验证失败 SID=%s, UID=%d: %v", claims.SID, claims.UID, err)
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "会话验证失败"})
 			c.Abort()
 			return
 		}
 		if !userValid {
+			c.Set(AuthStateKey, "session_user_mismatch")
 			log.Printf("[会话验证失败] UID=%d, SID=%s, IP=%s", claims.UID, claims.SID, c.ClientIP())
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "会话验证失败"})
 			c.Abort()
@@ -126,6 +138,7 @@ func AuthMiddleware() gin.HandlerFunc {
 		c.Set("is_admin", models.RoleHasAdminAccess(normalizedRole))
 		c.Set("role", normalizedRole)
 		c.Set("sid", claims.SID)
+		c.Set(AuthStateKey, "authenticated")
 
 		// 检查账号冻结/封禁状态 - 使用缓存
 		cachedUser, err := repository.GetUserWithCache(ctx, uint(claims.UID))
@@ -140,6 +153,7 @@ func AuthMiddleware() gin.HandlerFunc {
 					// 封禁状态已不再阻止请求
 				}
 				if frozenUntil != nil && frozenUntil.After(now) {
+					c.Set(AuthStateKey, "frozen")
 					c.JSON(http.StatusForbidden, gin.H{"error": "账号已被冻结至 " + frozenUntil.Format("2006-01-02 15:04:05")})
 					c.Abort()
 					return
@@ -152,6 +166,7 @@ func AuthMiddleware() gin.HandlerFunc {
 				// 封禁状态已不再阻止请求
 			}
 			if cachedUser.FrozenUntil != nil && cachedUser.FrozenUntil.After(now) {
+				c.Set(AuthStateKey, "frozen")
 				c.JSON(http.StatusForbidden, gin.H{"error": "账号已被冻结至 " + cachedUser.FrozenUntil.Format("2006-01-02 15:04:05")})
 				c.Abort()
 				return

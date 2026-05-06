@@ -466,7 +466,11 @@ func (r *UserRepository) DeductPoints(uid uint, points int) error {
 
 // UpdateLastOfflineAt 更新最后离线时间
 func (r *UserRepository) UpdateLastOfflineAt(uid uint, t time.Time) error {
-	return r.db.Model(&database.User{}).Where("uid = ?", uid).Update("last_offline_at", t).Error
+	if err := r.db.Model(&database.User{}).Where("uid = ?", uid).Update("last_offline_at", t).Error; err != nil {
+		return err
+	}
+	_ = cache.InvalidateAllLeaderboardCache(context.Background())
+	return nil
 }
 
 // UpdateTurnStartedAt 更新回合开始时间

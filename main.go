@@ -220,7 +220,7 @@ func main() {
 	})
 
 	// 添加自定义中间件
-	r.Use(gin.Logger())                // 日志中间件
+	r.Use(middleware.RequestLogger())  // 请求日志中间件
 	r.Use(gin.Recovery())              // Panic恢复中间件
 	r.Use(middleware.CORSMiddleware()) // CORS中间件
 
@@ -727,6 +727,18 @@ func handleWebSocket(c *gin.Context) {
 	}
 
 	client := websocket.NewClient(hub, conn, uid, username, nickname, avatar)
+	client.SetSource(utils.SourceFromRequest(c.Request, c.ClientIP()))
+	utils.LogStructured(utils.LogEntry{
+		Level:     "INFO",
+		Category:  "websocket",
+		Message:   "websocket connect uid=" + strconv.Itoa(uid),
+		UID:       utils.IntPtr(uid),
+		AuthState: "authenticated",
+		Source:    utils.SourceFromRequest(c.Request, c.ClientIP()),
+		WebSocket: &utils.LogWebSocket{
+			Event: "connect",
+		},
+	})
 	hub.Register(client)
 
 	go client.WritePump()

@@ -4,8 +4,11 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net/http"
+	"net/url"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -13,9 +16,56 @@ import (
 
 // LogEntry 日志条目结构
 type LogEntry struct {
-	Timestamp string `json:"timestamp"`
-	Level     string `json:"level"` // info, warning, error, debug
-	Message   string `json:"message"`
+	Timestamp    string                 `json:"timestamp"`
+	Level        string                 `json:"level"` // info, warning, error, debug
+	Message      string                 `json:"message"`
+	Category     string                 `json:"category,omitempty"`
+	UID          *int                   `json:"uid,omitempty"`
+	AttemptedUID *int                   `json:"attempted_uid,omitempty"`
+	Role         string                 `json:"role,omitempty"`
+	AuthState    string                 `json:"auth_state,omitempty"`
+	Source       *LogSource             `json:"source,omitempty"`
+	Request      *LogRequest            `json:"request,omitempty"`
+	WebSocket    *LogWebSocket          `json:"websocket,omitempty"`
+	Context      map[string]interface{} `json:"context,omitempty"`
+}
+
+type LogSource struct {
+	ClientIP       string `json:"client_ip,omitempty"`
+	ForwardedFor   string `json:"forwarded_for,omitempty"`
+	RealIP         string `json:"real_ip,omitempty"`
+	ForwardedProto string `json:"forwarded_proto,omitempty"`
+	ForwardedHost  string `json:"forwarded_host,omitempty"`
+	Origin         string `json:"origin,omitempty"`
+	Referer        string `json:"referer,omitempty"`
+	UserAgent      string `json:"user_agent,omitempty"`
+}
+
+type LogRequest struct {
+	Method      string `json:"method,omitempty"`
+	Path        string `json:"path,omitempty"`
+	Route       string `json:"route,omitempty"`
+	Status      int    `json:"status,omitempty"`
+	StatusClass string `json:"status_class,omitempty"`
+	LatencyMs   int64  `json:"latency_ms,omitempty"`
+	BytesIn     int64  `json:"bytes_in,omitempty"`
+	BytesOut    int    `json:"bytes_out,omitempty"`
+}
+
+type LogWebSocket struct {
+	Event  string `json:"event,omitempty"`
+	Type   string `json:"type,omitempty"`
+	RoomID string `json:"room_id,omitempty"`
+}
+
+type LogFilter struct {
+	Level        string
+	Category     string
+	UID          *int
+	AttemptedUID *int
+	SourceIP     string
+	StatusClass  string
+	Keyword      string
 }
 
 // LogBuffer 日志缓冲区管理器
@@ -33,6 +83,21 @@ type logCaptureWriter struct {
 }
 
 var stdLogPrefixRe = regexp.MustCompile(`^(\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2})\s+(.*)$`)
+var sensitiveLogKeys = map[string]bool{
+	"access_token":  true,
+	"authorization": true,
+	"code":          true,
+	"cookie":        true,
+	"key":           true,
+	"password":      true,
+	"refresh_token": true,
+	"secret":        true,
+	"sid":           true,
+	"state":         true,
+	"token":         true,
+}
+
+const redactedLogValue = "[REDACTED]"
 
 func parseLogLine(rawLine string) (LogEntry, bool) {
 	line := strings.TrimSpace(rawLine)
@@ -80,19 +145,7 @@ func (w *logCaptureWriter) Write(p []byte) (int, error) {
 		if !ok {
 			continue
 		}
-
-		w.buffer.entries = append(w.buffer.entries, entry)
-		if len(w.buffer.entries) > w.buffer.maxSize {
-			w.buffer.entries = w.buffer.entries[1:]
-		}
-
-		for _, subscriber := range w.buffer.subscribers {
-			select {
-			case subscriber <- entry:
-			default:
-				// 丢弃慢订阅者当前消息，避免阻塞日志主链路。
-			}
-		}
+		w.buffer.appendEntryLocked(entry)
 	}
 
 	return len(p), nil
@@ -171,6 +224,30 @@ func Log(level, message string) {
 	globalLogger.log(level, message)
 }
 
+func LogStructured(entry LogEntry) {
+	entry.Level = strings.ToUpper(strings.TrimSpace(entry.Level))
+	if entry.Level == "" {
+		entry.Level = "INFO"
+	}
+	if strings.TrimSpace(entry.Timestamp) == "" {
+		entry.Timestamp = time.Now().Format("2006-01-02 15:04:05")
+	}
+	if strings.TrimSpace(entry.Message) == "" {
+		entry.Message = entry.Category
+	}
+	entry.Message = RedactSensitiveString(entry.Message)
+
+	if globalLogger == nil {
+		log.Printf("[%s] %s", entry.Level, entry.Message)
+		return
+	}
+
+	globalLogger.mutex.Lock()
+	globalLogger.appendEntryLocked(entry)
+	globalLogger.mutex.Unlock()
+	globalLogger.writePlainLine(entry)
+}
+
 // LogInfo 记录信息日志
 func LogInfo(message string) {
 	Log("INFO", message)
@@ -194,6 +271,37 @@ func LogDebug(message string) {
 // log 内部日志方法
 func (lb *LogBuffer) log(level, message string) {
 	log.Printf("[%s] %s", strings.ToUpper(level), message)
+}
+
+func (lb *LogBuffer) appendEntryLocked(entry LogEntry) {
+	if entry.Timestamp == "" {
+		entry.Timestamp = time.Now().Format("2006-01-02 15:04:05")
+	}
+	entry.Level = strings.ToUpper(strings.TrimSpace(entry.Level))
+	if entry.Level == "" {
+		entry.Level = "INFO"
+	}
+	entry.Message = RedactSensitiveString(entry.Message)
+	lb.entries = append(lb.entries, entry)
+	if len(lb.entries) > lb.maxSize {
+		lb.entries = lb.entries[1:]
+	}
+
+	for _, subscriber := range lb.subscribers {
+		select {
+		case subscriber <- entry:
+		default:
+			// 丢弃慢订阅者当前消息，避免阻塞日志主链路。
+		}
+	}
+}
+
+func (lb *LogBuffer) writePlainLine(entry LogEntry) {
+	line := fmt.Sprintf("%s [%s] %s\n", entry.Timestamp, entry.Level, entry.Message)
+	_, _ = fmt.Fprint(os.Stdout, line)
+	if lb.logFile != nil {
+		_, _ = lb.logFile.WriteString(line)
+	}
 }
 
 // GetLogs 获取最近的日志（按时间倒序）
@@ -226,6 +334,10 @@ func GetLogs(count int) []LogEntry {
 
 // GetLogsByLevel 获取指定级别的日志
 func GetLogsByLevel(level string, count int) []LogEntry {
+	return GetLogsFiltered(LogFilter{Level: level}, count)
+}
+
+func GetLogsFiltered(filter LogFilter, count int) []LogEntry {
 	if globalLogger == nil {
 		return []LogEntry{}
 	}
@@ -234,8 +346,13 @@ func GetLogsByLevel(level string, count int) []LogEntry {
 	defer globalLogger.mutex.RUnlock()
 
 	var filtered []LogEntry
+	filter.Level = strings.ToUpper(strings.TrimSpace(filter.Level))
+	filter.Category = strings.ToLower(strings.TrimSpace(filter.Category))
+	filter.StatusClass = strings.ToLower(strings.TrimSpace(filter.StatusClass))
+	filter.SourceIP = strings.TrimSpace(filter.SourceIP)
+	filter.Keyword = strings.ToLower(strings.TrimSpace(filter.Keyword))
 	for _, entry := range globalLogger.entries {
-		if entry.Level == level {
+		if logEntryMatchesFilter(entry, filter) {
 			filtered = append(filtered, entry)
 		}
 	}
@@ -257,6 +374,82 @@ func GetLogsByLevel(level string, count int) []LogEntry {
 	}
 
 	return result
+}
+
+func LogEntryMatchesFilter(entry LogEntry, filter LogFilter) bool {
+	filter.Level = strings.ToUpper(strings.TrimSpace(filter.Level))
+	filter.Category = strings.ToLower(strings.TrimSpace(filter.Category))
+	filter.StatusClass = strings.ToLower(strings.TrimSpace(filter.StatusClass))
+	filter.SourceIP = strings.TrimSpace(filter.SourceIP)
+	filter.Keyword = strings.ToLower(strings.TrimSpace(filter.Keyword))
+	return logEntryMatchesFilter(entry, filter)
+}
+
+func logEntryMatchesFilter(entry LogEntry, filter LogFilter) bool {
+	if filter.Level != "" && strings.ToUpper(entry.Level) != filter.Level {
+		return false
+	}
+	if filter.Category != "" && strings.ToLower(entry.Category) != filter.Category {
+		return false
+	}
+	if filter.UID != nil {
+		if entry.UID == nil || *entry.UID != *filter.UID {
+			return false
+		}
+	}
+	if filter.AttemptedUID != nil {
+		if entry.AttemptedUID == nil || *entry.AttemptedUID != *filter.AttemptedUID {
+			return false
+		}
+	}
+	if filter.SourceIP != "" && !entrySourceMatches(entry.Source, filter.SourceIP) {
+		return false
+	}
+	if filter.StatusClass != "" {
+		if entry.Request == nil || strings.ToLower(entry.Request.StatusClass) != filter.StatusClass {
+			return false
+		}
+	}
+	if filter.Keyword != "" && !strings.Contains(strings.ToLower(entrySearchText(entry)), filter.Keyword) {
+		return false
+	}
+	return true
+}
+
+func entrySourceMatches(source *LogSource, ip string) bool {
+	if source == nil {
+		return false
+	}
+	return strings.Contains(source.ClientIP, ip) ||
+		strings.Contains(source.ForwardedFor, ip) ||
+		strings.Contains(source.RealIP, ip)
+}
+
+func entrySearchText(entry LogEntry) string {
+	parts := []string{entry.Message, entry.Category, entry.Level, entry.Role, entry.AuthState}
+	if entry.Source != nil {
+		parts = append(parts,
+			entry.Source.ClientIP,
+			entry.Source.ForwardedFor,
+			entry.Source.RealIP,
+			entry.Source.Origin,
+			entry.Source.Referer,
+			entry.Source.UserAgent,
+		)
+	}
+	if entry.Request != nil {
+		parts = append(parts,
+			entry.Request.Method,
+			entry.Request.Path,
+			entry.Request.Route,
+			entry.Request.StatusClass,
+			strconv.Itoa(entry.Request.Status),
+		)
+	}
+	if entry.WebSocket != nil {
+		parts = append(parts, entry.WebSocket.Event, entry.WebSocket.Type, entry.WebSocket.RoomID)
+	}
+	return strings.Join(parts, " ")
 }
 
 // ClearLogs 清空日志缓冲
@@ -285,4 +478,91 @@ func CloseLogger() error {
 		return globalLogger.Close()
 	}
 	return nil
+}
+
+func RedactSensitiveString(raw string) string {
+	if raw == "" {
+		return raw
+	}
+	redacted := raw
+	for key := range sensitiveLogKeys {
+		pattern := regexp.MustCompile(`(?i)(` + regexp.QuoteMeta(key) + `)(=|%3D|:)\s*([^&\s,;]+)`)
+		redacted = pattern.ReplaceAllString(redacted, `${1}${2}`+redactedLogValue)
+	}
+	return redacted
+}
+
+func SanitizeURLPath(rawPath string) string {
+	if rawPath == "" {
+		return rawPath
+	}
+	parsed, err := url.Parse(rawPath)
+	if err != nil {
+		return RedactSensitiveString(rawPath)
+	}
+	query := parsed.Query()
+	for key := range query {
+		if isSensitiveLogKey(key) {
+			query.Set(key, redactedLogValue)
+		}
+	}
+	parsed.RawQuery = query.Encode()
+	return parsed.String()
+}
+
+func SanitizeHeaderValue(key string, value string) string {
+	if value == "" {
+		return ""
+	}
+	if isSensitiveLogKey(key) {
+		return redactedLogValue
+	}
+	return RedactSensitiveString(value)
+}
+
+func NormalizeUserAgent(value string) string {
+	value = strings.Join(strings.Fields(value), " ")
+	if len(value) > 180 {
+		return value[:177] + "..."
+	}
+	return value
+}
+
+func SourceFromRequest(r *http.Request, clientIP string) *LogSource {
+	if r == nil {
+		return &LogSource{ClientIP: clientIP}
+	}
+	return &LogSource{
+		ClientIP:       clientIP,
+		ForwardedFor:   SanitizeHeaderValue("X-Forwarded-For", r.Header.Get("X-Forwarded-For")),
+		RealIP:         SanitizeHeaderValue("X-Real-IP", r.Header.Get("X-Real-IP")),
+		ForwardedProto: SanitizeHeaderValue("X-Forwarded-Proto", r.Header.Get("X-Forwarded-Proto")),
+		ForwardedHost:  SanitizeHeaderValue("X-Forwarded-Host", r.Header.Get("X-Forwarded-Host")),
+		Origin:         SanitizeHeaderValue("Origin", r.Header.Get("Origin")),
+		Referer:        SanitizeHeaderValue("Referer", r.Header.Get("Referer")),
+		UserAgent:      NormalizeUserAgent(SanitizeHeaderValue("User-Agent", r.Header.Get("User-Agent"))),
+	}
+}
+
+func StatusClass(status int) string {
+	if status <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("%dxx", status/100)
+}
+
+func IntPtr(value int) *int {
+	return &value
+}
+
+func isSensitiveLogKey(key string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(key))
+	if sensitiveLogKeys[normalized] {
+		return true
+	}
+	return strings.Contains(normalized, "token") ||
+		strings.Contains(normalized, "password") ||
+		strings.Contains(normalized, "secret") ||
+		strings.Contains(normalized, "authorization") ||
+		strings.Contains(normalized, "cookie")
 }

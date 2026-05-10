@@ -17,7 +17,7 @@ Object.assign(apiInstance, {
   },
 })
 
-vi.mock('../router', () => ({
+vi.mock('@/router', () => ({
   default: {
     push: routerPush,
   },
@@ -38,7 +38,7 @@ describe('API adapters', () => {
   })
 
   it('sends login payloads through the auth adapter', async () => {
-    const { authAPI } = await import('./api')
+    const { authAPI } = await import('@/utils/api')
     vi.mocked(apiInstance.post).mockResolvedValueOnce({ data: { user: { uid: 1 } } })
 
     await authAPI.login({ identifier: 'test', password: 'test123' })
@@ -50,7 +50,7 @@ describe('API adapters', () => {
   })
 
   it('sends room creation payloads through the game adapter', async () => {
-    const { gameAPI } = await import('./api')
+    const { gameAPI } = await import('@/utils/api')
     vi.mocked(apiInstance.post).mockResolvedValueOnce({ data: { id: 'room-1' } })
 
     await gameAPI.createRoom('QA Room', 4, 1, false, true, 'secret', false, 0, 0, true, 50, true, 5)
@@ -74,7 +74,7 @@ describe('API adapters', () => {
   })
 
   it('sends replay evidence metadata with feedback reports', async () => {
-    const { authAPI } = await import('./api')
+    const { authAPI } = await import('@/utils/api')
     vi.mocked(apiInstance.post).mockResolvedValueOnce({ data: { message: 'ok' } })
 
     await authAPI.submitFeedback('reported suspicious event', 'report', {
@@ -101,7 +101,7 @@ describe('API adapters', () => {
   })
 
   it('surfaces validation errors from admin API calls', async () => {
-    const { adminAPI } = await import('./api')
+    const { adminAPI } = await import('@/utils/api')
     const validationError = { response: { status: 400, data: { error: 'invalid compensation' } } }
     vi.mocked(apiInstance.post).mockRejectedValueOnce(validationError)
 
@@ -109,7 +109,7 @@ describe('API adapters', () => {
   })
 
   it('sends admin log attribution filters as query parameters', async () => {
-    const { adminAPI } = await import('./api')
+    const { adminAPI } = await import('@/utils/api')
     vi.mocked(apiInstance.get).mockResolvedValueOnce({ data: { logs: [] } })
 
     await adminAPI.getLogs({
@@ -126,7 +126,7 @@ describe('API adapters', () => {
   })
 
   it('builds admin log stream URLs with the same filters', async () => {
-    const { adminAPI } = await import('./api')
+    const { adminAPI } = await import('@/utils/api')
 
     const url = adminAPI.getLogsStreamURL({
       count: 25,
@@ -142,7 +142,7 @@ describe('API adapters', () => {
   })
 
   it('keeps network failures rejected for callers', async () => {
-    const { authAPI } = await import('./api')
+    const { authAPI } = await import('@/utils/api')
     const networkError = new Error('network down')
     vi.mocked(apiInstance.get).mockRejectedValueOnce(networkError)
 
@@ -150,7 +150,7 @@ describe('API adapters', () => {
   })
 
   it('refreshes and replays an authenticated request after a 401 response', async () => {
-    await import('./api')
+    await import('@/utils/api')
     const rejected = responseUse.mock.calls[0][1]
     const originalRequest = { url: '/user/info' }
     const authError = { response: { status: 401 }, config: originalRequest }

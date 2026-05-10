@@ -1,8 +1,8 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import type { AxiosResponse } from 'axios'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import Admin from './Admin.vue'
-import { adminAPI } from '../utils/api'
+import Admin from '@/pages/Admin.vue'
+import { adminAPI } from '@/utils/api'
 
 const push = vi.fn()
 const replace = vi.fn()
@@ -34,7 +34,7 @@ vi.mock('vue-router', () => ({
   useRoute: () => ({ path: '/admin/logs', params: { tab: 'logs' } }),
 }))
 
-vi.mock('../utils/dialog', () => ({
+vi.mock('@/utils/dialog', () => ({
   useDialog: () => ({
     showAlert,
     showConfirm,
@@ -42,7 +42,7 @@ vi.mock('../utils/dialog', () => ({
   }),
 }))
 
-vi.mock('../utils/api', () => ({
+vi.mock('@/utils/api', () => ({
   adminAPI: {
     getStats: vi.fn(),
     getLogs: vi.fn(),

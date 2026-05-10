@@ -6,7 +6,7 @@ import {
   canPlaySubstance,
   getTutorialProgress,
   getTutorialStep,
-} from './tutorialScript'
+} from '@/utils/tutorialScript'
 
 describe('tutorial script helpers', () => {
   it('keeps total steps synchronized with the script', () => {

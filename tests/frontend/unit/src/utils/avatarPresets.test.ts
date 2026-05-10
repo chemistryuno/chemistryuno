@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { AVATAR_PRESETS, isPresetAvatar } from './avatarPresets'
+import { AVATAR_PRESETS, isPresetAvatar } from '@/utils/avatarPresets'
 
 describe('avatar presets', () => {
   it('recognizes known preset avatars only', () => {

@@ -1,10 +1,10 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
-import AdminAnticheat from './AdminAnticheat.vue'
-import { adminAPI } from '../utils/api'
-import { useDialog } from '../utils/dialog'
+import AdminAnticheat from '@/pages/AdminAnticheat.vue'
+import { adminAPI } from '@/utils/api'
+import { useDialog } from '@/utils/dialog'
 
-vi.mock('../utils/api', () => ({
+vi.mock('@/utils/api', () => ({
   adminAPI: {
     getDetectionList: vi.fn(),
     getDetectionDetail: vi.fn(),
@@ -23,7 +23,7 @@ vi.mock('../utils/api', () => ({
 
 const showAlert = vi.fn()
 
-vi.mock('../utils/dialog', () => ({
+vi.mock('@/utils/dialog', () => ({
   useDialog: vi.fn(() => ({
     showAlert,
     showPrompt: vi.fn(),

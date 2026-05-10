@@ -7,7 +7,8 @@ This document clarifies where code should live and which layer owns each respons
 - `main.go`: only application bootstrap and HTTP router wiring.
 - `start.js`: local developer orchestrator for frontend + backend.
 - `build.js`: production build orchestration.
-- `test.js`: repository-level test orchestration.
+- `tests/test.js`: repository-level test orchestration.
+- `tests/test_main.py`: Python integration test harness.
 - `init.js`: first-time setup workflow.
 
 ## Backend Layers (`backend/`)

@@ -7,24 +7,24 @@ const rootDir = path.resolve(__dirname, '..');
 
 const stepSets = {
   quick: [
-    { name: 'Run backend tests', command: 'go test ./backend/...' },
+    { name: 'Run backend tests', command: 'node scripts/run-backend-tests.js ./backend/...' },
     { name: 'Run frontend type-check', command: 'pnpm -C frontend type-check' },
     { name: 'Run frontend unit/component tests', command: 'pnpm -C frontend test' },
   ],
   ci: [
-    { name: 'Run backend tests', command: 'go test ./backend/...' },
+    { name: 'Run backend tests', command: 'node scripts/run-backend-tests.js ./backend/...' },
     { name: 'Run frontend type-check', command: 'pnpm -C frontend type-check' },
     { name: 'Run frontend unit/component tests', command: 'pnpm -C frontend test' },
     { name: 'Run frontend production build', command: 'pnpm -C frontend build' },
   ],
   release: [
     { name: 'Run standard CI gate', command: 'node scripts/test-runner.js ci' },
-    { name: 'Run backend script-tag OAuth tests', command: 'go test -tags scripts backend/scripts/oauth_third_party_test.go -v' },
+    { name: 'Run backend script-tag OAuth tests', command: 'node scripts/run-backend-tests.js -tags scripts backend/scripts/oauth_third_party_test.go -v' },
     { name: 'Run full-stack e2e tests', command: 'node scripts/run-e2e.js' },
     { name: 'Run full production build', command: 'pnpm build:full' },
   ],
   coverage: [
-    { name: 'Generate backend coverage summary', command: 'go test ./backend/... -coverprofile=tmp/coverage/backend.out' },
+    { name: 'Generate backend coverage summary', command: 'node scripts/run-backend-tests.js ./backend/... -coverprofile=tmp/coverage/backend.out' },
     { name: 'Print backend coverage functions', command: 'go tool cover -func=tmp/coverage/backend.out' },
     { name: 'Generate frontend coverage summary', command: 'pnpm -C frontend exec vitest run --coverage.enabled=true --coverage.reporter=text' },
   ],

@@ -1,12 +1,12 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import Appeals from './Appeals.vue'
-import { adminAPI, authAPI } from '../utils/api'
+import Appeals from '@/pages/Appeals.vue'
+import { adminAPI, authAPI } from '@/utils/api'
 
 const routerPush = vi.hoisted(() => vi.fn())
 const showConfirm = vi.hoisted(() => vi.fn())
 
-vi.mock('../utils/api', () => ({
+vi.mock('@/utils/api', () => ({
   authAPI: {
     getUserInfo: vi.fn(),
     refreshUserInfo: vi.fn(),
@@ -23,7 +23,7 @@ vi.mock('../utils/api', () => ({
   },
 }))
 
-vi.mock('../utils/dialog', () => ({
+vi.mock('@/utils/dialog', () => ({
   useDialog: () => ({
     showConfirm,
   }),

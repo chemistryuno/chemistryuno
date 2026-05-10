@@ -1,9 +1,9 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
-import PlayerAnticheatStatsWidget from './PlayerAnticheatStatsWidget.vue'
-import { authAPI } from '../../utils/api'
+import PlayerAnticheatStatsWidget from '@/components/profile/PlayerAnticheatStatsWidget.vue'
+import { authAPI } from '@/utils/api'
 
-vi.mock('../../utils/api', () => ({
+vi.mock('@/utils/api', () => ({
   authAPI: {
     getPlayerAnticheatStats: vi.fn(),
   },

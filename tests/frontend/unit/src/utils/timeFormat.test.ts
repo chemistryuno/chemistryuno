@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { formatLastOfflineForRanking, formatLastOnline, getOnlineStatus } from './timeFormat'
+import { formatLastOfflineForRanking, formatLastOnline, getOnlineStatus } from '@/utils/timeFormat'
 
 describe('time format utilities', () => {
   beforeEach(() => {

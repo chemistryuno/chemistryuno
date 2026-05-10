@@ -2,8 +2,8 @@ import { mount } from '@vue/test-utils'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import CustomDialog from './CustomDialog.vue'
-import { useDialog } from '../utils/dialog'
+import CustomDialog from '@/components/CustomDialog.vue'
+import { useDialog } from '@/utils/dialog'
 
 describe('CustomDialog viewport placement', () => {
   it('uses the viewport-centered overlay contract after page scroll', async () => {

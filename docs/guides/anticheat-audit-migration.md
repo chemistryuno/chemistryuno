@@ -20,7 +20,7 @@ The application runs anticheat migrations during normal startup through `databas
 For local verification:
 
 ```bash
-go test ./backend/database
+node scripts/run-backend-tests.js ./backend/database
 ```
 
 ## Backward Compatibility

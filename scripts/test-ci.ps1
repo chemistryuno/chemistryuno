@@ -17,7 +17,7 @@ function Invoke-Step {
   }
 }
 
-Invoke-Step "Run backend tests" { go test ./backend/... }
+Invoke-Step "Run backend tests" { node scripts/run-backend-tests.js ./backend/... }
 Invoke-Step "Run frontend type-check" { pnpm -C frontend type-check }
 Invoke-Step "Run frontend build" { pnpm -C frontend build }
 

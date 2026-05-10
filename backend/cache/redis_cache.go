@@ -33,10 +33,12 @@ type UserCache struct {
 }
 
 // InitRedis 初始化 Redis 连接
-func InitRedis(addr string) error {
-	redisClient = redis.NewClient(&redis.Options{
+func InitRedis(addr, username, password string, db int) error {
+	client := redis.NewClient(&redis.Options{
 		Addr:         addr,
-		DB:           0,
+		Username:     username,
+		Password:     password,
+		DB:           db,
 		PoolSize:     10,
 		MinIdleConns: 5,
 		MaxRetries:   2,
@@ -46,12 +48,18 @@ func InitRedis(addr string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	if err := redisClient.Ping(ctx).Err(); err != nil {
+	if err := client.Ping(ctx).Err(); err != nil {
 		log.Printf("❌ Redis 连接失败: %v", err)
+		_ = client.Close()
 		return err
 	}
 
 	log.Println("✅ Redis 连接成功")
+	if redisClient != nil {
+		_ = redisClient.Close()
+	}
+	redisClient = client
+
 	return nil
 }
 
@@ -765,8 +773,10 @@ func LeaderboardCacheIncludesLastOfflineAt(data string) bool {
 
 // Close 关闭 Redis 连接
 func Close() error {
-	if redisClient != nil {
-		return redisClient.Close()
+	if redisClient == nil {
+		return nil
 	}
-	return nil
+	client := redisClient
+	redisClient = nil
+	return client.Close()
 }

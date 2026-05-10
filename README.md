@@ -189,7 +189,7 @@
 - 稀有气体触发特殊稳定性逻辑（转向/跳过效果）
 - 支持双联反应（`play-double`）
 
-> 更完整数据模型与接口可参考 `backend/API_DOCUMENTATION.md`。
+> 更完整数据模型与接口可参考 [api.md](api.md)。
 
 ---
 
@@ -289,6 +289,9 @@ pnpm start
 - `MYSQL_DSN`（MySQL）
 - `JWT_SECRET`
 - `REDIS_ADDR`（可选）
+- `REDIS_USERNAME`（可选，Redis ACL 用户名）
+- `REDIS_PASSWORD`（可选，Redis 认证密码）
+- `REDIS_DB`（可选，默认 `0`）
 - `VITE_SERVER_ORIGIN`：前端运行时和 Vite 开发代理使用的服务器地址，例如 `http://127.0.0.1:8080`
 - `CHEM_SERVER_ORIGIN`：Electron / Android 打包时共享使用的服务器地址；未单独指定平台变量时会回退到它
 - `CHEM_ANDROID_API_ORIGIN`：Android 专用服务器地址，优先级高于 `CHEM_SERVER_ORIGIN`
@@ -378,42 +381,27 @@ pnpm start
 │       ├── components/       # 组件
 │       ├── composables/      # 复用逻辑
 │       └── utils/            # API/WS/工具函数
-├── tools/                    # 工具模块（入口在 tools/cmd/*）
-├── COMMANDS.md
-├── QUICKSTART.md
-├── DEPLOYMENT.md
-└── backend/API_DOCUMENTATION.md
+└── tools/                    # 工具模块（入口在 tools/cmd/*）
 ```
 
 ---
 
 ## 🧭 文件职责与分层约定
 
-- 工程入口脚本（`init.js` / `start.js` / `build.js` / `test.js`）仅负责流程编排，不承载业务规则。
+- 工程入口脚本（`init.js` / `start.js` / `build.js` / `tests/test.js`）仅负责流程编排，不承载业务规则。
 - 后端业务逻辑放在 `backend/` 分层内：`router` 处理路由装配，`handlers` 处理协议边界，`repository` 处理数据访问，`game` 处理领域规则。
 - 数据修复与迁移脚本统一放在 `backend/scripts/`，避免与通用工具目录重复。
 - 仓库级自动化脚本放在 `scripts/`。
-- 详细职责说明见：`docs/FILE_RESPONSIBILITIES.md`。
+- 详细职责说明见：[docs/architecture/FILE_RESPONSIBILITIES.md](docs/architecture/FILE_RESPONSIBILITIES.md)。
 
 ---
 
 ## 🧪 测试建议
 
-- 后端：`go test ./backend/...`
+- 后端：`node scripts/run-backend-tests.js ./backend/...`
 - 前端：`pnpm -C frontend build` + `pnpm -C frontend type-check`
-- OAuth 自动化脚本测试：`go test -tags scripts backend/scripts/oauth_third_party_test.go -v`
+- OAuth 自动化脚本测试：`node scripts/run-backend-tests.js -tags scripts backend/scripts/oauth_third_party_test.go -v`
 - 端到端手测建议：登录/建房/出牌/重连/结算/退出
-
----
-
-## 📚 文档索引
-
-- 部署：`DEPLOYMENT.md`
-- 快速上手：`QUICKSTART.md`
-- 命令速查：`COMMANDS.md`
-- API 文档：`backend/API_DOCUMENTATION.md`
-- 等级系统：`LEVEL_SYSTEM_DOCS.md`
-- 文件职责：`docs/FILE_RESPONSIBILITIES.md`
 
 ---
 
@@ -439,7 +427,7 @@ pnpm start
 
 - 新版本已处理弹窗关闭与消息回传竞态。
 - 若仍复现，优先检查浏览器是否拦截了弹窗/跨窗口消息。
-- 可先跑脚本测试定位：`go test -tags scripts backend/scripts/oauth_third_party_test.go -v`
+- 可先跑脚本测试定位：`node scripts/run-backend-tests.js -tags scripts backend/scripts/oauth_third_party_test.go -v`
 
 ### 4) 首次启动提示找不到 `.env`？
 
@@ -458,7 +446,7 @@ pnpm start
 欢迎提交 Issue / PR。  
 建议提交前完成以下检查：
 
-1. `go test ./backend/...`
+1. `node scripts/run-backend-tests.js ./backend/...`
 2. `pnpm -C frontend build`
 3. 关键页面功能手测（登录、建房、对局、退出）
 
@@ -495,11 +483,11 @@ MIT License
 pnpm run go:test
 
 # 特定包测试
-go test ./backend/game -v
-go test ./backend/anticheat -v
+node scripts/run-backend-tests.js ./backend/game -v
+node scripts/run-backend-tests.js ./backend/anticheat -v
 
 # 覆盖率统计
-go test -cover ./...
+node scripts/run-backend-tests.js ./... -cover
 ```
 
 ### 前端测试
@@ -530,7 +518,7 @@ pnpm test
 - 申诉工作流
 - 审计日志完整性
 
-详见 `backend/anticheat/anticheat_test.go` 和集成测试。
+详见 `tests/_backend/anticheat/anticheat_test.go` 和集成测试。
 
 ---
 
@@ -540,12 +528,14 @@ pnpm test
 
 | 文档 | 位置 | 用途 |
 |-----|-----|-----|
+| **后端 API 与架构** | [api.md](api.md) | 后端接口、认证流程、游戏架构与数据库说明 |
 | **反作弊系统指南** | [docs/anticheat/ANTICHEAT_GUIDE.md](docs/anticheat/ANTICHEAT_GUIDE.md) | 完整的反作弊系统参考（架构、检测、配置、运维） |
 | **反作弊管理员指南** | [docs/guides/anticheat-admin-guide.md](docs/guides/anticheat-admin-guide.md) | 申诉、补偿、配置、审计操作流程 |
 | **玩家透明度说明** | [docs/guides/anticheat-player-transparency.md](docs/guides/anticheat-player-transparency.md) | 玩家统计组件与公开数据口径 |
 | **反作弊迁移说明** | [docs/guides/anticheat-audit-migration.md](docs/guides/anticheat-audit-migration.md) | 审计补偿字段迁移和回滚说明 |
 | **补偿失败 Runbook** | [docs/guides/failed-compensation-runbook.md](docs/guides/failed-compensation-runbook.md) | 补偿失败时的排查和恢复步骤 |
 | **反作弊发布说明** | [docs/guides/anticheat-release-notes.md](docs/guides/anticheat-release-notes.md) | 新面板、配置键、部署注意事项 |
+| **测试流程** | [docs/testing-workflow.md](docs/testing-workflow.md) | 测试归档布局、命令矩阵与 E2E 环境 |
 | **文件职责** | [docs/architecture/FILE_RESPONSIBILITIES.md](docs/architecture/FILE_RESPONSIBILITIES.md) | 代码分层约定与文件所有权规则 |
 | **隐私政策** | [docs/legal/PRIVACY_POLICY.md](docs/legal/PRIVACY_POLICY.md) | 用户隐私相关 |
 | **用户协议** | [docs/legal/USER_AGREEMENT.md](docs/legal/USER_AGREEMENT.md) | 用户服务条款 |

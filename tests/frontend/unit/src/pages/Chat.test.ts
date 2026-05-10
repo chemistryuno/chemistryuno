@@ -1,10 +1,10 @@
 import { mount, flushPromises } from '@vue/test-utils'
 import { describe, expect, it, beforeEach, vi } from 'vitest'
-import Chat from './Chat.vue'
-import { useDialog } from '../utils/dialog'
+import Chat from '@/pages/Chat.vue'
+import { useDialog } from '@/utils/dialog'
 
 // Mock the API and websocket
-vi.mock('../utils/api', () => ({
+vi.mock('@/utils/api', () => ({
   friendAPI: {
     getFriends: vi.fn(() => Promise.resolve({ data: [] })),
     getPendingRequests: vi.fn(() => Promise.resolve({ data: [] })),
@@ -26,7 +26,7 @@ vi.mock('../utils/api', () => ({
   }
 }))
 
-vi.mock('../utils/websocket', () => ({
+vi.mock('@/utils/websocket', () => ({
   default: {
     send: vi.fn(),
     on: vi.fn(),
@@ -45,7 +45,7 @@ vi.mock('vue-router', () => ({
   })
 }))
 
-vi.mock('../utils/banState', () => ({
+vi.mock('@/utils/banState', () => ({
   getBanState: vi.fn((user?: any) => {
     if (!user) {
       try {
@@ -85,7 +85,7 @@ const dialogState = {
   resolve: null as ((value: any) => void) | null
 }
 
-vi.mock('../utils/dialog', () => ({
+vi.mock('@/utils/dialog', () => ({
   useDialog: () => ({
     state: dialogState,
     showAlert: vi.fn(() => {

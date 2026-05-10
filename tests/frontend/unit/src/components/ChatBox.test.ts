@@ -1,7 +1,7 @@
 import { mount, flushPromises } from '@vue/test-utils'
 import { describe, expect, it, beforeEach, vi } from 'vitest'
-import ChatBox from './ChatBox.vue'
-import { adminAPI, authAPI } from '../utils/api'
+import ChatBox from '@/components/ChatBox.vue'
+import { adminAPI, authAPI } from '@/utils/api'
 
 const routerPush = vi.fn()
 
@@ -12,7 +12,7 @@ vi.mock('vue-router', () => ({
 }))
 
 // Mock the API and websocket
-vi.mock('../utils/api', () => ({
+vi.mock('@/utils/api', () => ({
   authAPI: {
     getUserInfo: vi.fn(),
     getGlobalChatHistory: vi.fn(() => Promise.resolve({ data: [] })),
@@ -31,7 +31,7 @@ vi.mock('../utils/api', () => ({
   }
 }))
 
-vi.mock('../utils/websocket', () => ({
+vi.mock('@/utils/websocket', () => ({
   default: {
     send: vi.fn(),
     on: vi.fn(),
@@ -39,7 +39,7 @@ vi.mock('../utils/websocket', () => ({
   }
 }))
 
-vi.mock('../utils/banState', () => ({
+vi.mock('@/utils/banState', () => ({
   getBanState: vi.fn((user?: any) => {
     if (!user) {
       // Try to get from localStorage if not provided

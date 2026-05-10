@@ -121,7 +121,16 @@ func main() {
 		redisAddr = "localhost:6379" // 默认地址
 	}
 
-	if err := cache.InitRedis(redisAddr); err != nil {
+	redisUsername := os.Getenv("REDIS_USERNAME")
+	redisPassword := os.Getenv("REDIS_PASSWORD")
+	redisDB := 0
+	if redisDBRaw := os.Getenv("REDIS_DB"); redisDBRaw != "" {
+		if parsedDB, err := strconv.Atoi(redisDBRaw); err == nil {
+			redisDB = parsedDB
+		}
+	}
+
+	if err := cache.InitRedis(redisAddr, redisUsername, redisPassword, redisDB); err != nil {
 		log.Printf("⚠️  Redis 初始化失败，将在缓存 miss 时自动降级到数据库查询: %v", err)
 		// 不中断启动，允许程序在没有 Redis 的情况下运行
 	} else {

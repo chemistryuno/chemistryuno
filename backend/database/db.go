@@ -171,11 +171,13 @@ func initRedis() {
 	}
 
 	redisAddr := strings.TrimSpace(os.Getenv("REDIS_ADDR"))
+	redisUsername := os.Getenv("REDIS_USERNAME")
+	redisPassword := os.Getenv("REDIS_PASSWORD")
 	if redisAddr == "" && getEnvBool("REDIS_AUTO_DISCOVER", false) {
 		// 可选自动探测（默认关闭），避免误连到非预期本地实例
 		defaultAddrs := []string{"localhost:6379", "127.0.0.1:6379"}
 		for _, addr := range defaultAddrs {
-			if tryConnectRedis(addr, "") {
+			if tryConnectRedis(addr, redisUsername, redisPassword) {
 				redisAddr = addr
 				log.Printf("✅ 自动连接到本地Redis: %s", addr)
 				break
@@ -190,13 +192,13 @@ func initRedis() {
 		return
 	}
 
-	redisPassword := os.Getenv("REDIS_PASSWORD")
 	redisDB := getEnvInt("REDIS_DB", 0)
 	poolSize := getEnvInt("REDIS_POOL_SIZE", 100)
 	minIdleConns := getEnvInt("REDIS_MIN_IDLE_CONNS", 10)
 
 	opts := &redis.Options{
 		Addr:         redisAddr,
+		Username:     redisUsername,
 		Password:     redisPassword,
 		DB:           redisDB,
 		PoolSize:     poolSize,
@@ -316,9 +318,10 @@ func setRedisClient(client *redis.Client) {
 }
 
 // tryConnectRedis 尝试连接Redis（快速检测）
-func tryConnectRedis(addr, password string) bool {
+func tryConnectRedis(addr, username, password string) bool {
 	client := redis.NewClient(&redis.Options{
 		Addr:        addr,
+		Username:    username,
 		Password:    password,
 		DB:          0,
 		DialTimeout: 500 * time.Millisecond,

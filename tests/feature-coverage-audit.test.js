@@ -2,7 +2,7 @@
 
 const assert = require('assert');
 const path = require('path');
-const { generateAuditReport } = require('./feature-coverage-audit');
+const { generateAuditReport } = require('../scripts/feature-coverage-audit');
 
 const rootDir = path.resolve(__dirname, '..');
 const report = generateAuditReport(rootDir);

@@ -1,7 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import ReplayRoom from './ReplayRoom.vue'
-import { adminAPI, gameAPI } from '../utils/api'
+import ReplayRoom from '@/pages/ReplayRoom.vue'
+import { adminAPI, gameAPI } from '@/utils/api'
 
 const mocks = vi.hoisted(() => ({
   route: {
@@ -26,7 +26,7 @@ vi.mock('vue-router', () => ({
   }),
 }))
 
-vi.mock('../utils/api', () => ({
+vi.mock('@/utils/api', () => ({
   adminAPI: {
     getGameReplay: vi.fn(),
   },
@@ -35,7 +35,7 @@ vi.mock('../utils/api', () => ({
   },
 }))
 
-vi.mock('../utils/dialog', () => ({
+vi.mock('@/utils/dialog', () => ({
   useDialog: () => ({
     showAlert: vi.fn(),
     showPrompt: vi.fn(),

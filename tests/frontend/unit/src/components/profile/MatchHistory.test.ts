@@ -1,14 +1,14 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
-import MatchHistory from './MatchHistory.vue'
-import { gameAPI } from '../../utils/api'
+import MatchHistory from '@/components/profile/MatchHistory.vue'
+import { gameAPI } from '@/utils/api'
 
 vi.mock('vue-router', () => ({
   useRoute: () => ({ path: '/profile/history' }),
   useRouter: () => ({ push: vi.fn() }),
 }))
 
-vi.mock('../../utils/api', () => ({
+vi.mock('@/utils/api', () => ({
   gameAPI: {
     getMyGameHistory: vi.fn(),
   },

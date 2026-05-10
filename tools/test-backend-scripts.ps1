@@ -3,7 +3,7 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $env:GOCACHE = Join-Path $repoRoot ".gocache"
 
-$scriptDir = Join-Path $repoRoot "backend\scripts"
+$scriptDir = Join-Path $repoRoot "tests\_backend\scripts"
 $files = Get-ChildItem -Path $scriptDir -Filter *.go | Sort-Object Name
 
 if ($files.Count -eq 0) {
@@ -15,8 +15,9 @@ $failed = $false
 $results = @()
 
 foreach ($file in $files) {
-  Write-Host "==> go test -tags scripts $($file.FullName)"
-  & go test -tags scripts $file.FullName
+  $backendPath = "backend/scripts/$($file.Name)"
+  Write-Host "==> node scripts/run-backend-tests.js -tags scripts $backendPath"
+  & node scripts/run-backend-tests.js -tags scripts $backendPath
   $exit = $LASTEXITCODE
   $results += [pscustomobject]@{ File = $file.Name; ExitCode = $exit }
   if ($exit -ne 0) {

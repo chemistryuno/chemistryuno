@@ -37,7 +37,7 @@ Manual path, only if the admin workflow cannot recover:
 Run or inspect:
 
 ```bash
-go test ./backend/cache ./backend/anticheat ./backend/repository ./backend/database
+node scripts/run-backend-tests.js ./backend/cache ./backend/anticheat ./backend/repository ./backend/database
 ```
 
 For duplicate-payment concerns, check `fuel_compensation_records` for the appeal compensation ID, usually `appeal_{appeal_id}`.

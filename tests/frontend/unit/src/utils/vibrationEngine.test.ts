@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { VibrationEngine } from './vibrationEngine'
+import { VibrationEngine } from '@/utils/vibrationEngine'
 
 describe('VibrationEngine', () => {
   beforeEach(() => {

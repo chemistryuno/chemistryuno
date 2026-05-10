@@ -14,6 +14,17 @@ This document defines the frontend/backend testing flow for local development, p
 
 `pnpm test` remains a developer-friendly alias for the quick workflow. Use `pnpm test:ci` before opening a PR when possible.
 
+## Test Layout
+
+All test sources are archived under `tests/`:
+
+- Backend Go tests live under `tests/_backend/` using the same package-relative layout as `backend/`.
+- Frontend unit and component tests live under `tests/frontend/unit/`.
+- Playwright tests live under `tests/frontend/e2e/`.
+- Repository-level test entrypoints live at `tests/test.js`, `tests/test_main.py`, and `tests/feature-coverage-audit.test.js`.
+
+Run backend tests through `node scripts/run-backend-tests.js ...`; it materializes archived Go test files into `backend/` only for the duration of the command and cleans them up afterward.
+
 ## Test Ownership
 
 Backend changes:
@@ -21,7 +32,7 @@ Backend changes:
 - Domain logic in `backend/game`, `backend/anticheat`, `backend/utils`, and similar packages needs Go tests for success, failure, and important edge cases.
 - Repository, database, and migration changes need tests that prove schema compatibility and persisted behavior.
 - Handler or middleware changes need HTTP-level tests for status codes, auth behavior, validation errors, and JSON response shape.
-- Build-tagged scripts must name their required command, such as `go test -tags scripts backend/scripts/oauth_third_party_test.go -v`.
+- Build-tagged scripts must name their required command, such as `node scripts/run-backend-tests.js -tags scripts backend/scripts/oauth_third_party_test.go -v`.
 
 Frontend changes:
 
@@ -77,7 +88,7 @@ The e2e runner starts services it owns and writes logs under `tmp/e2e/logs/`. Pl
 ## Failure Triage
 
 1. Check the failing stage name printed by the runner.
-2. For backend failures, rerun the named `go test` command with `-v`.
+2. For backend failures, rerun the named `node scripts/run-backend-tests.js` command with `-v`.
 3. For frontend unit failures, rerun `pnpm -C frontend test`.
 4. For e2e failures, inspect `tmp/e2e/logs/`, `frontend/test-results/`, and the Playwright report.
 5. If an e2e failure is timing-related, prefer stable user-visible waits, seeded data, and helper functions over arbitrary sleeps.

@@ -2,9 +2,11 @@ package handlers
 
 import (
 	"chemistryuno/backend/utils"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -55,6 +57,7 @@ func setupAdminLogsTest(t *testing.T) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.GET("/api/admin/logs", GetLogs)
+	router.GET("/api/admin/logs/stream", GetLogsStream)
 	router.POST("/api/admin/logs/clear", ClearLogs)
 	return router
 }
@@ -68,6 +71,23 @@ func decodeAdminLogsResponse(t *testing.T, rec *httptest.ResponseRecorder) []map
 		t.Fatalf("decode logs response: %v\nbody=%s", err, rec.Body.String())
 	}
 	return body.Logs
+}
+
+func decodeAdminLogStreamData(t *testing.T, body string) []map[string]interface{} {
+	t.Helper()
+	var logs []map[string]interface{}
+	for _, line := range strings.Split(body, "\n") {
+		payload, ok := strings.CutPrefix(line, "data: ")
+		if !ok {
+			continue
+		}
+		var entry map[string]interface{}
+		if err := json.Unmarshal([]byte(payload), &entry); err != nil {
+			t.Fatalf("decode stream entry: %v\npayload=%s", err, payload)
+		}
+		logs = append(logs, entry)
+	}
+	return logs
 }
 
 func TestAdminLogsFilterByUIDSourceStatusAndKeyword(t *testing.T) {
@@ -105,6 +125,31 @@ func TestAdminLogsFilterByAttemptedUID(t *testing.T) {
 	}
 	if logs[0]["attempted_uid"] != float64(100000103) || logs[0]["auth_state"] != "invalid_session" {
 		t.Fatalf("unexpected attempted UID log: %#v", logs[0])
+	}
+}
+
+func TestAdminLogsStreamInitialSnapshotUsesSameFilters(t *testing.T) {
+	router := setupAdminLogsTest(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/admin/logs/stream?uid=100000101&source_ip=203.0.113&category=request&status_class=4xx&q=rooms&count=100", nil)
+	ctx, cancel := context.WithCancel(req.Context())
+	cancel()
+	req = req.WithContext(ctx)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if contentType := rec.Header().Get("Content-Type"); !strings.Contains(contentType, "text/event-stream") {
+		t.Fatalf("expected event-stream content type, got %q", contentType)
+	}
+	logs := decodeAdminLogStreamData(t, rec.Body.String())
+	if len(logs) != 1 {
+		t.Fatalf("expected one filtered stream snapshot log, got %d body=%s", len(logs), rec.Body.String())
+	}
+	if logs[0]["uid"] != float64(100000101) || logs[0]["category"] != "request" {
+		t.Fatalf("unexpected streamed filtered log: %#v", logs[0])
 	}
 }
 

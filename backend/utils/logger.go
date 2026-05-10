@@ -16,6 +16,7 @@ import (
 
 // LogEntry 日志条目结构
 type LogEntry struct {
+	Sequence     uint64                 `json:"sequence,omitempty"`
 	Timestamp    string                 `json:"timestamp"`
 	Level        string                 `json:"level"` // info, warning, error, debug
 	Message      string                 `json:"message"`
@@ -76,6 +77,7 @@ type LogBuffer struct {
 	logFile          *os.File
 	subscribers      map[int]chan LogEntry
 	nextSubscriberID int
+	nextSequence     uint64
 }
 
 type logCaptureWriter struct {
@@ -206,6 +208,7 @@ func InitLogger(maxSize int) error {
 		logFile:          logFile,
 		subscribers:      make(map[int]chan LogEntry),
 		nextSubscriberID: 1,
+		nextSequence:     1,
 	}
 
 	// 将标准日志输出同时写入控制台、文件，并实时捕获到内存缓冲供 /admin/logs 使用。
@@ -274,6 +277,10 @@ func (lb *LogBuffer) log(level, message string) {
 }
 
 func (lb *LogBuffer) appendEntryLocked(entry LogEntry) {
+	if entry.Sequence == 0 {
+		entry.Sequence = lb.nextSequence
+		lb.nextSequence++
+	}
 	if entry.Timestamp == "" {
 		entry.Timestamp = time.Now().Format("2006-01-02 15:04:05")
 	}

@@ -20,6 +20,21 @@ export interface AdminLogFilters {
   q?: string
 }
 
+const buildAdminLogQuery = (filters: AdminLogFilters = {}) => {
+  const params = new URLSearchParams()
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && String(value).trim() !== '') {
+      params.append(key, String(value))
+    }
+  })
+  return params.toString()
+}
+
+const buildAdminLogPath = (basePath: string, filters: AdminLogFilters = {}) => {
+  const query = buildAdminLogQuery(filters)
+  return query ? `${basePath}?${query}` : basePath
+}
+
 const apiCache = new Map<string, CacheEntry>()
 
 // 缓存辅助函数
@@ -591,17 +606,13 @@ export const adminAPI = {
 
   // 日志管理
   getLogs: (countOrFilters?: number | AdminLogFilters, level?: string) => {
-    const params = new URLSearchParams()
     const filters = typeof countOrFilters === 'object'
       ? countOrFilters
       : { count: countOrFilters, level }
-    Object.entries(filters).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && String(value).trim() !== '') {
-        params.append(key, String(value))
-      }
-    })
-    return api.get(`/admin/logs?${params.toString()}`)
+    return api.get(buildAdminLogPath('/admin/logs', filters))
   },
+  getLogsStreamURL: (filters?: AdminLogFilters) =>
+    buildApiURL(buildAdminLogPath('/admin/logs/stream', filters || {})),
   clearLogs: () =>
     api.post('/admin/logs/clear'),
 }

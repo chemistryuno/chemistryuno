@@ -3,8 +3,11 @@ package anticheat
 import (
 	"chemistryuno/backend/database"
 	"chemistryuno/backend/repository"
+	"errors"
 	"log"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 // SanctionDecider 处罚决策器
@@ -127,6 +130,10 @@ func (sd *SanctionDecider) ApplySanction(decision *Decision, roomID string, play
 func (sd *SanctionDecider) RevokeSanction(sanctionID uint) error {
 	sanction, err := sd.repository.GetSanctionByID(sanctionID)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			log.Printf("[sanction] sanction %d was already missing before revoke", sanctionID)
+			return nil
+		}
 		log.Printf("[sanction] failed to load sanction before revoke: %v", err)
 		return err
 	}

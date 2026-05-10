@@ -125,6 +125,22 @@ describe('API adapters', () => {
     expect(apiInstance.get).toHaveBeenCalledWith('/admin/logs?count=25&level=WARNING&uid=100000101&source_ip=203.0.113&category=request&status_class=4xx&q=rooms')
   })
 
+  it('builds admin log stream URLs with the same filters', async () => {
+    const { adminAPI } = await import('./api')
+
+    const url = adminAPI.getLogsStreamURL({
+      count: 25,
+      level: 'WARNING',
+      uid: 100000101,
+      source_ip: '203.0.113',
+      category: 'request',
+      status_class: '4xx',
+      q: 'rooms',
+    })
+
+    expect(url).toBe('/api/admin/logs/stream?count=25&level=WARNING&uid=100000101&source_ip=203.0.113&category=request&status_class=4xx&q=rooms')
+  })
+
   it('keeps network failures rejected for callers', async () => {
     const { authAPI } = await import('./api')
     const networkError = new Error('network down')

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, watch, computed } from 'vue'
+import { ref, onMounted, onUnmounted, watch, computed, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { adminAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
@@ -57,6 +57,10 @@ const logStatusClassFilter = ref<'all' | '1xx' | '2xx' | '3xx' | '4xx' | '5xx'>(
 const logKeywordFilter = ref('')
 const expandedLogKeys = ref<Set<string>>(new Set())
 const autoRefreshLogs = ref(true)
+const logStreamStatus = ref<'idle' | 'connecting' | 'live' | 'reconnecting' | 'disconnected'>('idle')
+const logStreamError = ref('')
+const pendingLogCount = ref(0)
+const logScrollRef = ref<HTMLElement | null>(null)
 const showCreateSurveyModal = ref(false)
 const newSurvey = ref<any>({
   title: '',
@@ -373,9 +377,17 @@ const newAnnouncement = ref({
 })
 
 const specialElements = ['He', 'Ne', 'Ar', 'Kr', 'Au', '+2', '+4']
+const LOG_COUNT_LIMIT = 100
+const LOG_FILTER_DEBOUNCE_MS = 350
+const LOG_SCROLL_EDGE_PX = 48
+
+let logEventSource: EventSource | null = null
+let logReconnectTimer: ReturnType<typeof setTimeout> | null = null
+let logFilterDebounceTimer: ReturnType<typeof setTimeout> | null = null
+let logStreamGeneration = 0
 
 const buildLogFilters = () => ({
-  count: 100,
+  count: LOG_COUNT_LIMIT,
   level: logFilter.value === 'all' ? '' : logFilter.value,
   uid: logUIDFilter.value.trim(),
   source_ip: logSourceIPFilter.value.trim(),
@@ -384,7 +396,225 @@ const buildLogFilters = () => ({
   q: logKeywordFilter.value.trim()
 })
 
-const logKey = (log: any, idx: number) => `${log.timestamp || 'no-time'}-${log.level || 'no-level'}-${idx}`
+const stableStringify = (value: any): string => {
+  if (value === null || value === undefined) return ''
+  if (typeof value !== 'object') return String(value)
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`
+  return `{${Object.keys(value).sort().map(key => `${key}:${stableStringify(value[key])}`).join('|')}}`
+}
+
+const logKey = (log: any) => {
+  if (log?.sequence !== undefined && log?.sequence !== null) {
+    return `seq:${log.sequence}`
+  }
+  return [
+    log?.timestamp || 'no-time',
+    log?.level || 'no-level',
+    log?.category || 'no-cat',
+    log?.uid ?? '',
+    log?.attempted_uid ?? '',
+    log?.message || '',
+    stableStringify(log?.request),
+    stableStringify(log?.websocket),
+    stableStringify(log?.source)
+  ].join('::')
+}
+
+const pruneExpandedLogKeys = () => {
+  const visibleKeys = new Set(logs.value.map(log => logKey(log)))
+  const next = new Set<string>()
+  expandedLogKeys.value.forEach(key => {
+    if (visibleKeys.has(key)) next.add(key)
+  })
+  expandedLogKeys.value = next
+}
+
+const normalizeSnapshotLogs = (incoming: any[]) => {
+  const seen = new Set<string>()
+  const normalized: any[] = []
+  for (const log of incoming || []) {
+    const key = logKey(log)
+    if (seen.has(key)) continue
+    seen.add(key)
+    normalized.push(log)
+  }
+  logs.value = normalized.slice(0, LOG_COUNT_LIMIT)
+  pruneExpandedLogKeys()
+}
+
+const isLogScrollNearLiveEdge = () => {
+  const el = logScrollRef.value
+  if (!el) return true
+  return el.scrollHeight - el.scrollTop - el.clientHeight <= LOG_SCROLL_EDGE_PX
+}
+
+const restoreLogScrollAfterUpdate = async (wasNearLiveEdge: boolean, previousScrollHeight: number, previousScrollTop: number) => {
+  await nextTick()
+  const el = logScrollRef.value
+  if (!el) return
+  if (wasNearLiveEdge) {
+    el.scrollTop = el.scrollHeight
+    pendingLogCount.value = 0
+    return
+  }
+  el.scrollTop = previousScrollTop + (el.scrollHeight - previousScrollHeight)
+  pendingLogCount.value += 1
+}
+
+const mergeLogEntry = (entry: any) => {
+  const key = logKey(entry)
+  if (logs.value.some(log => logKey(log) === key)) {
+    return false
+  }
+
+  const el = logScrollRef.value
+  const wasNearLiveEdge = isLogScrollNearLiveEdge()
+  const previousScrollHeight = el?.scrollHeight || 0
+  const previousScrollTop = el?.scrollTop || 0
+
+  logs.value = [...logs.value, entry].slice(-LOG_COUNT_LIMIT)
+  pruneExpandedLogKeys()
+  void restoreLogScrollAfterUpdate(wasNearLiveEdge, previousScrollHeight, previousScrollTop)
+  return true
+}
+
+const closeLogStream = (status: typeof logStreamStatus.value = 'idle') => {
+  logStreamGeneration++
+  if (logReconnectTimer) {
+    clearTimeout(logReconnectTimer)
+    logReconnectTimer = null
+  }
+  if (logEventSource) {
+    logEventSource.close()
+    logEventSource = null
+  }
+  logStreamStatus.value = status
+}
+
+const openLogStream = () => {
+  closeLogStream(autoRefreshLogs.value ? 'connecting' : 'idle')
+  if (activeTab.value !== 'logs' || !autoRefreshLogs.value) return
+
+  const generation = logStreamGeneration
+  const source = new EventSource(adminAPI.getLogsStreamURL(buildLogFilters()))
+  logEventSource = source
+  logStreamError.value = ''
+
+  source.onopen = () => {
+    if (generation !== logStreamGeneration) return
+    logStreamStatus.value = 'live'
+    logStreamError.value = ''
+  }
+
+  source.onmessage = (event) => {
+    if (generation !== logStreamGeneration) return
+    try {
+      mergeLogEntry(JSON.parse(event.data))
+    } catch (error) {
+      console.error('解析管理员日志流事件失败:', error)
+    }
+  }
+
+  source.onerror = () => {
+    if (generation !== logStreamGeneration) return
+    source.close()
+    if (logEventSource === source) {
+      logEventSource = null
+    }
+    logStreamStatus.value = 'reconnecting'
+    logStreamError.value = '日志流已断开'
+    logReconnectTimer = setTimeout(() => {
+      if (generation === logStreamGeneration && activeTab.value === 'logs' && autoRefreshLogs.value) {
+        openLogStream()
+      }
+    }, 2000)
+  }
+}
+
+const loadLogsSnapshot = async () => {
+  const response = await adminAPI.getLogs(buildLogFilters())
+  normalizeSnapshotLogs(response.data?.logs || [])
+}
+
+const refreshLogsLive = async ({ reconnect = true } = {}) => {
+  if (activeTab.value !== 'logs') return
+  if (reconnect) {
+    closeLogStream(autoRefreshLogs.value ? 'connecting' : 'idle')
+  }
+  loading.value = true
+  try {
+    await loadLogsSnapshot()
+    pendingLogCount.value = 0
+    if (reconnect && autoRefreshLogs.value) {
+      openLogStream()
+    }
+  } catch (error) {
+    console.error('加载管理员日志失败:', error)
+    logStreamStatus.value = autoRefreshLogs.value ? 'disconnected' : 'idle'
+    logStreamError.value = '日志快照加载失败'
+  } finally {
+    loading.value = false
+  }
+}
+
+const scheduleLogsRefresh = () => {
+  if (logFilterDebounceTimer) {
+    clearTimeout(logFilterDebounceTimer)
+  }
+  logFilterDebounceTimer = setTimeout(() => {
+    logFilterDebounceTimer = null
+    void refreshLogsLive()
+  }, LOG_FILTER_DEBOUNCE_MS)
+}
+
+const handleManualRefreshLogs = () => {
+  void refreshLogsLive()
+}
+
+const resumeLogStreamAfterClear = () => {
+  closeLogStream(autoRefreshLogs.value ? 'connecting' : 'idle')
+  if (autoRefreshLogs.value) {
+    openLogStream()
+  }
+}
+
+const scrollLogsToLiveEdge = () => {
+  if (logScrollRef.value) {
+    logScrollRef.value.scrollTop = logScrollRef.value.scrollHeight
+  }
+  pendingLogCount.value = 0
+}
+
+const logStreamStatusLabel = computed(() => {
+  if (!autoRefreshLogs.value) return 'PAUSED'
+  switch (logStreamStatus.value) {
+    case 'live':
+      return 'LIVE'
+    case 'connecting':
+      return 'CONNECTING'
+    case 'reconnecting':
+      return 'RECONNECTING'
+    case 'disconnected':
+      return 'OFFLINE'
+    default:
+      return 'IDLE'
+  }
+})
+
+const logStreamStatusClass = computed(() => {
+  if (!autoRefreshLogs.value) return 'text-slate-400 border-slate-500/20 bg-slate-500/10'
+  switch (logStreamStatus.value) {
+    case 'live':
+      return 'text-emerald-400 border-emerald-500/20 bg-emerald-500/10'
+    case 'connecting':
+    case 'reconnecting':
+      return 'text-cyan-400 border-cyan-500/20 bg-cyan-500/10'
+    case 'disconnected':
+      return 'text-amber-400 border-amber-500/20 bg-amber-500/10'
+    default:
+      return 'text-slate-400 border-slate-500/20 bg-slate-500/10'
+  }
+})
 
 const toggleLogDetails = (key: string) => {
   const next = new Set(expandedLogKeys.value)
@@ -419,7 +649,9 @@ const logRequestSummary = (log: any) => {
 }
 
 const loadData = async () => {
-  loading.value = true
+  if (activeTab.value !== 'logs') {
+    loading.value = true
+  }
   try {
     if (activeTab.value === 'users') {
       const usersResponse = await adminAPI.getAllUsers()
@@ -445,13 +677,14 @@ const loadData = async () => {
         gameTimeConfigs.value = response.data.configs
       }
     } else if (activeTab.value === 'logs') {
-      const response = await adminAPI.getLogs(buildLogFilters())
-      logs.value = response.data?.logs || []
+      await refreshLogsLive()
     }
   } catch (error) {
     console.error('加载数据失败:', error)
   } finally {
-    loading.value = false
+    if (activeTab.value !== 'logs') {
+      loading.value = false
+    }
   }
 }
 
@@ -459,39 +692,36 @@ const loadData = async () => {
 onMounted(() => {
   loadData()
   adminAPI.getStats().then(r => { stats.value = r.data }).catch(() => {})
-  
-  // 自动刷新日志的interval
-  const logRefreshInterval = setInterval(() => {
-    if (activeTab.value === 'logs' && autoRefreshLogs.value) {
-      loadData()
-    }
-  }, 3000) // 每3秒刷新一次
-
-  // Cleanup
-  watch(activeTab, () => {
-    if (activeTab.value === 'logs') {
-      loadData()
-    }
-  })
-
-  // Return cleanup function
-  return () => clearInterval(logRefreshInterval)
 })
 
 watch(activeTab, () => {
+  if (activeTab.value !== 'logs') {
+    closeLogStream('idle')
+  }
   loadData()
   searchTerm.value = ''
 })
 
-watch(logFilter, () => {
-  if (activeTab.value === 'logs') {
-    loadData()
+watch(autoRefreshLogs, (enabled) => {
+  if (activeTab.value !== 'logs') return
+  if (enabled) {
+    void refreshLogsLive()
+  } else {
+    closeLogStream('idle')
   }
 })
 
-watch([logUIDFilter, logSourceIPFilter, logCategoryFilter, logStatusClassFilter, logKeywordFilter], () => {
+watch([logFilter, logUIDFilter, logSourceIPFilter, logCategoryFilter, logStatusClassFilter, logKeywordFilter], () => {
   if (activeTab.value === 'logs') {
-    loadData()
+    scheduleLogsRefresh()
+  }
+})
+
+onUnmounted(() => {
+  closeLogStream('idle')
+  if (logFilterDebounceTimer) {
+    clearTimeout(logFilterDebounceTimer)
+    logFilterDebounceTimer = null
   }
 })
 
@@ -501,7 +731,10 @@ const handleClearLogs = async () => {
     try {
       await adminAPI.clearLogs()
       await showAlert('日志已清空', '成功')
-      loadData()
+      logs.value = []
+      expandedLogKeys.value = new Set()
+      pendingLogCount.value = 0
+      resumeLogStreamAfterClear()
     } catch (error: any) {
       await showAlert(error.response?.data?.error || '操作失败', '错误')
     }
@@ -1781,6 +2014,18 @@ const filteredHistory = computed(() => {
                     <input type="checkbox" v-model="autoRefreshLogs" class="w-3 h-3 rounded cursor-pointer" />
                     <span class="text-[9px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-widest">AUTO</span>
                   </label>
+                  <span :class="cn('inline-flex items-center gap-2 border px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest', logStreamStatusClass)" :title="logStreamError || '管理员日志实时连接状态'">
+                    <span :class="cn('w-1.5 h-1.5 rounded-full', logStreamStatus === 'live' ? 'bg-emerald-400 animate-pulse' : logStreamStatus === 'disconnected' ? 'bg-amber-400' : 'bg-cyan-400')" />
+                    {{ logStreamStatusLabel }}
+                  </span>
+                  <button
+                    type="button"
+                    @click="handleManualRefreshLogs"
+                    class="bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-500 border border-cyan-500/20 px-3 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 transition-all"
+                  >
+                    <ArrowUp class="w-3 h-3 rotate-45" />
+                    REFRESH
+                  </button>
                   <button 
                     @click="handleClearLogs"
                     class="bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 px-3 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 transition-all"
@@ -1792,8 +2037,16 @@ const filteredHistory = computed(() => {
               </div>
 
               <div class="overflow-hidden border border-slate-200 dark:border-white/5 rounded-[2.5rem] bg-black dark:bg-[#0a0a0b] shadow-xl font-mono">
-                <div class="overflow-x-auto custom-scrollbar h-[600px] overflow-y-auto bg-slate-950 dark:bg-[#000000]">
+                <div ref="logScrollRef" class="overflow-x-auto custom-scrollbar h-[600px] overflow-y-auto bg-slate-950 dark:bg-[#000000]">
                   <div class="text-[9px] text-slate-400 p-4 space-y-1 min-w-[1080px]">
+                    <button
+                      v-if="pendingLogCount > 0"
+                      type="button"
+                      @click="scrollLogsToLiveEdge"
+                      class="sticky top-2 z-10 mx-auto mb-2 flex items-center gap-2 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1.5 text-[8px] font-black uppercase tracking-widest text-cyan-300 backdrop-blur"
+                    >
+                      {{ pendingLogCount }} NEW LOGS
+                    </button>
                     <div v-if="logs.length === 0" class="text-center py-24 text-slate-600">
                       <p class="italic">/ NO_LOGS_LOADED</p>
                       <p v-if="autoRefreshLogs" class="text-[8px] mt-2 text-cyan-500">WAITING FOR EVENTS...</p>
@@ -1808,7 +2061,7 @@ const filteredHistory = computed(() => {
                       <span>MESSAGE</span>
                       <span></span>
                     </div>
-                    <div v-for="(log, idx) in logs" :key="logKey(log, idx)" :class="cn(
+                    <div v-for="log in logs" :key="logKey(log)" :class="cn(
                       'rounded transition-all hover:bg-white/5',
                       log.level === 'ERROR' ? 'text-red-400' :
                       log.level === 'WARNING' ? 'text-amber-400' :
@@ -1816,7 +2069,7 @@ const filteredHistory = computed(() => {
                       log.level === 'DEBUG' ? 'text-blue-400' :
                       'text-slate-400'
                     )">
-                      <button type="button" @click="toggleLogDetails(logKey(log, idx))" class="w-full grid grid-cols-[128px_64px_88px_180px_300px_76px_1fr_32px] gap-2 items-center py-2 px-2 text-left">
+                      <button type="button" @click="toggleLogDetails(logKey(log))" class="w-full grid grid-cols-[128px_64px_88px_180px_300px_76px_1fr_32px] gap-2 items-center py-2 px-2 text-left">
                         <span class="text-slate-600 truncate">{{ log.timestamp }}</span>
                         <span :class="cn(
                           'font-black',
@@ -1831,9 +2084,9 @@ const filteredHistory = computed(() => {
                         <span class="text-slate-300 truncate">{{ logRequestSummary(log) }}</span>
                         <span class="text-purple-300 uppercase truncate">{{ log.category || '-' }}</span>
                         <span class="text-slate-300 truncate">{{ log.message }}</span>
-                        <ChevronDown :class="cn('w-3 h-3 text-slate-500 transition-transform', expandedLogKeys.has(logKey(log, idx)) ? 'rotate-180' : '')" />
+                        <ChevronDown :class="cn('w-3 h-3 text-slate-500 transition-transform', expandedLogKeys.has(logKey(log)) ? 'rotate-180' : '')" />
                       </button>
-                      <div v-if="expandedLogKeys.has(logKey(log, idx))" class="mx-2 mb-2 grid grid-cols-1 lg:grid-cols-3 gap-2 border-t border-white/5 pt-2 text-[8px] leading-relaxed text-slate-400">
+                      <div v-if="expandedLogKeys.has(logKey(log))" class="mx-2 mb-2 grid grid-cols-1 lg:grid-cols-3 gap-2 border-t border-white/5 pt-2 text-[8px] leading-relaxed text-slate-400">
                         <pre class="whitespace-pre-wrap break-words bg-white/[0.03] rounded-lg p-2">{{ JSON.stringify(log.source || {}, null, 2) }}</pre>
                         <pre class="whitespace-pre-wrap break-words bg-white/[0.03] rounded-lg p-2">{{ JSON.stringify(log.request || {}, null, 2) }}</pre>
                         <pre class="whitespace-pre-wrap break-words bg-white/[0.03] rounded-lg p-2">{{ JSON.stringify(log.websocket || { auth_state: log.auth_state, attempted_uid: log.attempted_uid }, null, 2) }}</pre>

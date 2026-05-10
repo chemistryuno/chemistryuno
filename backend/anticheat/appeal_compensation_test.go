@@ -160,6 +160,49 @@ func TestApproveReasonOnlyAppealRevokesActiveBanSanctions(t *testing.T) {
 	}
 }
 
+func TestApproveAppealWithMissingLinkedSanctionStillSucceeds(t *testing.T) {
+	db, manager, cheatRepo := setupAppealCompensationTest(t)
+	appeal := createAppealCompensationFixture(t, db, cheatRepo, 1007)
+	missingSanctionID := uint(777)
+	if err := db.Model(&database.CheatAppeal{}).Where("id = ?", appeal.ID).Update("sanction_id", missingSanctionID).Error; err != nil {
+		t.Fatalf("seed missing sanction link: %v", err)
+	}
+	appeal.SanctionID = missingSanctionID
+
+	bannedUntil := time.Now().Add(2 * time.Hour)
+	if err := db.Model(&database.User{}).Where("uid = ?", appeal.PlayerUID).Updates(map[string]interface{}{
+		"banned_until": &bannedUntil,
+		"ban_reason":   "stale linked sanction",
+	}).Error; err != nil {
+		t.Fatalf("seed account ban: %v", err)
+	}
+
+	decider := NewSanctionDecider(NewDefaultConfig(), cheatRepo)
+	outcome, err := manager.ApproveAppealWithCompensation(appeal.ID, 9001, "accepted stale sanction appeal", 100, "restored", decider)
+	if err != nil {
+		t.Fatalf("approval should tolerate a missing linked sanction: %v", err)
+	}
+	if outcome.CompensationStatus != "pending" {
+		t.Fatalf("expected pending compensation, got %q", outcome.CompensationStatus)
+	}
+
+	var savedAppeal database.CheatAppeal
+	if err := db.First(&savedAppeal, appeal.ID).Error; err != nil {
+		t.Fatalf("load saved appeal: %v", err)
+	}
+	if savedAppeal.Status != "approved" || savedAppeal.SanctionID != missingSanctionID {
+		t.Fatalf("unexpected saved appeal after stale sanction approval: %+v", savedAppeal)
+	}
+
+	var user database.User
+	if err := db.First(&user, appeal.PlayerUID).Error; err != nil {
+		t.Fatalf("load user: %v", err)
+	}
+	if user.BannedUntil != nil || user.BanReason != "" {
+		t.Fatalf("expected account ban cleared, got until=%v reason=%q", user.BannedUntil, user.BanReason)
+	}
+}
+
 func TestClaimCompensationIssuesFuelAndIsIdempotent(t *testing.T) {
 	db, manager, cheatRepo := setupAppealCompensationTest(t)
 	appeal := createAppealCompensationFixture(t, db, cheatRepo, 1005)

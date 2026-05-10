@@ -466,6 +466,7 @@ func main() {
 			admin.GET("/game-history/:id/replay", middleware.AdminMiddleware(), handlers.GetAdminGameReplay)
 			admin.DELETE("/game-history/:id/replay", middleware.AdminMiddleware(), handlers.ClearAdminGameReplay)
 			admin.GET("/logs", middleware.AdminMiddleware(), handlers.GetLogs)
+			admin.GET("/logs/stream", middleware.AdminMiddleware(), handlers.GetLogsStream)
 			admin.POST("/logs/clear", middleware.AdminMiddleware(), handlers.ClearLogs)
 			admin.GET("/feedbacks", middleware.AdminMiddleware(), handlers.GetAllFeedbacks)
 			admin.PUT("/feedbacks/:id/status", middleware.AdminMiddleware(), handlers.UpdateFeedbackStatus)

@@ -13,6 +13,7 @@ func withTestLogger(t *testing.T, maxSize int) {
 		maxSize:          maxSize,
 		subscribers:      make(map[int]chan LogEntry),
 		nextSubscriberID: 1,
+		nextSequence:     1,
 	}
 	t.Cleanup(func() {
 		globalLogger = previous
@@ -60,6 +61,9 @@ func TestLogStructuredAddsBoundedStructuredEntry(t *testing.T) {
 	}
 	if logs[0].Message != "latest" || logs[0].Level != "ERROR" {
 		t.Fatalf("unexpected latest entry: %+v", logs[0])
+	}
+	if logs[0].Sequence == 0 {
+		t.Fatalf("expected stored log to include sequence")
 	}
 }
 

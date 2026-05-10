@@ -1,0 +1,491 @@
+* {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+}
+input, textarea, button { -webkit-user-select: text; user-select: text; }
+
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #f3f4f6; margin: 0; display: flex; flex-direction: column; min-height: 100vh; -webkit-tap-highlight-color: transparent; }
+.card { width: 70px; height: 100px; border-radius: 8px; border: 2px solid #ccc; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; background: white; margin: 5px; box-shadow: 2px 2px 5px rgba(0,0,0,0.1); user-select: none; min-height: 48px; min-width: 48px; -webkit-tap-highlight-color: rgba(0,0,0,0.1); }
+.card:hover { transform: translateY(-5px); }
+.card:active { transform: scale(0.95); background-color: #f0f0f0; }
+.bg-H { background-color: #e0f2fe; border-color: #60a5fa; color: #1e40af; }
+.bg-O { background-color: #fee2e2; border-color: #f87171; color: #991b1b; }
+.bg-C { background-color: #374151; border-color: #111827; color: white; }
+.bg-special { background-color: #ec4899; color: white; border-color: #be185d; }
+.bg-skip { background-color: #fcd34d; color: #78350f; border-color: #f59e0b; }
+#game-container { display: none; flex-direction: column; height: 100vh; position: relative; }
+#lobby { flex: 1; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #3b82f6, #6366f1); color: white; padding: 20px; overflow-y: auto; position: relative; }
+.rules-panel { background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px); padding: 25px; border-radius: 20px; max-width: 900px; text-align: left; margin-top: 30px; border: 1px solid rgba(255, 255, 255, 0.2); }
+.agreement-link { position: absolute; top: 20px; left: 20px; color: #2e7bff; font-size: 0.8rem; text-decoration: none; opacity: 0.8; z-index: 100; transition: opacity 0.2s; }
+.agreement-link:hover { opacity: 1; text-decoration: underline; }
+.rules-panel h3 { margin-top: 0; color: #fff; border-bottom: 2px solid rgba(255, 255, 255, 0.3); padding-bottom: 10px; }
+.rules-panel ul { padding-left: 20px; margin-bottom: 0; }
+.rules-panel li { margin-bottom: 10px; font-size: 0.95rem; line-height: 1.5; color: rgba(255, 255, 255, 0.9); }
+#hand-area { padding: 15px; background: white; border-top: 2px solid #ddd; }
+#hand-container { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; }
+.btn { padding: 12px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 0.9rem; min-height: 48px; min-width: 48px; display: inline-flex; align-items: center; justify-content: center; -webkit-tap-highlight-color: transparent; transition: all 0.2s; }
+.btn:active { opacity: 0.9; transform: scale(0.98); }
+.btn-primary { background: #3b82f6; color: white; }
+.btn-warning { background: #f59e0b; color: white; }
+.compound-btn { border: 2px solid #10b981; padding: 15px; margin: 0; border-radius: 16px; cursor: pointer; background: white; display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: bold; min-height: 80px; -webkit-tap-highlight-color: rgba(16, 185, 129, 0.1); transition: all 0.2s; box-shadow: 0 4px 6px rgba(16, 185, 129, 0.1); }
+.compound-btn:hover { background: #f0fdf4; border-color: #059669; transform: translateY(-3px); box-shadow: 0 8px 12px rgba(16, 185, 129, 0.15); }
+.compound-btn:active { transform: scale(0.98); }
+.compound-btn .formula { font-size: 1.8rem; color: #065f46; margin-bottom: 4px; }
+.compound-btn .name { font-size: 0.85rem; font-weight: normal; color: #047857; }
+#current-substance-box { padding: 40px; border: 4px solid #3b82f6; border-radius: 20px; background: white; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+#waiting-box { display: none; padding: 40px; border: 4px dashed #94a3b8; border-radius: 20px; background: #f8fafc; text-align: center; color: #64748b; font-size: 1.5rem; font-weight: bold; width: 300px; }
+#formula-display { font-size: 3rem; font-weight: 900; color: #1e40af; margin: 0; }
+#name-display { font-size: 1.25rem; color: #666; margin-top: 10px; }
+header { padding: 10px 20px; background: white; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ccc; box-shadow: 0 2px 4px rgba(0,0,0,0.05); position: relative; }
+.status-badge { background: #f3f4f6; padding: 5px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: bold; color: #4b5563; position: relative; }
+#msg { color: #2563eb; font-weight: bold; position: absolute; left: 50%; transform: translateX(-50%); white-space: nowrap; }
+
+/* 胜利页面样式 */
+#victory-screen {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(30, 58, 138, 0.95);
+    z-index: 2000;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    text-align: center;
+    backdrop-filter: blur(8px);
+}
+.victory-card {
+    background: white;
+    color: #1e3a8a;
+    padding: 40px;
+    border-radius: 30px;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+    max-width: 500px;
+    transform: scale(0.9);
+    animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+@keyframes popIn {
+    to { transform: scale(1); }
+}
+
+/* 初始底牌选择弹窗 */
+#start-card-modal { 
+    display: none; 
+    position: fixed; 
+    top: 0; left: 0; width: 100%; height: 100%; 
+    background: rgba(0,0,0,0.8); 
+    z-index: 1000; 
+    align-items: center; 
+    justify-content: center; 
+}
+.modal-content { 
+    background: white; 
+    padding: 30px; 
+    border-radius: 20px; 
+    max-width: 800px; 
+    max-height: 80vh; 
+    overflow-y: auto; 
+    text-align: center;
+}
+.start-card-grid { 
+    display: grid; 
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); 
+    gap: 15px; 
+    margin-top: 20px; 
+}
+
+/* 侧边信息面板 */
+.stats-panel {
+    position: absolute;
+    left: 20px;
+    top: 200px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    z-index: 10;
+}
+.log-panel {
+    position: absolute;
+    right: 20px;
+    top: 100px;
+    background: white;
+    padding: 15px;
+    border-radius: 16px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    width: 220px;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid #e2e8f0;
+    max-height: 280px;
+}
+#log-list {
+    flex: 1;
+    overflow-y: auto;
+    margin-top: 10px;
+    padding-right: 5px;
+}
+#log-list::-webkit-scrollbar { width: 4px; }
+#log-list::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+
+.stats-item {
+    background: white;
+    padding: 12px 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    border: 1px solid #e2e8f0;
+    display: flex;
+    flex-direction: column;
+}
+.stats-label { font-size: 0.75rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
+.stats-value { font-size: 1.1rem; font-weight: bold; color: #1e293b; margin-top: 2px; }
+.next-player-highlight { color: #3b82f6; border-left: 4px solid #3b82f6; padding-left: 10px; }
+
+/* AI 思考气泡 */
+#ai-bubble {
+    position: absolute;
+    background: white;
+    border: 2px solid #3b82f6;
+    padding: 10px 15px;
+    border-radius: 12px;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+    width: 220px;
+    display: none;
+    z-index: 1000;
+    animation: bubbleFadeIn 0.3s ease;
+}
+#ai-bubble::after {
+    content: '';
+    position: absolute;
+    top: -10px;
+    left: var(--arrow-x, 50%);
+    transform: translateX(-50%);
+    border-width: 0 10px 10px 10px;
+    border-style: solid;
+    border-color: transparent transparent #3b82f6 transparent;
+}
+@keyframes bubbleFadeIn {
+    from { opacity: 0; transform: translateY(10px) scale(0.95); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes fadeInLog {
+    from { opacity: 0; transform: translateX(10px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+/* React-style Modal */
+#agreement-modal {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(4px);
+    z-index: 3000;
+    align-items: center;
+    justify-content: center;
+}
+.react-modal {
+    background: white;
+    width: 90%;
+    max-width: 500px;
+    border-radius: 16px;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    overflow: hidden;
+    animation: modalFadeIn 0.3s ease-out;
+}
+@keyframes modalFadeIn {
+    from { opacity: 0; transform: scale(0.95) translateY(10px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+}
+.react-modal-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid #f1f5f9;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.react-modal-header h2 { margin: 0; font-size: 1.25rem; color: #1e293b; }
+.react-modal-body {
+    padding: 20px;
+    max-height: 400px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    color: #475569;
+    line-height: 1.6;
+    text-align: left;
+}
+.react-modal-footer {
+    padding: 12px 20px;
+    background: #f8fafc;
+    display: flex;
+    justify-content: flex-end;
+    border-top: 1px solid #f1f5f9;
+}
+.egg-item {
+    background: #f1f5f9;
+    padding: 8px 12px;
+    border-radius: 8px;
+    margin-top: 10px;
+    font-family: monospace;
+    font-size: 0.9rem;
+    color: #2563eb;
+}
+
+/* 成就样式 */
+.achievements-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin: 25px 0;
+    width: 100%;
+}
+.achievement-badge {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 12px 8px;
+    text-align: center;
+    transition: all 0.3s ease;
+    opacity: 0.6;
+    filter: grayscale(1);
+}
+.achievement-badge.earned {
+    background: #f0fdf4;
+    border-color: #22c55e;
+    opacity: 1;
+    filter: grayscale(0);
+    transform: translateY(-3px);
+    box-shadow: 0 4px 12px rgba(34, 197, 94, 0.2);
+}
+.achievement-icon {
+    font-size: 1.5rem;
+    margin-bottom: 4px;
+    display: block;
+}
+.achievement-name {
+    font-weight: bold;
+    font-size: 0.85rem;
+    color: #1e293b;
+    display: block;
+    margin-bottom: 2px;
+}
+.achievement-desc {
+    font-size: 0.7rem;
+    color: #64748b;
+    line-height: 1.2;
+    display: block;
+}
+@media (max-width: 480px) {
+    .achievements-grid { grid-template-columns: 1fr; }
+}
+
+/* 金色彩蛋弹窗 */
+#egg-popup {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-100px);
+    background: linear-gradient(135deg, #fbbf24, #f59e0b);
+    color: white;
+    padding: 12px 25px;
+    border-radius: 50px;
+    box-shadow: 0 10px 25px rgba(245, 158, 11, 0.4);
+    z-index: 5000;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-weight: bold;
+    border: 2px solid rgba(255, 255, 255, 0.5);
+    transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    pointer-events: none;
+    opacity: 0;
+    white-space: nowrap;
+}
+#egg-popup.show {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+}
+.egg-badge-mini {
+    background: white;
+    color: #f59e0b;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    flex-shrink: 0;
+}
+
+/* ===== 移动端响应式设计 (768px 及以下) ===== */
+@media (max-width: 768px) {
+    /* 基础调整 */
+    body { font-size: 14px; }
+    
+    /* 卡片布局优化 */
+    .card { width: 50px; height: 75px; border-radius: 6px; margin: 3px; font-size: 0.7rem; }
+    
+    /* 大标题响应式 */
+    #lobby h1 { font-size: 2.5rem; }
+    #lobby p { font-size: 1rem; }
+    
+    /* 输入框优化 */
+    #nickname-input { font-size: 1rem; padding: 10px 15px; }
+    
+    /* 按钮优化 */
+    .btn { padding: 10px 20px; font-size: 0.95rem; }
+    .btn-primary { font-size: 1.1rem; padding: 12px 30px; }
+    
+    /* 规则面板调整 */
+    .rules-panel { padding: 15px; margin-top: 20px; max-width: 100%; }
+    .rules-panel h3 { font-size: 1rem; }
+    .rules-panel li { font-size: 0.85rem; margin-bottom: 8px; }
+    
+    /* 游戏容器 */
+    #game-container { height: 100vh; }
+    
+    /* 头部优化 */
+    header { padding: 8px 10px; flex-wrap: wrap; gap: 5px; }
+    #msg { font-size: 0.8rem; max-width: 200px; word-break: break-word; position: static; transform: none; margin-top: 5px; }
+    #ai-status { flex-wrap: wrap; }
+    .status-badge { font-size: 0.7rem; padding: 4px 8px; }
+    
+    /* 侧边栏隐藏/调整 */
+    .stats-panel { display: none !important; }
+    .log-panel { display: none !important; }
+    
+    /* 主内容区域 */
+    #desktop-label { font-size: 0.7rem; }
+    #current-substance-box { padding: 20px; border-width: 2px; margin: 10px; }
+    #formula-display { font-size: 2rem; }
+    #name-display { font-size: 0.9rem; }
+    #waiting-box { width: 280px; padding: 20px; font-size: 1.2rem; }
+    
+    /* 提示信息 */
+    #hints { font-size: 0.75rem; gap: 5px; }
+    
+    /* 手牌区域 */
+    #hand-area { padding: 10px; }
+    #hand-count { font-size: 0.95rem; }
+    #hand-container { gap: 3px; }
+    
+    /* 控制台 */
+    #control-console { padding: 10px; gap: 8px; margin-bottom: 10px; }
+    #control-console h3 { font-size: 0.9rem; }
+    #substance-input { font-size: 0.95rem; padding: 8px 10px; }
+    #input-msg { font-size: 0.7rem; }
+    
+    /* 方程式悬浮 */
+    #equation-overlay { top: 15px; }
+    #equation-text { font-size: 0.9rem; }
+    
+    /* 模态框调整 */
+    .react-modal { width: 95%; max-width: 100%; }
+    .react-modal-header { padding: 12px 15px; }
+    .react-modal-header h2 { font-size: 1.1rem; }
+    .react-modal-body { padding: 15px; max-height: 60vh; font-size: 0.9rem; }
+    .react-modal-footer { padding: 10px 15px; }
+    
+    /* 胜利屏幕 */
+    .victory-card { padding: 30px 20px; max-width: 90%; }
+    .victory-card h1 { font-size: 2rem; }
+    .victory-card p { font-size: 0.95rem; }
+    
+    /* AI气泡 */
+    #ai-bubble { width: 180px; padding: 8px 12px; }
+    #bubble-text { font-size: 0.85rem; }
+    
+    /* 起始卡牌网格 */
+    .start-card-grid { grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 10px; }
+    
+    /* 协议链接 */
+    .agreement-link { font-size: 0.7rem; top: 10px; left: 10px; }
+}
+
+/* 小屏幕手机 (480px 及以下) */
+@media (max-width: 480px) {
+    body { font-size: 13px; }
+    
+    .card { width: 45px; height: 65px; border-radius: 4px; margin: 2px; font-size: 0.6rem; }
+    
+    #lobby h1 { font-size: 2rem; margin-bottom: 10px; }
+    #lobby p { font-size: 0.9rem; margin-bottom: 20px; }
+    
+    /* 游戏区域微调 */
+    header { padding: 6px 8px; }
+    header #msg { font-size: 0.7rem; }
+    
+    #current-substance-box { padding: 15px; border-width: 2px; }
+    #formula-display { font-size: 1.5rem; }
+    #name-display { font-size: 0.8rem; }
+    #waiting-box { width: 250px; padding: 15px; font-size: 1rem; }
+    
+    .stats-item { padding: 8px 12px; }
+    .stats-label { font-size: 0.65rem; }
+    .stats-value { font-size: 0.9rem; }
+    
+    #hand-area { padding: 8px; }
+    #control-console { padding: 8px; }
+    #substance-input { font-size: 0.85rem; padding: 6px 8px; }
+    
+    .btn { padding: 8px 16px; font-size: 0.85rem; }
+    .btn-primary { font-size: 1rem; padding: 10px 20px; }
+    
+    .rules-panel { padding: 12px; }
+    .rules-panel h3 { font-size: 0.95rem; }
+    .rules-panel li { font-size: 0.8rem; }
+    
+    .react-modal { width: 98%; }
+    .react-modal-body { font-size: 0.85rem; max-height: 50vh; }
+    
+    .victory-card { padding: 20px 15px; }
+    .victory-card h1 { font-size: 1.5rem; }
+    
+    #ai-bubble { width: 160px; font-size: 0.8rem; }
+    
+    .start-card-grid { grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); }
+}
+
+/* 超小屏 (375px 以下) */
+@media (max-width: 375px) {
+    .card { width: 40px; height: 60px; font-size: 0.5rem; }
+    
+    #lobby h1 { font-size: 1.8rem; }
+    #lobby p { font-size: 0.85rem; }
+    
+    #current-substance-box { padding: 12px; }
+    #formula-display { font-size: 1.2rem; }
+    #waiting-box { width: 220px; font-size: 0.95rem; }
+    
+    .btn-primary { font-size: 0.95rem; padding: 8px 16px; }
+    
+    #substance-input { font-size: 0.8rem; }
+}
+
+/* 平板设备 (769px - 1024px) */
+@media (min-width: 769px) and (max-width: 1024px) {
+    .card { width: 60px; height: 90px; }
+    
+    #lobby h1 { font-size: 3rem; }
+    
+    .stats-panel { left: 10px; top: 150px; gap: 10px; }
+    .log-panel { right: 10px; top: 80px; width: 200px; }
+    
+    #current-substance-box { padding: 30px; }
+    #formula-display { font-size: 2.5rem; }
+    
+    .start-card-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
+}
+
+/* 竖屏适配 */
+@media (max-height: 600px) {
+    #hand-area { max-height: 120px; }
+    #hand-container { overflow-y: auto; }
+    
+    #game-container { height: 100vh; overflow-y: auto; }
+    
+    .stats-panel { top: 100px; }
+    .log-panel { max-height: 200px; }
+}

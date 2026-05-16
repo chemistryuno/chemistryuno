@@ -2,6 +2,7 @@ package game
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -69,6 +70,65 @@ func seedRoomExitUsers(t *testing.T, db *gorm.DB, uids ...uint) {
 		if err := db.Create(&user).Error; err != nil {
 			t.Fatalf("seed user %d: %v", uid, err)
 		}
+	}
+}
+
+func setupSubstanceValidationTest(t *testing.T) *gorm.DB {
+	t.Helper()
+	db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	if err := db.AutoMigrate(&database.User{}, &database.Substance{}, &database.Reaction{}); err != nil {
+		t.Fatalf("migrate substance validation tables: %v", err)
+	}
+
+	previousDB := database.DB
+	previousUserRepo := repository.UserRepo
+	previousSubstanceRepo := repository.SubstanceRepo
+	previousReactionRepo := repository.ReactionRepo
+	database.DB = db
+	repository.UserRepo = repository.NewUserRepository(db)
+	repository.SubstanceRepo = repository.NewSubstanceRepository()
+	repository.ReactionRepo = repository.NewReactionRepository()
+
+	validSubstancesMutex.Lock()
+	previousValidSubstances := validSubstances
+	validSubstances = nil
+	validSubstancesMutex.Unlock()
+
+	roomMutex.Lock()
+	previousRooms := rooms
+	rooms = make(map[string]*GameRoom)
+	roomMutex.Unlock()
+
+	t.Cleanup(func() {
+		roomMutex.Lock()
+		rooms = previousRooms
+		roomMutex.Unlock()
+
+		validSubstancesMutex.Lock()
+		validSubstances = previousValidSubstances
+		validSubstancesMutex.Unlock()
+
+		database.DB = previousDB
+		repository.UserRepo = previousUserRepo
+		repository.SubstanceRepo = previousSubstanceRepo
+		repository.ReactionRepo = previousReactionRepo
+	})
+	return db
+}
+
+func seedApprovedSubstance(t *testing.T, db *gorm.DB, formula string) {
+	t.Helper()
+	substance := database.Substance{
+		Name:         formula,
+		Formula:      formula,
+		Status:       "approved",
+		CreatedByUID: 100000000,
+	}
+	if err := db.Create(&substance).Error; err != nil {
+		t.Fatalf("seed approved substance %s: %v", formula, err)
 	}
 }
 
@@ -636,6 +696,167 @@ func TestReconnectGracePeriodUsesDedicatedConfigKey(t *testing.T) {
 	gotKick := getPlayerKickTimeout()
 	if gotKick != 120*time.Second {
 		t.Fatalf("expected player kick timeout 120s, got %v", gotKick)
+	}
+}
+
+func TestPlayCardRequiresApprovedSubstanceForNormalCards(t *testing.T) {
+	db := setupSubstanceValidationTest(t)
+	seedApprovedSubstance(t, db, "O")
+	RebuildSubstanceCache()
+
+	roomID := "normal-substance-validation-room"
+	putTestRoom(&GameRoom{
+		Room: &models.Room{
+			ID:      roomID,
+			Status:  "playing",
+			Players: []int{1, 2},
+		},
+		GameState: &models.GameState{
+			RoomID:        roomID,
+			Status:        "playing",
+			CurrentPlayer: 0,
+			Direction:     1,
+			Players: []*models.PlayerState{
+				{UID: 1, Username: "p1", Nickname: "p1", HandCards: []models.Card{{Type: "H", Count: 1}, {Type: "O", Count: 1}}, CardCount: 2},
+				{UID: 2, Username: "p2", Nickname: "p2", HandCards: []models.Card{{Type: "O", Count: 1}}, CardCount: 1},
+			},
+			AllowedAnyPlayer: -1,
+			PointsChanges:    map[int]int{},
+			XPChanges:        map[int]int{},
+		},
+		OfflineAt:    make(map[int]time.Time),
+		ReplayEvents: []map[string]interface{}{},
+	})
+
+	err := PlayCard(roomID, 1, models.Card{Type: "H", Count: 1}, "H")
+	if err == nil || !strings.Contains(err.Error(), "该物质非法") {
+		t.Fatalf("expected unapproved normal substance to be rejected, got %v", err)
+	}
+
+	gr := rooms[roomID]
+	if got := gr.GameState.Players[0].CardCount; got != 2 {
+		t.Fatalf("rejected play should not consume card, got count %d", got)
+	}
+}
+
+func TestPlayCardAllowsApprovedNormalSubstance(t *testing.T) {
+	db := setupSubstanceValidationTest(t)
+	seedApprovedSubstance(t, db, "H")
+	RebuildSubstanceCache()
+
+	roomID := "approved-normal-substance-room"
+	putTestRoom(&GameRoom{
+		Room: &models.Room{
+			ID:      roomID,
+			Status:  "playing",
+			Players: []int{1, 2},
+		},
+		GameState: &models.GameState{
+			RoomID:        roomID,
+			Status:        "playing",
+			CurrentPlayer: 0,
+			Direction:     1,
+			Players: []*models.PlayerState{
+				{UID: 1, Username: "p1", Nickname: "p1", HandCards: []models.Card{{Type: "H", Count: 1}, {Type: "O", Count: 1}}, CardCount: 2},
+				{UID: 2, Username: "p2", Nickname: "p2", HandCards: []models.Card{{Type: "O", Count: 1}}, CardCount: 1},
+			},
+			AllowedAnyPlayer: -1,
+			PointsChanges:    map[int]int{},
+			XPChanges:        map[int]int{},
+		},
+		OfflineAt:    make(map[int]time.Time),
+		ReplayEvents: []map[string]interface{}{},
+	})
+
+	if err := PlayCard(roomID, 1, models.Card{Type: "H", Count: 1}, "H"); err != nil {
+		t.Fatalf("approved normal substance should be playable: %v", err)
+	}
+
+	gr := rooms[roomID]
+	if gr.GameState.LastCard == nil || gr.GameState.LastCard.Substance != "H" {
+		t.Fatalf("expected H to become last card, got %#v", gr.GameState.LastCard)
+	}
+}
+
+func TestPlayCardAllowsFunctionalCardsWithoutSubstanceEntry(t *testing.T) {
+	setupSubstanceValidationTest(t)
+	RebuildSubstanceCache()
+
+	roomID := "functional-card-validation-room"
+	putTestRoom(&GameRoom{
+		Room: &models.Room{
+			ID:      roomID,
+			Status:  "playing",
+			Players: []int{1, 2},
+		},
+		GameState: &models.GameState{
+			RoomID:        roomID,
+			Status:        "playing",
+			CurrentPlayer: 0,
+			Direction:     1,
+			Players: []*models.PlayerState{
+				{UID: 1, Username: "p1", Nickname: "p1", HandCards: []models.Card{{Type: "+2", Count: 1, Effect: "+2"}, {Type: "O", Count: 1}}, CardCount: 2},
+				{UID: 2, Username: "p2", Nickname: "p2", HandCards: []models.Card{{Type: "O", Count: 1}}, CardCount: 1},
+			},
+			AllowedAnyPlayer: -1,
+			PointsChanges:    map[int]int{},
+			XPChanges:        map[int]int{},
+		},
+		OfflineAt:    make(map[int]time.Time),
+		ReplayEvents: []map[string]interface{}{},
+	})
+
+	if err := PlayCard(roomID, 1, models.Card{Type: "+2", Count: 1, Effect: "+2"}, "+2"); err != nil {
+		t.Fatalf("functional card should bypass substance table validation: %v", err)
+	}
+
+	gr := rooms[roomID]
+	if got := gr.GameState.PendingDrawCount; got != 2 {
+		t.Fatalf("expected +2 effect to remain active, got pending draw count %d", got)
+	}
+}
+
+func TestAIPlayCardUsesSameSubstanceValidation(t *testing.T) {
+	setupSubstanceValidationTest(t)
+	RebuildSubstanceCache()
+
+	roomID := "ai-substance-validation-room"
+	gr := &GameRoom{
+		Room: &models.Room{
+			ID:      roomID,
+			Status:  "playing",
+			Players: []int{-1, 1},
+		},
+		GameState: &models.GameState{
+			RoomID:        roomID,
+			Status:        "playing",
+			CurrentPlayer: 0,
+			Direction:     1,
+			Players: []*models.PlayerState{
+				{UID: -1, Username: "ai", Nickname: "ai", IsAI: true, HandCards: []models.Card{{Type: "H", Count: 1}}, CardCount: 1},
+				{UID: 1, Username: "p1", Nickname: "p1", HandCards: []models.Card{{Type: "O", Count: 1}}, CardCount: 1},
+			},
+			DrawPile:         []models.Card{{Type: "O", Count: 1}, {Type: "O", Count: 1}},
+			AllowedAnyPlayer: -1,
+			PointsChanges:    map[int]int{},
+			XPChanges:        map[int]int{},
+		},
+		OfflineAt:    make(map[int]time.Time),
+		ReplayEvents: []map[string]interface{}{},
+	}
+	putTestRoom(gr)
+
+	gr.mutex.Lock()
+	gr.aiExecutePlay(-1, models.Card{Type: "H", Count: 1}, "H")
+
+	if got := gr.GameState.Players[0].CardCount; got != 3 {
+		t.Fatalf("expected invalid AI play to fall back to drawing two cards, got count %d", got)
+	}
+	if gr.GameState.LastCard != nil {
+		t.Fatalf("invalid AI play should not update last card, got %#v", gr.GameState.LastCard)
+	}
+	if got := gr.GameState.CurrentPlayer; got != 1 {
+		t.Fatalf("AI draw fallback should pass turn to player index 1, got %d", got)
 	}
 }
 

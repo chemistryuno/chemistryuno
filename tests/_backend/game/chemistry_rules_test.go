@@ -62,7 +62,11 @@ func TestCanReactSpecialSubstances(t *testing.T) {
 	}
 }
 
-func TestGetSubstancesFromElementsIncludesMechanicsAndSingleAtoms(t *testing.T) {
+func TestGetSubstancesFromElementsIncludesFunctionalCardsAndApprovedSubstances(t *testing.T) {
+	db := setupSubstanceValidationTest(t)
+	seedApprovedSubstance(t, db, "H")
+	RebuildSubstanceCache()
+
 	got := GetSubstancesFromElements([]models.Card{
 		{Type: "H"},
 		{Type: "O"},
@@ -74,10 +78,13 @@ func TestGetSubstancesFromElementsIncludesMechanicsAndSingleAtoms(t *testing.T) 
 		set[value] = true
 	}
 
-	for _, want := range []string{"H", "O", "Ar", "Au"} {
+	for _, want := range []string{"H", "Ar", "Au"} {
 		if !set[want] {
 			t.Fatalf("expected %q in %#v", want, got)
 		}
+	}
+	if set["O"] || set["O2"] {
+		t.Fatalf("ordinary O substances should require database approval, got %#v", got)
 	}
 }
 

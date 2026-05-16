@@ -121,7 +121,7 @@ type UserCredential struct {
 type RegisterRequest struct {
 	Username         string `json:"username" binding:"required,min=3,max=30"`
 	Email            string `json:"email"` // 可选
-	Nickname         string `json:"nickname" binding:"required,min=1,max=20"`
+	Nickname         string `json:"nickname" binding:"max=20"`
 	Password         string `json:"password" binding:"required,min=6"`
 	Code             string `json:"code"` // 邮箱验证码（仅当提供邮箱且SMTP开启时需要）
 	SecurityQuestion string `json:"security_question" binding:"required,min=1,max=200"`

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { pageClassNames } from '@lib'
 import { adminAPI } from '../utils/api'
 import {
   ArrowLeft,
@@ -138,7 +139,7 @@ onMounted(loadData)
 </script>
 
 <template>
-  <div class="min-h-screen bg-slate-50 dark:bg-[#070709] text-slate-900 dark:text-white">
+  <div :class="pageClassNames.adminData">
     <!-- 顶栏 -->
     <header class="sticky top-0 z-20 bg-white/80 dark:bg-black/60 backdrop-blur-xl border-b border-slate-100 dark:border-white/5 px-4 lg:px-8 py-3 flex items-center gap-4">
       <button

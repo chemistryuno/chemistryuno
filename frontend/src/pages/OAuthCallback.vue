@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { pageClassNames } from '@lib'
 import websocket from '../utils/websocket'
 import { clearAccountScopedCache } from '../utils/api'
 import { buildApiURL } from '../utils/runtimeConfig'
@@ -47,7 +48,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="min-h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-[#1a1a1e] gap-4">
+  <div :class="pageClassNames.oauthCallback">
     <div class="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
     <p class="text-slate-500 dark:text-slate-400 text-sm font-bold">正在完成授权，请稍候...</p>
   </div>

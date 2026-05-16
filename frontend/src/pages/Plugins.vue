@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-screen bg-slate-50 dark:bg-[#0a0a0c] text-slate-900 dark:text-white p-4 md:p-8 selection:bg-blue-500/30">
+  <div :class="pageClassNames.appPadded">
     <!-- Background Effects -->
     <div class="fixed inset-0 overflow-hidden pointer-events-none">
       <div class="absolute top-[-10%] right-[-10%] w-[45%] h-[45%] bg-purple-500/5 rounded-full blur-[140px]" />
@@ -214,6 +214,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { pageClassNames } from '@lib'
 import { ArrowLeft, Puzzle, RefreshCw, Sparkles, Layers, User as UserIcon, Clock } from 'lucide-vue-next'
 import { pluginAPI } from '../utils/api'
 

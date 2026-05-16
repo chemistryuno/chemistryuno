@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { useDialog } from '../utils/dialog'
+import { buttonClasses, inputClasses, modalClasses } from '@lib'
 import { AlertCircle, HelpCircle, MessageSquare } from 'lucide-vue-next'
 
 const { state, handleConfirm, handleCancel } = useDialog()
@@ -8,6 +9,31 @@ const { state, handleConfirm, handleCancel } = useDialog()
 const countdown = ref(0)
 const timer = ref<ReturnType<typeof setInterval> | null>(null)
 const isComposing = ref(false)
+const dialogModalClasses = modalClasses({
+  width: 'md',
+  overlayClassName: 'viewport-dialog-overlay',
+  panelClassName: 'p-8 relative pointer-events-auto',
+})
+const promptInputClass = inputClasses({
+  tone: 'special',
+  size: 'large',
+  radius: 'xl',
+  className: 'px-5 font-medium focus:ring-4 focus:ring-purple-500/5',
+})
+const cancelButtonClass = buttonClasses({
+  tone: 'secondary',
+  variant: 'soft',
+  size: 'xl',
+  radius: 'xl',
+  block: true,
+  className: 'border border-slate-200 dark:border-white/5 shadow-none hover:text-slate-900 dark:hover:text-white',
+})
+const confirmButtonClass = () => buttonClasses({
+  tone: state.type === 'alert' ? 'primary' : state.type === 'confirm' ? 'warning' : 'special',
+  size: 'xl',
+  radius: 'xl',
+  block: true,
+})
 
 watch(() => state.show, (newVal) => {
   if (newVal && state.closeDelay > 0) {
@@ -57,8 +83,8 @@ const handleCompositionEnd = () => {
 <template>
   <Teleport to="body">
     <Transition name="fade">
-      <div v-if="state.show" class="viewport-modal-overlay viewport-dialog-overlay bg-slate-900/60 dark:bg-black/80 backdrop-blur-md p-4">
-      <div class="viewport-modal-panel bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 rounded-[2rem] p-8 max-w-md w-full shadow-2xl relative pointer-events-auto">
+      <div v-if="state.show" :class="dialogModalClasses.overlay">
+      <div :class="dialogModalClasses.panel">
         <!-- 装饰背景 -->
         <div class="absolute -top-24 -right-24 w-48 h-48 bg-blue-500/5 rounded-full blur-3xl pointer-events-none" />
         <div class="absolute -bottom-24 -left-24 w-48 h-48 bg-purple-500/5 rounded-full blur-3xl pointer-events-none" />
@@ -85,7 +111,7 @@ const handleCompositionEnd = () => {
               v-model="state.inputValue"
               type="text" 
               :placeholder="state.inputPlaceholder"
-              class="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl px-5 py-4 text-slate-900 dark:text-white focus:outline-none focus:border-purple-500/50 focus:ring-4 focus:ring-purple-500/5 transition-all placeholder:text-slate-400 dark:placeholder:text-slate-600 font-medium"
+              :class="promptInputClass"
               @keydown="handleInputKeyDown"
               @compositionstart="handleCompositionStart"
               @compositionend="handleCompositionEnd"
@@ -98,19 +124,14 @@ const handleCompositionEnd = () => {
           <button 
             v-if="state.type === 'confirm' || state.type === 'prompt'"
             @click="handleCancel"
-            class="flex-1 px-6 py-4 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all border border-slate-200 dark:border-white/5"
+            :class="cancelButtonClass"
           >
             {{ state.cancelText }}
           </button>
           <button 
             @click="handleConfirm"
             :disabled="countdown > 0"
-            :class="[
-              'flex-1 px-6 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all text-white shadow-xl active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:grayscale',
-              state.type === 'alert' ? 'bg-blue-600 hover:bg-blue-500 shadow-blue-500/20 dark:shadow-blue-900/20' :
-              state.type === 'confirm' ? 'bg-orange-600 hover:bg-orange-500 shadow-orange-500/20 dark:shadow-orange-900/20' :
-              'bg-purple-600 hover:bg-purple-500 shadow-purple-500/20 dark:shadow-purple-900/20'
-            ]"
+            :class="confirmButtonClass()"
           >
             {{ countdown > 0 ? `${state.confirmText} (${countdown}s)` : state.confirmText }}
           </button>

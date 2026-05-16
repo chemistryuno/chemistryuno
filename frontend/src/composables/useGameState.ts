@@ -22,7 +22,7 @@ export function useGameState(roomId: string) {
         return {
           ...p,
           avatar: p.avatar || baseInfo?.avatar,
-          nickname: p.nickname || baseInfo?.nickname || baseInfo?.username,
+          nickname: p.nickname || baseInfo?.nickname,
           username: p.username || baseInfo?.username,
         }
       })

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { buttonClasses, iconButtonClasses, modalClasses } from '@lib'
 import { authAPI } from '../utils/api'
 import UserAvatar from './UserAvatar.vue'
 import {
@@ -29,6 +30,21 @@ const user = ref<any>(null)
 const loading = ref(false)
 const error = ref<string | null>(null)
 let activeRequestId = 0
+const userSpaceModalClasses = modalClasses({
+  width: 'xl',
+  zIndex: 'z-[100]',
+  panelRadius: '3xl',
+  panelClassName: 'relative rounded-[2.5rem] overflow-hidden duration-300 flex flex-col max-h-[90vh] pointer-events-auto',
+})
+const closeButtonClass = iconButtonClasses({
+  size: 'md',
+  className: 'absolute top-6 right-6 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 z-50',
+})
+const messageButtonClass = buttonClasses({
+  tone: 'primary',
+  size: 'sm',
+  className: 'px-5 py-2 text-[9px] shadow-blue-500/20',
+})
 
 const displayNickname = computed(() => user.value?.nickname || 'Researcher')
 const displayRole = computed(() => String(user.value?.role || 'user').toUpperCase())
@@ -118,12 +134,12 @@ const handleStartChat = () => {
 
 <template>
   <Teleport to="body">
-    <div v-if="show" class="viewport-modal-overlay z-[100] p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md" @click="emit('close')">
+    <div v-if="show" :class="userSpaceModalClasses.overlay" @click="emit('close')">
 
-      <div class="relative w-full max-w-2xl bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in duration-300 flex flex-col max-h-[90vh] pointer-events-auto">
+      <div :class="userSpaceModalClasses.panel">
         <button
           @click="emit('close')"
-          class="absolute top-6 right-6 p-2 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 rounded-xl transition-all text-slate-400 hover:text-slate-900 dark:hover:text-white z-50"
+          :class="closeButtonClass"
         >
           <X class="w-5 h-5" />
         </button>
@@ -190,7 +206,7 @@ const handleStartChat = () => {
                 <div class="pt-2 flex justify-center md:justify-start">
                   <button
                     @click="handleStartChat"
-                    class="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-black text-[9px] uppercase tracking-widest transition-all shadow-lg shadow-blue-500/20 active:scale-95"
+                    :class="messageButtonClass"
                   >
                     <Send class="w-3 h-3" />
                     发起私聊 / Message

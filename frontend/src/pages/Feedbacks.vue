@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { pageClassNames } from '@lib'
 import { authAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
 import ws from '../utils/websocket'
@@ -149,7 +150,7 @@ const typeLabel = (type: string) => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-slate-50 dark:bg-[#0a0a0c] text-slate-900 dark:text-white p-4 md:p-8 selection:bg-blue-500/30">
+  <div :class="pageClassNames.appPadded">
     <!-- Background Effects -->
     <div class="fixed inset-0 overflow-hidden pointer-events-none">
       <div class="absolute top-[-10%] right-[-10%] w-[50%] h-[50%] bg-blue-500/5 rounded-full blur-[120px]" />

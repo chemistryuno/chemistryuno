@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { pageClassNames } from '@lib'
 import PhlogistonIcon from '../components/icons/PhlogistonIcon.vue'
 import { gameAPI, adminAPI, friendAPI, authAPI, commonAPI, substanceAPI } from '../utils/api'
 import { useDialog, setToastRef } from '../utils/dialog'
@@ -580,8 +581,8 @@ const allPlayers = computed(() => {
       return {
         ...p,
         avatar: p.avatar || baseInfo?.avatar || '🧪',
-        // 强制显示昵称，回退到用户名
-        username: p.nickname || baseInfo?.nickname || p.username || baseInfo?.username,
+        username: p.username || baseInfo?.username,
+        nickname: p.nickname || baseInfo?.nickname,
         is_ready: roomInfo.value?.ready_uids?.includes(Number(p.uid)),
         is_offline: baseInfo?.is_offline
       }
@@ -590,7 +591,8 @@ const allPlayers = computed(() => {
   return playersInfo.value.map(p => ({
     ...p,
     avatar: p.avatar || '🧪',
-    username: p.nickname || p.username,
+    username: p.username,
+    nickname: p.nickname,
     is_ready: roomInfo.value?.ready_uids?.includes(Number(p.uid)),
     is_offline: p.is_offline
   }))
@@ -1773,13 +1775,13 @@ const loadReplaySimulationState = async () => {
     const profiles = Array.isArray(replayPayload?.player_profiles)
       ? replayPayload.player_profiles
       : (Array.isArray(replayPayload?.players)
-        ? replayPayload.players.map((uid: number) => ({ uid, nickname: `UID ${uid}`, username: `UID ${uid}` }))
+        ? replayPayload.players.map((uid: number) => ({ uid, nickname: '', username: `UID ${uid}` }))
         : [])
 
     const players = profiles.map((p: any, index: number) => ({
       uid: Number(p.uid),
-      username: p.nickname || p.username || `UID ${p.uid}`,
-      nickname: p.nickname || p.username || `UID ${p.uid}`,
+      username: p.username || `UID ${p.uid}`,
+      nickname: p.nickname || '',
       avatar: p.avatar || '🧪',
       card_count: 0,
       hand_cards: [],
@@ -1800,7 +1802,7 @@ const loadReplaySimulationState = async () => {
     playersInfo.value = profiles.map((p: any) => ({
       uid: Number(p.uid),
       username: p.username || p.nickname || `UID ${p.uid}`,
-      nickname: p.nickname || p.username || `UID ${p.uid}`,
+      nickname: p.nickname || '',
       avatar: p.avatar || '🧪',
       is_ai: typeof p.is_ai === 'boolean' ? p.is_ai : Number(p.uid) < 0,
       is_offline: false
@@ -2676,7 +2678,7 @@ watch(() => gameState.value?.current_player, () => {
 </script>
 
 <template>
-  <div class="h-screen w-full bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white overflow-hidden flex flex-col font-sans selection:bg-blue-500/30">
+  <div :class="pageClassNames.gameRoom">
     <!-- Loading State -->
     <div v-if="loading" class="h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 flex flex-col items-center justify-center p-4 relative overflow-hidden">
       <!-- Background Elements -->

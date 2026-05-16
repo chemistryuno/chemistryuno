@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, nextTick, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { pageClassNames } from '@lib'
 import { friendAPI, authAPI, gameAPI } from '../utils/api'
 import websocket from '../utils/websocket'
 import {
@@ -408,7 +409,7 @@ const formatTime = (date: Date) => {
 </script>
 
 <template>
-  <div class="h-[100dvh] bg-slate-50 dark:bg-[#0a0a0c] text-white flex flex-col transition-colors duration-500 overflow-hidden">
+  <div :class="pageClassNames.chat">
     <!-- Header -->
     <header class="h-12 sm:h-14 bg-white/70 dark:bg-black/20 backdrop-blur-xl border-b border-slate-200 dark:border-white/5 flex items-center px-3 sm:px-4 shrink-0 relative z-30">
       <div class="flex items-center gap-2 sm:gap-3 w-full">

@@ -75,6 +75,8 @@ func Register(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	req.Username = strings.TrimSpace(req.Username)
+	req.Nickname = strings.TrimSpace(req.Nickname)
 
 	// 验证用户名格式
 	if !usernameRegex.MatchString(req.Username) {
@@ -176,14 +178,13 @@ func Register(c *gin.Context) {
 	}
 
 	// 如果昵称为空，生成随机昵称并确保在数据库中不存在（尝试若干次）
-	if strings.TrimSpace(req.Nickname) == "" {
-		nickname, err := utils.GenerateUniqueRandomNickname("研究员", req.Username, userRepo.ExistsByNickname)
-		if err == nil {
-			req.Nickname = nickname
-		} else {
-			// 最后回退到用户名作为昵称
-			req.Nickname = req.Username
+	if req.Nickname == "" {
+		nickname, err := utils.GenerateUniqueRandomNickname("研究员", fmt.Sprintf("%d", newUID), userRepo.ExistsByNickname)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate nickname"})
+			return
 		}
+		req.Nickname = nickname
 	}
 
 	user := &database.User{

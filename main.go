@@ -171,14 +171,14 @@ func main() {
 		}
 	}
 
-	// 初始化合法物质缓存
-	game.RebuildSubstanceCache()
-
 	// 加载插件卡牌 registry
 	game.LoadPluginCards()
 
 	// 自动同步物质百科（将反应中的物质录入百科）
 	game.SyncSubstancesFromReactions()
+
+	// 初始化合法物质缓存。同步完成后再构建，确保出牌校验能读取启动时补齐的 substances 表记录。
+	game.RebuildSubstanceCache()
 
 	// 标记重复物质为待完善
 	game.MarkDuplicateSubstancesForImprovement()
@@ -724,7 +724,7 @@ func handleWebSocket(c *gin.Context) {
 
 	// 获取用户头像和昵称
 	avatar := "🧪"
-	nickname := username
+	nickname := ""
 	if user, err := repository.UserRepo.FindByUID(uint(uid)); err == nil {
 		avatar = user.Avatar
 		nickname = user.Nickname

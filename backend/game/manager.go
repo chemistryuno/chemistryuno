@@ -684,6 +684,20 @@ func (gr *GameRoom) resolvePlayerNameLocked(uid int) string {
 	return fmt.Sprintf("uid_%d", uid)
 }
 
+func (gr *GameRoom) resolvePlayerNicknameLocked(uid int) string {
+	if gr.GameState != nil {
+		for _, p := range gr.GameState.Players {
+			if p.UID == uid {
+				return p.Nickname
+			}
+		}
+	}
+	if uid < 0 {
+		return fmt.Sprintf("AI_%d", -uid)
+	}
+	return ""
+}
+
 func (gr *GameRoom) appendReplayEventLocked(eventType string, uid int, payload map[string]interface{}) {
 	now := time.Now()
 	eventIndex := len(gr.ReplayEvents) + 1
@@ -699,7 +713,7 @@ func (gr *GameRoom) appendReplayEventLocked(eventType string, uid int, payload m
 		"event_index":    eventIndex,
 		"event_id":       eventID,
 		"uid":            uid,
-		"nickname":       gr.resolvePlayerNameLocked(uid),
+		"nickname":       gr.resolvePlayerNicknameLocked(uid),
 		"timestamp":      now.Format(time.RFC3339Nano),
 		"unix_ms":        now.UnixMilli(),
 		"action_summary": actionSummary,
@@ -715,7 +729,7 @@ func (gr *GameRoom) buildReplayParticipantsLocked() []map[string]interface{} {
 		for _, p := range gr.GameState.Players {
 			participants[p.UID] = map[string]interface{}{
 				"uid":      p.UID,
-				"nickname": gr.resolvePlayerNameLocked(p.UID),
+				"nickname": gr.resolvePlayerNicknameLocked(p.UID),
 				"is_ai":    p.UID < 0,
 			}
 		}
@@ -725,7 +739,7 @@ func (gr *GameRoom) buildReplayParticipantsLocked() []map[string]interface{} {
 		if _, ok := participants[uid]; !ok {
 			participants[uid] = map[string]interface{}{
 				"uid":      uid,
-				"nickname": gr.resolvePlayerNameLocked(uid),
+				"nickname": gr.resolvePlayerNicknameLocked(uid),
 				"is_ai":    uid < 0,
 			}
 		}
@@ -735,7 +749,7 @@ func (gr *GameRoom) buildReplayParticipantsLocked() []map[string]interface{} {
 		if _, ok := participants[uid]; !ok {
 			participants[uid] = map[string]interface{}{
 				"uid":      uid,
-				"nickname": gr.resolvePlayerNameLocked(uid),
+				"nickname": gr.resolvePlayerNicknameLocked(uid),
 				"is_ai":    uid < 0,
 			}
 		}
@@ -2812,18 +2826,16 @@ func StartGame(roomID string, uid int) error {
 			user := userMap[uint(pid)]
 			if user == nil {
 				username = fmt.Sprintf("研究员_%d", pid)
-				nickname = username
 				avatar = "🧪"
 			} else {
 				username = user.Username
 				nickname = user.Nickname
-				if nickname == "" {
-					nickname = username
-				}
 				avatar = user.Avatar
 			}
 			// 记录人类玩家已使用的昵称，防止 AI 撞名（虽然概率极低，但仍需处理）
-			usedScientistNames[nickname] = true
+			if nickname != "" {
+				usedScientistNames[nickname] = true
+			}
 		}
 
 		player := &models.PlayerState{
@@ -3038,14 +3050,11 @@ func initTutorialGame(gameRoom *GameRoom, roomID string) error {
 	// 创建人类玩家状态
 	humanUser, err := repository.UserRepo.FindByUID(uint(humanUID))
 	humanUsername := fmt.Sprintf("Player_%d", humanUID)
-	humanNickname := humanUsername
+	humanNickname := ""
 	humanAvatar := "🧪"
 	if err == nil {
 		humanUsername = humanUser.Username
 		humanNickname = humanUser.Nickname
-		if humanNickname == "" {
-			humanNickname = humanUsername
-		}
 		humanAvatar = humanUser.Avatar
 	}
 
@@ -3223,14 +3232,10 @@ func GetRoomState(roomID string, uid int) (map[string]interface{}, error) {
 				avatar = "🤖"
 			} else if err != nil {
 				username = fmt.Sprintf("研究员_%d", pid)
-				nickname = username
 				avatar = "🧪"
 			} else {
 				username = user.Username
 				nickname = user.Nickname
-				if nickname == "" {
-					nickname = username
-				}
 				avatar = user.Avatar
 			}
 		}
@@ -3361,6 +3366,17 @@ func getCardEffect(cardType string) string {
 	return effects[cardType]
 }
 
+func isFunctionalCard(card models.Card) bool {
+	if card.Effect != "" {
+		return true
+	}
+	functionalTypes := map[string]bool{
+		"+2": true, "+4": true, "Au": true, "reverse": true, "skip": true,
+		"He": true, "Ne": true, "Ar": true, "Kr": true, "Xe": true, "Rn": true,
+	}
+	return functionalTypes[card.Type]
+}
+
 // 出牌
 func PlayCard(roomID string, uid int, card models.Card, substance string) error {
 	substance = NormalizeSubscripts(substance)
@@ -3459,9 +3475,8 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 	specialTypes := map[string]bool{"+2": true, "+4": true, "Au": true, "reverse": true, "skip": true}
 	isSpecial := specialTypes[card.Type] || specialTypes[card.Effect] || nobleGases[card.Type] || nobleGases[substance] || specialTypes[substance] || IsPluginCard(card.Type)
 
-	// 无论是否为特殊牌，所有出牌物质均需经过 substances 表校验（纯功能牌在 IsValidSubstance 中有白名单放行）
-	// 插件卡无需物质校验
-	if !IsPluginCard(card.Type) && !IsValidSubstance(substance) {
+	// 功能牌和插件卡继续走各自特殊逻辑；其余普通卡牌组成的物质必须来自 substances 表。
+	if !IsPluginCard(card.Type) && !isFunctionalCard(card) && !IsValidSubstance(substance) {
 		return errors.New("该物质非法，请先在百科中录入: " + substance)
 	}
 
@@ -4538,14 +4553,6 @@ func DoublePlay(roomID string, uid int, sub1 string, sub2 string) error {
 		return errors.New("当前处于加牌结算状态，不可发动双联反应")
 	}
 
-	// 校验物质是否已录入
-	if !IsValidSubstance(sub1) {
-		return errors.New("该物质非法，请先在百科中录入: " + sub1)
-	}
-	if !IsValidSubstance(sub2) {
-		return errors.New("该物质非法，请先在百科中录入: " + sub2)
-	}
-
 	// 准备所需元素和特殊卡牌识别
 	specialTypes := map[string]bool{"+2": true, "+4": true, "Au": true, "reverse": true, "skip": true}
 	nobleGases := map[string]bool{"He": true, "Ne": true, "Ar": true, "Kr": true, "Xe": true, "Rn": true}
@@ -4553,6 +4560,14 @@ func DoublePlay(roomID string, uid int, sub1 string, sub2 string) error {
 	// 禁止功能牌参与双联反应
 	if specialTypes[sub1] || nobleGases[sub1] || specialTypes[sub2] || nobleGases[sub2] {
 		return errors.New("功能牌或稀有气体性质稳定，无法参与双联反应")
+	}
+
+	// 校验物质是否已录入
+	if !IsValidSubstance(sub1) {
+		return errors.New("该物质非法，请先在百科中录入: " + sub1)
+	}
+	if !IsValidSubstance(sub2) {
+		return errors.New("该物质非法，请先在百科中录入: " + sub2)
 	}
 
 	// 校验两物质是否能反应

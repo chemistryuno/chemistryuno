@@ -45,12 +45,13 @@ export type ComponentTemplate = {
 }
 
 export type ButtonVariant = 'solid' | 'soft' | 'ghost' | 'outline'
-export type ButtonSize = 'xs' | 'sm' | 'md' | 'lg' | 'icon'
+export type ButtonSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'icon'
 export type PanelDensity = 'compact' | 'normal' | 'spacious'
+export type ControlRadius = 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | 'full'
 
 type ClassValue = string | false | null | undefined
 
-const joinClasses = (...classes: ClassValue[]) => classes.filter(Boolean).join(' ')
+export const joinClasses = (...classes: ClassValue[]) => classes.filter(Boolean).join(' ')
 
 export const designSources = {
   global: [
@@ -116,6 +117,27 @@ export const designTokens = {
     normal: 'custom-scrollbar',
     hidden: 'custom-scrollbar-hidden',
   },
+} as const
+
+export const pageClassNames = {
+  app: 'min-h-screen bg-slate-50 text-slate-900 dark:bg-[#0a0a0c] dark:text-slate-200 selection:bg-blue-500/30',
+  appWhite: 'min-h-screen bg-slate-50 text-slate-900 dark:bg-[#0a0a0c] dark:text-white selection:bg-blue-500/30',
+  appPadded: 'min-h-screen bg-slate-50 dark:bg-[#0a0a0c] text-slate-900 dark:text-white p-4 md:p-8 selection:bg-blue-500/30',
+  appTools: 'min-h-screen bg-slate-50 dark:bg-[#0a0a0c] text-slate-900 dark:text-slate-200 p-4 lg:p-6 font-sans selection:bg-blue-500/30',
+  admin: 'min-h-screen bg-slate-50 dark:bg-[#070708] text-slate-900 dark:text-slate-200 p-3 lg:p-4 font-sans selection:bg-cyan-500/30',
+  adminData: 'min-h-screen bg-slate-50 dark:bg-[#070709] text-slate-900 dark:text-white',
+  pluginAdmin: 'min-h-screen bg-slate-950 text-white',
+  auth: 'min-h-screen flex items-center justify-center p-4 bg-slate-50 dark:bg-[#1a1a1e] relative overflow-hidden font-sans',
+  oauthCallback: 'min-h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-[#1a1a1e] gap-4',
+  lobbyContent: 'relative z-10 flex flex-col xl:h-screen min-h-screen xl:overflow-hidden',
+  ranking: 'min-h-screen bg-slate-50 dark:bg-[#0a0a0c] text-slate-800 dark:text-slate-300 font-sans selection:bg-blue-500/30 transition-colors duration-500',
+  rankingContent: 'relative z-10 flex flex-col min-h-screen',
+  chat: 'h-[100dvh] bg-slate-50 dark:bg-[#0a0a0c] text-white flex flex-col transition-colors duration-500 overflow-hidden',
+  gameRoom: 'h-screen w-full bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white overflow-hidden flex flex-col font-sans selection:bg-blue-500/30',
+  replayRoom: 'h-screen w-full bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white overflow-hidden flex flex-col font-sans selection:bg-blue-500/30',
+  substances: 'min-h-screen bg-slate-50 dark:bg-[#0a0a0c] text-slate-900 dark:text-slate-200 p-4 lg:p-6 font-sans selection:bg-emerald-500/30',
+  survey: 'min-h-screen bg-slate-50 dark:bg-[#0a0a0c] text-slate-900 dark:text-white p-4 md:p-8 selection:bg-indigo-500/30',
+  userSpace: 'min-h-screen bg-slate-50 dark:bg-[#0a0a0c] selection:bg-blue-500/30',
 } as const
 
 export const toneClasses: Record<DesignTone, {
@@ -206,7 +228,18 @@ const buttonSizes: Record<ButtonSize, string> = {
   sm: 'min-h-9 px-3.5 py-2 text-[10px]',
   md: 'min-h-10 px-4 py-2 text-xs',
   lg: 'min-h-11 px-5 py-3 text-xs',
+  xl: 'min-h-14 px-6 py-4 text-xs',
   icon: 'h-10 w-10 p-0',
+}
+
+const controlRadiusClasses: Record<ControlRadius, string> = {
+  sm: 'rounded-md',
+  md: 'rounded-lg',
+  lg: 'rounded-xl',
+  xl: 'rounded-2xl',
+  '2xl': 'rounded-[2rem]',
+  '3xl': 'rounded-[2.5rem]',
+  full: 'rounded-full',
 }
 
 export function buttonClasses(options: {
@@ -215,6 +248,8 @@ export function buttonClasses(options: {
   size?: ButtonSize
   block?: boolean
   loading?: boolean
+  radius?: ControlRadius
+  className?: string
 } = {}) {
   const tone = options.tone ?? 'primary'
   const variant = options.variant ?? 'solid'
@@ -229,12 +264,14 @@ export function buttonClasses(options: {
           : 'bg-transparent text-slate-500 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/5'
 
   return joinClasses(
-    'inline-flex items-center justify-center gap-2 rounded-xl font-black uppercase tracking-widest shadow-lg transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-50',
+    'inline-flex items-center justify-center gap-2 font-black uppercase tracking-widest shadow-lg transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-50',
+    controlRadiusClasses[options.radius ?? 'lg'],
     buttonSizes[size],
     toneClasses[tone].ring,
     color,
     options.block && 'w-full',
     options.loading && 'pointer-events-none opacity-80',
+    options.className,
   )
 }
 
@@ -242,6 +279,8 @@ export function iconButtonClasses(options: {
   tone?: DesignTone
   size?: 'sm' | 'md' | 'lg'
   dangerHover?: boolean
+  radius?: ControlRadius
+  className?: string
 } = {}) {
   const size = options.size ?? 'md'
   const tone = options.tone ?? 'slate'
@@ -252,12 +291,14 @@ export function iconButtonClasses(options: {
   }
 
   return joinClasses(
-    'inline-flex items-center justify-center rounded-xl transition-all active:scale-95',
+    'inline-flex items-center justify-center transition-all active:scale-95',
+    controlRadiusClasses[options.radius ?? 'lg'],
     sizes[size],
     options.dangerHover
       ? 'text-slate-400 hover:bg-red-500/10 hover:text-red-500'
       : joinClasses(toneClasses[tone].text, 'hover:bg-slate-100 dark:hover:bg-white/5'),
     toneClasses[tone].ring,
+    options.className,
   )
 }
 
@@ -265,6 +306,8 @@ export function panelClasses(options: {
   density?: PanelDensity
   glass?: boolean
   interactive?: boolean
+  radius?: ControlRadius
+  className?: string
 } = {}) {
   const density = options.density ?? 'normal'
   const padding = {
@@ -275,9 +318,10 @@ export function panelClasses(options: {
 
   return joinClasses(
     options.glass ? designTokens.surface.glass : designTokens.surface.panel,
-    designTokens.radius.panel,
+    controlRadiusClasses[options.radius ?? 'xl'],
     padding,
     options.interactive && 'transition-all hover:border-blue-500/40 hover:bg-slate-50 dark:hover:bg-white/[0.08]',
+    options.className,
   )
 }
 
@@ -285,31 +329,51 @@ export function inputClasses(options: {
   tone?: DesignTone
   invalid?: boolean
   compact?: boolean
+  size?: 'compact' | 'normal' | 'large'
+  radius?: ControlRadius
+  className?: string
 } = {}) {
   const tone = options.invalid ? 'danger' : options.tone ?? 'primary'
+  const size = options.size ?? (options.compact ? 'compact' : 'normal')
+  const sizing = {
+    compact: 'py-2 text-[11px]',
+    normal: 'py-3 text-sm',
+    large: 'py-4 text-sm',
+  }[size]
   return joinClasses(
-    'w-full rounded-xl px-4 font-bold text-slate-900 transition-all placeholder:text-slate-400 focus:outline-none dark:text-white dark:placeholder:text-slate-600',
-    options.compact ? 'py-2 text-[11px]' : 'py-3 text-sm',
+    'w-full px-4 font-bold text-slate-900 transition-all placeholder:text-slate-400 focus:outline-none dark:text-white dark:placeholder:text-slate-600',
+    controlRadiusClasses[options.radius ?? 'lg'],
+    sizing,
     designTokens.surface.input,
     options.invalid ? 'border-red-500 focus:border-red-500' : toneClasses[tone].focusBorder,
+    options.className,
   )
 }
 
 export function badgeClasses(options: {
   tone?: DesignTone
   pulse?: boolean
+  radius?: ControlRadius
+  className?: string
 } = {}) {
   const tone = options.tone ?? 'primary'
   return joinClasses(
-    'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-black uppercase',
+    'inline-flex items-center gap-1 border px-2 py-0.5 text-[9px] font-black uppercase',
+    controlRadiusClasses[options.radius ?? 'full'],
     toneClasses[tone].soft,
     toneClasses[tone].border,
     options.pulse && 'before:h-1.5 before:w-1.5 before:rounded-full before:bg-current before:animate-pulse',
+    options.className,
   )
 }
 
 export function modalClasses(options: {
   width?: 'sm' | 'md' | 'lg' | 'xl'
+  zIndex?: string
+  overlayClassName?: string
+  panelClassName?: string
+  panelRadius?: ControlRadius
+  animated?: boolean
 } = {}) {
   const widths = {
     sm: 'max-w-sm',
@@ -318,10 +382,17 @@ export function modalClasses(options: {
     xl: 'max-w-2xl',
   }
   return {
-    overlay: 'viewport-modal-overlay bg-slate-900/60 dark:bg-black/80 backdrop-blur-md p-4',
+    overlay: joinClasses(
+      'viewport-modal-overlay bg-slate-900/60 dark:bg-black/80 backdrop-blur-md p-4',
+      options.zIndex,
+      options.overlayClassName,
+    ),
     panel: joinClasses(
-      'viewport-modal-panel w-full bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 rounded-[2rem] shadow-2xl animate-in zoom-in',
+      'viewport-modal-panel w-full bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 shadow-2xl',
+      controlRadiusClasses[options.panelRadius ?? '2xl'],
       widths[options.width ?? 'md'],
+      options.animated ?? true ? 'animate-in zoom-in' : undefined,
+      options.panelClassName,
     ),
   }
 }
@@ -628,6 +699,7 @@ export function getComponentTemplate(family: ComponentFamily) {
 export const chemistryUnoDesignLibrary = {
   designSources,
   designTokens,
+  pageClassNames,
   toneClasses,
   componentTemplates,
   domainAdaptationRules,

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { pageClassNames } from '@lib'
 import PhlogistonIcon from '../components/icons/PhlogistonIcon.vue'
 import { gameAPI, authAPI, commonAPI, friendAPI, adminAPI, clearAuthState } from '../utils/api'
 import { useDialog } from '../utils/dialog'
@@ -700,7 +701,7 @@ const copyToClipboard = (text: string) => {
     </div>
 
     <!-- Main Layout Layer -->
-    <div class="relative z-10 flex flex-col xl:h-screen min-h-screen xl:overflow-hidden">
+    <div :class="pageClassNames.lobbyContent">
       
       <!-- Top Command Bar - 移动端优化 -->
       <header class="lobby-header">

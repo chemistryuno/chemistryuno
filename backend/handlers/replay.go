@@ -80,14 +80,11 @@ func buildReplayPlayerProfiles(uids []int) []map[string]interface{} {
 
 		user := userMap[uint(uid)]
 		username := fmt.Sprintf("UID_%d", uid)
-		nickname := username
+		nickname := ""
 		avatar := ""
 		if user != nil {
 			username = user.Username
 			nickname = user.Nickname
-			if nickname == "" {
-				nickname = username
-			}
 			avatar = user.Avatar
 		}
 
@@ -230,8 +227,6 @@ func buildReplayProfilesFromParticipants(participants []map[string]interface{}) 
 		if nickname == "" {
 			if user != nil && user.Nickname != "" {
 				nickname = user.Nickname
-			} else {
-				nickname = username
 			}
 		}
 

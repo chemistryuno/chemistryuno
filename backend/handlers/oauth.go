@@ -634,18 +634,7 @@ func handleOAuthUser(c *gin.Context, provider, providerID, username, email, nick
 			// 创建新用户
 			// 如果 OAuth 提供方没有传回可用昵称，则生成随机昵称并确保唯一性
 			if strings.TrimSpace(nickname) == "" {
-				generatedNickname, err := utils.GenerateUniqueRandomNickname("研究员", email, userRepo.ExistsByNickname)
-				if err == nil {
-					nickname = generatedNickname
-				} else {
-					// 回退到邮箱本地部分或 provider 标识
-					parts := strings.SplitN(email, "@", 2)
-					if parts[0] != "" {
-						nickname = parts[0]
-					} else {
-						nickname = provider + "_user"
-					}
-				}
+				nickname = ""
 			}
 
 			// 确保用户名唯一
@@ -667,6 +656,14 @@ func handleOAuthUser(c *gin.Context, provider, providerID, username, email, nick
 			newUID := maxUID + 1
 			if newUID < 100000000 {
 				newUID = 100000000
+			}
+			if strings.TrimSpace(nickname) == "" {
+				generatedNickname, err := utils.GenerateUniqueRandomNickname("研究员", fmt.Sprintf("%d", newUID), userRepo.ExistsByNickname)
+				if err != nil {
+					sendOAuthError(c, http.StatusInternalServerError, "生成随机昵称失败")
+					return
+				}
+				nickname = generatedNickname
 			}
 
 			user = &database.User{

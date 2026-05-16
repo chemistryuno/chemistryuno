@@ -1,6 +1,7 @@
 ﻿<script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { pageClassNames } from '@lib'
 import api, { authAPI, clearAccountScopedCache } from '../utils/api'
 import { useDialog } from '../utils/dialog'
 import feedback from '../utils/feedback'
@@ -292,7 +293,7 @@ const handleOAuthLogin = (provider: 'github' | 'ms' | 'google' | 'apple') => {
 </script>
 
 <template>
-  <div class="min-h-screen flex items-center justify-center p-4 bg-slate-50 dark:bg-[#1a1a1e] relative overflow-hidden font-sans">
+  <div :class="pageClassNames.auth">
     <div class="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-500/5 rounded-full blur-[120px]"></div>
     <div class="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-500/5 rounded-full blur-[120px]"></div>
 

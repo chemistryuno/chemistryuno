@@ -636,7 +636,7 @@ func (r *UserRepository) AddXP(uid uint, xp int) error {
 // GetMaxUID 获取当前最大 UID
 func (r *UserRepository) GetMaxUID() (uint, error) {
 	var maxUID uint
-	err := r.db.Model(&database.User{}).Select("MAX(uid)").Scan(&maxUID).Error
+	err := r.db.Model(&database.User{}).Select("COALESCE(MAX(uid), 0)").Scan(&maxUID).Error
 	return maxUID, err
 }
 

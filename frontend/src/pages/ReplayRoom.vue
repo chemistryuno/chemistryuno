@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { pageClassNames } from '@lib'
 import { adminAPI, gameAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
 import { ArrowLeft, Ban, Eye, UserMinus } from 'lucide-vue-next'
@@ -192,8 +193,15 @@ const aiParticipantUIDSet = computed(() => {
 
 const currentPerspectiveName = computed(() => {
   const profile = participants.value.find((p: any) => Number(p.uid) === selectedPerspectiveUID.value)
-  return profile?.nickname || profile?.username || '系统观察者'
+  return profile ? resolveProfileDisplayName(profile) : '系统观察者'
 })
+
+const resolveProfileDisplayName = (profile: any) => {
+  if (!profile) return '系统观察者'
+  const uid = Number(profile.uid)
+  if (profile.nickname) return profile.nickname
+  return Number.isFinite(uid) ? `UID ${uid}` : '系统观察者'
+}
 
 const parseReplayTimeMs = (timeLike: any) => {
   if (!timeLike) return null
@@ -364,7 +372,7 @@ const operationStats = computed(() => {
       if (opValues.length === 0) {
         return {
           uid,
-          nickname: profile.nickname || profile.username || `UID ${uid}`,
+          displayName: resolveProfileDisplayName(profile),
           avgMs: null,
           minMs: null,
           fastCount,
@@ -377,7 +385,7 @@ const operationStats = computed(() => {
 
       return {
         uid,
-        nickname: profile.nickname || profile.username || `UID ${uid}`,
+        displayName: resolveProfileDisplayName(profile),
         avgMs: Math.round(sum / opValues.length),
         minMs: Math.round(min),
         fastCount,
@@ -424,7 +432,7 @@ const resolveActorName = (uid: number) => {
 
   const profile = participants.value.find((p: any) => Number(p.uid) === Number(uid))
   if (profile) {
-    return profile.nickname || profile.username || `UID ${uid}`
+    return resolveProfileDisplayName(profile)
   }
   return `UID ${uid}`
 }
@@ -533,7 +541,7 @@ const enterLiveRoomAsSpectator = () => {
 const banFromReplay = async (profile: any) => {
   if (!isAdmin.value || Number(profile.uid) <= 0) return
 
-  const hourText = await showPrompt(`请输入封禁时长（小时），目标：${profile.nickname || profile.username || profile.uid}`, '24', '封禁设置')
+  const hourText = await showPrompt(`请输入封禁时长（小时），目标：${resolveProfileDisplayName(profile)}`, '24', '封禁设置')
   if (hourText === null) return
 
   const hours = Number(hourText)
@@ -548,7 +556,7 @@ const banFromReplay = async (profile: any) => {
   const bannedUntil = new Date(Date.now() + hours * 60 * 60 * 1000).toISOString()
   try {
     await adminAPI.banUser(Number(profile.uid), bannedUntil, reason || '回放审计判定违规')
-    await showAlert(`已封禁 ${profile.nickname || profile.username || profile.uid}`, '执行完成')
+    await showAlert(`已封禁 ${resolveProfileDisplayName(profile)}`, '执行完成')
   } catch (error: any) {
     await showAlert(error?.response?.data?.error || '封禁失败', '错误')
   }
@@ -557,12 +565,12 @@ const banFromReplay = async (profile: any) => {
 const kickFromReplay = async (profile: any) => {
   if (!isAdmin.value || Number(profile.uid) <= 0) return
 
-  const reason = await showPrompt(`请输入踢出原因，目标：${profile.nickname || profile.username || profile.uid}`, '回放审计判定违规', '踢出原因')
+  const reason = await showPrompt(`请输入踢出原因，目标：${resolveProfileDisplayName(profile)}`, '回放审计判定违规', '踢出原因')
   if (reason === null) return
 
   try {
     await adminAPI.kickPlayer(Number(profile.uid), reason || '回放审计判定违规')
-    await showAlert(`已踢出 ${profile.nickname || profile.username || profile.uid}`, '执行完成')
+    await showAlert(`已踢出 ${resolveProfileDisplayName(profile)}`, '执行完成')
   } catch (error: any) {
     await showAlert(error?.response?.data?.error || '踢出失败', '错误')
   }
@@ -583,7 +591,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="h-screen w-full bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white overflow-hidden flex flex-col font-sans selection:bg-blue-500/30">
+  <div :class="pageClassNames.replayRoom">
     <header class="px-4 py-3 border-b border-slate-200 dark:border-white/10 bg-white/90 dark:bg-black/30 backdrop-blur-md flex items-center justify-between">
       <div class="flex items-center gap-3">
         <button @click="goBackToEntryPage" class="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 transition-all text-xs font-black uppercase tracking-widest">
@@ -658,7 +666,7 @@ onUnmounted(() => {
                   : 'border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 hover:border-blue-500/30'
               )"
             >
-              <p class="text-xs font-black text-slate-900 dark:text-white">{{ profile.nickname || profile.username || `UID ${profile.uid}` }}</p>
+              <p class="text-xs font-black text-slate-900 dark:text-white">{{ resolveProfileDisplayName(profile) }}</p>
               <p class="text-[10px] text-slate-400 font-mono">UID: {{ profile.uid }}</p>
             </button>
           </div>
@@ -676,7 +684,7 @@ onUnmounted(() => {
               class="rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 px-2 py-2"
             >
               <div class="flex items-center justify-between gap-2">
-                <p class="text-[11px] font-semibold truncate">{{ stat.nickname }}</p>
+                <p class="text-[11px] font-semibold truncate">{{ stat.displayName }}</p>
                 <span
                   :class="cn('px-2 py-0.5 rounded text-[10px] font-black', stat.fastCount > 0 ? 'bg-rose-500/15 text-rose-500' : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400')"
                 >
@@ -699,7 +707,7 @@ onUnmounted(() => {
               class="rounded-lg border border-slate-200 dark:border-white/10 px-2 py-2 bg-slate-50 dark:bg-white/5"
             >
               <div class="flex items-center justify-between gap-2">
-                <span class="text-[11px] font-semibold">{{ profile.nickname || profile.username || profile.uid }}</span>
+                <span class="text-[11px] font-semibold">{{ resolveProfileDisplayName(profile) }}</span>
                 <div class="flex items-center gap-1">
                   <button @click="kickFromReplay(profile)" class="p-1.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20">
                     <UserMinus class="w-3.5 h-3.5" />
@@ -748,7 +756,7 @@ onUnmounted(() => {
                       : 'border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5'
                   )"
                 >
-                  <p class="text-xs font-black text-slate-900 dark:text-white">{{ profile.nickname || profile.username || `UID ${profile.uid}` }}</p>
+                  <p class="text-xs font-black text-slate-900 dark:text-white">{{ resolveProfileDisplayName(profile) }}</p>
                   <p class="text-[10px] text-slate-400 font-mono">UID {{ profile.uid }}</p>
                   <p class="text-[10px] text-slate-500 mt-1">
                     快速操作 {{ operationStats.find((s: any) => s.uid === Number(profile.uid))?.fastCount || 0 }} 次

@@ -172,3 +172,53 @@ func TestAdminReplayResponseRetainsAnticheatFields(t *testing.T) {
 		t.Fatalf("admin replay should retain cheat_detected=true, got %#v", body["cheat_detected"])
 	}
 }
+
+func TestReplayProfilesDoNotCopyUsernameIntoBlankNickname(t *testing.T) {
+	router := setupReplayPrivacyTest(t)
+	user := database.User{
+		UID:      1002,
+		Username: "blank-nickname-user",
+		Nickname: "",
+	}
+	if err := repository.UserRepo.Create(&user); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+
+	expiresAt := time.Now().Add(7 * 24 * time.Hour).UTC()
+	players, _ := json.Marshal([]int{1002})
+	history := database.GameHistory{
+		RoomID:          "blank_nickname_room",
+		Players:         players,
+		ReplayLog:       `{"version":1,"events":[]}`,
+		ReplayPermanent: true,
+		ReplayExpiresAt: &expiresAt,
+		StartedAt:       time.Now().Add(-time.Hour),
+		FinishedAt:      time.Now(),
+	}
+	if err := repository.GameRepo.Create(&history); err != nil {
+		t.Fatalf("create game history: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/admin/game-history/%d/replay", history.ID), nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	body := decodeReplayPrivacyResponse(t, rec)
+	profiles, ok := body["player_profiles"].([]interface{})
+	if !ok || len(profiles) != 1 {
+		t.Fatalf("expected one player profile, got %#v", body["player_profiles"])
+	}
+	profile, ok := profiles[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected profile object, got %#v", profiles[0])
+	}
+	if profile["username"] != "blank-nickname-user" {
+		t.Fatalf("expected username preserved, got %#v", profile["username"])
+	}
+	if profile["nickname"] != "" {
+		t.Fatalf("nickname must not copy username, got %#v", profile["nickname"])
+	}
+}

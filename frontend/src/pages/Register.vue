@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { pageClassNames } from '@lib'
 import { authAPI, clearAccountScopedCache } from '../utils/api'
 import { useDialog } from '../utils/dialog'
 import { Lock, FlaskConical, ShieldCheck, Loader2, Mail, User, HelpCircle, AtSign, FileText } from 'lucide-vue-next'
@@ -232,7 +233,7 @@ const handleSubmit = async () => {
       username: username.value,
       email: registerMode.value === 'email' ? email.value : undefined,
       code: registerMode.value === 'email' ? code.value : undefined,
-      nickname: nickname.value || username.value,
+      nickname: nickname.value.trim(),
       password: password.value,
       security_question: securityQuestion.value,
       security_answer: securityAnswer.value,
@@ -264,7 +265,7 @@ const handleSubmit = async () => {
 </script>
 
 <template>
-  <div class="min-h-screen flex items-center justify-center p-4 bg-slate-50 dark:bg-[#1a1a1e] relative overflow-hidden font-sans">
+  <div :class="pageClassNames.auth">
     <div class="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-500/5 rounded-full blur-[120px]"></div>
     <div class="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-500/5 rounded-full blur-[120px]"></div>
 

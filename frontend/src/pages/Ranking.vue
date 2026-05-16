@@ -1,11 +1,11 @@
 <template>
-  <div class="min-h-screen bg-slate-50 dark:bg-[#0a0a0c] text-slate-800 dark:text-slate-300 font-sans selection:bg-blue-500/30 transition-colors duration-500">
+  <div :class="pageClassNames.ranking">
     <div class="fixed inset-0 overflow-hidden pointer-events-none">
       <div class="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/10 rounded-full blur-[120px] animate-pulse"></div>
       <div class="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-600/5 rounded-full blur-[120px]"></div>
     </div>
 
-    <div class="relative z-10 flex flex-col min-h-screen">
+    <div :class="pageClassNames.rankingContent">
       <!-- Top Navigation -->
       <header class="px-4 py-3 sm:px-6 sm:py-4 border-b border-slate-200 dark:border-white/5 backdrop-blur-md bg-white/70 dark:bg-black/20 sticky top-0 z-50">
         <div class="max-w-[1400px] mx-auto flex justify-between items-center">
@@ -522,6 +522,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { pageClassNames } from '@lib'
 import { pointsAPI, gameAPI, friendAPI, authAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
 import { Trophy, ArrowLeft, Loader2, Target, RefreshCw, ShieldCheck, Crosshair, Flame, X, Swords, MessageCircle, UserPlus, Search } from 'lucide-vue-next'

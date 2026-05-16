@@ -672,7 +672,7 @@ func (gr *GameRoom) aiExecutePlay(uid int, card models.Card, substance string) {
 // 辅助函数
 
 func isSpecialCard(card models.Card) bool {
-	return card.Effect != "" || isNobleGas(card.Type)
+	return isFunctionalCard(card)
 }
 
 func isNobleGas(t string) bool {

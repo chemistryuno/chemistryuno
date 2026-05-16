@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { Swords, Check, Timer, FlaskConical } from 'lucide-vue-next'
+import { buttonClasses, modalClasses } from '@lib'
 import { gameAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
 
@@ -16,6 +17,26 @@ const emit = defineEmits(['close'])
 const { showAlert } = useDialog()
 const timeLeft = ref(20)
 let timer: any = null
+const duelModalClasses = modalClasses({
+  width: 'sm',
+  zIndex: 'z-[1000]',
+  panelClassName: 'relative dark:bg-[#121216] rounded-[40px] overflow-hidden duration-300 pointer-events-auto',
+})
+const rejectButtonClass = buttonClasses({
+  tone: 'secondary',
+  variant: 'outline',
+  size: 'xl',
+  radius: 'xl',
+  block: true,
+  className: 'h-14 bg-white dark:bg-white/5 hover:bg-slate-50 shadow-none font-bold',
+})
+const acceptButtonClass = buttonClasses({
+  tone: 'primary',
+  size: 'xl',
+  radius: 'xl',
+  block: true,
+  className: 'h-14 shadow-xl shadow-blue-500/20',
+})
 
 const handleResponse = async (accept: boolean) => {
   try {
@@ -58,9 +79,9 @@ onUnmounted(() => {
 
 <template>
   <Teleport to="body">
-    <div class="viewport-modal-overlay z-[1000] p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md" @click="handleResponse(false)">
+    <div :class="duelModalClasses.overlay" @click="handleResponse(false)">
 
-    <div class="viewport-modal-panel relative w-full max-w-sm bg-white dark:bg-[#121216] border border-slate-200 dark:border-white/10 rounded-[40px] shadow-2xl overflow-hidden animate-in zoom-in duration-300 pointer-events-auto">
+    <div :class="duelModalClasses.panel">
       <!-- Decoration -->
       <div class="absolute top-0 right-0 p-8 opacity-5">
         <Swords class="w-24 h-24 -mr-8 -mt-8" />
@@ -99,13 +120,13 @@ onUnmounted(() => {
         <div class="flex gap-4">
           <button 
             @click="handleResponse(false)"
-            class="flex-1 h-14 rounded-2xl bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-500 font-bold text-xs uppercase tracking-widest hover:bg-slate-50 transition-all"
+            :class="rejectButtonClass"
           >
             拒绝同步
           </button>
           <button 
             @click="handleResponse(true)"
-            class="flex-1 h-14 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs uppercase tracking-widest shadow-xl shadow-blue-500/20 active:scale-95 transition-all flex items-center justify-center gap-2"
+            :class="acceptButtonClass"
           >
             <Check class="w-4 h-4" />
             建立连接

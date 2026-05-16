@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { pageClassNames } from '@lib'
 import { adminAPI, pluginAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
 import { listRegisteredPluginRoutes, refreshPluginConfiguredRoutes } from '../utils/plugin-runtime'
@@ -392,7 +393,7 @@ onMounted(loadPlugins)
 </script>
 
 <template>
-  <div class="min-h-screen bg-slate-950 text-white">
+  <div :class="pageClassNames.pluginAdmin">
     <div class="sticky top-0 z-30 bg-slate-950/90 backdrop-blur border-b border-white/5 px-3 py-2 flex items-center gap-2 flex-wrap">
       <button @click="router.back()" class="p-1.5 hover:bg-white/10 rounded-md"><ArrowLeft class="w-4 h-4" /></button>
       <Puzzle class="w-5 h-5 text-purple-400" />

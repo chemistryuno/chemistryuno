@@ -108,28 +108,6 @@ func IsValidSubstance(substance string) bool {
 	// 归一化下标数字（如 H₂O -> H2O）
 	substance = NormalizeSubscripts(substance)
 
-	// 仅对于纯游戏机制牌（非化学物质）直接放行，其他均需通过 substances 表校验
-	gameMechanics := map[string]bool{
-		"+2": true, "+4": true, "reverse": true, "Au": true, "skip": true,
-		"He": true, "Ne": true, "Ar": true, "Kr": true, "Xe": true, "Rn": true,
-	}
-	if gameMechanics[substance] {
-		return true
-	}
-
-	// 支持由单个原子组成的单质（如 H、O、N、P 等）
-	// 这些元素卡点击时应该优先打出单原子形式
-	singleAtomElements := map[string]bool{
-		"H": true, "O": true, "N": true, "P": true, "S": true,
-		"C": true, "Cl": true, "F": true, "Br": true, "I": true,
-		"Na": true, "K": true, "Ca": true, "Mg": true, "Al": true,
-		"Fe": true, "Cu": true, "Zn": true, "Ag": true, "Ba": true,
-		"Hg": true, "Si": true,
-	}
-	if singleAtomElements[substance] {
-		return true
-	}
-
 	validSubstancesMutex.RLock()
 	defer validSubstancesMutex.RUnlock()
 

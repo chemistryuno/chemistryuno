@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-screen bg-slate-50 dark:bg-[#0a0a0c] text-slate-900 dark:text-slate-200 p-4 lg:p-6 font-sans selection:bg-emerald-500/30">
+  <div :class="pageClassNames.substances">
     <div class="fixed inset-0 overflow-hidden pointer-events-none">
       <div class="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-emerald-500/5 rounded-full blur-[120px]" />
       <div class="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-blue-500/5 rounded-full blur-[120px]" />
@@ -309,6 +309,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
+import { pageClassNames } from '@lib'
 import { substanceAPI, adminAPI } from '../utils/api'
 import { useDialog } from '../utils/dialog'
 import {

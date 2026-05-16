@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue'
 import { RouterLink } from 'vue-router'
+import { pageClassNames } from '@lib'
 import { useDialog } from '../utils/dialog'
 import { adminAPI } from '../utils/api'
 import {
@@ -577,7 +578,7 @@ const getCompensationBadge = (status: string) => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-slate-50 text-slate-900 dark:bg-[#0a0a0c] dark:text-white selection:bg-blue-500/30">
+  <div :class="pageClassNames.appWhite">
     <!-- Background Effects -->
     <div class="fixed inset-0 overflow-hidden pointer-events-none z-0">
       <div class="absolute top-[-10%] right-[-10%] w-[50%] h-[50%] bg-blue-500/5 rounded-full blur-[120px]" />

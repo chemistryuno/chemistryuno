@@ -6,7 +6,7 @@
     "init": "node init.js",
     "start": "node start.js",
     "dev": "pnpm start",
-    "build": "node build.js",
+    "build": "pnpm -C frontend install --prefer-offline --silent && go mod download && node build.js",
     "test": "node tests/test.js",
     "test:quick": "node scripts/test-runner.js quick",
     "test:e2e": "node scripts/run-e2e.js",

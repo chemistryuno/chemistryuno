@@ -90,8 +90,7 @@ func (r *ConfigRepository) GetAll() (map[string]string, error) {
 func (r *ConfigRepository) InitDefaultConfigs() error {
 	// 迁移逻辑：如果存在旧的键名，尝试将其迁移到新的键名
 	migrationMap := map[string]string{
-		"game_turn_timeout":      "player_action_timeout",
-		"reconnect_grace_period": "player_kick_timeout",
+		"game_turn_timeout": "player_action_timeout",
 	}
 
 	for oldKey, newKey := range migrationMap {

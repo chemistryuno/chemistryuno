@@ -617,6 +617,28 @@ func TestCollectAnticheatDataIncludesReplayBoundReports(t *testing.T) {
 	}
 }
 
+func TestReconnectGracePeriodUsesDedicatedConfigKey(t *testing.T) {
+	setupRoomExitTest(t)
+
+	configRepo = repository.NewConfigRepository()
+	if err := configRepo.SetValue("player_kick_timeout", "120"); err != nil {
+		t.Fatalf("set player_kick_timeout: %v", err)
+	}
+	if err := configRepo.SetValue("reconnect_grace_period", "35"); err != nil {
+		t.Fatalf("set reconnect_grace_period: %v", err)
+	}
+
+	gotReconnect := getReconnectGracePeriod()
+	if gotReconnect != 35*time.Second {
+		t.Fatalf("expected reconnect grace period 35s, got %v", gotReconnect)
+	}
+
+	gotKick := getPlayerKickTimeout()
+	if gotKick != 120*time.Second {
+		t.Fatalf("expected player kick timeout 120s, got %v", gotKick)
+	}
+}
+
 // BenchmarkLeaveRoomPromotion 性能测试：观战者升级
 func BenchmarkLeaveRoomPromotion(b *testing.B) {
 	gameRoom := &GameRoom{

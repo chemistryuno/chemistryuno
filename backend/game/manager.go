@@ -1633,6 +1633,7 @@ func (gr *GameRoom) checkInactivity() {
 	roomID := gr.Room.ID
 	now := time.Now()
 	playersToKick := []int{}
+	reconnectTimeout := getReconnectGracePeriod()
 
 	// 1. 匹配超时检测 (5分钟，针对空闲长久的房间)
 	if gr.Room.Status == "waiting" {
@@ -1643,7 +1644,7 @@ func (gr *GameRoom) checkInactivity() {
 		}
 	}
 
-	// 2. 检测离线超过30秒的玩家
+	// 2. 检测离线超过重连宽限期的玩家
 	for _, uid := range gr.Room.Players {
 		if uid < 0 { // AI 玩家永远视为在线
 			continue
@@ -1674,14 +1675,12 @@ func (gr *GameRoom) checkInactivity() {
 					expiryBase = *lastOffline
 				}
 
-				kickTimeout := getPlayerKickTimeout()
-				if now.Sub(expiryBase) > kickTimeout {
+				if now.Sub(expiryBase) > reconnectTimeout {
 					playersToKick = append(playersToKick, uid)
 				}
 			} else {
 				// 回退逻辑
-				kickTimeout := getPlayerKickTimeout()
-				if now.Sub(offlineTime) > kickTimeout {
+				if now.Sub(offlineTime) > reconnectTimeout {
 					playersToKick = append(playersToKick, uid)
 				}
 			}
@@ -4397,6 +4396,14 @@ func getPlayerKickTimeout() time.Duration {
 		return 30 * time.Second
 	}
 	return configRepo.GetDurationValue("player_kick_timeout", 30*time.Second)
+}
+
+// getReconnectGracePeriod 获取掉线重连宽限期
+func getReconnectGracePeriod() time.Duration {
+	if configRepo == nil {
+		return 30 * time.Second
+	}
+	return configRepo.GetDurationValue("reconnect_grace_period", 30*time.Second)
 }
 
 // getPlayerActionTimeout 获取玩家操作超时时间

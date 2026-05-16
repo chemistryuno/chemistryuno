@@ -620,16 +620,22 @@ func UpdateProfile(c *gin.Context) {
 		return
 	}
 
-	// 验证昵称格式和长度
-	if req.Nickname != "" {
-		if len([]rune(req.Nickname)) > 20 {
+	// 验证昵称格式和长度；未提交 nickname 时保留原昵称，提交空白昵称时拒绝。
+	if req.Nickname != nil {
+		nickname := strings.TrimSpace(*req.Nickname)
+		if nickname == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "昵称不能为空"})
+			return
+		}
+		if len([]rune(nickname)) > 20 {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "昵称不能超过20个字符"})
 			return
 		}
-		if !nicknameRegex.MatchString(req.Nickname) {
+		if !nicknameRegex.MatchString(nickname) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "昵称仅允许中英文字母、数字和下划线"})
 			return
 		}
+		req.Nickname = &nickname
 	}
 
 	userRepo := repository.NewUserRepository()

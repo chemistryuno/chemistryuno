@@ -267,7 +267,7 @@ export const authAPI = {
     return response
   },
   updateProfile: async (data: {
-    nickname: string,
+    nickname?: string,
     bio?: string,
     wechat?: string,
     qq?: string,

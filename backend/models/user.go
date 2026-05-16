@@ -202,7 +202,7 @@ type UpdateAvatarRequest struct {
 }
 
 type UpdateProfileRequest struct {
-	Nickname           string     `json:"nickname"`
+	Nickname           *string    `json:"nickname"`
 	Bio                string     `json:"bio"`
 	Wechat             string     `json:"wechat"`
 	QQ                 string     `json:"qq"`

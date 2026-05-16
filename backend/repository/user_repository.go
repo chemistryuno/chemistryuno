@@ -217,13 +217,15 @@ func (r *UserRepository) UpdateNickname(uid uint, nickname string) error {
 // UpdateProfile 更新个人资料
 func (r *UserRepository) UpdateProfile(uid uint, req *models.UpdateProfileRequest) error {
 	updates := map[string]interface{}{
-		"nickname":       req.Nickname,
 		"bio":            req.Bio,
 		"wechat":         req.Wechat,
 		"qq":             req.QQ,
 		"show_email":     req.ShowEmail,
 		"custom_contact": req.CustomContact,
 		"birthday":       req.Birthday,
+	}
+	if req.Nickname != nil {
+		updates["nickname"] = *req.Nickname
 	}
 
 	if req.SoundVolume != nil {

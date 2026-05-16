@@ -7,6 +7,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, 'src'),
+      '@lib': path.resolve(__dirname, 'lib/index.ts'),
       '@vue/test-utils': path.resolve(__dirname, 'node_modules/@vue/test-utils/dist/vue-test-utils.esm-bundler.mjs'),
       vue: path.resolve(__dirname, 'node_modules/vue/dist/vue.runtime.esm-bundler.js'),
       'vue-router': path.resolve(__dirname, 'node_modules/vue-router/dist/vue-router.mjs'),
@@ -24,7 +25,7 @@ export default defineConfig({
     include: ['../tests/frontend/unit/src/**/*.test.ts'],
     setupFiles: ['../tests/frontend/setup.ts'],
     coverage: {
-      include: ['src/**/*.{ts,vue}'],
+      include: ['src/**/*.{ts,vue}', 'lib/**/*.ts'],
       exclude: [
         '../tests/frontend/**',
         'src/types/**',

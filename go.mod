@@ -3,6 +3,7 @@ module chemistryuno
 go 1.24.0
 
 require (
+	github.com/alicebob/miniredis/v2 v2.35.0
 	github.com/dop251/goja v0.0.0-20250630131328-58d95d85e994
 	github.com/gin-gonic/gin v1.9.1
 	github.com/go-webauthn/webauthn v0.15.0
@@ -23,7 +24,6 @@ require (
 require (
 	cloud.google.com/go/compute/metadata v0.3.0 // indirect
 	filippo.io/edwards25519 v1.1.0 // indirect
-	github.com/alicebob/miniredis/v2 v2.35.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/dlclark/regexp2 v1.11.4 // indirect
@@ -80,5 +80,5 @@ require (
 	golang.org/x/sys v0.37.0 // indirect
 	golang.org/x/text v0.33.0 // indirect
 	google.golang.org/protobuf v1.30.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
+	gopkg.in/yaml.v3 v3.0.1
 )

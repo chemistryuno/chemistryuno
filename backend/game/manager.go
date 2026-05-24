@@ -978,11 +978,8 @@ func maybeMarkFastHumanPlay(gr *GameRoom, uid int, nickname string, actionAt tim
 		"count":       gr.FastReactionUIDs[uid],
 	})
 
-	if gr.FastReactionUIDs[uid] == 1 && websocket.GlobalHub != nil {
-		websocket.GlobalHub.BroadcastToRoom(gr.Room.ID, websocket.Message{
-			Type: "action_toast",
-			Data: fmt.Sprintf("CHEAT 警告：研究员 %s 反应速度异常（%dms），该局回放将永久保留。", nickname, intervalMs),
-		})
+	if gr.FastReactionUIDs[uid] == 1 {
+		log.Printf("[快速出牌] 房间=%s 玩家=%s(uid=%d) 首次快速出牌被记录", gr.Room.ID, nickname, uid)
 	}
 
 	return true, intervalMs
@@ -3345,6 +3342,7 @@ func GetRoomState(roomID string, uid int) (map[string]interface{}, error) {
 			"quitted_count":         gameRoom.GameState.QuittedCount,
 			"tutorial_script_mode":  gameRoom.GameState.TutorialScriptMode,
 			"tutorial_current_step": gameRoom.GameState.TutorialCurrentStep,
+			"fast_reaction_users":   gameRoom.FastReactionUIDs,
 		}
 	}
 

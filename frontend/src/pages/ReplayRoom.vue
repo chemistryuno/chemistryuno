@@ -404,7 +404,7 @@ const formatDate = (dateStr: string) => {
   }
 }
 
-const formatEventType = (type: string) => {
+const formatEventType = (type: string, payload?: any) => {
   const labels: Record<string, string> = {
     game_start: '对局开始',
     play_card: '出牌',
@@ -413,6 +413,7 @@ const formatEventType = (type: string) => {
     timeout_auto_draw: '超时自动摸牌',
     game_finished: '对局结束',
     game_terminated_invalid: '无效结算',
+    game_terminated_all_humans_exited: '玩家全部退出',
     fast_reaction: '快速反应'
   }
   return labels[type] || type
@@ -466,6 +467,22 @@ const describeEvent = (evt: any) => {
 
   if (evt.eventType === 'fast_reaction') {
     return `${actor} 触发快速反应 (${payload.interval_ms || '?'}ms)`
+  }
+
+  if (evt.eventType === 'game_finished') {
+    const winnerId = payload.winner_uid
+    const winnerName = winnerId ? resolveActorName(Number(winnerId)) : '未知'
+    return `${winnerName} 清空手牌获得胜利，对局结束`
+  }
+
+  if (evt.eventType === 'game_terminated_invalid') {
+    const reason = payload.reason || payload.action_summary || ''
+    return reason ? `对局异常终止：${reason}` : '对局被判定为无效结算'
+  }
+
+  if (evt.eventType === 'game_terminated_all_humans_exited') {
+    const reason = payload.reason || payload.action_summary || ''
+    return reason || '所有真人玩家已退出，对局提前结束'
   }
 
   return `${actor} ${formatEventType(evt.eventType)}`
@@ -620,14 +637,6 @@ onUnmounted(() => {
           </button>
         </div>
 
-        <button
-          v-if="replayData?.room_id"
-          @click="enterLiveRoomAsSpectator"
-          class="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-cyan-500/20 bg-cyan-500/10 text-cyan-600 dark:text-cyan-300 text-xs font-black uppercase tracking-widest hover:bg-cyan-500/20 transition-all"
-        >
-          <Eye class="w-4 h-4" />
-          旁观当前房间
-        </button>
       </div>
     </header>
 

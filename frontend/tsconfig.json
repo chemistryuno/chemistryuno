@@ -13,11 +13,10 @@
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"],
-      "@lib": ["lib/index.ts"],
-      "@lib/*": ["lib/*"]
+      "@/*": ["./src/*"],
+      "@lib": ["./lib/index.ts"],
+      "@lib/*": ["./lib/*"]
     },
 
     /* Linting */

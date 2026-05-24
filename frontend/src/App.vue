@@ -326,13 +326,13 @@ onUnmounted(() => {
           <span v-else>{{ restartBanner.reason || '服务器正在重启，请稍候…' }}</span>
         </div>
       </Transition>
-      <router-view v-slot="{ Component, route }">
-        <Transition name="app-route" mode="out-in">
-          <div :key="route.fullPath" class="app-route-shell">
-            <component :is="Component" />
-          </div>
-        </Transition>
-      </router-view>
+<router-view v-slot="{ Component, route }">
+  <Transition name="app-route">
+    <div :key="route.fullPath" class="app-route-shell">
+      <component :is="Component" />
+    </div>
+  </Transition>
+</router-view>
       <CustomDialog />
       <Transition name="app-pop" appear>
         <DuelInviteModal v-if="activeDuelInvite" :invite="activeDuelInvite" @close="activeDuelInvite = null" />
@@ -348,7 +348,7 @@ onUnmounted(() => {
 
 .app-route-enter-active,
 .app-route-leave-active {
-  transition: opacity 220ms ease;
+  transition: opacity 100ms ease;
 }
 
 .app-route-enter-from {

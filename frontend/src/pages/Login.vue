@@ -494,15 +494,13 @@ const handleOAuthLogin = (provider: 'github' | 'ms' | 'google' | 'apple') => {
             </button>
           </div>
 
-          <div class="mt-4 sm:mt-5 pt-4 sm:pt-5 border-t border-slate-100 dark:border-white/5 text-center">
-            <p class="text-[10px] sm:text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">
-              还不是正式研究员？
-              <router-link to="/register" class="text-blue-600 hover:text-blue-500">提交申请</router-link>
-            </p>
-            <div class="flex justify-center mt-2">
-              <!-- 提供账号申诉/通用反馈入口 -->
-              <FeedbackButton />
-            </div>
+          <div class="mt-4 sm:mt-5 pt-4 sm:pt-5 border-t border-slate-100 dark:border-white/5">
+            <router-link
+              to="/register"
+              class="flex items-center justify-center gap-2 w-full h-9 sm:h-10 bg-blue-600 hover:bg-blue-700 text-white rounded-xl sm:rounded-2xl font-black transition-all shadow-lg shadow-blue-500/25 hover:-translate-y-0.5 active:translate-y-0 uppercase tracking-widest text-[10px] sm:text-xs"
+            >
+              还不是正式研究员？<span class="underline underline-offset-2">提交申请</span>
+            </router-link>
           </div>
         </div>
       </div>

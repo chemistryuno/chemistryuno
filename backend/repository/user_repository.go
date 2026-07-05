@@ -280,6 +280,13 @@ func (r *UserRepository) AddPoints(uid uint, points int) error {
 		_ = cache.InvalidateAllLeaderboardCache(context.Background())
 		// 失效用户统计缓存
 		_ = cache.InvalidateUserStatsCache(context.Background(), uid)
+		// 异步更新 ZSET 排行榜（读取最新积分后写入）
+		go func() {
+			var user database.User
+			if dbErr := r.db.Select("points").Where("uid = ?", uid).First(&user).Error; dbErr == nil {
+				cache.ZADDLeaderboardAsync("points", uid, float64(user.Points))
+			}
+		}()
 	}
 
 	return err

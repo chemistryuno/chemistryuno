@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"chemistryuno/backend/cache"
 	"chemistryuno/backend/database"
 	"chemistryuno/backend/repository"
 	"chemistryuno/backend/websocket"
@@ -86,15 +87,20 @@ func GetLeaderboard(c *gin.Context) {
 		var user database.User
 		err := database.DB.Where("uid = ?", uid).First(&user).Error
 		if err == nil {
-			// 计算排名
+			// 计算排名：优先 ZREVRANK，fallback 到 SQL COUNT
 			var rank int64
-			score := user.Points
-			if mode == "monthly" {
-				score = user.MonthlyPoints
-			}
-			if err := database.DB.Model(&database.User{}).Where(orderBy+" > ?", score).Count(&rank).Error; err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "获取排行榜失败"})
-				return
+			zrank, zErr := cache.ZREVRANKLeaderboard(c.Request.Context(), orderBy, user.UID)
+			if zErr == nil && zrank > 0 {
+				rank = zrank - 1
+			} else {
+				score := user.Points
+				if mode == "monthly" {
+					score = user.MonthlyPoints
+				}
+				if err := database.DB.Model(&database.User{}).Where(orderBy+" > ?", score).Count(&rank).Error; err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "获取排行榜失败"})
+					return
+				}
 			}
 
 			conf := configMap[user.Level]

@@ -3,6 +3,7 @@ package cache
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"time"
@@ -11,6 +12,9 @@ import (
 )
 
 var redisClient *redis.Client
+
+// errNotInitialized is returned when Redis is not connected.
+var errNotInitialized = errors.New("redis client not initialized")
 
 // SessionCache 缓存的会话信息
 type SessionCache struct {
@@ -60,12 +64,23 @@ func InitRedis(addr, username, password string, db int) error {
 	}
 	redisClient = client
 
+	// Initialize global Manager
+	globalManager = &Manager{client: client}
+
 	return nil
 }
 
 // GetRedisClient 获取 Redis 客户端
 func GetRedisClient() *redis.Client {
 	return redisClient
+}
+
+// checkClient returns errNotInitialized if the client is not ready.
+func checkClient() error {
+	if redisClient == nil {
+		return errNotInitialized
+	}
+	return nil
 }
 
 // sessionKey 生成会话缓存 key
@@ -88,8 +103,8 @@ func reactionKey(r1, r2 string) string {
 
 // GetReactionCache 从缓存获取反应验证结果 (1 为存在, 0 为不存在, 空为 miss)
 func GetReactionCache(ctx context.Context, r1, r2 string) (string, error) {
-	if redisClient == nil {
-		return "", fmt.Errorf("redis client not initialized")
+	if err := checkClient(); err != nil {
+		return "", err
 	}
 
 	val, err := redisClient.Get(ctx, reactionKey(r1, r2)).Result()
@@ -101,8 +116,8 @@ func GetReactionCache(ctx context.Context, r1, r2 string) (string, error) {
 
 // SetReactionCache 将反应验证结果缓存 1 小时 (status=1 存在, status=0 不存在)
 func SetReactionCache(ctx context.Context, r1, r2 string, exists bool) error {
-	if redisClient == nil {
-		return fmt.Errorf("redis client not initialized")
+	if err := checkClient(); err != nil {
+		return err
 	}
 
 	val := "0"
@@ -115,16 +130,16 @@ func SetReactionCache(ctx context.Context, r1, r2 string, exists bool) error {
 
 // InvalidateReactionCache 失效特定的反应缓存
 func InvalidateReactionCache(ctx context.Context, r1, r2 string) error {
-	if redisClient == nil {
-		return fmt.Errorf("redis client not initialized")
+	if err := checkClient(); err != nil {
+		return err
 	}
 	return redisClient.Del(ctx, reactionKey(r1, r2)).Err()
 }
 
 // GetSessionCache 从缓存获取会话 (先 Redis，miss 则返回 nil)
 func GetSessionCache(ctx context.Context, sid string) (*SessionCache, error) {
-	if redisClient == nil {
-		return nil, fmt.Errorf("redis client not initialized")
+	if err := checkClient(); err != nil {
+		return nil, err
 	}
 
 	val, err := redisClient.Get(ctx, sessionKey(sid)).Result()
@@ -147,8 +162,8 @@ func GetSessionCache(ctx context.Context, sid string) (*SessionCache, error) {
 
 // SetSessionCache 将会话缓存到 Redis，TTL 为 24 小时
 func SetSessionCache(ctx context.Context, sid string, session *SessionCache) error {
-	if redisClient == nil {
-		return fmt.Errorf("redis client not initialized")
+	if err := checkClient(); err != nil {
+		return err
 	}
 
 	data, err := json.Marshal(session)
@@ -176,8 +191,8 @@ func SetSessionCache(ctx context.Context, sid string, session *SessionCache) err
 
 // InvalidateSessionCache 删除会话缓存
 func InvalidateSessionCache(ctx context.Context, sid string) error {
-	if redisClient == nil {
-		return fmt.Errorf("redis client not initialized")
+	if err := checkClient(); err != nil {
+		return err
 	}
 
 	if err := redisClient.Del(ctx, sessionKey(sid)).Err(); err != nil {
@@ -190,8 +205,8 @@ func InvalidateSessionCache(ctx context.Context, sid string) error {
 
 // GetUserCache 从缓存获取用户信息 (用于减少中间件查询)
 func GetUserCache(ctx context.Context, uid uint) (*UserCache, error) {
-	if redisClient == nil {
-		return nil, fmt.Errorf("redis client not initialized")
+	if err := checkClient(); err != nil {
+		return nil, err
 	}
 
 	val, err := redisClient.Get(ctx, userKey(uid)).Result()
@@ -214,8 +229,8 @@ func GetUserCache(ctx context.Context, uid uint) (*UserCache, error) {
 
 // SetUserCache 将用户信息缓存到 Redis，TTL 为 5 分钟（考虑到封禁/冻结可能变化）
 func SetUserCache(ctx context.Context, user *UserCache) error {
-	if redisClient == nil {
-		return fmt.Errorf("redis client not initialized")
+	if err := checkClient(); err != nil {
+		return err
 	}
 
 	data, err := json.Marshal(user)
@@ -236,8 +251,8 @@ func SetUserCache(ctx context.Context, user *UserCache) error {
 
 // InvalidateUserCache 删除用户缓存
 func InvalidateUserCache(ctx context.Context, uid uint) error {
-	if redisClient == nil {
-		return fmt.Errorf("redis client not initialized")
+	if err := checkClient(); err != nil {
+		return err
 	}
 
 	if err := redisClient.Del(ctx, userKey(uid)).Err(); err != nil {
@@ -250,8 +265,8 @@ func InvalidateUserCache(ctx context.Context, uid uint) error {
 
 // InvalidateUserCacheMultiple 批量删除用户缓存
 func InvalidateUserCacheMultiple(ctx context.Context, uids ...uint) error {
-	if redisClient == nil {
-		return fmt.Errorf("redis client not initialized")
+	if err := checkClient(); err != nil {
+		return err
 	}
 
 	keys := make([]string, len(uids))
@@ -264,6 +279,28 @@ func InvalidateUserCacheMultiple(ctx context.Context, uids ...uint) error {
 		return err
 	}
 
+	return nil
+}
+
+// InvalidateUserAllCacheMultiple 用 Pipeline 一次删除多个用户的 user/stats/bounty 缓存。
+func InvalidateUserAllCacheMultiple(ctx context.Context, uids ...uint) error {
+	if err := checkClient(); err != nil {
+		return err
+	}
+	if len(uids) == 0 {
+		return nil
+	}
+
+	pipe := redisClient.Pipeline()
+	for _, uid := range uids {
+		pipe.Del(ctx, userKey(uid))
+		pipe.Del(ctx, userStatsKey(uid))
+		pipe.Del(ctx, bountyTotalKey(uid))
+	}
+	if _, err := pipe.Exec(ctx); err != nil {
+		log.Printf("⚠️  Pipeline 批量删除用户缓存失败: %v", err)
+		return err
+	}
 	return nil
 }
 
@@ -292,8 +329,8 @@ func leaderboardKey(orderBy string, limit int) string {
 
 // GetLeaderboardCache 从缓存获取排行榜
 func GetLeaderboardCache(ctx context.Context, orderBy string, limit int) (string, error) {
-	if redisClient == nil {
-		return "", fmt.Errorf("redis client not initialized")
+	if err := checkClient(); err != nil {
+		return "", err
 	}
 
 	val, err := redisClient.Get(ctx, leaderboardKey(orderBy, limit)).Result()
@@ -305,8 +342,8 @@ func GetLeaderboardCache(ctx context.Context, orderBy string, limit int) (string
 
 // SetLeaderboardCache 将排行榜缓存到 Redis，TTL 为 5 分钟
 func SetLeaderboardCache(ctx context.Context, orderBy string, limit int, data string) error {
-	if redisClient == nil {
-		return fmt.Errorf("redis client not initialized")
+	if err := checkClient(); err != nil {
+		return err
 	}
 
 	ttl := 5 * time.Minute
@@ -320,8 +357,8 @@ func SetLeaderboardCache(ctx context.Context, orderBy string, limit int, data st
 
 // InvalidateLeaderboardCache 删除排行榜缓存
 func InvalidateLeaderboardCache(ctx context.Context, orderBy string) error {
-	if redisClient == nil {
-		return fmt.Errorf("redis client not initialized")
+	if err := checkClient(); err != nil {
+		return err
 	}
 
 	// 验证排序方式白名单
@@ -350,8 +387,8 @@ func InvalidateLeaderboardCache(ctx context.Context, orderBy string) error {
 
 // InvalidateAllLeaderboardCache 删除所有排行榜缓存
 func InvalidateAllLeaderboardCache(ctx context.Context) error {
-	if redisClient == nil {
-		return fmt.Errorf("redis client not initialized")
+	if err := checkClient(); err != nil {
+		return err
 	}
 
 	pattern := "leaderboard:*"
@@ -378,8 +415,8 @@ func bountyTotalKey(uid uint) string {
 
 // GetBountyTotalCache 从缓存获取用户赏金总额
 func GetBountyTotalCache(ctx context.Context, uid uint) (string, error) {
-	if redisClient == nil {
-		return "", fmt.Errorf("redis client not initialized")
+	if err := checkClient(); err != nil {
+		return "", err
 	}
 
 	val, err := redisClient.Get(ctx, bountyTotalKey(uid)).Result()
@@ -391,8 +428,8 @@ func GetBountyTotalCache(ctx context.Context, uid uint) (string, error) {
 
 // SetBountyTotalCache 将赏金总额缓存到 Redis，TTL 为 10 分钟
 func SetBountyTotalCache(ctx context.Context, uid uint, amount float64) error {
-	if redisClient == nil {
-		return fmt.Errorf("redis client not initialized")
+	if err := checkClient(); err != nil {
+		return err
 	}
 
 	ttl := 10 * time.Minute
@@ -406,8 +443,8 @@ func SetBountyTotalCache(ctx context.Context, uid uint, amount float64) error {
 
 // InvalidateBountyTotalCache 删除用户赏金缓存
 func InvalidateBountyTotalCache(ctx context.Context, uid uint) error {
-	if redisClient == nil {
-		return fmt.Errorf("redis client not initialized")
+	if err := checkClient(); err != nil {
+		return err
 	}
 
 	if err := redisClient.Del(ctx, bountyTotalKey(uid)).Err(); err != nil {
@@ -420,8 +457,8 @@ func InvalidateBountyTotalCache(ctx context.Context, uid uint) error {
 
 // InvalidateBountyTotalCacheMultiple 批量删除赏金缓存
 func InvalidateBountyTotalCacheMultiple(ctx context.Context, uids ...uint) error {
-	if redisClient == nil {
-		return fmt.Errorf("redis client not initialized")
+	if err := checkClient(); err != nil {
+		return err
 	}
 
 	keys := make([]string, len(uids))
@@ -444,8 +481,8 @@ func levelConfigsKey() string {
 
 // GetLevelConfigsCache 从缓存获取等级配置
 func GetLevelConfigsCache(ctx context.Context) (string, error) {
-	if redisClient == nil {
-		return "", fmt.Errorf("redis client not initialized")
+	if err := checkClient(); err != nil {
+		return "", err
 	}
 
 	val, err := redisClient.Get(ctx, levelConfigsKey()).Result()
@@ -457,8 +494,8 @@ func GetLevelConfigsCache(ctx context.Context) (string, error) {
 
 // SetLevelConfigsCache 将等级配置缓存到 Redis，TTL 为 24 小时
 func SetLevelConfigsCache(ctx context.Context, data string) error {
-	if redisClient == nil {
-		return fmt.Errorf("redis client not initialized")
+	if err := checkClient(); err != nil {
+		return err
 	}
 
 	ttl := 24 * time.Hour
@@ -472,8 +509,8 @@ func SetLevelConfigsCache(ctx context.Context, data string) error {
 
 // InvalidateLevelConfigsCache 删除等级配置缓存
 func InvalidateLevelConfigsCache(ctx context.Context) error {
-	if redisClient == nil {
-		return fmt.Errorf("redis client not initialized")
+	if err := checkClient(); err != nil {
+		return err
 	}
 
 	if err := redisClient.Del(ctx, levelConfigsKey()).Err(); err != nil {
@@ -491,8 +528,8 @@ func approvedReactionsKey() string {
 
 // GetApprovedReactionsCache 从缓存获取已批准的反应
 func GetApprovedReactionsCache(ctx context.Context) (string, error) {
-	if redisClient == nil {
-		return "", fmt.Errorf("redis client not initialized")
+	if err := checkClient(); err != nil {
+		return "", err
 	}
 
 	val, err := redisClient.Get(ctx, approvedReactionsKey()).Result()
@@ -504,8 +541,8 @@ func GetApprovedReactionsCache(ctx context.Context) (string, error) {
 
 // SetApprovedReactionsCache 将已批准反应缓存到 Redis，TTL 为 1 小时
 func SetApprovedReactionsCache(ctx context.Context, data string) error {
-	if redisClient == nil {
-		return fmt.Errorf("redis client not initialized")
+	if err := checkClient(); err != nil {
+		return err
 	}
 
 	ttl := 1 * time.Hour
@@ -524,8 +561,8 @@ func unbanCompensationKey(userUID uint, eventID string) string {
 
 // CheckUnbanCompensationIdempotency 检查解封补偿幂等性 - 如果已经发放过返回 true
 func CheckUnbanCompensationIdempotency(ctx context.Context, userUID uint, eventID string) (bool, error) {
-	if redisClient == nil {
-		return false, fmt.Errorf("redis client not initialized")
+	if err := checkClient(); err != nil {
+		return false, err
 	}
 
 	_, err := redisClient.Get(ctx, unbanCompensationKey(userUID, eventID)).Result()
@@ -544,8 +581,8 @@ func CheckUnbanCompensationIdempotency(ctx context.Context, userUID uint, eventI
 // SetUnbanCompensationIdempotency 设置解封补偿幂等性缓存，防止重复发放
 // ttlMinutes 为缓存时间（分钟）
 func SetUnbanCompensationIdempotency(ctx context.Context, userUID uint, eventID string, ttlMinutes int) error {
-	if redisClient == nil {
-		return fmt.Errorf("redis client not initialized")
+	if err := checkClient(); err != nil {
+		return err
 	}
 
 	ttl := time.Duration(ttlMinutes) * time.Minute
@@ -560,8 +597,8 @@ func SetUnbanCompensationIdempotency(ctx context.Context, userUID uint, eventID 
 
 // DeleteUnbanCompensationIdempotency 删除解封补偿幂等性缓存（用于失败重试）
 func DeleteUnbanCompensationIdempotency(ctx context.Context, userUID uint, eventID string) error {
-	if redisClient == nil {
-		return fmt.Errorf("redis client not initialized")
+	if err := checkClient(); err != nil {
+		return err
 	}
 
 	if err := redisClient.Del(ctx, unbanCompensationKey(userUID, eventID)).Err(); err != nil {
@@ -586,8 +623,8 @@ func anticheatStartupKey() string {
 
 // GetPlayerAnticheatStatsCache returns the cached public anticheat stats payload.
 func GetPlayerAnticheatStatsCache(ctx context.Context) (string, error) {
-	if redisClient == nil {
-		return "", fmt.Errorf("redis client not initialized")
+	if err := checkClient(); err != nil {
+		return "", err
 	}
 
 	val, err := redisClient.Get(ctx, playerAnticheatStatsKey()).Result()
@@ -599,8 +636,8 @@ func GetPlayerAnticheatStatsCache(ctx context.Context) (string, error) {
 
 // SetPlayerAnticheatStatsCache caches the public anticheat stats payload.
 func SetPlayerAnticheatStatsCache(ctx context.Context, data string, ttl time.Duration) error {
-	if redisClient == nil {
-		return fmt.Errorf("redis client not initialized")
+	if err := checkClient(); err != nil {
+		return err
 	}
 
 	if err := redisClient.Set(ctx, playerAnticheatStatsKey(), data, ttl).Err(); err != nil {
@@ -612,8 +649,8 @@ func SetPlayerAnticheatStatsCache(ctx context.Context, data string, ttl time.Dur
 
 // AllowPlayerAnticheatStatsRequest enforces one request per TTL per user.
 func AllowPlayerAnticheatStatsRequest(ctx context.Context, uid uint, ttl time.Duration) (bool, error) {
-	if redisClient == nil {
-		return false, fmt.Errorf("redis client not initialized")
+	if err := checkClient(); err != nil {
+		return false, err
 	}
 
 	return redisClient.SetNX(ctx, playerAnticheatStatsRateKey(uid), "1", ttl).Result()
@@ -621,8 +658,8 @@ func AllowPlayerAnticheatStatsRequest(ctx context.Context, uid uint, ttl time.Du
 
 // SetAnticheatStartupTime stores the anticheat startup timestamp.
 func SetAnticheatStartupTime(ctx context.Context, startedAt time.Time) error {
-	if redisClient == nil {
-		return fmt.Errorf("redis client not initialized")
+	if err := checkClient(); err != nil {
+		return err
 	}
 
 	return redisClient.Set(ctx, anticheatStartupKey(), startedAt.UTC().Format(time.RFC3339Nano), 0).Err()
@@ -646,8 +683,8 @@ func GetAnticheatStartupTime(ctx context.Context) (time.Time, error) {
 
 // InvalidateApprovedReactionsCache 删除已批准反应缓存
 func InvalidateApprovedReactionsCache(ctx context.Context) error {
-	if redisClient == nil {
-		return fmt.Errorf("redis client not initialized")
+	if err := checkClient(); err != nil {
+		return err
 	}
 
 	if err := redisClient.Del(ctx, approvedReactionsKey()).Err(); err != nil {
@@ -665,8 +702,8 @@ func userStatsKey(uid uint) string {
 
 // GetUserStatsCache 从缓存获取用户统计
 func GetUserStatsCache(ctx context.Context, uid uint) (string, error) {
-	if redisClient == nil {
-		return "", fmt.Errorf("redis client not initialized")
+	if err := checkClient(); err != nil {
+		return "", err
 	}
 
 	val, err := redisClient.Get(ctx, userStatsKey(uid)).Result()
@@ -678,8 +715,8 @@ func GetUserStatsCache(ctx context.Context, uid uint) (string, error) {
 
 // SetUserStatsCache 将用户统计缓存到 Redis，TTL 为 15 分钟
 func SetUserStatsCache(ctx context.Context, uid uint, data string) error {
-	if redisClient == nil {
-		return fmt.Errorf("redis client not initialized")
+	if err := checkClient(); err != nil {
+		return err
 	}
 
 	ttl := 15 * time.Minute
@@ -693,8 +730,8 @@ func SetUserStatsCache(ctx context.Context, uid uint, data string) error {
 
 // InvalidateUserStatsCache 删除用户统计缓存
 func InvalidateUserStatsCache(ctx context.Context, uid uint) error {
-	if redisClient == nil {
-		return fmt.Errorf("redis client not initialized")
+	if err := checkClient(); err != nil {
+		return err
 	}
 
 	if err := redisClient.Del(ctx, userStatsKey(uid)).Err(); err != nil {
@@ -707,8 +744,8 @@ func InvalidateUserStatsCache(ctx context.Context, uid uint) error {
 
 // InvalidateUserStatsCacheMultiple 批量删除用户统计缓存
 func InvalidateUserStatsCacheMultiple(ctx context.Context, uids ...uint) error {
-	if redisClient == nil {
-		return fmt.Errorf("redis client not initialized")
+	if err := checkClient(); err != nil {
+		return err
 	}
 
 	keys := make([]string, len(uids))

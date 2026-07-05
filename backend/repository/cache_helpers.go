@@ -5,8 +5,12 @@ import (
 	"chemistryuno/backend/database"
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"strconv"
+	"time"
+
+	"github.com/redis/go-redis/v9"
 )
 
 // GetLeaderboardWithCache 使用缓存获取排行榜 - 先查Redis，miss后查DB
@@ -48,10 +52,20 @@ func GetLeaderboardWithCache(ctx context.Context, orderBy string, limit int) ([]
 		}
 	}
 
-	// 缓存到 Redis
+	// 缓存到 Redis K/V
 	if data, err := json.Marshal(cacheEntries); err == nil {
 		_ = cache.SetLeaderboardCache(ctx, orderBy, limit, string(data))
 	}
+
+	// 如果 ZSET 还不存在，异步重建（冷启动或 Redis 清空后）
+	go func() {
+		zCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		exists, _ := cache.LeaderboardZSetExists(zCtx, orderBy)
+		if !exists {
+			RebuildLeaderboardZSet(zCtx, orderBy)
+		}
+	}()
 
 	return cacheEntries, nil
 }
@@ -81,6 +95,63 @@ func GetBountyTotalWithCache(ctx context.Context, uid uint) (int, error) {
 	_ = cache.SetBountyTotalCache(ctx, uid, float64(total))
 
 	return total, nil
+}
+
+// RebuildLeaderboardZSet rebuilds the ZSET for a given leaderboard field from SQL.
+// It runs in batches of 500 to avoid oversized pipelines.
+func RebuildLeaderboardZSet(ctx context.Context, field string) {
+	type scoreRow struct {
+		UID   uint
+		Score float64
+	}
+
+	colMap := map[string]string{
+		"points":         "points",
+		"monthly_points": "monthly_points",
+		"total_xp":       "total_xp",
+		"win_count":      "win_count",
+		"total_games":    "total_games",
+	}
+	col, ok := colMap[field]
+	if !ok {
+		return
+	}
+
+	var rows []scoreRow
+	if err := database.DB.Model(&database.User{}).
+		Select(fmt.Sprintf("uid, CAST(%s AS DECIMAL(20,4)) as score", col)).
+		Scan(&rows).Error; err != nil {
+		log.Printf("⚠️  RebuildLeaderboardZSet query failed for %s: %v", field, err)
+		return
+	}
+
+	if len(rows) == 0 {
+		return
+	}
+
+	batchSize := 500
+	for i := 0; i < len(rows); i += batchSize {
+		end := i + batchSize
+		if end > len(rows) {
+			end = len(rows)
+		}
+		batch := rows[i:end]
+
+		pipe, err := cache.GetManager().Pipeline()
+		if err != nil {
+			return
+		}
+		key := fmt.Sprintf("lb:zset:%s", field)
+		for _, row := range batch {
+			pipe.ZAdd(ctx, key, redis.Z{Score: row.Score, Member: fmt.Sprintf("%d", row.UID)})
+		}
+		if _, err := pipe.Exec(ctx); err != nil {
+			log.Printf("⚠️  RebuildLeaderboardZSet pipeline exec failed: %v", err)
+			return
+		}
+	}
+
+	log.Printf("✅ Rebuilt leaderboard ZSET for '%s' with %d entries", field, len(rows))
 }
 
 // GetLevelConfigsWithCache 使用缓存获取等级配置 - 先查Redis，miss后查DB

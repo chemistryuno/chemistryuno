@@ -1,8 +1,10 @@
 package game
 
 import (
+	"chemistryuno/backend/cache"
 	"chemistryuno/backend/repository"
 	"chemistryuno/backend/websocket"
+	"context"
 	"log"
 	"time"
 )
@@ -53,6 +55,31 @@ func StartCron() {
 		defer ticker.Stop()
 		for range ticker.C {
 			cleanupExpiredGameReplays()
+		}
+	}()
+
+	// 6. 每 30s 更新 Redis 在线计数到 Prometheus Gauge
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		for range ticker.C {
+			cache.UpdateOnlineUsersMetric(context.Background())
+		}
+	}()
+
+	// 7. 每 60s 更新 Streams 反作弊队列 pending 消息数到 Prometheus
+	go func() {
+		ticker := time.NewTicker(60 * time.Second)
+		defer ticker.Stop()
+		for range ticker.C {
+			ctx := context.Background()
+			count, err := cache.GetAnticheatPendingCount(ctx)
+			if err == nil {
+				log.Printf("[cron] anticheat pending entries: %d", count)
+				if count > 100 {
+					log.Printf("⚠️  Anticheat queue backlog: %d pending entries", count)
+				}
+			}
 		}
 	}()
 }

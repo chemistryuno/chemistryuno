@@ -1,8 +1,10 @@
 package anticheat
 
 import (
+	"chemistryuno/backend/cache"
 	"chemistryuno/backend/database"
 	"chemistryuno/backend/repository"
+	stdctx "context"
 	"encoding/json"
 	"log"
 	"os"
@@ -84,6 +86,27 @@ func (s *System) UptimeDays(now time.Time) int {
 
 // ProcessGameEnd 处理游戏结束的反作弊检测和处罚
 func (s *System) ProcessGameEnd(roomID string, playerUID uint, context *DetectionContext) (*RiskScoringResult, *Decision, error) {
+	// When Streams queue is enabled, push event for async processing and return immediately.
+	if os.Getenv("ENABLE_ANTICHEAT_STREAMS") == "true" || os.Getenv("ENABLE_ANTICHEAT_STREAMS") == "1" {
+		ctxJSON, jsonErr := json.Marshal(context)
+		if jsonErr == nil {
+			event := cache.AnticheatQueueEvent{
+				RoomID:      roomID,
+				PlayerUID:   playerUID,
+				ContextJSON: string(ctxJSON),
+				Timestamp:   time.Now(),
+			}
+			pushCtx, cancel := stdctx.WithTimeout(stdctx.Background(), 2*time.Second)
+			defer cancel()
+			if err := cache.XADDAnticheatEvent(pushCtx, event); err == nil {
+				// Successfully queued; return nil results (async processing)
+				return nil, nil, nil
+			}
+			log.Printf("[反作弊] XADD 失败，降级为同步处理: %v", jsonErr)
+		}
+		// Fallthrough to synchronous processing on failure
+	}
+
 	// 0. 注入优化特性所需的上下文（仅在对应特性启用时查询数据）。
 	s.enrichDetectionContext(playerUID, context)
 

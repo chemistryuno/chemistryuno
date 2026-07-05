@@ -1,6 +1,7 @@
 package main
 
 import (
+	"chemistryuno/backend/anticheat"
 	"chemistryuno/backend/cache"
 	"chemistryuno/backend/database"
 	"chemistryuno/backend/game"
@@ -168,6 +169,11 @@ func main() {
 			handlers.SetGlobalAnticheatSystem(acSystem)
 			// 设置handlers包中的全局反作弊处理程序
 			handlers.InitializeAnticheatHandler(acSystem)
+			// 启动 Streams 反作弊消费者（仅在 ENABLE_ANTICHEAT_STREAMS=true 时激活）
+			if os.Getenv("ENABLE_ANTICHEAT_STREAMS") == "true" || os.Getenv("ENABLE_ANTICHEAT_STREAMS") == "1" {
+				anticheat.StartAnticheatConsumer(context.Background(), acSystem)
+				log.Println("✅ Anticheat Streams consumer enabled")
+			}
 		}
 	}
 
@@ -197,6 +203,9 @@ func main() {
 	websocket.GlobalHub = hub // 设置全局 Hub 引用
 	hub.OnRegister = game.PushOnJoinAnnouncements
 	go hub.Run()
+
+	// 启动 Redis Pub/Sub 跨节点广播监听器
+	hub.StartPubSubListener(context.Background())
 
 	// 启动速率限制器清理
 	go middleware.GetRateLimitStore().StartCleanup()

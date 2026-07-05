@@ -1,13 +1,21 @@
 package websocket
 
 import (
+	"chemistryuno/backend/cache"
 	"chemistryuno/backend/metrics"
 	"chemistryuno/backend/repository"
+	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"sync"
 	"time"
+
+	"github.com/google/uuid"
 )
+
+// instanceID uniquely identifies this process instance for Pub/Sub loop filtering.
+var instanceID = uuid.New().String()
 
 type Hub struct {
 	clients    map[*Client]bool
@@ -50,6 +58,12 @@ func NewHub() *Hub {
 		register:   make(chan *Client),
 		unregister: make(chan *Client),
 	}
+	// Sync Redis counter with current local connection count (handles restarts)
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		cache.SetOnlineCount(ctx, 0)
+	}()
 	return GlobalHub
 }
 
@@ -62,6 +76,8 @@ func (h *Hub) Run() {
 			h.mutex.Unlock()
 			log.Println("👤 用户连接")
 			log.Printf("   ✅ 用户 %d 已连接到系统", client.uid)
+			// Async: increment Redis online counter
+			go cache.IncrOnlineCount(context.Background())
 			h.BroadcastOnlineCount()
 
 			if h.OnRegister != nil {
@@ -87,6 +103,8 @@ func (h *Hub) Run() {
 			h.mutex.Unlock()
 			log.Println("👤 用户断开")
 			log.Printf("   ❌ 用户 %d 已断开连接", client.uid)
+			// Async: decrement Redis online counter
+			go cache.DecrOnlineCount(context.Background())
 			if shouldRecordOffline {
 				h.recordLastOffline(client.uid, time.Now())
 			}
@@ -258,6 +276,11 @@ func (h *Hub) BroadcastToRoom(roomID string, message interface{}) {
 	// Record metrics
 	metrics.WebSocketMessagesTotal.WithLabelValues(roomID).Inc()
 	metrics.WebSocketBroadcastDuration.WithLabelValues(roomID).Observe(duration.Seconds())
+
+	// Cross-node: publish to Redis so other instances can forward to their local clients
+	pubChannel := fmt.Sprintf("room:%s", roomID)
+	payload := fmt.Sprintf("%s|%s", instanceID, string(data))
+	cache.PublishAsync(pubChannel, payload)
 }
 
 // SendToUID 发送消息给指定用户的所有连接
@@ -356,4 +379,113 @@ func (h *Hub) Stop() {
 	// 清空数据
 	h.clients = make(map[*Client]bool)
 	h.rooms = make(map[string]map[*Client]bool)
+}
+
+// StartPubSubListener starts a Redis Pub/Sub subscriber that forwards cross-node messages
+// to local WebSocket clients. Call once after NewHub().
+func (h *Hub) StartPubSubListener(ctx context.Context) {
+	if !cache.GetManager().IsAvailable() {
+		log.Println("ℹ️  Redis not available, skipping Pub/Sub listener")
+		return
+	}
+
+	// Subscribe to room:* pattern for room broadcasts
+	cache.StartPubSubListener(ctx, []string{"room:*"}, func(channel, payload string) {
+		// Payload format: "<senderInstanceID>|<jsonData>"
+		sep := len(instanceID) + 1
+		if len(payload) <= sep {
+			return
+		}
+		senderID := payload[:len(instanceID)]
+		if senderID == instanceID {
+			return // Skip messages from ourselves (already sent locally)
+		}
+		data := []byte(payload[sep:])
+
+		// Extract roomID from channel name (room:<roomID>)
+		if len(channel) <= 5 {
+			return
+		}
+		roomID := channel[5:]
+
+		// Forward to local clients in this room
+		h.mutex.RLock()
+		clients, ok := h.rooms[roomID]
+		if !ok {
+			h.mutex.RUnlock()
+			return
+		}
+		clientList := make([]*Client, 0, len(clients))
+		for c := range clients {
+			clientList = append(clientList, c)
+		}
+		h.mutex.RUnlock()
+
+		for _, c := range clientList {
+			select {
+			case c.send <- data:
+			default:
+				h.unregister <- c
+			}
+		}
+	})
+
+	// Subscribe to broadcast:global for announcements and anticheat notifications
+	cache.SubscribeChannel(ctx, []string{"broadcast:global"}, func(_, payload string) {
+		if len(payload) <= len(instanceID)+1 {
+			return
+		}
+		senderID := payload[:len(instanceID)]
+		if senderID == instanceID {
+			return
+		}
+		data := []byte(payload[len(instanceID)+1:])
+
+		h.mutex.RLock()
+		clientList := make([]*Client, 0, len(h.clients))
+		for c := range h.clients {
+			clientList = append(clientList, c)
+		}
+		h.mutex.RUnlock()
+
+		for _, c := range clientList {
+			select {
+			case c.send <- data:
+			default:
+				h.unregister <- c
+			}
+		}
+	})
+
+	log.Println("✅ Hub Pub/Sub listener started")
+}
+
+// BroadcastGlobal sends a message to all local clients AND publishes to Redis for cross-node delivery.
+func (h *Hub) BroadcastGlobal(message interface{}) {
+	// Serialize once
+	data, err := json.Marshal(message)
+	if err != nil {
+		log.Printf("❌ BroadcastGlobal 序列化失败: %v", err)
+		return
+	}
+
+	// Local delivery
+	h.mutex.RLock()
+	clientList := make([]*Client, 0, len(h.clients))
+	for c := range h.clients {
+		clientList = append(clientList, c)
+	}
+	h.mutex.RUnlock()
+
+	for _, c := range clientList {
+		select {
+		case c.send <- data:
+		default:
+			h.unregister <- c
+		}
+	}
+
+	// Cross-node delivery
+	payload := fmt.Sprintf("%s|%s", instanceID, string(data))
+	cache.PublishAsync("broadcast:global", payload)
 }

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"chemistryuno/backend/cache"
 	"chemistryuno/backend/game"
 	"chemistryuno/backend/models"
 	"chemistryuno/backend/repository"
@@ -90,6 +91,18 @@ func CreateRoom(c *gin.Context) {
 	if checkBanForGame(c, uid) {
 		return
 	}
+
+	// 分布式锁：防止同一用户并发创建多个房间
+	lockResource := fmt.Sprintf("room:create:%d", uid)
+	lockToken, lockErr := cache.AcquireLock(c.Request.Context(), lockResource, 10*time.Second)
+	if lockErr == cache.ErrLockNotAcquired {
+		c.JSON(http.StatusTooManyRequests, gin.H{"error": "请勿重复提交，上一个请求正在处理中"})
+		return
+	}
+	if lockErr == nil {
+		defer func() { _ = cache.ReleaseLock(c.Request.Context(), lockResource, lockToken) }()
+	}
+	// If ErrRedisUnavailable, proceed without lock (graceful degradation)
 
 	// 玩家限购检查：每人同时只能在一个房间
 	if !game.IsPlayerIdle(uid) {
@@ -481,6 +494,17 @@ func InitiateDuel(c *gin.Context) {
 	if challengerUID == req.TargetUID {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "不能挑战自己"})
 		return
+	}
+
+	// 分布式锁：防止重复发起单挑邀请（TTL 与邀请超时一致：20s）
+	duelLockRes := fmt.Sprintf("duel:%d:%d", challengerUID, req.TargetUID)
+	duelToken, duelLockErr := cache.AcquireLock(c.Request.Context(), duelLockRes, 20*time.Second)
+	if duelLockErr == cache.ErrLockNotAcquired {
+		c.JSON(http.StatusTooManyRequests, gin.H{"error": "邀请已发送，请等待对方响应"})
+		return
+	}
+	if duelLockErr == nil {
+		defer func() { _ = cache.ReleaseLock(c.Request.Context(), duelLockRes, duelToken) }()
 	}
 
 	// 1. 检查目标是否空闲

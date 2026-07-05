@@ -96,6 +96,22 @@ func mapCategoryToType(cat string) SubstanceType {
 
 // JudgeReaction 判断两个物质是否能反应
 func JudgeReaction(s1, s2 string) bool {
+	// Check cache first
+	if result, found := globalReactionCache.Get(s1, s2); found {
+		return result
+	}
+
+	// Cache miss - compute result
+	result := computeReaction(s1, s2)
+
+	// Store in cache
+	globalReactionCache.Put(s1, s2, result)
+
+	return result
+}
+
+// computeReaction performs the actual reaction judgment logic
+func computeReaction(s1, s2 string) bool {
 	info1 := getSubstanceInfo(s1)
 	info2 := getSubstanceInfo(s2)
 

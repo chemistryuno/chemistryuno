@@ -560,3 +560,288 @@ func (cr *CheatRepository) UpdateAuditCompensation(auditLogID uint, status strin
 		"compensation_date":   now,
 	}).Error
 }
+
+// ===== Player behavior baselines (adaptive threshold) =====
+
+// GetPlayerBaseline returns the baseline row for a player/indicator pair, or nil if absent.
+func (cr *CheatRepository) GetPlayerBaseline(playerUID uint, indicator string) (*database.PlayerBehaviorBaseline, error) {
+	if !cr.db.Migrator().HasTable(&database.PlayerBehaviorBaseline{}) {
+		return nil, nil
+	}
+	var baseline database.PlayerBehaviorBaseline
+	err := cr.db.Where("player_uid = ? AND indicator = ?", playerUID, indicator).First(&baseline).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &baseline, nil
+}
+
+// GetPlayerBaselines returns all baseline rows for a player keyed by indicator.
+func (cr *CheatRepository) GetPlayerBaselines(playerUID uint) (map[string]database.PlayerBehaviorBaseline, error) {
+	result := make(map[string]database.PlayerBehaviorBaseline)
+	if !cr.db.Migrator().HasTable(&database.PlayerBehaviorBaseline{}) {
+		return result, nil
+	}
+	var rows []database.PlayerBehaviorBaseline
+	if err := cr.db.Where("player_uid = ?", playerUID).Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		result[row.Indicator] = row
+	}
+	return result, nil
+}
+
+// GetPlayerBaselinesMulti returns baselines for multiple players in a single query.
+// Returns a map of playerUID -> (indicator -> baseline).
+func (cr *CheatRepository) GetPlayerBaselinesMulti(playerUIDs []uint) (map[uint]map[string]database.PlayerBehaviorBaseline, error) {
+	result := make(map[uint]map[string]database.PlayerBehaviorBaseline)
+
+	if len(playerUIDs) == 0 {
+		return result, nil
+	}
+
+	if !cr.db.Migrator().HasTable(&database.PlayerBehaviorBaseline{}) {
+		return result, nil
+	}
+
+	// Single query with IN clause
+	var rows []database.PlayerBehaviorBaseline
+	if err := cr.db.Where("player_uid IN ?", playerUIDs).Find(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	// Group by player UID
+	for _, row := range rows {
+		if result[row.PlayerUID] == nil {
+			result[row.PlayerUID] = make(map[string]database.PlayerBehaviorBaseline)
+		}
+		result[row.PlayerUID][row.Indicator] = row
+	}
+
+	return result, nil
+}
+
+
+// UpsertPlayerBaseline inserts or updates a player's baseline for an indicator.
+func (cr *CheatRepository) UpsertPlayerBaseline(baseline *database.PlayerBehaviorBaseline) error {
+	if baseline == nil {
+		return nil
+	}
+	existing, err := cr.GetPlayerBaseline(baseline.PlayerUID, baseline.Indicator)
+	if err != nil {
+		return err
+	}
+	if existing == nil {
+		return cr.db.Create(baseline).Error
+	}
+	return cr.db.Model(&database.PlayerBehaviorBaseline{}).Where("id = ?", existing.ID).Updates(map[string]interface{}{
+		"mean":            baseline.Mean,
+		"variance":        baseline.Variance,
+		"sample_count":    baseline.SampleCount,
+		"window_size":     baseline.WindowSize,
+		"window_kind":     baseline.WindowKind,
+		"last_sampled_at": baseline.LastSampledAt,
+	}).Error
+}
+
+// ===== Rule test records (offline sandbox) =====
+
+// SaveRuleTest persists a rule-test run summary.
+func (cr *CheatRepository) SaveRuleTest(test *database.AnticheatRuleTest) error {
+	return cr.db.Create(test).Error
+}
+
+// GetRecentRuleTests returns the most recent rule-test runs.
+func (cr *CheatRepository) GetRecentRuleTests(limit int) ([]database.AnticheatRuleTest, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	var tests []database.AnticheatRuleTest
+	if err := cr.db.Order("created_at DESC").Limit(limit).Find(&tests).Error; err != nil {
+		return nil, err
+	}
+	return tests, nil
+}
+
+// GetRecentRiskScoresForSampling returns recent risk score records usable as rule-test samples.
+func (cr *CheatRepository) GetRecentRiskScoresForSampling(limit int) ([]database.CheatRiskScore, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	var scores []database.CheatRiskScore
+	if err := cr.db.Order("detection_time DESC, id DESC").Limit(limit).Find(&scores).Error; err != nil {
+		return nil, err
+	}
+	return scores, nil
+}
+
+// ===== Player risk profile (new-player protection + risk decay inputs) =====
+
+// PlayerRiskProfile summarizes the data needed to drive the optimization features
+// for one player at detection time.
+type PlayerRiskProfile struct {
+	TotalGames                int
+	AccountAgeDays            int
+	HistoricalRisk            float64
+	NormalGamesSinceViolation int
+	LastViolationAt           *time.Time
+}
+
+// GetPlayerRiskProfile builds the optimization profile for a player. It excludes
+// confirmed-sanction/ban records from the decaying historical risk (only
+// un-escalated risk decays) and counts normal games since the last violation.
+func (cr *CheatRepository) GetPlayerRiskProfile(playerUID uint) (*PlayerRiskProfile, error) {
+	profile := &PlayerRiskProfile{}
+
+	// Account age + total games from the user/game-history tables.
+	if cr.db.Migrator().HasTable(&database.User{}) {
+		var user database.User
+		if err := cr.db.Select("created_at").First(&user, playerUID).Error; err == nil {
+			if !user.CreatedAt.IsZero() {
+				profile.AccountAgeDays = int(time.Since(user.CreatedAt).Hours() / 24)
+			}
+		}
+	}
+
+	// Find the most recent confirmed violation (a sanction that was applied, i.e.
+	// escalated). Confirmed records do not decay and anchor the time floor.
+	if cr.db.Migrator().HasTable(&database.CheatSanction{}) {
+		var sanction database.CheatSanction
+		err := cr.db.Where("player_uid = ? AND sanction_type IN ?", playerUID, []string{"mute", "ban"}).
+			Order("applied_at DESC, id DESC").First(&sanction).Error
+		if err == nil {
+			t := sanction.AppliedAt
+			profile.LastViolationAt = &t
+		}
+	}
+
+	// Sum un-escalated historical risk: risk scores that never became an active
+	// mute/ban sanction. We approximate by summing risk from scores whose
+	// punishment_decision is observe/warning/none (not mute/ban).
+	if cr.db.Migrator().HasTable(&database.CheatRiskScore{}) {
+		var scores []database.CheatRiskScore
+		q := cr.db.Where("player_uid = ?", playerUID).
+			Where("punishment_decision NOT IN ?", []string{"mute", "ban"}).
+			Order("detection_time DESC, id DESC").Limit(50)
+		if err := q.Find(&scores).Error; err == nil {
+			var maxRisk float64
+			for _, s := range scores {
+				if s.RiskScore > maxRisk {
+					maxRisk = s.RiskScore
+				}
+			}
+			profile.HistoricalRisk = maxRisk
+		}
+
+		// Count normal games (risk below observe threshold) since the last violation.
+		since := time.Time{}
+		if profile.LastViolationAt != nil {
+			since = *profile.LastViolationAt
+		}
+		var normalCount int64
+		nq := cr.db.Model(&database.CheatRiskScore{}).
+			Where("player_uid = ? AND punishment_decision IN ?", playerUID, []string{"none", "observe"})
+		if !since.IsZero() {
+			nq = nq.Where("detection_time > ?", since)
+		}
+		if err := nq.Count(&normalCount).Error; err == nil {
+			profile.NormalGamesSinceViolation = int(normalCount)
+		}
+	}
+
+	return profile, nil
+}
+
+// GetPlayerRiskProfilesMulti returns risk profiles for multiple players in optimized batch queries.
+// Returns a map of playerUID -> profile.
+func (cr *CheatRepository) GetPlayerRiskProfilesMulti(playerUIDs []uint) (map[uint]*PlayerRiskProfile, error) {
+	result := make(map[uint]*PlayerRiskProfile)
+
+	if len(playerUIDs) == 0 {
+		return result, nil
+	}
+
+	// Initialize profiles
+	for _, uid := range playerUIDs {
+		result[uid] = &PlayerRiskProfile{}
+	}
+
+	// Batch: Account age from users table
+	if cr.db.Migrator().HasTable(&database.User{}) {
+		var users []database.User
+		if err := cr.db.Select("uid, created_at").Where("uid IN ?", playerUIDs).Find(&users).Error; err == nil {
+			for _, user := range users {
+				if profile, ok := result[user.UID]; ok && !user.CreatedAt.IsZero() {
+					profile.AccountAgeDays = int(time.Since(user.CreatedAt).Hours() / 24)
+				}
+			}
+		}
+	}
+
+	// Batch: Most recent violations
+	if cr.db.Migrator().HasTable(&database.CheatSanction{}) {
+		var sanctions []database.CheatSanction
+		// Get the most recent mute/ban for each player
+		subquery := cr.db.Table("cheat_sanctions").
+			Select("player_uid, MAX(id) as max_id").
+			Where("player_uid IN ? AND sanction_type IN ?", playerUIDs, []string{"mute", "ban"}).
+			Group("player_uid")
+
+		if err := cr.db.Table("cheat_sanctions").
+			Joins("INNER JOIN (?) as latest ON cheat_sanctions.id = latest.max_id", subquery).
+			Find(&sanctions).Error; err == nil {
+			for _, sanction := range sanctions {
+				if profile, ok := result[sanction.PlayerUID]; ok {
+					t := sanction.AppliedAt
+					profile.LastViolationAt = &t
+				}
+			}
+		}
+	}
+
+	// Batch: Historical risk scores
+	if cr.db.Migrator().HasTable(&database.CheatRiskScore{}) {
+		// Get max risk score for each player (non-escalated only)
+		type MaxRisk struct {
+			PlayerUID uint
+			MaxScore  float64
+		}
+		var maxRisks []MaxRisk
+		if err := cr.db.Table("cheat_risk_scores").
+			Select("player_uid, MAX(risk_score) as max_score").
+			Where("player_uid IN ? AND punishment_decision NOT IN ?", playerUIDs, []string{"mute", "ban"}).
+			Group("player_uid").
+			Scan(&maxRisks).Error; err == nil {
+			for _, mr := range maxRisks {
+				if profile, ok := result[mr.PlayerUID]; ok {
+					profile.HistoricalRisk = mr.MaxScore
+				}
+			}
+		}
+
+		// Batch: Count normal games since violation for each player
+		for uid, profile := range result {
+			since := time.Time{}
+			if profile.LastViolationAt != nil {
+				since = *profile.LastViolationAt
+			}
+
+			var normalCount int64
+			nq := cr.db.Model(&database.CheatRiskScore{}).
+				Where("player_uid = ? AND punishment_decision IN ?", uid, []string{"none", "observe"})
+			if !since.IsZero() {
+				nq = nq.Where("detection_time > ?", since)
+			}
+			if err := nq.Count(&normalCount).Error; err == nil {
+				profile.NormalGamesSinceViolation = int(normalCount)
+			}
+		}
+	}
+
+	return result, nil
+}
+

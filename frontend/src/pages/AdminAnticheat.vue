@@ -132,6 +132,42 @@ const archiveDetection = (id: number) => {
   archivedIds.value = new Set([...archivedIds.value, id])
 }
 
+// ==================== 批量处置 ====================
+const selectedDetectionIds = ref<Set<number | string>>(new Set())
+const batchReviewLoading = ref(false)
+
+const toggleDetectionSelected = (id: number | string) => {
+  const next = new Set(selectedDetectionIds.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  selectedDetectionIds.value = next
+}
+
+const clearDetectionSelection = () => {
+  selectedDetectionIds.value = new Set()
+}
+
+const batchReviewSelected = async () => {
+  const ids = Array.from(selectedDetectionIds.value)
+  if (ids.length === 0) return
+  batchReviewLoading.value = true
+  try {
+    const res = await adminAPI.batchReviewDetections({ ids, decision: 'confirm', remark: '批量处置' })
+    const data = res.data || {}
+    showAlert(`批量处置完成：成功 ${data.success ?? 0} 条，失败 ${data.failed ?? 0} 条`, '完成')
+    // Archive successfully processed entries and refresh.
+    for (const item of (data.results || [])) {
+      if (item.success) archiveDetection(Number(item.id))
+    }
+    clearDetectionSelection()
+    await loadDetections()
+  } catch (error: any) {
+    showAlert(error.response?.data?.error || '批量处置失败', '错误')
+  } finally {
+    batchReviewLoading.value = false
+  }
+}
+
 const filteredDetections = computed(() => {
   let items = detectionList.value
   if (!showArchived.value) {
@@ -590,6 +626,26 @@ const saveConfig = async () => {
   }
 }
 
+// ==================== 规则离线测试（沙盒） ====================
+const ruleTestLoading = ref(false)
+const ruleTestResult = ref<any>(null)
+const ruleTestSampleLimit = ref(100)
+
+const runRuleTest = async () => {
+  ruleTestLoading.value = true
+  ruleTestResult.value = null
+  try {
+    // 使用当前正在编辑的草拟配置（若无则后端回退到线上配置）。
+    const draft = tempConfig.value ? JSON.parse(JSON.stringify(tempConfig.value)) : undefined
+    const res = await adminAPI.runRuleTest({ draft, sample_limit: ruleTestSampleLimit.value, note: 'admin panel rule test' })
+    ruleTestResult.value = res.data?.result || null
+  } catch (error: any) {
+    showAlert(error.response?.data?.error || '规则测试失败', '错误')
+  } finally {
+    ruleTestLoading.value = false
+  }
+}
+
 // ==================== 审计日志 ====================
 const auditLogs = ref<any[]>([])
 const auditSearchTerm = ref('')
@@ -836,6 +892,19 @@ const translateEventType = (type: string) => {
           </div>
         </div>
 
+        <!-- 批量处置操作栏 -->
+        <div v-if="selectedDetectionIds.size > 0" class="flex flex-wrap items-center gap-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 dark:border-sky-500/30 dark:bg-sky-500/10">
+          <span class="text-sm font-black text-sky-700 dark:text-sky-300">已选 {{ selectedDetectionIds.size }} 条</span>
+          <button
+            :disabled="batchReviewLoading"
+            class="inline-flex items-center gap-1.5 rounded-lg bg-sky-600 px-3 py-1.5 text-xs font-black text-white hover:bg-sky-500 disabled:opacity-50"
+            @click="batchReviewSelected"
+          >
+            <ListChecks class="h-3.5 w-3.5" /> {{ batchReviewLoading ? '处理中…' : '批量标记已处理' }}
+          </button>
+          <button class="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold hover:bg-white dark:border-white/10 dark:hover:bg-white/5" @click="clearDetectionSelection">取消选择</button>
+        </div>
+
         <!-- 搜索与筛选 -->
         <div class="flex flex-wrap items-center gap-3">
           <div class="flex-1 flex items-center gap-2 h-10 rounded-lg border border-slate-200 bg-white px-3 focus-within:border-sky-400 dark:border-white/10 dark:bg-[#111318]">
@@ -923,6 +992,12 @@ const translateEventType = (type: string) => {
                     :key="detection.id"
                     class="flex flex-wrap items-center gap-2 px-4 py-2.5 pl-16 border-t border-slate-100 dark:border-white/5 hover:bg-slate-100/50 dark:hover:bg-white/5 transition-colors"
                   >
+                    <input
+                      type="checkbox"
+                      class="h-4 w-4 flex-shrink-0 accent-sky-600"
+                      :checked="selectedDetectionIds.has(detection.id)"
+                      @click.stop="toggleDetectionSelected(detection.id)"
+                    />
                     <div class="flex items-center gap-2 min-w-0 flex-1 flex-wrap">
                       <span :class="['inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-black whitespace-nowrap', getRiskBg(detection.risk_score)]">
                         {{ detection.risk_score.toFixed(0) }} · {{ getRiskLevel(detection.risk_score) }}
@@ -1111,12 +1186,78 @@ const translateEventType = (type: string) => {
               <label class="block text-sm font-bold text-slate-500">补偿金额（燃素）: <input v-model.number="tempConfig.unban.compensation_amount" type="number" min="0" step="1" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-sky-400 dark:border-white/10 dark:bg-black/20" /></label>
               <label class="block text-sm font-bold text-slate-500">默认补偿文案: <textarea v-model="tempConfig.unban.default_message" rows="4" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-sky-400 dark:border-white/10 dark:bg-black/20 resize-none"></textarea></label>
             </div>
+
+            <!-- 优化特性开关（默认关闭，灰度启用） -->
+            <div v-if="tempConfig.optimization" class="space-y-4 md:col-span-2">
+              <h4 class="font-bold border-b border-slate-100 pb-2 dark:border-white/10">优化特性（灰度，默认关闭）</h4>
+              <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div class="rounded-lg border border-slate-200 p-3 dark:border-white/10">
+                  <label class="flex items-center gap-2 text-sm font-black"><input v-model="tempConfig.optimization.adaptive_threshold.enabled" type="checkbox" class="h-4 w-4 accent-sky-600" /> 自适应阈值</label>
+                  <label class="mt-2 block text-xs font-bold text-slate-500">个人基线权重: <input v-model.number="tempConfig.optimization.adaptive_threshold.personal_weight" type="number" step="0.05" min="0" max="1" class="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 outline-none focus:border-sky-400 dark:border-white/10 dark:bg-black/20" /></label>
+                  <label class="mt-2 block text-xs font-bold text-slate-500">全局超人阈值(z): <input v-model.number="tempConfig.optimization.adaptive_threshold.global_superhuman_z" type="number" step="0.5" min="0" class="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 outline-none focus:border-sky-400 dark:border-white/10 dark:bg-black/20" /></label>
+                </div>
+                <div class="rounded-lg border border-slate-200 p-3 dark:border-white/10">
+                  <label class="flex items-center gap-2 text-sm font-black"><input v-model="tempConfig.optimization.zscore.enabled" type="checkbox" class="h-4 w-4 accent-sky-600" /> Z分数异常检测</label>
+                  <label class="mt-2 block text-xs font-bold text-slate-500">触发阈值(z): <input v-model.number="tempConfig.optimization.zscore.threshold" type="number" step="0.5" min="0" class="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 outline-none focus:border-sky-400 dark:border-white/10 dark:bg-black/20" /></label>
+                  <label class="mt-2 block text-xs font-bold text-slate-500">权重: <input v-model.number="tempConfig.optimization.zscore.weight" type="number" step="0.05" min="0" class="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 outline-none focus:border-sky-400 dark:border-white/10 dark:bg-black/20" /></label>
+                </div>
+                <div class="rounded-lg border border-slate-200 p-3 dark:border-white/10">
+                  <label class="flex items-center gap-2 text-sm font-black"><input v-model="tempConfig.optimization.new_player.enabled" type="checkbox" class="h-4 w-4 accent-sky-600" /> 新玩家保护</label>
+                  <label class="mt-2 block text-xs font-bold text-slate-500">最少对局数: <input v-model.number="tempConfig.optimization.new_player.min_games" type="number" min="0" class="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 outline-none focus:border-sky-400 dark:border-white/10 dark:bg-black/20" /></label>
+                  <label class="mt-2 block text-xs font-bold text-slate-500">放宽系数(&lt;1): <input v-model.number="tempConfig.optimization.new_player.relaxation_factor" type="number" step="0.05" min="0" max="1" class="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 outline-none focus:border-sky-400 dark:border-white/10 dark:bg-black/20" /></label>
+                </div>
+                <div class="rounded-lg border border-slate-200 p-3 dark:border-white/10">
+                  <label class="flex items-center gap-2 text-sm font-black"><input v-model="tempConfig.optimization.risk_decay.enabled" type="checkbox" class="h-4 w-4 accent-sky-600" /> 风险时间衰减</label>
+                  <label class="mt-2 block text-xs font-bold text-slate-500">衰减因子(0-1): <input v-model.number="tempConfig.optimization.risk_decay.decay_factor" type="number" step="0.05" min="0" max="1" class="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 outline-none focus:border-sky-400 dark:border-white/10 dark:bg-black/20" /></label>
+                  <label class="mt-2 block text-xs font-bold text-slate-500">时间下限(小时): <input v-model.number="tempConfig.optimization.risk_decay.min_floor_hours" type="number" min="0" class="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 outline-none focus:border-sky-400 dark:border-white/10 dark:bg-black/20" /></label>
+                </div>
+              </div>
+            </div>
           </div>
           <div class="mt-6 flex gap-3 justify-end">
             <button class="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-4 py-2 text-sm font-black text-white hover:bg-sky-500" @click="saveConfig">
               <Save class="h-4 w-4" /> 保存配置
             </button>
             <button class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-bold hover:bg-slate-50 dark:border-white/10 dark:hover:bg-white/5" @click="cancelEditConfig">取消</button>
+          </div>
+        </div>
+
+        <!-- ======================== 检测规则离线测试 ======================== -->
+        <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-[#111318]">
+          <div class="flex items-center gap-2 mb-3">
+            <ListChecks class="h-4 w-4 text-slate-400" />
+            <span class="text-xs font-black text-slate-500 uppercase tracking-widest">规则离线测试（沙盒）</span>
+          </div>
+          <p class="text-xs text-slate-500 mb-3">用当前{{ editingConfig && tempConfig ? '草拟' : '线上' }}配置对历史检测样本重跑评分，预估命中分布与等级变化。该测试在隔离环境运行，不影响线上玩家、风险或封禁状态。</p>
+          <div class="flex flex-wrap items-center gap-3">
+            <label class="text-sm font-bold text-slate-500">样本数: <input v-model.number="ruleTestSampleLimit" type="number" min="1" max="500" class="ml-1 w-24 rounded-lg border border-slate-200 px-2 py-1.5 outline-none focus:border-sky-400 dark:border-white/10 dark:bg-black/20" /></label>
+            <button
+              :disabled="ruleTestLoading"
+              class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-black text-white hover:bg-indigo-500 disabled:opacity-50"
+              @click="runRuleTest"
+            >
+              <RefreshCw class="h-4 w-4" /> {{ ruleTestLoading ? '测试中…' : '运行规则测试' }}
+            </button>
+          </div>
+
+          <div v-if="ruleTestResult" class="mt-4 space-y-3">
+            <div class="flex flex-wrap gap-3 text-sm">
+              <span class="rounded-lg bg-slate-100 px-3 py-1.5 font-bold dark:bg-white/5">样本数: {{ ruleTestResult.sample_count }}</span>
+              <span class="rounded-lg bg-rose-50 px-3 py-1.5 font-bold text-rose-600 dark:bg-rose-500/10 dark:text-rose-300">升级: {{ ruleTestResult.escalations }}</span>
+              <span class="rounded-lg bg-emerald-50 px-3 py-1.5 font-bold text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300">降级: {{ ruleTestResult.deescalations }}</span>
+            </div>
+            <div>
+              <span class="block text-xs font-black text-slate-500 uppercase tracking-widest mb-1">命中分布（草拟配置）</span>
+              <div class="flex flex-wrap gap-2 text-xs">
+                <span v-for="(count, tier) in ruleTestResult.hit_distribution" :key="tier" class="rounded-full bg-slate-100 px-2.5 py-1 font-bold dark:bg-white/5">{{ tier }}: {{ count }}</span>
+              </div>
+            </div>
+            <div v-if="ruleTestResult.tier_change_counts && Object.keys(ruleTestResult.tier_change_counts).length">
+              <span class="block text-xs font-black text-slate-500 uppercase tracking-widest mb-1">等级变化（线上→草拟）</span>
+              <div class="flex flex-wrap gap-2 text-xs">
+                <span v-for="(count, change) in ruleTestResult.tier_change_counts" :key="change" class="rounded-full bg-amber-50 px-2.5 py-1 font-bold text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">{{ change }}: {{ count }}</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1250,6 +1391,9 @@ const translateEventType = (type: string) => {
               <div class="min-w-0"><span class="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">建议处置</span><span :class="['inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-black', getSanctionBadge(selectedDetection.suggested_action).color]">{{ getSanctionBadge(selectedDetection.suggested_action).label }}</span></div>
               <div class="min-w-0"><span class="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">回放ID</span><span class="font-bold truncate block">{{ selectedDetection.replay_id || '未记录' }}</span></div>
               <div class="min-w-0"><span class="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">检测时间</span><span class="font-bold truncate block">{{ formatTime(selectedDetection.operation_timestamp) }}</span></div>
+              <div v-if="selectedDetection.threshold_source" class="min-w-0"><span class="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">阈值来源</span><span class="font-bold truncate block">{{ selectedDetection.threshold_source === 'personal' ? '个人基线' : selectedDetection.threshold_source === 'global' ? '全局基线' : selectedDetection.threshold_source }}</span></div>
+              <div v-if="selectedDetection.decay_factor != null" class="min-w-0"><span class="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">历史衰减因子</span><span class="font-bold truncate block">{{ Number(selectedDetection.decay_factor).toFixed(3) }}</span></div>
+              <div v-if="selectedDetection.new_player_observe" class="min-w-0 col-span-2"><span class="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">新手观察期（自动封禁已抑制，转人工复核）</span></div>
             </div>
 
             <!-- 回放证据 -->

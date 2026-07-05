@@ -91,6 +91,22 @@ func UpdateConfig(c *gin.Context) {
 	globalAnticheatHandler.UpdateConfig(c)
 }
 
+func RunRuleTest(c *gin.Context) {
+	if globalAnticheatHandler == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "anticheat handler not initialized"})
+		return
+	}
+	globalAnticheatHandler.RunRuleTest(c)
+}
+
+func BatchReviewDetections(c *gin.Context) {
+	if globalAnticheatHandler == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "anticheat handler not initialized"})
+		return
+	}
+	globalAnticheatHandler.BatchReviewDetections(c)
+}
+
 func GetDetectionList(c *gin.Context) {
 	if globalAnticheatHandler == nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "anticheat handler not initialized"})
@@ -314,6 +330,7 @@ func buildAdminConfigResponse(config *anticheat.RiskScoringConfig) gin.H {
 		"enabled_strategies":  config.EnabledStrategies,
 		"unban":               config.UnbanConfig,
 		"unban_config":        config.UnbanConfig,
+		"optimization":        config.Optimization,
 		"sanctions": gin.H{
 			"observe": thresholds.ObserveMin,
 			"warning": thresholds.WarningMin,
@@ -750,6 +767,11 @@ func detectionDTO(score database.CheatRiskScore, sanction *database.CheatSanctio
 		"sanction_status":          sanctionStatus,
 		"sanction_reason":          sanctionReason,
 		"sanction_effective_until": sanctionUntil,
+		"threshold_source":         score.ThresholdSource,
+		"baseline_snapshot":        jsonRawOrNil(score.BaselineSnapshot),
+		"decay_factor":             score.DecayFactor,
+		"effective_weights":        jsonRawOrNil(score.EffectiveWeights),
+		"new_player_observe":       score.NewPlayerObserve,
 		"detection_time":           score.DetectionTime,
 		"created_at":               firstNonZeroTime(score.DetectionTime, score.CreatedAt),
 		"source":                   "risk_score",
@@ -1615,6 +1637,7 @@ func (h *AnticheatHandler) UpdateConfig(c *gin.Context) {
 		Unban              *anticheat.UnbanConfig               `json:"unban"`
 		UnbanConfig        *anticheat.UnbanConfig               `json:"unban_config"`
 		Sanctions          map[string]float64                   `json:"sanctions"`
+		Optimization       *anticheat.OptimizationConfig        `json:"optimization"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -1626,6 +1649,7 @@ func (h *AnticheatHandler) UpdateConfig(c *gin.Context) {
 		SanctionThresholds: current.SanctionThresholds,
 		EnabledStrategies:  current.EnabledStrategies,
 		UnbanConfig:        current.UnbanConfig,
+		Optimization:       current.Optimization,
 	}
 	if req.Dimensions != nil {
 		next.Dimensions = req.Dimensions
@@ -1655,6 +1679,9 @@ func (h *AnticheatHandler) UpdateConfig(c *gin.Context) {
 	} else if req.UnbanConfig != nil {
 		next.UnbanConfig = *req.UnbanConfig
 	}
+	if req.Optimization != nil {
+		next.Optimization = *req.Optimization
+	}
 
 	if err := h.acSystem.Config.ReplaceConfig(next); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -1682,6 +1709,117 @@ func (h *AnticheatHandler) UpdateConfig(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Configuration updated",
 		"config":  buildAdminConfigResponse(h.acSystem.Config.GetConfig()),
+	})
+}
+
+// RunRuleTest 在隔离沙盒中用草拟配置测试检测规则，不影响线上玩家状态。
+func (h *AnticheatHandler) RunRuleTest(c *gin.Context) {
+	var req struct {
+		Draft       *anticheat.RiskScoringConfig `json:"draft"`
+		SampleLimit int                          `json:"sample_limit"`
+		Note        string                       `json:"note"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	draft := req.Draft
+	if draft == nil {
+		// Default to the live config when no draft is supplied (baseline run).
+		draft = h.acSystem.Config.GetConfig()
+	}
+	limit := req.SampleLimit
+	if limit <= 0 {
+		limit = 100
+	}
+
+	result, err := h.acSystem.RunRuleTest(draft, nil, limit, getOperatorUID(c), req.Note)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Rule test completed",
+		"result":  result,
+	})
+}
+
+// BatchReviewDetections 批量处置检测：对所选检测逐条应用复核动作，逐条返回成功/失败，
+// 每条写独立审计日志并保留各自的证据链。
+func (h *AnticheatHandler) BatchReviewDetections(c *gin.Context) {
+	var req struct {
+		IDs      []uint `json:"ids"`
+		Decision string `json:"decision"` // "confirm"
+		Remark   string `json:"remark"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if len(req.IDs) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "no detection ids provided"})
+		return
+	}
+	decision := strings.TrimSpace(req.Decision)
+	if decision == "" {
+		decision = "confirm"
+	}
+	if decision == "override" || decision == "overturn" || decision == "none" || decision == "cancel" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "processed punishment cannot be cancelled here"})
+		return
+	}
+	remark := firstNonEmpty(req.Remark, "Batch detection review")
+
+	results := make([]gin.H, 0, len(req.IDs))
+	successCount := 0
+	for _, id := range req.IDs {
+		score, err := h.acSystem.Repository.GetRiskScoreByID(id)
+		if err != nil {
+			results = append(results, gin.H{"id": id, "success": false, "error": "detection not found"})
+			continue
+		}
+		punishmentDecision := punishmentDecisionForScore(*score, "observe")
+		if err := h.acSystem.Repository.UpdateRiskScoreReview(id, "processed", punishmentDecision); err != nil {
+			results = append(results, gin.H{"id": id, "success": false, "error": err.Error()})
+			continue
+		}
+		details, _ := json.Marshal(gin.H{
+			"source":              "admin_anticheat_panel_batch",
+			"decision":            decision,
+			"punishment_decision": punishmentDecision,
+		})
+		audit := &database.CheatAuditLog{
+			EventType:       "review",
+			RoomID:          score.RoomID,
+			PlayerUID:       score.PlayerUID,
+			OperatorUID:     getOperatorUID(c),
+			RiskScoreID:     &score.ID,
+			RiskScore:       &score.RiskScore,
+			ReplayID:        score.ReplayID,
+			GameHistoryID:   score.GameHistoryID,
+			PrimaryEvidence: score.PrimaryEvidence, // preserve evidence chain per entry
+			SuggestedAction: score.SuggestedAction,
+			OldStatus:       firstNonEmpty(score.ReviewStatus, "pending"),
+			NewStatus:       "processed",
+			NewDecision:     punishmentDecision,
+			Details:         details,
+			Remark:          remark,
+		}
+		if err := h.acSystem.Repository.SaveAuditLog(audit); err != nil {
+			log.Printf("Failed to write batch detection review audit log for %d: %v", id, err)
+		}
+		successCount++
+		results = append(results, gin.H{"id": id, "success": true, "status": "processed", "punishment_decision": punishmentDecision})
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Batch review completed",
+		"total":   len(req.IDs),
+		"success": successCount,
+		"failed":  len(req.IDs) - successCount,
+		"results": results,
 	})
 }
 

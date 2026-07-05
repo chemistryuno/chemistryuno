@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"gorm.io/gorm"
@@ -22,8 +23,50 @@ func NewGameRepository() *GameRepository {
 
 // Create 创建游戏历史记录
 func (r *GameRepository) Create(history *database.GameHistory) error {
-	return r.db.Create(history).Error
+	if err := r.db.Create(history).Error; err != nil {
+		return err
+	}
+
+	// Asynchronously populate player index for optimized queries
+	go func() {
+		var players []int
+		if err := json.Unmarshal([]byte(history.Players), &players); err == nil {
+			_ = r.PopulatePlayerIndex(history.ID, players)
+		}
+	}()
+
+	return nil
 }
+
+
+// PopulatePlayerIndex 填充游戏历史玩家索引表（异步调用）
+func (r *GameRepository) PopulatePlayerIndex(gameHistoryID uint, players []int) error {
+	// Check if junction table exists
+	if !r.db.Migrator().HasTable(&database.GameHistoryPlayer{}) {
+		return nil // Gracefully skip if table doesn't exist yet
+	}
+
+	// Check if already indexed (idempotent)
+	var count int64
+	r.db.Model(&database.GameHistoryPlayer{}).Where("game_history_id = ?", gameHistoryID).Count(&count)
+	if count > 0 {
+		return nil // Already indexed
+	}
+
+	// Insert junction records
+	for _, playerUID := range players {
+		junction := database.GameHistoryPlayer{
+			GameHistoryID: gameHistoryID,
+			PlayerUID:     uint(playerUID),
+		}
+		if err := r.db.Create(&junction).Error; err != nil {
+			return fmt.Errorf("failed to create junction for game %d, player %d: %v", gameHistoryID, playerUID, err)
+		}
+	}
+
+	return nil
+}
+
 
 // FindByRoomID 根据房间ID查找游戏历史
 func (r *GameRepository) FindByRoomID(roomID string) ([]database.GameHistory, error) {
@@ -36,6 +79,12 @@ func (r *GameRepository) FindByRoomID(roomID string) ([]database.GameHistory, er
 
 // FindByUserUID 查找用户的游戏历史
 func (r *GameRepository) FindByUserUID(uid uint) ([]database.GameHistory, error) {
+	// Check if optimized queries are enabled
+	if os.Getenv("USE_OPTIMIZED_HISTORY_QUERIES") == "true" || os.Getenv("USE_OPTIMIZED_HISTORY_QUERIES") == "1" {
+		return r.FindByUserUIDOptimized(uid)
+	}
+
+	// Original logic (backward compatible)
 	var histories []database.GameHistory
 	idStr := fmt.Sprintf("%d", uid)
 
@@ -70,6 +119,55 @@ func (r *GameRepository) FindByUserUID(uid uint) ([]database.GameHistory, error)
 
 	return result, nil
 }
+
+// FindByUserUIDOptimized 使用优化的查询策略查找用户游戏历史
+// 优先使用junction表，回退到JSON查询，最后使用LIKE模式
+func (r *GameRepository) FindByUserUIDOptimized(uid uint) ([]database.GameHistory, error) {
+	var histories []database.GameHistory
+
+	// Strategy 1: Try junction table first (fastest)
+	if r.db.Migrator().HasTable(&database.GameHistoryPlayer{}) {
+		var junctions []database.GameHistoryPlayer
+		err := r.db.Where("player_uid = ?", uid).
+			Order("created_at DESC").
+			Limit(50).
+			Find(&junctions).Error
+
+		if err == nil && len(junctions) > 0 {
+			// Get game history IDs
+			gameIDs := make([]uint, len(junctions))
+			for i, j := range junctions {
+				gameIDs[i] = j.GameHistoryID
+			}
+
+			// Fetch game histories
+			err = r.db.Where("id IN ?", gameIDs).
+				Order("created_at DESC").
+				Find(&histories).Error
+			if err == nil {
+				return histories, nil
+			}
+		}
+	}
+
+	// Strategy 2: MySQL JSON_CONTAINS (if available)
+	if r.db.Dialector.Name() == "mysql" {
+		// Try JSON_CONTAINS for MySQL 8.0+
+		err := r.db.Where("JSON_CONTAINS(players, ?)", fmt.Sprintf("%d", uid)).
+			Order("created_at DESC").
+			Limit(50).
+			Find(&histories).Error
+
+		if err == nil {
+			return histories, nil
+		}
+		// If JSON_CONTAINS fails (older MySQL), fall through to LIKE
+	}
+
+	// Strategy 3: SQLite/fallback - use optimized LIKE with post-filtering
+	return r.FindByUserUID(uid)
+}
+
 
 // FindAll 查找所有游戏历史（管理员）
 func (r *GameRepository) FindAll(limit int) ([]database.GameHistory, error) {

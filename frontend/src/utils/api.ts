@@ -531,6 +531,12 @@ export const adminAPI = {
     api.get('/admin/anticheat/config'),
   updateAnticheatConfig: (config: any) =>
     api.post('/admin/anticheat/config', config),
+  // 检测规则离线测试（隔离沙盒，不影响线上状态）
+  runRuleTest: (data: { draft?: any; sample_limit?: number; note?: string }) =>
+    api.post('/admin/anticheat/rule-test', data),
+  // 批量处置检测
+  batchReviewDetections: (data: { ids: Array<string | number>; decision?: string; remark?: string }) =>
+    api.post('/admin/anticheat/detection/batch-review', data),
 
   // 审计日志
   getAuditLog: (params?: { page?: number; limit?: number; player_id?: string; start_date?: string; end_date?: string }) =>

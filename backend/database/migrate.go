@@ -38,6 +38,7 @@ func autoMigrate() error {
 		&Feedback{},
 		&DeckConfig{},
 		&GameHistory{},
+		&GameHistoryPlayer{},
 		&Bounty{},
 		&Announcement{},
 		&SystemConfig{},
@@ -102,6 +103,11 @@ func autoMigrate() error {
 	// 添加性能优化索引
 	if err := AddPerformanceIndexes(DB); err != nil {
 		log.Printf("⚠️  性能索引添加失败: %v", err)
+	}
+
+	// 迁移游戏历史性能优化索引和junction表
+	if err := MigrateGameHistoryIndexes(DB); err != nil {
+		log.Printf("⚠️  游戏历史索引迁移失败: %v", err)
 	}
 
 	log.Println("✅ 数据库迁移完成")

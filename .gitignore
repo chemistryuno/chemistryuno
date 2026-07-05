@@ -45,6 +45,7 @@ yarn-error.log*
 .env.local
 .env.development.local
 .env.test.local
+.env.production
 .env.production.local
 
 # TypeScript
@@ -57,18 +58,21 @@ yarn-error.log*
 tmpclaude-*
 *.go.txt
 bin/
-android/
+/android/
 *.db-wal
 .gocache/
 demo/
 __pycache__/
 chemistryuno.db-shm
 tmp/
+.codegraph/
+dump.rdb
 
 # Frontend local artifacts
 frontend/dev.log
 frontend/.vite/
 frontend/.capacitor/
+frontend/android
 coverage/
 
 # openspec

@@ -105,6 +105,7 @@ func (cm *ConfigManager) GetConfig() *RiskScoringConfig {
 		SanctionThresholds: cm.config.SanctionThresholds,
 		EnabledStrategies:  make([]string, len(cm.config.EnabledStrategies)),
 		UnbanConfig:        cm.config.UnbanConfig,
+		Optimization:       cm.config.Optimization,
 	}
 
 	for k, v := range cm.config.Dimensions {
@@ -171,6 +172,7 @@ func (cm *ConfigManager) ReplaceConfig(config *RiskScoringConfig) error {
 		SanctionThresholds: config.SanctionThresholds,
 		EnabledStrategies:  make([]string, len(config.EnabledStrategies)),
 		UnbanConfig:        config.UnbanConfig,
+		Optimization:       config.Optimization,
 	}
 	for k, v := range config.Dimensions {
 		configCopy.Dimensions[k] = v
@@ -210,6 +212,43 @@ func ValidateConfig(config *RiskScoringConfig) error {
 		unban.CompensationAmount < unban.MinAmount || unban.CompensationAmount > unban.MaxAmount ||
 		unban.MessageMaxLength <= 0 || len(unban.DefaultMessage) > unban.MessageMaxLength ||
 		unban.IdempotencyTTL <= 0 {
+		return ErrInvalidConfig
+	}
+
+	if err := validateOptimizationConfig(config.Optimization); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// validateOptimizationConfig checks ranges for the optimization feature toggles.
+// Validation runs regardless of enable flags so that disabled-but-misconfigured
+// values are caught before a later enable.
+func validateOptimizationConfig(opt OptimizationConfig) error {
+	at := opt.AdaptiveThreshold
+	if at.BaselineWindow < 0 || at.MinSamples < 0 ||
+		at.PersonalWeight < 0 || at.PersonalWeight > 1 ||
+		at.GlobalSuperhumanZ < 0 || at.ContributionWeight < 0 {
+		return ErrInvalidConfig
+	}
+	if at.BaselineWindowKind != "" && at.BaselineWindowKind != "count" && at.BaselineWindowKind != "time" {
+		return ErrInvalidConfig
+	}
+
+	zs := opt.ZScore
+	if zs.Threshold < 0 || zs.Weight < 0 {
+		return ErrInvalidConfig
+	}
+
+	np := opt.NewPlayer
+	if np.MinGames < 0 || np.MinAgeDays < 0 ||
+		np.RelaxationFactor < 0 || np.RelaxationFactor > 1 {
+		return ErrInvalidConfig
+	}
+
+	rd := opt.RiskDecay
+	if rd.DecayFactor < 0 || rd.DecayFactor > 1 || rd.MinFloorHours < 0 {
 		return ErrInvalidConfig
 	}
 
@@ -306,6 +345,7 @@ func (cm *ConfigManager) notifyWatchers() {
 		SanctionThresholds: cm.config.SanctionThresholds,
 		EnabledStrategies:  make([]string, len(cm.config.EnabledStrategies)),
 		UnbanConfig:        cm.config.UnbanConfig,
+		Optimization:       cm.config.Optimization,
 	}
 
 	for k, v := range cm.config.Dimensions {

@@ -16,6 +16,8 @@ func MigrateCheatTables(db *gorm.DB) error {
 		&CheatSanction{},
 		&CheatAppeal{},
 		&CheatAuditLog{},
+		&PlayerBehaviorBaseline{},
+		&AnticheatRuleTest{},
 	}
 
 	for _, table := range tables {
@@ -100,7 +102,7 @@ func MigrateCheatTables(db *gorm.DB) error {
 	}
 
 	// Auto-migrate to add new evidence, appeal and audit columns if they don't exist.
-	if err := db.Migrator().AutoMigrate(&CheatRiskScore{}, &CheatSanction{}, &CheatAppeal{}, &CheatAuditLog{}); err != nil {
+	if err := db.Migrator().AutoMigrate(&CheatRiskScore{}, &CheatSanction{}, &CheatAppeal{}, &CheatAuditLog{}, &PlayerBehaviorBaseline{}, &AnticheatRuleTest{}); err != nil {
 		log.Printf("Warning: Auto-migration for anticheat evidence columns failed: %v", err)
 	}
 

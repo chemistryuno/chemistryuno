@@ -497,8 +497,15 @@ type CheatRiskScore struct {
 	SuggestionReason   string     `gorm:"type:text" json:"suggestion_reason"`
 	ReviewStatus       string     `gorm:"size:30;index;default:pending" json:"review_status"`
 	PunishmentDecision string     `gorm:"size:30;index;default:none" json:"punishment_decision"`
-	DetectionTime      time.Time  `gorm:"not null;autoCreateTime" json:"detection_time"`
-	CreatedAt          time.Time  `gorm:"autoCreateTime" json:"created_at"`
+	// Optimization fields (nullable, backward compatible). Populated only when the
+	// adaptive-threshold / risk-decay features are enabled for the detection.
+	ThresholdSource  string   `gorm:"size:20;default:''" json:"threshold_source,omitempty"` // "", "personal", "global", "mixed"
+	BaselineSnapshot JSON     `gorm:"type:json" json:"baseline_snapshot,omitempty"`         // per-indicator baseline values used
+	DecayFactor      *float64 `json:"decay_factor,omitempty"`                               // effective historical decay factor applied
+	EffectiveWeights JSON     `gorm:"type:json" json:"effective_weights,omitempty"`         // per-dimension effective weights used
+	NewPlayerObserve bool     `gorm:"default:false" json:"new_player_observe,omitempty"`    // produced during new-player observation period
+	DetectionTime    time.Time `gorm:"not null;autoCreateTime" json:"detection_time"`
+	CreatedAt        time.Time `gorm:"autoCreateTime" json:"created_at"`
 }
 
 func (CheatRiskScore) TableName() string {
@@ -611,4 +618,40 @@ type FuelCompensationRecord struct {
 
 func (FuelCompensationRecord) TableName() string {
 	return "fuel_compensation_records"
+}
+
+// PlayerBehaviorBaseline 玩家行为基线表 - 记录单个玩家某项指标的滚动统计基线。
+// 仅累积非违规对局样本，用于自适应阈值的“个人基线”一侧。
+type PlayerBehaviorBaseline struct {
+	ID            uint      `gorm:"primaryKey;autoIncrement" json:"id"`
+	PlayerUID     uint      `gorm:"not null;uniqueIndex:idx_player_indicator" json:"player_uid"`
+	Indicator     string    `gorm:"not null;size:40;uniqueIndex:idx_player_indicator" json:"indicator"` // e.g. response_time, win_rate
+	Mean          float64   `gorm:"not null;default:0" json:"mean"`
+	Variance      float64   `gorm:"not null;default:0" json:"variance"`
+	SampleCount   int       `gorm:"not null;default:0" json:"sample_count"`
+	WindowSize    int       `gorm:"not null;default:0" json:"window_size"`     // configured window (count or seconds)
+	WindowKind    string    `gorm:"size:10;default:'count'" json:"window_kind"` // "count" or "time"
+	LastSampledAt time.Time `json:"last_sampled_at"`
+	UpdatedAt     time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+	CreatedAt     time.Time `gorm:"autoCreateTime" json:"created_at"`
+}
+
+func (PlayerBehaviorBaseline) TableName() string {
+	return "player_behavior_baselines"
+}
+
+// AnticheatRuleTest 检测规则离线测试记录表 - 保存一次规则沙盒测试的配置快照与结果摘要。
+type AnticheatRuleTest struct {
+	ID             uint      `gorm:"primaryKey;autoIncrement" json:"id"`
+	ConfigSnapshot JSON      `gorm:"type:json" json:"config_snapshot"`  // draft RiskScoringConfig used for the test
+	SampleSet      JSON      `gorm:"type:json" json:"sample_set"`        // sample detection inputs (ids or inline samples)
+	ResultSummary  JSON      `gorm:"type:json" json:"result_summary"`    // hit distribution + tier-change comparison
+	SampleCount    int       `gorm:"not null;default:0" json:"sample_count"`
+	CreatedBy      *uint     `gorm:"index" json:"created_by"`            // admin operator UID
+	Note           string    `gorm:"type:text" json:"note"`
+	CreatedAt      time.Time `gorm:"not null;autoCreateTime;index" json:"created_at"`
+}
+
+func (AnticheatRuleTest) TableName() string {
+	return "anticheat_rule_tests"
 }

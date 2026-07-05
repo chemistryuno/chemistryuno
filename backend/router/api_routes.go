@@ -8,10 +8,14 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // RegisterAPIRoutes centralizes API route wiring and keeps main.go focused on bootstrap lifecycle.
 func RegisterAPIRoutes(r *gin.Engine, startTime time.Time, wsHandler gin.HandlerFunc) {
+	// Apply metrics middleware globally
+	r.Use(middleware.MetricsMiddleware())
+
 	api := r.Group("/api")
 	{
 		api.GET("/ping", func(c *gin.Context) {
@@ -46,6 +50,9 @@ func RegisterAPIRoutes(r *gin.Engine, startTime time.Time, wsHandler gin.Handler
 				"timestamp": time.Now().Unix(),
 			})
 		})
+
+		// Prometheus metrics endpoint
+		r.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
 		api.GET("/version", handlers.GetVersion)
 
@@ -256,6 +263,8 @@ func RegisterAPIRoutes(r *gin.Engine, startTime time.Time, wsHandler gin.Handler
 			admin.GET("/anticheat/stats", middleware.AdminMiddleware(), handlers.GetAnticheatStats)
 			admin.GET("/anticheat/config", middleware.AdminMiddleware(), handlers.GetConfig)
 			admin.POST("/anticheat/config", middleware.AdminMiddleware(), handlers.UpdateConfig)
+			admin.POST("/anticheat/rule-test", middleware.AdminMiddleware(), handlers.RunRuleTest)
+			admin.POST("/anticheat/detection/batch-review", middleware.AdminMiddleware(), handlers.BatchReviewDetections)
 			admin.GET("/anticheat/detection-list", middleware.AdminMiddleware(), handlers.GetDetectionList)
 			admin.GET("/anticheat/detection/:id", middleware.AdminMiddleware(), handlers.GetDetectionDetail)
 			admin.POST("/anticheat/detection/:id/review", middleware.AdminMiddleware(), handlers.ReviewDetection)

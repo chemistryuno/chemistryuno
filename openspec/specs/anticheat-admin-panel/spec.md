@@ -102,3 +102,46 @@ The admin anticheat panel SHALL have automated tests covering detection detail d
 - **THEN** the UI does not treat it as a successful allowed disposal
 - **AND** displays the backend rejection when the API rejects the request
 
+### Requirement: Admin can preview detection evidence inline
+
+The admin anticheat panel SHALL provide an inline evidence preview for a detection's suspicious points without leaving the panel.
+
+#### Scenario: Admin previews suspicious point evidence
+- **WHEN** admin opens a detection detail and selects a suspicious point with an operation-level anchor
+- **THEN** the panel SHALL display an inline preview of the operation context (operation type, player perspective, timestamp, score contribution, explanation)
+- **AND** the panel SHALL still offer the full replay navigation action
+
+#### Scenario: Room-level evidence preview is honest about precision
+- **WHEN** a suspicious point only has a room-level anchor
+- **THEN** the inline preview SHALL indicate that operation-level positioning is unavailable
+- **AND** SHALL NOT fabricate an operation-level preview
+
+### Requirement: Admin can batch-process detections and appeals
+
+The admin anticheat panel SHALL support selecting multiple detection or appeal entries and applying a permitted action to the selection in one operation.
+
+#### Scenario: Admin batch-processes detections
+- **WHEN** admin selects multiple detection entries and applies a permitted disposal action
+- **THEN** the system SHALL apply the action to each selected entry
+- **AND** SHALL report per-entry success or failure
+- **AND** SHALL require a reason where the single-entry flow requires one
+
+#### Scenario: Batch action preserves per-entry audit and evidence
+- **WHEN** a batch action is applied to multiple entries
+- **THEN** the system SHALL record an individual audit log entry per affected detection
+- **AND** SHALL keep each detection's evidence chain attached
+
+### Requirement: Admin can test detection rules offline
+
+The admin anticheat panel SHALL provide a rule-testing function that re-runs a draft or current detection configuration against historical or constructed detection samples in an isolated context without affecting live player state.
+
+#### Scenario: Admin runs a rule test
+- **WHEN** admin submits a draft configuration to the rule-testing function with a set of sample detections
+- **THEN** the system SHALL compute resulting scores and sanction tiers in an isolated context
+- **AND** SHALL display the hit distribution and tier changes compared to the live configuration
+
+#### Scenario: Rule test does not affect live state
+- **WHEN** a rule test executes
+- **THEN** the system SHALL NOT change any player's risk record, sanction, or ban state
+- **AND** SHALL NOT write to the production detection records
+

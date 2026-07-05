@@ -33,6 +33,19 @@ type DetectionContext struct {
 	TotalGames      int           // 总游戏次数
 	AccountAgeDays  int           // 账号年龄(天)
 	OperationTimes  []time.Time   // 操作时间列表
+
+	// Optimization inputs (populated by the System when features are enabled).
+	PersonalBaselines map[string]database.PlayerBehaviorBaseline // 玩家个人基线（指标->基线）
+	GlobalBaselines   map[string]GlobalBaselineStat              // 全局指标分布
+	WinRate           float64                                    // 当前胜率快照(0-1)，用于自适应/Z分数
+	HasWinRate        bool                                       // WinRate 是否有效
+	// New-player protection inputs.
+	IsNewPlayer bool // 是否处于观察期（由 System 依据局数/注册时长判定）
+	// Risk decay inputs.
+	HistoricalRisk            float64    // 待衰减的历史累计风险
+	NormalGamesSinceViolation int        // 自上次违规以来的连续正常对局数
+	LastViolationAt           *time.Time // 上次违规时间（用于时间下限）
+	Now                       time.Time  // 评分参考时间（测试可注入；零值取 time.Now）
 }
 
 // RiskScoringEngine 风险评分引擎
@@ -49,6 +62,49 @@ type RiskScoringConfig struct {
 	SanctionThresholds SanctionThresholds         `json:"sanction_thresholds" yaml:"sanction_thresholds"`
 	EnabledStrategies  []string                   `json:"enabled_strategies" yaml:"enabled_strategies"`
 	UnbanConfig        UnbanConfig                `json:"unban" yaml:"unban"`
+	Optimization       OptimizationConfig         `json:"optimization" yaml:"optimization"`
+}
+
+// OptimizationConfig 反作弊优化特性配置。
+// 所有特性默认关闭，关闭时系统行为与历史保持一致；启用通过各自的 Enabled 开关灰度控制。
+type OptimizationConfig struct {
+	AdaptiveThreshold  AdaptiveThresholdConfig  `json:"adaptive_threshold" yaml:"adaptive_threshold"`
+	ZScore             ZScoreConfig             `json:"zscore" yaml:"zscore"`
+	NewPlayer          NewPlayerConfig          `json:"new_player" yaml:"new_player"`
+	RiskDecay          RiskDecayConfig          `json:"risk_decay" yaml:"risk_decay"`
+}
+
+// AdaptiveThresholdConfig 自适应阈值配置（个人基线 + 全局基线双轨）。
+type AdaptiveThresholdConfig struct {
+	Enabled            bool    `json:"enabled" yaml:"enabled"`
+	BaselineWindow     int     `json:"baseline_window" yaml:"baseline_window"`         // 滚动窗口大小（对局数或秒）
+	BaselineWindowKind string  `json:"baseline_window_kind" yaml:"baseline_window_kind"` // "count" | "time"
+	MinSamples         int     `json:"min_samples" yaml:"min_samples"`                 // 个人基线生效的最小样本数
+	PersonalWeight     float64 `json:"personal_weight" yaml:"personal_weight"`         // 个人基线偏离的组合权重 0-1
+	GlobalSuperhumanZ  float64 `json:"global_superhuman_z" yaml:"global_superhuman_z"` // 全局超人阈值（标准分）
+	ContributionWeight float64 `json:"contribution_weight" yaml:"contribution_weight"` // 自适应偏离接入集成评分的权重
+}
+
+// ZScoreConfig Z分数统计异常检测维度配置。
+type ZScoreConfig struct {
+	Enabled   bool    `json:"enabled" yaml:"enabled"`
+	Threshold float64 `json:"threshold" yaml:"threshold"` // |z| 触发阈值
+	Weight    float64 `json:"weight" yaml:"weight"`       // 接入集成评分的权重
+}
+
+// NewPlayerConfig 新玩家保护配置。
+type NewPlayerConfig struct {
+	Enabled         bool    `json:"enabled" yaml:"enabled"`
+	MinGames        int     `json:"min_games" yaml:"min_games"`               // 退出观察期所需累计有效对局数
+	MinAgeDays      int     `json:"min_age_days" yaml:"min_age_days"`         // 退出观察期所需注册天数
+	RelaxationFactor float64 `json:"relaxation_factor" yaml:"relaxation_factor"` // 观察期风险分放宽系数 (<1)
+}
+
+// RiskDecayConfig 历史风险时间衰减配置。
+type RiskDecayConfig struct {
+	Enabled      bool    `json:"enabled" yaml:"enabled"`
+	DecayFactor  float64 `json:"decay_factor" yaml:"decay_factor"`   // 每个正常对局的指数衰减因子 0-1
+	MinFloorHours int    `json:"min_floor_hours" yaml:"min_floor_hours"` // 衰减时间下限（小时）
 }
 
 // UnbanConfig 解封补偿配置
@@ -97,6 +153,13 @@ type RiskScoringResult struct {
 	PrimaryEvidence    ReplayEvidenceAnchor
 	RelatedEvidence    []ReplayEvidenceAnchor
 	Timestamp          time.Time
+
+	// Optimization outputs (populated only when the respective feature is enabled).
+	ThresholdSource    string                       // 自适应阈值来源 "personal"/"global"/"mixed"
+	AdaptiveDeviations []AdaptiveDeviation           // 自适应偏离明细（含基线溯源）
+	EffectiveWeights   map[string]float64            // 各维度实际生效权重
+	DecayFactorApplied *float64                      // 历史风险实际衰减因子
+	NewPlayerObserve   bool                          // 是否为观察期检测（降权且禁自动封禁）
 }
 
 // RiskIndicatorDetail snapshots one scoring signal for later review.
@@ -160,11 +223,12 @@ func (rse *RiskScoringEngine) CalculateRiskScore(context *DetectionContext) (*Ri
 	rse.strategyLock.RUnlock()
 
 	result := &RiskScoringResult{
-		RiskScore:       0,
-		Dimensions:      make(map[string]float64),
-		PrimaryEvidence: EvidenceAnchorFromContext(context),
-		RelatedEvidence: append([]ReplayEvidenceAnchor(nil), context.RelatedEvidence...),
-		Timestamp:       time.Now(),
+		RiskScore:        0,
+		Dimensions:       make(map[string]float64),
+		EffectiveWeights: make(map[string]float64),
+		PrimaryEvidence:  EvidenceAnchorFromContext(context),
+		RelatedEvidence:  append([]ReplayEvidenceAnchor(nil), context.RelatedEvidence...),
+		Timestamp:        time.Now(),
 	}
 
 	rse.configLock.RLock()
@@ -191,6 +255,7 @@ func (rse *RiskScoringEngine) CalculateRiskScore(context *DetectionContext) (*Ri
 		}
 
 		result.Dimensions[strategy.Name()] = score
+		result.EffectiveWeights[strategy.Name()] = weight
 		contribution := score * weight
 		weightedTotal += contribution
 		totalWeight += weight
@@ -205,12 +270,16 @@ func (rse *RiskScoringEngine) CalculateRiskScore(context *DetectionContext) (*Ri
 		})
 	}
 
+	// 自适应阈值 + Z分数 优化维度（仅在启用时贡献，关闭时完全不影响评分）。
+	weightedTotal, totalWeight = rse.applyOptimizationDimensions(context, result, weightedTotal, totalWeight)
+
 	if context.ReportCount > 0 {
 		reportWeight := 0.10
 		reportScore := clampRiskScore(float64(context.ReportCount) * 12.5)
 		contribution := reportScore * reportWeight
 		weightedTotal += contribution
 		totalWeight += reportWeight
+		result.EffectiveWeights["player_reports"] = reportWeight
 		summary := context.ReportSummary
 		if summary == "" {
 			summary = "deduplicated player reports"
@@ -241,6 +310,14 @@ func (rse *RiskScoringEngine) CalculateRiskScore(context *DetectionContext) (*Ri
 	if totalWeight > 0 {
 		result.RiskScore = weightedTotal / totalWeight
 	}
+
+	result.RiskScore = clampRiskScore(result.RiskScore)
+
+	// 历史风险衰减：将衰减后的历史贡献并入当前分数（仅在启用时）。
+	rse.applyRiskDecay(context, result)
+
+	// 新玩家保护：观察期内放宽风险分数（仅在启用时）。
+	rse.applyNewPlayerProtection(context, result)
 
 	result.RiskScore = clampRiskScore(result.RiskScore)
 
@@ -414,6 +491,34 @@ func NewDefaultConfig() *RiskScoringConfig {
 			MinAmount:          1,
 			MaxAmount:          10000,
 			IdempotencyTTL:     60,
+		},
+		// 优化特性默认全部关闭：关闭时评分行为与历史一致，启用需显式打开各 Enabled 开关。
+		Optimization: OptimizationConfig{
+			AdaptiveThreshold: AdaptiveThresholdConfig{
+				Enabled:            false,
+				BaselineWindow:     50,
+				BaselineWindowKind: "count",
+				MinSamples:         20,
+				PersonalWeight:     0.5,
+				GlobalSuperhumanZ:  3.0,
+				ContributionWeight: 0.20,
+			},
+			ZScore: ZScoreConfig{
+				Enabled:   false,
+				Threshold: 3.0,
+				Weight:    0.15,
+			},
+			NewPlayer: NewPlayerConfig{
+				Enabled:          false,
+				MinGames:         30,
+				MinAgeDays:       7,
+				RelaxationFactor: 0.5,
+			},
+			RiskDecay: RiskDecayConfig{
+				Enabled:       false,
+				DecayFactor:   0.85,
+				MinFloorHours: 24,
+			},
 		},
 	}
 }

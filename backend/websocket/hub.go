@@ -1,6 +1,7 @@
 package websocket
 
 import (
+	"chemistryuno/backend/metrics"
 	"chemistryuno/backend/repository"
 	"encoding/json"
 	"log"
@@ -209,53 +210,81 @@ func (h *Hub) leaveRoomInternal(client *Client) {
 
 // BroadcastToRoom 将消息广播到指定房间
 func (h *Hub) BroadcastToRoom(roomID string, message interface{}) {
-	h.mutex.RLock()
-	defer h.mutex.RUnlock()
+	start := time.Now()
 
+	// Serialize message BEFORE acquiring lock (I/O operation)
 	data, err := json.Marshal(message)
 	if err != nil {
 		log.Printf("❌ 消息序列化失败: %v", err)
 		return
 	}
 
-	if clients, ok := h.rooms[roomID]; ok {
-		log.Println("📡 广播消息")
-		log.Printf("   🎯 目标房间: %s", roomID)
-		log.Printf("   👥 连接客户端数: %d", len(clients))
-		sentCount := 0
-		for client := range clients {
-			select {
-			case client.send <- data:
-				sentCount++
-			default:
-				log.Printf("   ⚠️  无法发送给用户 %d，准备断开连接", client.uid)
-				h.unregister <- client
-			}
-		}
-		log.Printf("   ✅ 消息发送完成: %d/%d 个客户端收到", sentCount, len(clients))
-	} else {
+	// Acquire lock only to copy client list
+	h.mutex.RLock()
+	clients, ok := h.rooms[roomID]
+	if !ok {
+		h.mutex.RUnlock()
 		log.Printf("   ⚠️  房间 %s 不存在，无法广播消息", roomID)
+		return
 	}
+
+	// Copy client slice to release lock quickly
+	clientList := make([]*Client, 0, len(clients))
+	for client := range clients {
+		clientList = append(clientList, client)
+	}
+	clientCount := len(clientList)
+	h.mutex.RUnlock()
+
+	// Send messages WITHOUT holding lock
+	log.Println("📡 广播消息")
+	log.Printf("   🎯 目标房间: %s", roomID)
+	log.Printf("   👥 连接客户端数: %d", clientCount)
+
+	sentCount := 0
+	for _, client := range clientList {
+		select {
+		case client.send <- data:
+			sentCount++
+		default:
+			log.Printf("   ⚠️  无法发送给用户 %d，准备断开连接", client.uid)
+			h.unregister <- client
+		}
+	}
+
+	duration := time.Since(start)
+	log.Printf("   ✅ 消息发送完成: %d/%d 个客户端收到 (耗时: %v)", sentCount, clientCount, duration)
+
+	// Record metrics
+	metrics.WebSocketMessagesTotal.WithLabelValues(roomID).Inc()
+	metrics.WebSocketBroadcastDuration.WithLabelValues(roomID).Observe(duration.Seconds())
 }
 
 // SendToUID 发送消息给指定用户的所有连接
 func (h *Hub) SendToUID(uid int, message interface{}) {
-	h.mutex.RLock()
-	defer h.mutex.RUnlock()
-
+	// Serialize message BEFORE acquiring lock
 	data, err := json.Marshal(message)
 	if err != nil {
 		log.Printf("❌ 消息序列化失败: %v", err)
 		return
 	}
 
+	// Acquire lock only to find matching clients
+	h.mutex.RLock()
+	matchingClients := make([]*Client, 0)
 	for client := range h.clients {
 		if client.uid == uid {
-			select {
-			case client.send <- data:
-			default:
-				h.unregister <- client
-			}
+			matchingClients = append(matchingClients, client)
+		}
+	}
+	h.mutex.RUnlock()
+
+	// Send messages WITHOUT holding lock
+	for _, client := range matchingClients {
+		select {
+		case client.send <- data:
+		default:
+			h.unregister <- client
 		}
 	}
 }
@@ -276,16 +305,23 @@ func (h *Hub) IsUIDInRoom(roomID string, uid int) bool {
 }
 
 func (h *Hub) BroadcastToAll(message interface{}) {
-	h.mutex.RLock()
-	defer h.mutex.RUnlock()
-
+	// Serialize message BEFORE acquiring lock
 	data, err := json.Marshal(message)
 	if err != nil {
 		log.Printf("❌ 消息序列化失败: %v", err)
 		return
 	}
 
+	// Acquire lock only to copy client list
+	h.mutex.RLock()
+	clientList := make([]*Client, 0, len(h.clients))
 	for client := range h.clients {
+		clientList = append(clientList, client)
+	}
+	h.mutex.RUnlock()
+
+	// Send messages WITHOUT holding lock
+	for _, client := range clientList {
 		select {
 		case client.send <- data:
 		default:

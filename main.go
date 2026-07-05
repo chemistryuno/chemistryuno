@@ -198,6 +198,9 @@ func main() {
 	hub.OnRegister = game.PushOnJoinAnnouncements
 	go hub.Run()
 
+	// 启动速率限制器清理
+	go middleware.GetRateLimitStore().StartCleanup()
+
 	// 在 WebSocket Hub 就绪后加载服务端脚本，确保 onLoad 可推送消息。
 	plugins.LoadServerScripts()
 	plugins.Emit(plugins.EventServerStart, map[string]interface{}{

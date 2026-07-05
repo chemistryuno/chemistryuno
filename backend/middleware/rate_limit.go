@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -18,6 +20,11 @@ type RateLimitStore struct {
 
 var rateLimitStore = &RateLimitStore{
 	requests: make(map[string][]time.Time),
+}
+
+// GetRateLimitStore returns the global rate limit store instance
+func GetRateLimitStore() *RateLimitStore {
+	return rateLimitStore
 }
 
 // 全局异常登录检测器实例
@@ -226,3 +233,82 @@ func CleanupExpiredLoginRecords() {
 		log.Println("✅ 登录记录清理完成")
 	}
 }
+
+// StartCleanup starts a background goroutine to periodically clean up old rate limit records
+func (store *RateLimitStore) StartCleanup() {
+	// Read configuration from environment variables
+	enabled := true
+	if env := os.Getenv("RATE_LIMIT_CLEANUP_ENABLED"); env == "false" || env == "0" {
+		enabled = false
+	}
+
+	if !enabled {
+		log.Println("🚫 Rate limiter cleanup disabled by configuration")
+		return
+	}
+
+	intervalMinutes := 60 // default 1 hour
+	if env := os.Getenv("RATE_LIMIT_CLEANUP_INTERVAL_MINUTES"); env != "" {
+		if val, err := strconv.Atoi(env); err == nil && val > 0 {
+			intervalMinutes = val
+		}
+	}
+
+	retentionHours := 24 // default 24 hours
+	interval := time.Duration(intervalMinutes) * time.Minute
+	retentionDuration := time.Duration(retentionHours) * time.Hour
+
+	log.Printf("✅ Rate limiter cleanup started: interval=%v, retention=%v", interval, retentionDuration)
+
+	ticker := time.NewTicker(interval)
+	go func() {
+		defer ticker.Stop()
+		for range ticker.C {
+			store.cleanup(retentionDuration)
+		}
+	}()
+}
+
+// cleanup removes expired rate limit records (must be called periodically)
+func (store *RateLimitStore) cleanup(retentionDuration time.Duration) {
+	start := time.Now()
+	store.mu.Lock()
+	defer store.mu.Unlock()
+
+	now := time.Now()
+	keysRemoved := 0
+	recordsRemoved := 0
+	sizeBefore := len(store.requests)
+
+	// Iterate through all keys and remove expired records
+	for key, requests := range store.requests {
+		validRequests := []time.Time{}
+		for _, reqTime := range requests {
+			if now.Sub(reqTime) <= retentionDuration {
+				validRequests = append(validRequests, reqTime)
+			} else {
+				recordsRemoved++
+			}
+		}
+
+		// Remove key entirely if no valid requests remain
+		if len(validRequests) == 0 {
+			delete(store.requests, key)
+			keysRemoved++
+		} else {
+			store.requests[key] = validRequests
+		}
+	}
+
+	duration := time.Since(start)
+	sizeAfter := len(store.requests)
+
+	log.Printf("✅ Rate limiter cleanup completed: duration=%v, keys_before=%d, keys_after=%d, keys_removed=%d, records_removed=%d",
+		duration, sizeBefore, sizeAfter, keysRemoved, recordsRemoved)
+
+	// Warn if cleanup is taking too long
+	if duration.Milliseconds() > 50 {
+		log.Printf("⚠️  Rate limiter cleanup took longer than expected: %v", duration)
+	}
+}
+

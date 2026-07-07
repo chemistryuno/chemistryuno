@@ -141,7 +141,11 @@ func newServerRuntime(p database.Plugin) (*serverRuntime, error) {
 	exports := rt.vm.NewObject()
 	rt.vm.Set("exports", exports)
 
-	if _, err := rt.vm.RunString(p.ServerScript); err != nil {
+	// 带看门狗超时执行脚本，防止插件脚本死循环无限阻塞 goroutine
+	if err := rt.runWithTimeout(scriptExecTimeout, func() error {
+		_, e := rt.vm.RunString(p.ServerScript)
+		return e
+	}); err != nil {
 		return nil, err
 	}
 
@@ -200,9 +204,30 @@ func (rt *serverRuntime) call(fn goja.Callable, args ...goja.Value) {
 	rt.mu.Lock()
 	defer rt.mu.Unlock()
 
-	if _, err := fn(goja.Undefined(), args...); err != nil {
+	// 带看门狗超时执行事件回调，避免单个插件脚本卡死整个 goroutine
+	err := rt.runWithTimeout(scriptExecTimeout, func() error {
+		_, e := fn(goja.Undefined(), args...)
+		return e
+	})
+	if err != nil {
 		log.Printf("[Plugin:%s] script error: %v", rt.plugin.Name, err)
 	}
+}
+
+// scriptExecTimeout 单次插件脚本执行的最大时长，超时后中断 VM。
+const scriptExecTimeout = 2 * time.Second
+
+// runWithTimeout 在给定超时内执行 goja VM 操作，超时通过 vm.Interrupt 强制中断。
+// 调用方需持有 rt.mu（保证同一 VM 不会被并发执行）。
+func (rt *serverRuntime) runWithTimeout(timeout time.Duration, run func() error) error {
+	timer := time.AfterFunc(timeout, func() {
+		rt.vm.Interrupt("script execution timeout")
+	})
+	defer func() {
+		timer.Stop()
+		rt.vm.ClearInterrupt()
+	}()
+	return run()
 }
 
 func (rt *serverRuntime) shutdown() {

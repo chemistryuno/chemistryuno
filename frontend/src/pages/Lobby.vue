@@ -26,7 +26,7 @@ const loadUserInfo = async () => {
     const res = await authAPI.getUserInfo()
     user.value = res.data
     localStorage.setItem('user', JSON.stringify(res.data))
-    if (!res.data?.role === 'admin') {
+    if (res.data?.role !== 'admin') {
       lobbyViewMode.value = 'player'
     }
   } catch (e) {

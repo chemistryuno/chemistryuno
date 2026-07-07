@@ -245,7 +245,8 @@ func GetMyGameHistory(c *gin.Context) {
 
 	historyList, err := repository.GameRepo.FindByUserUID(uint(uid))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库错误: " + err.Error()})
+		log.Printf("查询游戏历史失败 (uid=%d): %v", uid, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取游戏历史失败，请稍后重试"})
 		return
 	}
 

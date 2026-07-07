@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"log"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -19,15 +20,45 @@ const (
 )
 
 type Client struct {
-	hub      *Hub
-	conn     *websocket.Conn
-	send     chan []byte
-	uid      int
-	username string
-	nickname string
-	avatar   string
-	roomID   string
-	source   *utils.LogSource
+	hub       *Hub
+	conn      *websocket.Conn
+	send      chan []byte
+	uid       int
+	username  string
+	nickname  string
+	avatar    string
+	roomID    string
+	source    *utils.LogSource
+	sendMu    sync.Mutex // 保护 send 通道的关闭与写入，避免向已关闭通道发送导致 panic
+	sendClose sync.Once
+	closed    bool
+}
+
+// trySend 以非阻塞方式向客户端发送队列写入一条消息。
+// 返回 false 表示队列已满或连接已关闭，调用方应据此触发注销。
+// 通过 sendMu 与 closeSend 协调，杜绝“向已关闭通道发送”的崩溃。
+func (c *Client) trySend(data []byte) bool {
+	c.sendMu.Lock()
+	defer c.sendMu.Unlock()
+	if c.closed {
+		return false
+	}
+	select {
+	case c.send <- data:
+		return true
+	default:
+		return false
+	}
+}
+
+// closeSend 幂等地关闭发送通道，确保只关闭一次。
+func (c *Client) closeSend() {
+	c.sendMu.Lock()
+	defer c.sendMu.Unlock()
+	c.sendClose.Do(func() {
+		c.closed = true
+		close(c.send)
+	})
 }
 
 type Message struct {
@@ -154,7 +185,7 @@ func (c *Client) Send(msg interface{}) {
 		log.Printf("❌ 序列化失败: %v", err)
 		return
 	}
-	c.send <- payload
+	c.trySend(payload)
 }
 
 func (c *Client) WritePump() {

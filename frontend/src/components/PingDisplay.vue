@@ -3,11 +3,20 @@ import { computed } from 'vue'
 import { usePing } from '../composables/usePing'
 
 const { pingStatus } = usePing()
-const shouldShowPingPrompt = computed(() => pingStatus.value.status !== 'disconnected' && pingStatus.value.latency >= 1000)
+// 只要已连接并测得延迟就常驻显示分档指示；未连接/检测中则不显示
+const shouldShowPingPrompt = computed(() => pingStatus.value.status !== 'disconnected' && pingStatus.value.latency > 0)
 </script>
 
 <template>
-  <div v-if="shouldShowPingPrompt" class="flex items-center gap-1.5 text-xs font-mono" :class="[pingStatus.statusColor]">
+  <div
+    v-if="shouldShowPingPrompt"
+    class="flex items-center gap-1.5 text-xs font-mono"
+    :class="[pingStatus.statusColor]"
+    role="status"
+    aria-live="polite"
+    :aria-label="`网络延迟 ${pingStatus.latency} 毫秒，${pingStatus.statusText}`"
+    :title="`网络延迟：${pingStatus.statusText}`"
+  >
     <svg
       v-if="pingStatus.status === 'disconnected'"
       class="w-3 h-3"
@@ -27,5 +36,6 @@ const shouldShowPingPrompt = computed(() => pingStatus.value.status !== 'disconn
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
     </svg>
     <span class="font-semibold">{{ pingStatus.latency }}ms</span>
+    <span class="opacity-70">{{ pingStatus.statusText }}</span>
   </div>
 </template>

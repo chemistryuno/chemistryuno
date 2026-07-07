@@ -93,6 +93,10 @@ func ParseToken(tokenString string) (*Claims, error) {
 	initJWTSecret() // 确保密钥已初始化
 
 	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
+		// 强制断言签名算法为 HMAC，防止算法混淆攻击
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, errors.New("unexpected signing method")
+		}
 		return jwtSecret, nil
 	})
 
@@ -132,6 +136,10 @@ func GenerateOAuthState(intent string, uid int) (string, error) {
 func VerifyOAuthState(state string) (*StateClaims, error) {
 	initJWTSecret()
 	token, err := jwt.ParseWithClaims(state, &StateClaims{}, func(token *jwt.Token) (interface{}, error) {
+		// 强制断言签名算法为 HMAC，防止算法混淆攻击
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, errors.New("unexpected signing method")
+		}
 		return jwtSecret, nil
 	})
 	if err != nil {

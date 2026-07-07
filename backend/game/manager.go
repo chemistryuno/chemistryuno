@@ -3547,7 +3547,7 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 		}
 
 		if !canReact {
-			return errors.New("无法与上一张牌反应: " + substance)
+			return errors.New(substance + " 无法与场上的 " + gameRoom.GameState.LastCard.Substance + " 发生反应，请换一种物质")
 		}
 
 		// 更新当前反应方程式
@@ -4790,14 +4790,39 @@ func finalizeGame(gr *GameRoom) {
 		"finished_players": append([]int(nil), gr.GameState.FinishedPlayers...),
 	})
 
-	// 收集反作弊检测数据
-	var anticheatResults map[int]bool
-	anticheatResults = make(map[int]bool)
-
+	// 在持锁期间收集全部快照数据（均为脱离 gr 的副本），
+	// 随后把反作弊处理与历史落库等 DB 密集型 I/O 放到锁外的 goroutine 执行，
+	// 避免结算期间长时间占用房间锁、阻塞该房间内的其他玩家操作。
+	var anticheatData map[int]*anticheat.DetectionContext
 	if anticheatSystem != nil {
-		dataMap := gr.collectAnticheatDataLocked()
-		for playerUID, context := range dataMap {
-			result, decision, err := anticheatSystem.ProcessGameEnd(gr.Room.ID, uint(playerUID), context)
+		anticheatData = gr.collectAnticheatDataLocked()
+	}
+
+	// 获取原有的快速反应检测结果
+	replayLog, cheatUIDs, cheatDetected := gr.captureReplaySnapshotLocked("game_finished")
+
+	roomID := gr.Room.ID
+	playersSnapshot := append([]int(nil), gr.Room.Players...)
+	originalPlayerCount := gr.GameState.OriginalPlayerCount
+	quittedCount := gr.GameState.QuittedCount
+	finishedPlayersSnapshot := append([]int(nil), gr.GameState.FinishedPlayers...)
+	startedAt := gr.GameStartedAt
+
+	// 积分/经验计算会修改 gr.GameState（结果需随广播下发给客户端），
+	// 因此必须在持锁期间同步完成。
+	if gr.Room.IsPointsMode || gr.Room.IsPvE {
+		handlePointsCalculation(gr)
+	} else {
+		handleXPCalculation(gr)
+	}
+
+	gr.BroadcastSystemMessage("实验完成！反应已达平衡，正在生成结果报告。")
+
+	// 锁外执行 DB 密集型收尾工作
+	go func() {
+		anticheatResults := make(map[int]bool)
+		for playerUID, ctx := range anticheatData {
+			result, decision, err := anticheatSystem.ProcessGameEnd(roomID, uint(playerUID), ctx)
 			if err != nil {
 				log.Printf("[反作弊] 处理游戏结束失败 (玩家 %d): %v", playerUID, err)
 				anticheatResults[playerUID] = false
@@ -4809,48 +4834,39 @@ func finalizeGame(gr *GameRoom) {
 				}
 			}
 		}
-	}
 
-	// 获取原有的快速反应检测结果
-	replayLog, cheatUIDs, cheatDetected := gr.captureReplaySnapshotLocked("game_finished")
-
-	// 如果反作弊系统有更强的检测结果，则使用反作弊系统的结果
-	if len(anticheatResults) > 0 {
-		newCheatUIDs := []int{}
-		for playerUID, isCheat := range anticheatResults {
-			if isCheat {
-				newCheatUIDs = append(newCheatUIDs, playerUID)
+		// 如果反作弊系统有更强的检测结果，则使用反作弊系统的结果
+		finalCheatUIDs := cheatUIDs
+		finalCheatDetected := cheatDetected
+		if len(anticheatResults) > 0 {
+			newCheatUIDs := []int{}
+			for playerUID, isCheat := range anticheatResults {
+				if isCheat {
+					newCheatUIDs = append(newCheatUIDs, playerUID)
+				}
+			}
+			if len(newCheatUIDs) > 0 {
+				sort.Ints(newCheatUIDs)
+				finalCheatUIDs = newCheatUIDs
+				finalCheatDetected = true
 			}
 		}
-		if len(newCheatUIDs) > 0 {
-			sort.Ints(newCheatUIDs)
-			cheatUIDs = newCheatUIDs
-			cheatDetected = true
+
+		saveGameHistory(roomID, winnerUID, playersSnapshot, originalPlayerCount, quittedCount, finishedPlayersSnapshot, false, "", &gameReplayMeta{
+			ReplayLog:       replayLog,
+			ReplayPermanent: false,
+			CheatDetected:   finalCheatDetected,
+			CheatUIDs:       finalCheatUIDs,
+			StartedAt:       startedAt,
+		})
+
+		privateChatRepo := repository.NewPrivateChatRepository()
+		if err := privateChatRepo.DeleteGameInvitesByRoom(roomID); err != nil {
+			log.Printf("清理房间 %s 的游戏邀请失败: %v", roomID, err)
 		}
-	}
 
-	saveGameHistory(gr.Room.ID, winnerUID, gr.Room.Players, gr.GameState.OriginalPlayerCount, gr.GameState.QuittedCount, gr.GameState.FinishedPlayers, false, "", &gameReplayMeta{
-		ReplayLog:       replayLog,
-		ReplayPermanent: false,
-		CheatDetected:   cheatDetected,
-		CheatUIDs:       cheatUIDs,
-		StartedAt:       gr.GameStartedAt,
-	})
-
-	privateChatRepo := repository.NewPrivateChatRepository()
-	if err := privateChatRepo.DeleteGameInvitesByRoom(gr.Room.ID); err != nil {
-		log.Printf("清理房间 %s 的游戏邀请失败: %v", gr.Room.ID, err)
-	}
-
-	if gr.Room.IsPointsMode || gr.Room.IsPvE {
-		handlePointsCalculation(gr)
-	} else {
-		handleXPCalculation(gr)
-	}
-
-	gr.BroadcastSystemMessage("实验完成！反应已达平衡，正在生成结果报告。")
-
-	log.Printf("[游戏结束] 房间 %s 已正式结算，冠军 UID: %d", gr.Room.ID, winnerUID)
+		log.Printf("[游戏结束] 房间 %s 已正式结算，冠军 UID: %d", roomID, winnerUID)
+	}()
 }
 
 func processRoomTimeout(roomID string) {

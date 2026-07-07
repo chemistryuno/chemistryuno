@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 import { pageClassNames } from '@lib'
 import { authAPI, clearAccountScopedCache } from '../utils/api'
 import { useDialog } from '../utils/dialog'
-import { Lock, FlaskConical, ShieldCheck, Loader2, Mail, User, HelpCircle, AtSign, FileText } from 'lucide-vue-next'
+import { Lock, FlaskConical, ShieldCheck, Loader2, Mail, User, HelpCircle, AtSign, FileText, X } from 'lucide-vue-next'
 import OAuthLogos from '../components/icons/OAuthLogos.vue'
 import websocket from '../utils/websocket'
 import { API_BASE_URL } from '../utils/runtimeConfig'
@@ -411,10 +411,18 @@ const handleSubmit = async () => {
                   type="password"
                   required
                   autocomplete="new-password"
+                  aria-describedby="password-hint"
                   class="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-slate-100 pl-10 pr-3 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all placeholder:text-slate-500/50 text-xs sm:text-sm font-bold"
-                  placeholder="入职密钥"
+                  placeholder="入职密钥（至少 6 位）"
                 />
               </div>
+              <p
+                id="password-hint"
+                class="px-1 text-[11px] font-medium transition-colors"
+                :class="password.length === 0 ? 'text-slate-400' : password.length < 6 ? 'text-rose-400' : 'text-emerald-400'"
+              >
+                {{ password.length === 0 ? '密钥至少需要 6 位' : password.length < 6 ? `还需 ${6 - password.length} 位` : '密钥长度符合要求' }}
+              </p>
 
               <div class="relative group">
                 <div class="absolute left-0 pl-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors pointer-events-none">

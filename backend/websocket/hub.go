@@ -27,23 +27,37 @@ type Hub struct {
 	OnRegister func(*Client)
 }
 
-func (h *Hub) SendToUser(uid int, message Message) {
-	h.mutex.RLock()
-	defer h.mutex.RUnlock()
+// asyncUnregister 将客户端的注销请求异步投递到 unregister 通道。
+//
+// 关键：绝不能在持有 h.mutex（读锁或写锁）时直接向 h.unregister 阻塞发送，
+// 因为 Run() 消费 unregister 时需要获取写锁 —— 若通道缓冲已满就会读写锁互等死锁；
+// 同理 Run() 自身也不能直接向该通道阻塞发送（自死锁）。
+// 用独立 goroutine 发送即可与调用方的锁和 goroutine 解耦；
+// Run() 的 unregister 分支已对重复注销做了幂等保护。
+func (h *Hub) asyncUnregister(client *Client) {
+	go func() { h.unregister <- client }()
+}
 
+func (h *Hub) SendToUser(uid int, message Message) {
 	jsonData, err := json.Marshal(message)
 	if err != nil {
 		log.Printf("❌ 消息序列化失败: %v", err)
 		return
 	}
 
+	// 先持锁收集目标连接，释放锁后再发送，避免持锁期间阻塞在 channel 上
+	h.mutex.RLock()
+	matching := make([]*Client, 0)
 	for client := range h.clients {
 		if client.uid == uid {
-			select {
-			case client.send <- jsonData:
-			default:
-				h.unregister <- client
-			}
+			matching = append(matching, client)
+		}
+	}
+	h.mutex.RUnlock()
+
+	for _, client := range matching {
+		if !client.trySend(jsonData) {
+			h.asyncUnregister(client)
 		}
 	}
 }
@@ -89,7 +103,7 @@ func (h *Hub) Run() {
 			h.mutex.Lock()
 			if _, ok := h.clients[client]; ok {
 				delete(h.clients, client)
-				close(client.send)
+				client.closeSend()
 				shouldRecordOffline = client.uid > 0 && !h.hasUIDLocked(client.uid)
 
 				// 从所有房间中移除
@@ -119,10 +133,8 @@ func (h *Hub) Run() {
 			h.mutex.RUnlock()
 
 			for _, client := range clients {
-				select {
-				case client.send <- message:
-				default:
-					h.unregister <- client
+				if !client.trySend(message) {
+					h.asyncUnregister(client)
 				}
 			}
 		}
@@ -261,12 +273,11 @@ func (h *Hub) BroadcastToRoom(roomID string, message interface{}) {
 
 	sentCount := 0
 	for _, client := range clientList {
-		select {
-		case client.send <- data:
+		if client.trySend(data) {
 			sentCount++
-		default:
+		} else {
 			log.Printf("   ⚠️  无法发送给用户 %d，准备断开连接", client.uid)
-			h.unregister <- client
+			h.asyncUnregister(client)
 		}
 	}
 
@@ -304,10 +315,8 @@ func (h *Hub) SendToUID(uid int, message interface{}) {
 
 	// Send messages WITHOUT holding lock
 	for _, client := range matchingClients {
-		select {
-		case client.send <- data:
-		default:
-			h.unregister <- client
+		if !client.trySend(data) {
+			h.asyncUnregister(client)
 		}
 	}
 }
@@ -345,10 +354,8 @@ func (h *Hub) BroadcastToAll(message interface{}) {
 
 	// Send messages WITHOUT holding lock
 	for _, client := range clientList {
-		select {
-		case client.send <- data:
-		default:
-			h.unregister <- client
+		if !client.trySend(data) {
+			h.asyncUnregister(client)
 		}
 	}
 }
@@ -372,7 +379,7 @@ func (h *Hub) Stop() {
 
 	// 关闭所有客户端连接
 	for client := range h.clients {
-		close(client.send)
+		client.closeSend()
 		client.conn.Close()
 	}
 
@@ -422,10 +429,8 @@ func (h *Hub) StartPubSubListener(ctx context.Context) {
 		h.mutex.RUnlock()
 
 		for _, c := range clientList {
-			select {
-			case c.send <- data:
-			default:
-				h.unregister <- c
+			if !c.trySend(data) {
+				h.asyncUnregister(c)
 			}
 		}
 	})
@@ -449,10 +454,8 @@ func (h *Hub) StartPubSubListener(ctx context.Context) {
 		h.mutex.RUnlock()
 
 		for _, c := range clientList {
-			select {
-			case c.send <- data:
-			default:
-				h.unregister <- c
+			if !c.trySend(data) {
+				h.asyncUnregister(c)
 			}
 		}
 	})
@@ -478,10 +481,8 @@ func (h *Hub) BroadcastGlobal(message interface{}) {
 	h.mutex.RUnlock()
 
 	for _, c := range clientList {
-		select {
-		case c.send <- data:
-		default:
-			h.unregister <- c
+		if !c.trySend(data) {
+			h.asyncUnregister(c)
 		}
 	}
 

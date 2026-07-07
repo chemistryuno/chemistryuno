@@ -16,6 +16,7 @@ import ChemicalKeyboard from '../components/ChemicalKeyboard.vue'
 import FeedbackSettings from '../components/FeedbackSettings.vue'
 import PingDisplay from '../components/PingDisplay.vue'
 import UserAvatar from '../components/UserAvatar.vue'
+import ConnectionOverlay from '../components/ConnectionOverlay.vue'
 import { getTutorialStep, TUTORIAL_TOTAL_STEPS } from '../utils/tutorialScript'
 import '../styles/mobile-game.css'
 
@@ -142,6 +143,8 @@ const timeRemaining = ref(0)
 const timePercent = ref(100)
 let timerRaf: any = null
 let lastTimeUpdate = 0
+// 回合总时长（毫秒），在每次新回合开始时按剩余时间推算，避免硬编码 30s
+let turnDurationMs = 30000
 const selectedCard = ref<any>(null)
 const selectedSubstance = ref<string | null>(null)
 const turnReadySubstances = ref<string[]>([])
@@ -380,6 +383,27 @@ watch(playersCardState, (_newState) => {
       }, 1000)
     }
     playerCardCounts.value[p.uid] = p.card_count
+  })
+})
+
+// 监听对手掉线状态的变化，掉线时提示（避免快节奏对局中被忽略）
+const playerOfflineState = ref<Record<number, boolean>>({})
+const playersOfflineSignature = computed(() => {
+  return gameState.value?.players?.map((p: any) => `${p.uid}:${p.is_offline ? 1 : 0}`).join(',') || ''
+})
+watch(playersOfflineSignature, () => {
+  if (!gameState.value?.players || gameState.value.status !== 'playing') return
+  const myUid = Number(user.value?.uid)
+  gameState.value.players.forEach((p: any) => {
+    const uid = Number(p.uid)
+    const wasOffline = playerOfflineState.value[uid]
+    const nowOffline = !!p.is_offline
+    // 仅对“他人从在线变为掉线”提示，且需已有先前状态记录避免首帧误报
+    if (typeof wasOffline !== 'undefined' && !wasOffline && nowOffline && uid !== myUid) {
+      const name = p.nickname || p.username || `研究员 ${uid}`
+      showToast(`${name} 已掉线，其回合可能被自动跳过`, '对手掉线', 'warning')
+    }
+    playerOfflineState.value[uid] = nowOffline
   })
 })
 
@@ -912,42 +936,52 @@ const startTimer = () => {
   if (timerRaf) cancelAnimationFrame(timerRaf)
   lastTimeUpdate = 0
   let hasTimeoutFired = false
-  
+
+  // 在回合开始时按剩余时间推算本回合总时长，作为进度条分母；
+  // 兼容后台可配置的回合时长，不再硬编码 30 秒
+  if (gameState.value?.turn_end_time) {
+    const remaining = gameState.value.turn_end_time - Date.now()
+    if (remaining > 0) {
+      turnDurationMs = remaining
+    }
+  }
+
   const animate = () => {
     if (!gameState.value || !gameState.value.turn_end_time || gameState.value.status !== 'playing') {
       timeRemaining.value = 0
       timePercent.value = 0
       return
     }
-    
+
     const now = Date.now()
     const diffMs = gameState.value.turn_end_time - now
-    
-    // 进度条平滑更新（每帧）
-    timePercent.value = Math.max(0, Math.min(100, (diffMs / 30000) * 100))
-    
+
+    // 进度条平滑更新（每帧），分母使用本回合实际总时长
+    timePercent.value = Math.max(0, Math.min(100, (diffMs / turnDurationMs) * 100))
+
     // 秒数显示每秒更新一次
     if (now - lastTimeUpdate >= 1000) {
       const diff = Math.max(0, Math.floor(diffMs / 1000))
       timeRemaining.value = diff
       lastTimeUpdate = now
     }
-    
+
     if (diffMs > 0) {
       timerRaf = requestAnimationFrame(animate)
     } else {
       timeRemaining.value = 0
       timePercent.value = 0
-      
+
       // 倒计时结束后自动摸牌（仅在我的回合且未触发过）
       if (isMyTurn.value && !hasTimeoutFired && !tutorialScriptMode.value) {
         hasTimeoutFired = true
         console.log('⏰ 回合倒计时已到期，自动摸牌')
+        showToast('回合超时，已自动为你摸牌', '时间到', 'warning')
         handleDrawCard()
       }
     }
   }
-  
+
   timerRaf = requestAnimationFrame(animate)
 }
 
@@ -2502,8 +2536,11 @@ const handleLeaveRoom = async () => {
   }
 
   try {
-    let message = '暂时离开实验室？你可以在被踢出前随时返回继续实验'
-    let title = '暂离实验'
+    // 对局进行中离开会被判为逃跑并影响积分，需如实告知（与大厅退出提示一致）
+    let message = gameState.value?.status === 'playing'
+      ? '对局仍在进行中，现在离开将被系统判定为逃跑，可能扣除积分。确定要离开吗？'
+      : '确定要离开实验室吗？'
+    let title = '离开实验'
 
     // 如果玩家已完成实验且是积分模式，提示已获得分值并可直接安全离开
     if (isSpectator.value) {
@@ -2686,6 +2723,8 @@ watch(() => gameState.value?.current_player, () => {
 
 <template>
   <div :class="pageClassNames.gameRoom">
+    <!-- 连接中断 / 重连反馈遮罩 -->
+    <ConnectionOverlay />
     <!-- Loading State -->
     <div v-if="loading" class="h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 flex flex-col items-center justify-center p-4 relative overflow-hidden">
       <!-- Background Elements -->
@@ -3449,9 +3488,16 @@ watch(() => gameState.value?.current_player, () => {
               <div
                 v-for="(card, index) in myData.hand_cards"
                 :key="index"
+                role="button"
+                :tabindex="isMyTurn ? 0 : -1"
+                :aria-disabled="!isMyTurn"
+                :aria-pressed="selectedCard === card"
+                :aria-label="`${card.type}${ELEMENTS_DATA[card.type] ? ' ' + getSubstanceName(card.type) : ''}${card.effect ? ' 功能牌' : ''}${isMyTurn ? '' : '（当前非你的回合）'}`"
                 @click="isMyTurn && handleCardClick(card)"
+                @keydown.enter.prevent="isMyTurn && handleCardClick(card)"
+                @keydown.space.prevent="isMyTurn && handleCardClick(card)"
                 :class="cn(
-                  'uno-card card-mobile flex flex-col items-center justify-center cursor-pointer shrink-0 touch-feedback',
+                  'uno-card card-mobile flex flex-col items-center justify-center cursor-pointer shrink-0 touch-feedback focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400',
                   getDynamicCardClass(card),
                   selectedCard === card && 'ring-2 ring-blue-500 scale-105 z-10',
                   !isMyTurn && 'opacity-60 grayscale cursor-not-allowed'

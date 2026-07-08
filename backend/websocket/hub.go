@@ -23,6 +23,7 @@ type Hub struct {
 	broadcast  chan []byte
 	register   chan *Client
 	unregister chan *Client
+	quit       chan struct{} // 关闭后 Run() 退出循环
 	mutex      sync.RWMutex
 	OnRegister func(*Client)
 }
@@ -71,6 +72,7 @@ func NewHub() *Hub {
 		broadcast:  make(chan []byte),
 		register:   make(chan *Client),
 		unregister: make(chan *Client),
+		quit:       make(chan struct{}),
 	}
 	// Sync Redis counter with current local connection count (handles restarts)
 	go func() {
@@ -84,6 +86,8 @@ func NewHub() *Hub {
 func (h *Hub) Run() {
 	for {
 		select {
+		case <-h.quit:
+			return
 		case client := <-h.register:
 			h.mutex.Lock()
 			h.clients[client] = true
@@ -374,16 +378,25 @@ func (h *Hub) BroadcastOnlineCount() {
 
 // Stop 优雅停止Hub
 func (h *Hub) Stop() {
+	// 关闭 quit 通道使 Run() goroutine 退出，需用 sync.Once 保证只关闭一次
+	select {
+	case <-h.quit:
+		// 已经关闭过了，幂等
+	default:
+		close(h.quit)
+	}
+
 	h.mutex.Lock()
 	defer h.mutex.Unlock()
 
-	// 关闭所有客户端连接
+	// 关闭所有客户端发送通道；conn 在测试中可能为 nil，跳过 Close
 	for client := range h.clients {
 		client.closeSend()
-		client.conn.Close()
+		if client.conn != nil {
+			client.conn.Close()
+		}
 	}
 
-	// 清空数据
 	h.clients = make(map[*Client]bool)
 	h.rooms = make(map[string]map[*Client]bool)
 }

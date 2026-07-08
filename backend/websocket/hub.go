@@ -29,14 +29,14 @@ type Hub struct {
 }
 
 // asyncUnregister 将客户端的注销请求异步投递到 unregister 通道。
-//
-// 关键：绝不能在持有 h.mutex（读锁或写锁）时直接向 h.unregister 阻塞发送，
-// 因为 Run() 消费 unregister 时需要获取写锁 —— 若通道缓冲已满就会读写锁互等死锁；
-// 同理 Run() 自身也不能直接向该通道阻塞发送（自死锁）。
-// 用独立 goroutine 发送即可与调用方的锁和 goroutine 解耦；
-// Run() 的 unregister 分支已对重复注销做了幂等保护。
+// 若 hub 已经停止（quit 已关闭），则直接丢弃，防止 goroutine 永久泄漏。
 func (h *Hub) asyncUnregister(client *Client) {
-	go func() { h.unregister <- client }()
+	go func() {
+		select {
+		case h.unregister <- client:
+		case <-h.quit:
+		}
+	}()
 }
 
 func (h *Hub) SendToUser(uid int, message Message) {
@@ -162,9 +162,12 @@ func (h *Hub) Register(client *Client) {
 	h.register <- client
 }
 
-// Unregister 注销一个客户端
+// Unregister 注销一个客户端（由 Client.WritePump 等外部调用）
 func (h *Hub) Unregister(client *Client) {
-	h.unregister <- client
+	select {
+	case h.unregister <- client:
+	case <-h.quit:
+	}
 }
 
 func (h *Hub) hasUIDLocked(uid int) bool {

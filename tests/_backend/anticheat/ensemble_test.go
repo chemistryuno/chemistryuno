@@ -29,6 +29,8 @@ func TestEnsemble_AllFeaturesCoherent(t *testing.T) {
 		PlayerUID:      1,
 		RoomID:         "room_ensemble",
 		ResponseTimes:  []int64{30, 32, 31, 29, 33, 30, 28},
+		TotalDecisions: 20,
+		OptimalDecisions: 20, // decision_optimality 基础维度产生贡献
 		AccountAgeDays: 60,
 		WinCount:       97,
 		TotalGames:     100,
@@ -53,7 +55,7 @@ func TestEnsemble_AllFeaturesCoherent(t *testing.T) {
 	}
 
 	// Effective weights recorded for base + optimization dimensions.
-	for _, dim := range []string{"response_time", "adaptive_threshold", "zscore_anomaly"} {
+	for _, dim := range []string{"decision_optimality", "adaptive_threshold", "zscore_anomaly"} {
 		if _, ok := result.EffectiveWeights[dim]; !ok {
 			t.Fatalf("expected effective weight recorded for %q; got %+v", dim, result.EffectiveWeights)
 		}

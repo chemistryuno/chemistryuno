@@ -645,7 +645,7 @@ func (gr *GameRoom) aiExecutePlay(uid int, card models.Card, substance string) {
 
 	// 解锁，调用 PlayCard（PlayCard 会自己管理锁）
 	gr.mutex.Unlock()
-	err := PlayCard(gr.Room.ID, uid, card, substance)
+	err := PlayCard(gr.Room.ID, uid, card, substance, 0)
 
 	if err != nil {
 		log.Printf("[AI] ⚠️ 出牌失败 房间=%s 时间=%s 玩家UID=%d 物质=%s 错误=%v", gr.Room.ID, time.Now().Format(time.RFC3339), uid, substance, err)
@@ -755,7 +755,7 @@ func (gr *GameRoom) executeTutorialScript() {
 		// 🎓 教学脚本模式：AI 强制从虚空中打出指定物质，不消耗实际手牌以防万一
 		// 构造一张临时虚拟卡牌进行出牌
 		virtualCard := models.Card{Type: substance, Effect: getCardEffect(substance)}
-		if err := PlayCard(roomID, currentUID, virtualCard, substance); err != nil {
+		if err := PlayCard(roomID, currentUID, virtualCard, substance, 0); err != nil {
 			log.Printf("[教学脚本] ⚠️ AI脚本出牌失败 房间=%s 时间=%s 玩家UID=%d 物质=%s 错误=%v", roomID, time.Now().Format(time.RFC3339), currentUID, substance, err)
 			return
 		}

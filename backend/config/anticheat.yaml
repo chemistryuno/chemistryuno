@@ -1,37 +1,32 @@
 # 反作弊系统配置文件
 
-# 检测维度配置
+# 检测维度配置（指标重设计，详见 docs/anticheat/METRICS_REDESIGN.md）
 dimensions:
-  response_time:
-    # 维度权重（总权重应约为 1.0）
+  decision_optimality:
+    # 决策最优度：出牌长期接近理论最优（尤其低经验账号）的强作弊指纹
+    weight: 0.30
+    # 生效所需最小决策数
+    threshold: 15
+    percentile: 0.99
+
+  think_time:
+    # 思考时长异常：复杂局面却几乎零思考（客户端上报+服务端上界校验）
     weight: 0.25
-    # 异常响应时间阈值（毫秒）
-    threshold: 100
-    # 用于异常检测的百分位数
+    # 复杂局面思考耗时下限（毫秒），低于视为超人决策
+    threshold: 300
     percentile: 0.05
 
-  frequency:
-    weight: 0.25
-    # 最大操作数（时间窗口内）
-    threshold: 20
-    percentile: 0.95
-
-  win_rate:
-    weight: 0.20
-    # 胜率阈值（百分比，0-100）
+  recent_performance:
+    # 近期战绩：近 N 局滑动窗口胜率 + 对手强度（替换旧的全局累计胜率）
+    weight: 0.15
+    # 窗口胜率阈值（百分比，0-100）
     threshold: 85
     percentile: 0.99
 
-  pattern:
-    weight: 0.15
-    # 最小操作间隔（毫秒）
-    threshold: 50
-    percentile: 0.10
-
-  account_age:
-    weight: 0.15
-    # 新账号天数阈值
-    threshold: 7
+  multi_account:
+    # 多开/小号：同 IP/设备指纹聚集（由登录侧信号填充）
+    weight: 0.20
+    threshold: 0
     percentile: 1.0
 
 # 处罚阈值配置
@@ -54,11 +49,10 @@ sanction_thresholds:
 
 # 启用的检测策略
 enabled_strategies:
-  - response_time
-  - frequency
-  - win_rate
-  - pattern
-  - account_age
+  - decision_optimality
+  - think_time
+  - recent_performance
+  - multi_account
 
 # 检测参数微调
 detection:

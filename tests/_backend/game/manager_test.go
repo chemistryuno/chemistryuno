@@ -728,7 +728,7 @@ func TestPlayCardRequiresApprovedSubstanceForNormalCards(t *testing.T) {
 		ReplayEvents: []map[string]interface{}{},
 	})
 
-	err := PlayCard(roomID, 1, models.Card{Type: "H", Count: 1}, "H")
+	err := PlayCard(roomID, 1, models.Card{Type: "H", Count: 1}, "H", 0)
 	if err == nil || !strings.Contains(err.Error(), "该物质非法") {
 		t.Fatalf("expected unapproved normal substance to be rejected, got %v", err)
 	}
@@ -768,7 +768,7 @@ func TestPlayCardAllowsApprovedNormalSubstance(t *testing.T) {
 		ReplayEvents: []map[string]interface{}{},
 	})
 
-	if err := PlayCard(roomID, 1, models.Card{Type: "H", Count: 1}, "H"); err != nil {
+	if err := PlayCard(roomID, 1, models.Card{Type: "H", Count: 1}, "H", 0); err != nil {
 		t.Fatalf("approved normal substance should be playable: %v", err)
 	}
 
@@ -806,7 +806,7 @@ func TestPlayCardAllowsFunctionalCardsWithoutSubstanceEntry(t *testing.T) {
 		ReplayEvents: []map[string]interface{}{},
 	})
 
-	if err := PlayCard(roomID, 1, models.Card{Type: "+2", Count: 1, Effect: "+2"}, "+2"); err != nil {
+	if err := PlayCard(roomID, 1, models.Card{Type: "+2", Count: 1, Effect: "+2"}, "+2", 0); err != nil {
 		t.Fatalf("functional card should bypass substance table validation: %v", err)
 	}
 

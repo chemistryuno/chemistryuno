@@ -2,7 +2,6 @@ package anticheat
 
 import (
 	"testing"
-	"time"
 )
 
 func newPlayerEngine(t *testing.T, enabled bool, relax float64) *RiskScoringEngine {
@@ -18,21 +17,23 @@ func newPlayerEngine(t *testing.T, enabled bool, relax float64) *RiskScoringEngi
 }
 
 // highRiskContext builds a context that scores high without optimization features.
+// 用新指标输入构造高风险：决策全最优 + 复杂局面全超人 + 近期高胜率。
 func highRiskContext(roomID string, isNew bool) *DetectionContext {
-	now := time.Now()
 	return &DetectionContext{
-		PlayerUID:      1,
-		RoomID:         roomID,
-		ResponseTimes:  []int64{20, 22, 21, 19, 20, 23, 18},
-		OperationCount: 30,
-		WinCount:       98,
-		TotalGames:     100,
-		AccountAgeDays: 60,
-		IsNewPlayer:    isNew,
-		OperationTimes: []time.Time{
-			now, now.Add(30 * time.Millisecond), now.Add(60 * time.Millisecond),
-			now.Add(90 * time.Millisecond), now.Add(120 * time.Millisecond),
-		},
+		PlayerUID:               1,
+		RoomID:                  roomID,
+		TotalDecisions:          20,
+		OptimalDecisions:        20,
+		ComplexDecisionCount:    10,
+		SuperhumanDecisionCount: 10,
+		HasRecentPerf:           true,
+		RecentGames:             20,
+		RecentWinRate:           0.98,
+		OpponentStrength:        1.0,
+		WinCount:                98,
+		TotalGames:              100,
+		AccountAgeDays:          60,
+		IsNewPlayer:             isNew,
 	}
 }
 

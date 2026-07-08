@@ -420,8 +420,8 @@ export const gameAPI = {
     api.get('/user/game-history'),
   getMyGameReplay: (historyId: number) =>
     api.get(`/user/game-history/${historyId}/replay`),
-  playCard: (roomId: string, card: any, substance: string) =>
-    api.post(`/rooms/${roomId}/play`, { card, substance }),
+  playCard: (roomId: string, card: any, substance: string, thinkMs?: number) =>
+    api.post(`/rooms/${roomId}/play`, { card, substance, think_ms: thinkMs ?? 0 }),
   playDouble: (roomId: string, sub1: string, sub2: string) =>
     api.post(`/rooms/${roomId}/play-double`, { sub1, sub2 }),
   drawCard: (roomId: string) =>

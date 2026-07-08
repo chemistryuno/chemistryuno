@@ -361,6 +361,7 @@ func PlayCard(c *gin.Context) {
 	var req struct {
 		Card      models.Card `json:"card" binding:"required"`
 		Substance string      `json:"substance" binding:"required"`
+		ThinkMs   int64       `json:"think_ms"` // 客户端上报的本回合真实思考耗时（毫秒），可选
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -368,7 +369,7 @@ func PlayCard(c *gin.Context) {
 		return
 	}
 
-	err := game.PlayCard(roomID, uid, req.Card, req.Substance)
+	err := game.PlayCard(roomID, uid, req.Card, req.Substance, req.ThinkMs)
 	if err != nil {
 		if err.Error() == "房间不存在" {
 			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})

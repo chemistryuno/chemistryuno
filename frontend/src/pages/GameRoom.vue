@@ -145,6 +145,8 @@ let timerRaf: any = null
 let lastTimeUpdate = 0
 // 回合总时长（毫秒），在每次新回合开始时按剩余时间推算，避免硬编码 30s
 let turnDurationMs = 30000
+// 本回合"轮到我"的起始时刻，用于上报真实思考耗时（反作弊 think_time 指标）
+let myTurnStartMs = 0
 const selectedCard = ref<any>(null)
 const selectedSubstance = ref<string | null>(null)
 const turnReadySubstances = ref<string[]>([])
@@ -988,6 +990,20 @@ const startTimer = () => {
 watch(() => gameState.value?.turn_end_time, () => {
   startTimer()
 })
+
+// 记录"轮到我"的起始时刻，用于上报真实思考耗时（反作弊 think_time 指标）
+watch(isMyTurn, (mine) => {
+  if (mine) {
+    myTurnStartMs = Date.now()
+  }
+}, { immediate: true })
+
+// 计算本次出牌的思考耗时（毫秒）；无有效起点则返回 0（后端按未上报处理）
+const computeThinkMs = (): number => {
+  if (myTurnStartMs <= 0) return 0
+  const elapsed = Date.now() - myTurnStartMs
+  return elapsed > 0 ? elapsed : 0
+}
 
 // 场上物质变化时，刷新反应提示
 watch(() => gameState.value?.last_card?.substance, () => {
@@ -2172,7 +2188,7 @@ const handleCardClick = async (card: any) => {
   const specialTypes = ['+2', '+4', 'Au', 'He', 'Ne', 'Ar', 'Kr']
   if (specialTypes.includes(card.type) || card.effect) {
     try {
-      await gameAPI.playCard(id, card, card.type)
+      await gameAPI.playCard(id, card, card.type, computeThinkMs())
       feedback.playCard()
       selectedCard.value = null
       selectedSubstance.value = null
@@ -2189,7 +2205,7 @@ const handleCardClick = async (card: any) => {
   // 例如：点击 H 手牌 → 出牌物质为 H（不管单质是 H 还是 H₂）
   // 后端会进行物质合法性检测（substances表）和反应检查（reactions表）
   try {
-    await gameAPI.playCard(id, card, card.type)
+    await gameAPI.playCard(id, card, card.type, computeThinkMs())
     feedback.playCard()
     selectedCard.value = null
     selectedSubstance.value = null
@@ -2241,7 +2257,7 @@ const handlePlayCard = async () => {
   try {
     // 如果没有选中的卡片，则传递一个带类型的占位符，后端会根据物质消耗手牌
     const cardToPlay = selectedCard.value || { type: selectedSubstance.value, count: 1, effect: '' }
-    await gameAPI.playCard(id, cardToPlay, selectedSubstance.value)
+    await gameAPI.playCard(id, cardToPlay, selectedSubstance.value, computeThinkMs())
 
     // 播放打牌反馈
     feedback.playCard()
@@ -2328,7 +2344,7 @@ const handleInputPlay = async () => {
 
   try {
     // 为兼容原API，传一个空Card对象
-    await gameAPI.playCard(id, { type: '', count: 0, effect: '' }, substanceInput.value)
+    await gameAPI.playCard(id, { type: '', count: 0, effect: '' }, substanceInput.value, computeThinkMs())
 
     feedback.playCard()
 

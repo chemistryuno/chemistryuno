@@ -4,256 +4,142 @@ import (
 	"fmt"
 	"log"
 	"math"
-	"sort"
-	"time"
 )
 
-// ResponseTimeDetector 响应时间检测器
-type ResponseTimeDetector struct {
-	thresholdMs int64
-	percentile  float64
+// 指标重设计（docs/anticheat/METRICS_REDESIGN.md）：
+// 旧的 response_time / frequency / pattern 检测器依赖编造或不可得的信号，已移除。
+// 新指标只使用真实可测的信号，针对回合制化学游戏的作弊向量。
+
+// DecisionOptimalityDetector 决策最优度检测器（核心指标）。
+// 复用化学引擎在出牌当下算出的「最优出法匹配」，长期接近 100% 最优且低经验
+// 账号是强作弊指纹。评分相对人群基线（均值/标准差），无基线时退化为线性映射。
+type DecisionOptimalityDetector struct {
+	minDecisions int     // 生效所需最小决策数
+	populationMean float64 // 人群 optimalityRate 均值（冷启动缺省）
+	populationStd  float64 // 人群 optimalityRate 标准差（冷启动缺省）
 }
 
-// NewResponseTimeDetector 创建响应时间检测器
-func NewResponseTimeDetector(thresholdMs int64, percentile float64) *ResponseTimeDetector {
-	return &ResponseTimeDetector{
-		thresholdMs: thresholdMs,
-		percentile:  percentile,
+func NewDecisionOptimalityDetector(minDecisions int, popMean, popStd float64) *DecisionOptimalityDetector {
+	if minDecisions <= 0 {
+		minDecisions = 15
+	}
+	if popStd <= 0 {
+		popStd = 0.15
+	}
+	return &DecisionOptimalityDetector{
+		minDecisions:   minDecisions,
+		populationMean: popMean,
+		populationStd:  popStd,
 	}
 }
 
-func (rtd *ResponseTimeDetector) Name() string {
-	return "response_time"
-}
+func (d *DecisionOptimalityDetector) Name() string { return "decision_optimality" }
 
-func (rtd *ResponseTimeDetector) Detect(context *DetectionContext) (float64, error) {
-	if len(context.ResponseTimes) == 0 {
+func (d *DecisionOptimalityDetector) Detect(context *DetectionContext) (float64, error) {
+	if context.TotalDecisions <= 0 {
 		return 0, nil
 	}
+	rate := float64(context.OptimalDecisions) / float64(context.TotalDecisions)
 
-	// 计算平均响应时间
-	var totalTime int64
-	for _, rt := range context.ResponseTimes {
-		totalTime += rt
-	}
-	avgTime := totalTime / int64(len(context.ResponseTimes))
-
-	// 计算异常响应时间的比例
-	aboveThresholdCount := 0
-	for _, rt := range context.ResponseTimes {
-		if rt < rtd.thresholdMs {
-			aboveThresholdCount++
-		}
-	}
-
-	anomalyRatio := float64(aboveThresholdCount) / float64(len(context.ResponseTimes))
-
-	// 归一化到0-100
-	score := anomalyRatio * 100
-
-	// 额外惩罚极快的响应时间
-	if avgTime < 50 && len(context.ResponseTimes) > 5 {
-		score = math.Min(100, score*1.5)
-	}
-
-	return score, nil
-}
-
-// FrequencyDetector 频率检测器
-type FrequencyDetector struct {
-	maxActionsPerWindow int
-	windowSize          time.Duration
-}
-
-// NewFrequencyDetector 创建频率检测器
-func NewFrequencyDetector(maxActionsPerWindow int, windowSize time.Duration) *FrequencyDetector {
-	return &FrequencyDetector{
-		maxActionsPerWindow: maxActionsPerWindow,
-		windowSize:          windowSize,
-	}
-}
-
-func (fd *FrequencyDetector) Name() string {
-	return "frequency"
-}
-
-func (fd *FrequencyDetector) Detect(context *DetectionContext) (float64, error) {
-	if len(context.OperationTimes) == 0 {
+	// 偏离人群均值多少个标准差 → sigmoid 映射到 0-100。
+	// 只有「显著高于」均值才计分（低于均值不是作弊信号）。
+	z := (rate - d.populationMean) / d.populationStd
+	if z <= 0 {
 		return 0, nil
 	}
+	score := sigmoid01(z) * 100
 
-	// 按时间排序
-	times := make([]time.Time, len(context.OperationTimes))
-	copy(times, context.OperationTimes)
-	sort.Slice(times, func(i, j int) bool {
-		return times[i].Before(times[j])
-	})
-
-	// 检查滑动窗口中的最大操作数
-	maxInWindow := 0
-	for i := 0; i < len(times); i++ {
-		windowEnd := times[i].Add(fd.windowSize)
-		count := 1
-		for j := i + 1; j < len(times) && times[j].Before(windowEnd); j++ {
-			count++
-		}
-		if count > maxInWindow {
-			maxInWindow = count
-		}
+	// 样本不足时按比例衰减，避免几手就定性。
+	if context.TotalDecisions < d.minDecisions {
+		score *= float64(context.TotalDecisions) / float64(d.minDecisions)
 	}
-
-	// 计算超过阈值的程度
-	if maxInWindow <= fd.maxActionsPerWindow {
-		return 0, nil
-	}
-
-	excessRatio := float64(maxInWindow-fd.maxActionsPerWindow) / float64(fd.maxActionsPerWindow)
-	score := math.Min(100, excessRatio*50) // 超过5倍则达到100分
-
-	return score, nil
-}
-
-// WinRateDetector 胜率检测器
-type WinRateDetector struct {
-	thresholdRate float64 // 0.0-1.0
-}
-
-// NewWinRateDetector 创建胜率检测器
-func NewWinRateDetector(thresholdRate float64) *WinRateDetector {
-	return &WinRateDetector{
-		thresholdRate: thresholdRate,
-	}
-}
-
-func (wrd *WinRateDetector) Name() string {
-	return "win_rate"
-}
-
-func (wrd *WinRateDetector) Detect(context *DetectionContext) (float64, error) {
-	if context.TotalGames == 0 {
-		return 0, nil
-	}
-
-	winRate := float64(context.WinCount) / float64(context.TotalGames)
-
-	// 仅在胜率明显异常时才计分
-	if winRate <= wrd.thresholdRate {
-		return 0, nil
-	}
-
-	// 计算超过阈值的程度
-	excess := winRate - wrd.thresholdRate
-	score := (excess / (1.0 - wrd.thresholdRate)) * 80 // 最多80分
-
-	// 需要足够的样本量
-	if context.TotalGames < 10 {
-		score *= float64(context.TotalGames) / 10.0
-	}
-
-	return score, nil
-}
-
-// PatternDetector 操作模式检测器
-type PatternDetector struct {
-	minIntervalMs int64
-}
-
-// NewPatternDetector 创建操作模式检测器
-func NewPatternDetector(minIntervalMs int64) *PatternDetector {
-	return &PatternDetector{
-		minIntervalMs: minIntervalMs,
-	}
-}
-
-func (pd *PatternDetector) Name() string {
-	return "pattern"
-}
-
-func (pd *PatternDetector) Detect(context *DetectionContext) (float64, error) {
-	if len(context.OperationTimes) < 2 {
-		return 0, nil
-	}
-
-	// 按时间排序
-	times := make([]time.Time, len(context.OperationTimes))
-	copy(times, context.OperationTimes)
-	sort.Slice(times, func(i, j int) bool {
-		return times[i].Before(times[j])
-	})
-
-	// 检查相邻操作的时间间隔
-	tooCloseCount := 0
-	intervalVariance := 0.0
-
-	intervals := make([]int64, 0)
-	for i := 1; i < len(times); i++ {
-		intervalMs := times[i].Sub(times[i-1]).Milliseconds()
-		intervals = append(intervals, intervalMs)
-
-		if intervalMs < pd.minIntervalMs {
-			tooCloseCount++
-		}
-	}
-
-	// 计算间隔的方差（规律性检测）
-	if len(intervals) > 1 {
-		// 计算平均值
-		var avgInterval int64
-		var totalInterval int64
-		for _, interval := range intervals {
-			totalInterval += interval
-		}
-		avgInterval = totalInterval / int64(len(intervals))
-
-		// 计算方差
-		var sumSquaredDiff int64
-		for _, interval := range intervals {
-			diff := interval - avgInterval
-			sumSquaredDiff += diff * diff
-		}
-		variance := float64(sumSquaredDiff) / float64(len(intervals))
-		stdDev := math.Sqrt(variance)
-
-		// 方差过小说明操作过于规律
-		if stdDev < 10 && avgInterval < pd.minIntervalMs*2 {
-			intervalVariance = 50
-		}
-	}
-
-	// 计算得分
-	closeRatio := float64(tooCloseCount) / float64(len(intervals))
-	score := closeRatio*50 + intervalVariance
-
 	return math.Min(100, score), nil
 }
 
-// AccountAgeDetector 账号年龄检测器
-type AccountAgeDetector struct {
-	youngAccountDays int
+// ThinkTimeDetector 思考时长异常检测器。
+// 只对「复杂局面」计分：复杂局面却几乎零思考（客户端上报、服务端已做上界校验）
+// 是脚本/工具作弊的信号。简单局面秒出属正常，不计分。
+type ThinkTimeDetector struct {
+	minComplexDecisions int
 }
 
-// NewAccountAgeDetector 创建账号年龄检测器
-func NewAccountAgeDetector(youngAccountDays int) *AccountAgeDetector {
-	return &AccountAgeDetector{
-		youngAccountDays: youngAccountDays,
+func NewThinkTimeDetector(minComplexDecisions int) *ThinkTimeDetector {
+	if minComplexDecisions <= 0 {
+		minComplexDecisions = 5
 	}
+	return &ThinkTimeDetector{minComplexDecisions: minComplexDecisions}
 }
 
-func (aad *AccountAgeDetector) Name() string {
-	return "account_age"
-}
+func (t *ThinkTimeDetector) Name() string { return "think_time" }
 
-func (aad *AccountAgeDetector) Detect(context *DetectionContext) (float64, error) {
-	// 账号年龄本身不是直接的作弊指标，但在加权时会被考虑
-	// 返回0表示账号本身没有异常，权重增加由引擎在加权时处理
-	if context.AccountAgeDays < aad.youngAccountDays {
-		// 极其新的账号（例如 < 1小时）给予额外怀疑
-		if context.AccountAgeDays < 1 {
-			return 20, nil // 给予基础怀疑分
-		}
-		return 0, nil // 权重增加由引擎处理
+func (t *ThinkTimeDetector) Detect(context *DetectionContext) (float64, error) {
+	if context.ComplexDecisionCount <= 0 {
+		return 0, nil
 	}
-	return 0, nil
+	superhumanRatio := float64(context.SuperhumanDecisionCount) / float64(context.ComplexDecisionCount)
+	score := superhumanRatio * 100
+
+	if context.ComplexDecisionCount < t.minComplexDecisions {
+		score *= float64(context.ComplexDecisionCount) / float64(t.minComplexDecisions)
+	}
+	return math.Min(100, score), nil
+}
+
+// RecentPerformanceDetector 近期战绩检测器（替换旧 win_rate）。
+// 使用近 N 局滑动窗口胜率 + 对手强度加权，避免长期高手被历史累计胜率反复误判。
+type RecentPerformanceDetector struct {
+	thresholdRate float64 // 触发计分的窗口胜率下限
+	minGames      int     // 生效所需最小窗口样本
+}
+
+func NewRecentPerformanceDetector(thresholdRate float64, minGames int) *RecentPerformanceDetector {
+	if thresholdRate <= 0 {
+		thresholdRate = 0.85
+	}
+	if minGames <= 0 {
+		minGames = 10
+	}
+	return &RecentPerformanceDetector{thresholdRate: thresholdRate, minGames: minGames}
+}
+
+func (r *RecentPerformanceDetector) Name() string { return "recent_performance" }
+
+func (r *RecentPerformanceDetector) Detect(context *DetectionContext) (float64, error) {
+	if !context.HasRecentPerf || context.RecentGames == 0 {
+		return 0, nil
+	}
+	if context.RecentWinRate <= r.thresholdRate {
+		return 0, nil
+	}
+	excess := context.RecentWinRate - r.thresholdRate
+	score := (excess / (1.0 - r.thresholdRate)) * 80 // 最多 80 分
+
+	// 对手强度加权：战胜更强对手更可疑（>1 放大，<1 收敛）。
+	if context.OpponentStrength > 0 {
+		score *= math.Min(1.5, math.Max(0.5, context.OpponentStrength))
+	}
+
+	// 样本不足按比例衰减。
+	if context.RecentGames < r.minGames {
+		score *= float64(context.RecentGames) / float64(r.minGames)
+	}
+	return math.Min(100, score), nil
+}
+
+// MultiAccountDetector 多开/小号检测器。
+// 分数由登录侧信号（同 IP/设备指纹聚集）直接填充，本检测器仅透传。
+// 该维度不受新手保护放宽（见 optimization_scoring.go multiAccountSignals）。
+type MultiAccountDetector struct{}
+
+func NewMultiAccountDetector() *MultiAccountDetector { return &MultiAccountDetector{} }
+
+func (m *MultiAccountDetector) Name() string { return "multi_account" }
+
+func (m *MultiAccountDetector) Detect(context *DetectionContext) (float64, error) {
+	if !context.HasMultiAccount {
+		return 0, nil
+	}
+	return math.Min(100, math.Max(0, context.MultiAccountScore)), nil
 }
 
 // BuiltInStrategies 预定义的内置策略集合
@@ -261,15 +147,14 @@ type BuiltInStrategies struct {
 	strategies map[string]DetectionStrategy
 }
 
-// NewBuiltInStrategies 创建内置策略集合
+// NewBuiltInStrategies 创建内置策略集合（新指标体系）。
 func NewBuiltInStrategies() *BuiltInStrategies {
 	return &BuiltInStrategies{
 		strategies: map[string]DetectionStrategy{
-			"response_time": NewResponseTimeDetector(100, 0.05),
-			"frequency":     NewFrequencyDetector(20, 10*time.Second),
-			"win_rate":      NewWinRateDetector(0.85),
-			"pattern":       NewPatternDetector(50),
-			"account_age":   NewAccountAgeDetector(7),
+			"decision_optimality": NewDecisionOptimalityDetector(15, 0.6, 0.15),
+			"think_time":          NewThinkTimeDetector(5),
+			"recent_performance":  NewRecentPerformanceDetector(0.85, 10),
+			"multi_account":       NewMultiAccountDetector(),
 		},
 	}
 }
@@ -284,4 +169,12 @@ func (bis *BuiltInStrategies) RegisterAll(engine *RiskScoringEngine) error {
 		log.Printf("[风险评分] 已注册策略: %s", name)
 	}
 	return nil
+}
+
+// sigmoid01 将 z≥0 映射到 (0.5,1) 再拉伸到 (0,1)，用于把「偏离标准差数」
+// 平滑映射为 0-1 的异常强度。z=0→0，z 越大越接近 1。
+func sigmoid01(z float64) float64 {
+	// 标准 logistic 在 z=0 时为 0.5；减 0.5 再 ×2 使 z=0→0、z→∞→1。
+	s := 1.0/(1.0+math.Exp(-z)) - 0.5
+	return math.Max(0, math.Min(1, s*2))
 }

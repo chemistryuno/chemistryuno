@@ -89,6 +89,18 @@ type GameRoom struct {
 	GameStartedAt     time.Time
 	ReplayEvents      []map[string]interface{}
 	FastReactionUIDs  map[int]int
+
+	// 决策质量累积（反作弊指标重设计）：按玩家 UID 汇总本局的决策评估，
+	// 供 decision_optimality / think_time 指标使用。
+	DecisionStats map[int]*PlayerDecisionStats
+}
+
+// PlayerDecisionStats 单个玩家本局的决策质量累积。
+type PlayerDecisionStats struct {
+	TotalDecisions      int // 存在反应机会、纳入最优度评估的决策数
+	OptimalDecisions    int // 其中打出了可反应出法的决策数
+	ComplexDecisions    int // 复杂局面决策数（用于 think_time）
+	SuperhumanDecisions int // 复杂局面中思考耗时低于人类下限的决策数
 }
 
 // BroadcastSystemMessage 广播一条系统级信息到房间聊天室
@@ -833,7 +845,6 @@ func (gr *GameRoom) collectAnticheatDataLocked() map[int]*anticheat.DetectionCon
 			PlayerUID:       uid,
 			RoomID:          gr.Room.ID,
 			ReplayID:        gr.Room.ID,
-			ResponseTimes:   []int64{},
 			OperationCount:  0,
 			TimestampOffset: 10 * time.Second,
 			WinCount:        0,
@@ -842,10 +853,13 @@ func (gr *GameRoom) collectAnticheatDataLocked() map[int]*anticheat.DetectionCon
 			OperationTimes:  []time.Time{},
 		}
 
-		// 收集该玩家的快速反应数据
-		if gr.FastReactionUIDs != nil {
-			if count, exists := gr.FastReactionUIDs[uid]; exists {
-				context.ResponseTimes = append(context.ResponseTimes, int64(count*50)) // 估计响应时间
+		// 决策质量指标（decision_optimality / think_time）：注入本局累积的评估结果。
+		if gr.DecisionStats != nil {
+			if ds := gr.DecisionStats[uid]; ds != nil {
+				context.TotalDecisions = ds.TotalDecisions
+				context.OptimalDecisions = ds.OptimalDecisions
+				context.ComplexDecisionCount = ds.ComplexDecisions
+				context.SuperhumanDecisionCount = ds.SuperhumanDecisions
 			}
 		}
 
@@ -886,10 +900,47 @@ func (gr *GameRoom) collectAnticheatDataLocked() map[int]*anticheat.DetectionCon
 			context.AccountAgeDays = daysSinceCreation
 		}
 
+		// recent_performance：近 N 局滑动窗口胜率（替换旧的全局累计胜率）。
+		gr.populateRecentPerformance(uid, context)
+
 		dataMap[uid] = context
 	}
 
 	return dataMap
+}
+
+// recentPerformanceWindow 近期战绩滑动窗口大小（对局数）。
+const recentPerformanceWindow = 20
+
+// populateRecentPerformance 计算玩家近 N 局的胜率，填入检测上下文（recent_performance 指标）。
+// 只统计有效对局，胜负由 GameHistory.WinnerUID 判定。查询失败时静默跳过（指标不计分）。
+func (gr *GameRoom) populateRecentPerformance(uid int, context *anticheat.DetectionContext) {
+	if repository.GameRepo == nil || uid <= 0 {
+		return
+	}
+	histories, err := repository.GameRepo.FindRecentByUserUID(uint(uid), recentPerformanceWindow)
+	if err != nil || len(histories) == 0 {
+		return
+	}
+	games := 0
+	wins := 0
+	for _, h := range histories {
+		if h.IsInvalid {
+			continue
+		}
+		games++
+		if h.WinnerUID != nil && *h.WinnerUID == uint(uid) {
+			wins++
+		}
+	}
+	if games == 0 {
+		return
+	}
+	context.RecentGames = games
+	context.RecentWinRate = float64(wins) / float64(games)
+	context.HasRecentPerf = true
+	// OpponentStrength 需要对手等级数据，暂以 1.0（持平）占位，后续接入等级后细化。
+	context.OpponentStrength = 1.0
 }
 
 type replayReportEvidenceSet struct {
@@ -943,6 +994,42 @@ func (gr *GameRoom) collectReportEvidenceByUIDLocked() map[int]replayReportEvide
 		result[uid] = evidence
 	}
 	return result
+}
+
+// superhumanThinkMs 复杂局面下低于此思考耗时视为「超人决策」（脚本/工具信号）。
+// 与 anticheat.yaml think_time.threshold 对齐。
+const superhumanThinkMs int64 = 300
+
+// recordDecisionQualityLocked 累积一次真人普通出牌的决策质量评估。
+// 调用方须持有 gr.mutex。handCards 为出牌前手牌快照。
+func (gr *GameRoom) recordDecisionQualityLocked(uid int, handCards []models.Card, fieldSubstance, playedSubstance string, thinkMs int64) {
+	if gr == nil || gr.GameState == nil || gr.GameState.TutorialScriptMode {
+		return
+	}
+	q := EvaluatePlayDecision(handCards, fieldSubstance, playedSubstance)
+
+	if gr.DecisionStats == nil {
+		gr.DecisionStats = make(map[int]*PlayerDecisionStats)
+	}
+	stats := gr.DecisionStats[uid]
+	if stats == nil {
+		stats = &PlayerDecisionStats{}
+		gr.DecisionStats[uid] = stats
+	}
+
+	if q.Evaluated {
+		stats.TotalDecisions++
+		if q.PlayedOptimal {
+			stats.OptimalDecisions++
+		}
+	}
+	// think_time：仅对复杂局面且客户端上报了有效思考耗时时计入。
+	if q.Complex && thinkMs > 0 {
+		stats.ComplexDecisions++
+		if thinkMs < superhumanThinkMs {
+			stats.SuperhumanDecisions++
+		}
+	}
 }
 
 func maybeMarkFastHumanPlay(gr *GameRoom, uid int, nickname string, actionAt time.Time) (bool, int64) {
@@ -3376,7 +3463,8 @@ func isFunctionalCard(card models.Card) bool {
 }
 
 // 出牌
-func PlayCard(roomID string, uid int, card models.Card, substance string) error {
+// thinkMs 为客户端上报的本回合真实思考耗时（毫秒），0 表示未上报/AI 出牌。
+func PlayCard(roomID string, uid int, card models.Card, substance string, thinkMs int64) error {
 	substance = NormalizeSubscripts(substance)
 	roomMutex.RLock()
 	gameRoom, exists := rooms[roomID]
@@ -3591,6 +3679,16 @@ func PlayCard(roomID string, uid int, card models.Card, substance string) error 
 		if activeEffect != "+2" && activeEffect != "+4" {
 			return errors.New("当前累计加牌中，请打出加牌叠加或点摸牌结算")
 		}
+	}
+
+	// 反作弊：在移除手牌前，用当前手牌+场面评估本次决策质量（decision_optimality）。
+	// 仅对真人普通出牌评估；功能牌/自由出牌由评估函数内部判定是否纳入。
+	if !currentPlayer.IsAI {
+		fieldSubstance := ""
+		if gameRoom.GameState.LastCard != nil {
+			fieldSubstance = gameRoom.GameState.LastCard.Substance
+		}
+		gameRoom.recordDecisionQualityLocked(uid, currentPlayer.HandCards, fieldSubstance, substance, thinkMs)
 	}
 
 	// 记录消耗的卡牌详情用于后续逻辑

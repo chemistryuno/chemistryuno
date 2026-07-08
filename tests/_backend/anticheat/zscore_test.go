@@ -65,10 +65,11 @@ func TestZScore_InRangeNoContribution(t *testing.T) {
 func TestZScore_DisabledLeavesBaseDimensions(t *testing.T) {
 	engine := zscoreEngine(t, false, 3.0, 0.2)
 	ctx := &DetectionContext{
-		PlayerUID:      1,
-		RoomID:         "room_z3",
-		ResponseTimes:  []int64{50, 52, 48},
-		AccountAgeDays: 30,
+		PlayerUID:        1,
+		RoomID:           "room_z3",
+		TotalDecisions:   20,
+		OptimalDecisions: 20,
+		AccountAgeDays:   30,
 		GlobalBaselines: map[string]GlobalBaselineStat{
 			baselineIndicatorResponseMean: {Mean: 1200, StdDev: 300},
 		},
@@ -80,7 +81,7 @@ func TestZScore_DisabledLeavesBaseDimensions(t *testing.T) {
 	if _, ok := result.Dimensions["zscore_anomaly"]; ok {
 		t.Fatalf("zscore_anomaly must not exist when disabled")
 	}
-	if _, ok := result.Dimensions["response_time"]; !ok {
-		t.Fatalf("base response_time dimension should still be evaluated")
+	if _, ok := result.Dimensions["decision_optimality"]; !ok {
+		t.Fatalf("base decision_optimality dimension should still be evaluated")
 	}
 }

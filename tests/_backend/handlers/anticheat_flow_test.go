@@ -242,10 +242,8 @@ func seedFlowReport(t *testing.T, db *gorm.DB, fixture anticheatFlowFixture) {
 
 func highRiskCheatingContext(fixture anticheatFlowFixture, includeReports bool) *anticheat.DetectionContext {
 	operationTimes := make([]time.Time, 80)
-	responseTimes := make([]int64, len(operationTimes))
 	for i := range operationTimes {
 		operationTimes[i] = fixture.baseTime.Add(time.Duration(i) * 20 * time.Millisecond)
-		responseTimes[i] = 20
 	}
 	context := &anticheat.DetectionContext{
 		PlayerUID:       int(fixture.playerUID),
@@ -255,13 +253,23 @@ func highRiskCheatingContext(fixture anticheatFlowFixture, includeReports bool) 
 		OperationIndex:  fixture.primary.EventIndex,
 		PrimaryEvidence: fixture.primary,
 		RelatedEvidence: []anticheat.ReplayEvidenceAnchor{fixture.primary},
-		ResponseTimes:   responseTimes,
 		OperationCount:  len(operationTimes),
 		TimestampOffset: 10 * time.Second,
-		WinCount:        20,
-		TotalGames:      20,
-		AccountAgeDays:  0,
-		OperationTimes:  operationTimes,
+		// 新指标体系：全维度极端异常，确保达到封号阈值。
+		TotalDecisions:          25,
+		OptimalDecisions:        25, // decision_optimality 满
+		ComplexDecisionCount:    12,
+		SuperhumanDecisionCount: 12, // think_time 全超人
+		HasRecentPerf:           true,
+		RecentGames:             20,
+		RecentWinRate:           1.0, // recent_performance 满
+		OpponentStrength:        1.5,
+		HasMultiAccount:         true,
+		MultiAccountScore:       100, // multi_account 满
+		WinCount:                20,
+		TotalGames:              20,
+		AccountAgeDays:          0,
+		OperationTimes:          operationTimes,
 	}
 	if includeReports {
 		context.ReportCount = 5
@@ -333,8 +341,9 @@ func TestAnticheatFlowProcessGameEndCreatesEvidenceRichRiskRecord(t *testing.T) 
 	if score.SuggestedAction != "ban" || score.PunishmentDecision != "ban" || score.ReviewStatus != "pending" {
 		t.Fatalf("unexpected saved risk state: suggested=%q punishment=%q review=%q", score.SuggestedAction, score.PunishmentDecision, score.ReviewStatus)
 	}
-	if score.ResponseTimeDim == 0 || score.FrequencyDim == 0 || score.PatternDim == 0 || score.WinRateDim == 0 {
-		t.Fatalf("expected populated risk dimensions: %+v", score)
+	// 指标重设计：维度明细统一存 IndicatorDetails（JSON），旧的 *Dim 列已停写。
+	if len(score.IndicatorDetails) == 0 {
+		t.Fatalf("expected populated indicator details: %+v", score)
 	}
 	anchor, ok := anticheat.UnmarshalReplayEvidenceAnchor(score.PrimaryEvidence)
 	if !ok {

@@ -763,6 +763,13 @@ const getCompensationBadge = (status: string) => {
 
 const translateIndicatorName = (name: string) => {
   const map: Record<string, string> = {
+    // 新指标体系（指标重设计）
+    decision_optimality: '决策最优度',
+    think_time: '思考时长异常',
+    recent_performance: '近期战绩异常',
+    multi_account: '多开/小号',
+    player_reports: '举报信号',
+    // 旧指标名（保留以正确显示历史检测记录）
     response_time: '响应时间',
     frequency: '操作频率',
     win_rate: '胜率异常',
@@ -773,7 +780,6 @@ const translateIndicatorName = (name: string) => {
     draw_randomness: '抽牌随机性',
     rhythm: '回合节奏',
     collusion: '合谋检测',
-    multi_account: '多开检测',
     timestamp: '时间戳校验',
     report_contribution: '举报贡献',
   }

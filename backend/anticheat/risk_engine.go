@@ -34,6 +34,22 @@ type DetectionContext struct {
 	AccountAgeDays  int           // 账号年龄(天)
 	OperationTimes  []time.Time   // 操作时间列表
 
+	// ---- 新指标输入（指标重设计，见 docs/anticheat/METRICS_REDESIGN.md）----
+	// decision_optimality: 本局决策最优度
+	OptimalDecisions int // 打出最优/次优解的决策数
+	TotalDecisions   int // 参与评估的总决策数（有多种合法出法的局面）
+	// think_time: 复杂局面下的真实思考耗时（客户端上报，服务端已做上界校验）
+	ComplexDecisionCount   int   // 复杂局面决策数
+	SuperhumanDecisionCount int  // 复杂局面中思考耗时低于人类下限的决策数
+	// recent_performance: 近期滑动窗口战绩
+	RecentWinRate    float64 // 近 N 局胜率 0-1
+	RecentGames      int     // 近 N 局样本数
+	HasRecentPerf    bool    // 近期战绩是否有效
+	OpponentStrength float64 // 对手平均相对强度（对手均等级 / 自身等级），1 为持平
+	// multi_account: 多开/小号聚集强度 0-100（由登录侧填充）
+	MultiAccountScore float64
+	HasMultiAccount   bool
+
 	// Optimization inputs (populated by the System when features are enabled).
 	PersonalBaselines map[string]database.PlayerBehaviorBaseline // 玩家个人基线（指标->基线）
 	GlobalBaselines   map[string]GlobalBaselineStat              // 全局指标分布
@@ -160,6 +176,8 @@ type RiskScoringResult struct {
 	EffectiveWeights   map[string]float64            // 各维度实际生效权重
 	DecayFactorApplied *float64                      // 历史风险实际衰减因子
 	NewPlayerObserve   bool                          // 是否为观察期检测（降权且禁自动封禁）
+
+	strongEvidenceFloor float64 // 内部：强证据下限，应用于最终分数后即固定
 }
 
 // RiskIndicatorDetail snapshots one scoring signal for later review.
@@ -234,8 +252,11 @@ func (rse *RiskScoringEngine) CalculateRiskScore(context *DetectionContext) (*Ri
 	rse.configLock.RLock()
 	defer rse.configLock.RUnlock()
 
+	// 评分采用「加权和 + 强证据下限(floor)」，而非旧的加权平均——避免单个决定性
+	// 证据被一堆 0 分维度稀释。详见 docs/anticheat/METRICS_REDESIGN.md 第 4 节。
 	totalWeight := 0.0
 	weightedTotal := 0.0
+	strongFloor := 0.0
 	for _, strategy := range strategies {
 		score, err := strategy.Detect(context)
 		if err != nil {
@@ -243,15 +264,11 @@ func (rse *RiskScoringEngine) CalculateRiskScore(context *DetectionContext) (*Ri
 			continue
 		}
 
-		// 获取策略的权重
+		// 获取策略的权重（不再按账号年龄全局 ×1.5——旧逻辑与 account_age 维度构成
+		// 双重惩罚，是新手误判来源。账号经验的交叉判定已内建于各新指标自身）。
 		weight := 1.0
 		if dimConfig, exists := rse.config.Dimensions[strategy.Name()]; exists {
 			weight = dimConfig.Weight
-		}
-
-		// 考虑账号新旧程度
-		if context.AccountAgeDays < 7 && weight > 0 {
-			weight *= 1.5 // 新账号权重增加50%
 		}
 
 		result.Dimensions[strategy.Name()] = score
@@ -259,6 +276,13 @@ func (rse *RiskScoringEngine) CalculateRiskScore(context *DetectionContext) (*Ri
 		contribution := score * weight
 		weightedTotal += contribution
 		totalWeight += weight
+
+		// 强证据下限：核心指标极端异常时，风险分不低于对应 floor，
+		// 保证决定性证据能独立触发人工复核而不被稀释。
+		if floor := strongEvidenceFloor(strategy.Name(), score); floor > strongFloor {
+			strongFloor = floor
+		}
+
 		result.IndicatorDetails = append(result.IndicatorDetails, RiskIndicatorDetail{
 			Name:            strategy.Name(),
 			RawValue:        score,
@@ -269,6 +293,7 @@ func (rse *RiskScoringEngine) CalculateRiskScore(context *DetectionContext) (*Ri
 			EvidenceAnchors: []ReplayEvidenceAnchor{result.PrimaryEvidence},
 		})
 	}
+	result.strongEvidenceFloor = strongFloor
 
 	// 自适应阈值 + Z分数 优化维度（仅在启用时贡献，关闭时完全不影响评分）。
 	weightedTotal, totalWeight = rse.applyOptimizationDimensions(context, result, weightedTotal, totalWeight)
@@ -306,9 +331,13 @@ func (rse *RiskScoringEngine) CalculateRiskScore(context *DetectionContext) (*Ri
 		})
 	}
 
-	// 归一化到 0-100
+	// 加权平均作为基线分（对参与维度数鲁棒），再用强证据下限保底：
+	// 决定性证据（如 decision_optimality 极端异常）不会被其他 0 分维度稀释。
 	if totalWeight > 0 {
 		result.RiskScore = weightedTotal / totalWeight
+	}
+	if result.strongEvidenceFloor > result.RiskScore {
+		result.RiskScore = result.strongEvidenceFloor
 	}
 
 	result.RiskScore = clampRiskScore(result.RiskScore)
@@ -363,6 +392,26 @@ func clampRiskScore(score float64) float64 {
 		return 0
 	}
 	return score
+}
+
+// strongEvidenceCfg 定义核心指标的「强证据」触发阈值与保底分。
+// 当某核心指标的归一化得分达到 trigger 时，最终风险分不低于 floor，
+// 确保决定性证据能独立触发人工复核（observe/warning），不被弱维度稀释。
+var strongEvidenceCfg = map[string]struct {
+	trigger float64
+	floor   float64
+}{
+	"decision_optimality": {trigger: 85, floor: 60}, // 决策最优度极端异常 → 至少 mute 复核档
+	"think_time":          {trigger: 85, floor: 45}, // 思考耗时超人 → 至少 warning 档
+	"multi_account":       {trigger: 85, floor: 60}, // 多开/小号强聚集 → 至少 mute 复核档
+}
+
+// strongEvidenceFloor 返回给定指标在该得分下应保证的风险分下限（无则 0）。
+func strongEvidenceFloor(name string, score float64) float64 {
+	if cfg, ok := strongEvidenceCfg[name]; ok && score >= cfg.trigger {
+		return cfg.floor
+	}
+	return 0
 }
 
 // determineSanctionType 根据风险分数确定处罚类型
@@ -440,29 +489,24 @@ func (rse *RiskScoringEngine) getEnabledStrategies() []string {
 func NewDefaultConfig() *RiskScoringConfig {
 	return &RiskScoringConfig{
 		Dimensions: map[string]DimensionConfig{
-			"response_time": {
-				Weight:     0.25,
-				Threshold:  100,  // 100ms
-				Percentile: 0.05, // 5%百分位
-			},
-			"frequency": {
-				Weight:     0.25,
-				Threshold:  20,   // 每10秒20个操作
-				Percentile: 0.95, // 95%百分位
-			},
-			"win_rate": {
-				Weight:     0.20,
-				Threshold:  85, // 85%胜率
+			"decision_optimality": {
+				Weight:     0.30,
+				Threshold:  15, // 最小决策数
 				Percentile: 0.99,
 			},
-			"pattern": {
-				Weight:     0.15,
-				Threshold:  50, // 50ms最小操作间隔
-				Percentile: 0.10,
+			"think_time": {
+				Weight:     0.25,
+				Threshold:  300, // 复杂局面思考耗时下限(ms)，低于视为超人
+				Percentile: 0.05,
 			},
-			"account_age": {
+			"recent_performance": {
 				Weight:     0.15,
-				Threshold:  7, // 7天新账号
+				Threshold:  85, // 近期窗口胜率阈值(%)
+				Percentile: 0.99,
+			},
+			"multi_account": {
+				Weight:     0.20,
+				Threshold:  0,
 				Percentile: 1.0,
 			},
 		},
@@ -477,11 +521,10 @@ func NewDefaultConfig() *RiskScoringConfig {
 			BanMax:     100,
 		},
 		EnabledStrategies: []string{
-			"response_time",
-			"frequency",
-			"win_rate",
-			"pattern",
-			"account_age",
+			"decision_optimality",
+			"think_time",
+			"recent_performance",
+			"multi_account",
 		},
 		UnbanConfig: UnbanConfig{
 			Enabled:            true,

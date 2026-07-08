@@ -85,13 +85,14 @@ func TestAppealManager_Workflow(t *testing.T) {
 	t.Log("需要数据库集成以完整测试")
 }
 
-// TestDetectors_ResponseTime 测试响应时间检测器
-func TestDetectors_ResponseTime(t *testing.T) {
-	detector := NewResponseTimeDetector(100, 0.05)
+// TestDetectors_DecisionOptimality 测试决策最优度检测器（替换旧的响应时间检测器）
+func TestDetectors_DecisionOptimality(t *testing.T) {
+	detector := NewDecisionOptimalityDetector(15, 0.6, 0.15)
 
-	// 测试场景：混合的响应时间
+	// 测试场景：混合最优度
 	context := &DetectionContext{
-		ResponseTimes: []int64{150, 160, 50, 45, 55, 200, 180},
+		TotalDecisions:   18,
+		OptimalDecisions: 15,
 	}
 
 	score, err := detector.Detect(context)
@@ -103,23 +104,16 @@ func TestDetectors_ResponseTime(t *testing.T) {
 		t.Errorf("分数应在 0-100 之间，得到: %.1f", score)
 	}
 
-	t.Logf("响应时间异常分数: %.1f", score)
+	t.Logf("决策最优度异常分数: %.1f", score)
 }
 
-// TestDetectors_Frequency 测试频率检测器
-func TestDetectors_Frequency(t *testing.T) {
-	detector := NewFrequencyDetector(5, 1*time.Second)
+// TestDetectors_ThinkTime 测试思考时长检测器（替换旧的频率检测器）
+func TestDetectors_ThinkTime(t *testing.T) {
+	detector := NewThinkTimeDetector(5)
 
-	now := time.Now()
 	context := &DetectionContext{
-		OperationTimes: []time.Time{
-			now,
-			now.Add(100 * time.Millisecond),
-			now.Add(200 * time.Millisecond),
-			now.Add(300 * time.Millisecond),
-			now.Add(400 * time.Millisecond),
-			now.Add(500 * time.Millisecond),
-		},
+		ComplexDecisionCount:    8,
+		SuperhumanDecisionCount: 6,
 	}
 
 	score, err := detector.Detect(context)
@@ -127,9 +121,11 @@ func TestDetectors_Frequency(t *testing.T) {
 		t.Fatalf("检测失败: %v", err)
 	}
 
-	if score > 0 {
-		t.Logf("频率异常分数: %.1f (超过限制的操作检测到)", score)
+	if score < 0 || score > 100 {
+		t.Errorf("分数应在 0-100 之间，得到: %.1f", score)
 	}
+
+	t.Logf("思考时长异常分数: %.1f", score)
 }
 
 // TestConfigManager_DynamicUpdate 测试配置动态更新
@@ -139,15 +135,15 @@ func TestConfigManager_DynamicUpdate(t *testing.T) {
 		t.Fatalf("配置管理器初始化失败: %v", err)
 	}
 
-	originalWeight := manager.GetConfig().Dimensions["response_time"].Weight
+	originalWeight := manager.GetConfig().Dimensions["decision_optimality"].Weight
 
 	// 更新权重
-	err = manager.UpdateDimensionWeight("response_time", 0.5)
+	err = manager.UpdateDimensionWeight("decision_optimality", 0.5)
 	if err != nil {
 		t.Fatalf("更新权重失败: %v", err)
 	}
 
-	newWeight := manager.GetConfig().Dimensions["response_time"].Weight
+	newWeight := manager.GetConfig().Dimensions["decision_optimality"].Weight
 	if newWeight != 0.5 {
 		t.Errorf("权重更新失败，期望 0.5，得到 %.2f", newWeight)
 	}

@@ -66,11 +66,16 @@ func TestRollout_DisabledMatchesLegacyBehavior(t *testing.T) {
 		t.Fatalf("new-player observe flag must be false when disabled")
 	}
 
-	// Only the legacy five dimensions are present.
-	legacy := map[string]bool{"response_time": true, "frequency": true, "win_rate": true, "pattern": true, "account_age": true}
+	// Only the redesigned base dimensions are present when optimization disabled.
+	base := map[string]bool{
+		"decision_optimality": true,
+		"think_time":          true,
+		"recent_performance":  true,
+		"multi_account":       true,
+	}
 	for name := range result.Dimensions {
-		if !legacy[name] {
-			t.Fatalf("unexpected non-legacy dimension %q present when disabled", name)
+		if !base[name] {
+			t.Fatalf("unexpected non-base dimension %q present when disabled", name)
 		}
 	}
 }

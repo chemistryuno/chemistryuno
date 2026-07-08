@@ -753,13 +753,6 @@ const sortedPointsChanges = computed(() => {
     })
 })
 
-const fastReactionUIDs = computed(() => {
-  return gameState.value?.fast_reaction_users || {}
-})
-
-const hasCheatDetection = computed(() => {
-  return Object.keys(fastReactionUIDs.value).length > 0
-})
 
 const ELEMENTS_DATA: Record<string, { name: string, class: string }> = {
   'H': { name: '氢', class: 'element-H' },
@@ -3654,35 +3647,6 @@ watch(() => gameState.value?.current_player, () => {
                          </div>
                       </div>
                    </div>
-                </div>
-
-                <!-- 反作弊检测结果（游戏结束后展示） -->
-                <div v-if="hasCheatDetection" class="w-full mt-2 bg-rose-500/5 border border-rose-500/20 rounded-2xl p-3">
-                  <div class="flex items-center justify-between mb-2 px-1">
-                    <span class="text-[9px] font-black uppercase tracking-widest text-rose-500">反作弊检测报告</span>
-                    <span class="px-1.5 py-0.5 bg-rose-500/10 rounded-md border border-rose-500/10 text-[7px] font-black text-rose-500 font-mono">FLAGGED</span>
-                  </div>
-                  <div class="space-y-1">
-                    <div
-                      v-for="(count, uid) in fastReactionUIDs"
-                      :key="uid"
-                      class="flex items-center justify-between p-2 rounded-xl bg-rose-500/5"
-                    >
-                      <div class="flex items-center gap-2">
-                        <span class="text-[10px] font-black text-rose-600 dark:text-rose-400">
-                          {{ getPlayerDisplayName(gameState?.players?.find((p: any) => String(p.uid) === String(uid))) || `研究员 ${uid}` }}
-                        </span>
-                      </div>
-                      <div class="flex items-center gap-1">
-                        <span class="px-2 py-0.5 rounded-lg bg-rose-500/10 text-rose-500 font-black font-mono text-[10px]">
-                          快速出牌 x{{ count }}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <p class="text-[9px] text-rose-400/60 mt-2 px-1 font-medium">
-                    系统已记录相关回放数据，将用于进一步审核。
-                  </p>
                 </div>
 
              </div>

@@ -1161,9 +1161,8 @@ func CreateRoom(name string, creatorUID int, maxPlayers int, deckID int, isPoint
 
 // 创建房间（支持自定义访问密钥）
 func CreateRoomWithKey(name string, creatorUID int, maxPlayers int, deckID int, isPointsMode bool, isPrivate bool, customKey string, isPvE bool, difficulty int, aiCount int, enableAIBackfill bool, aiBackfillDifficulty int, isRanked bool, levelRange int, tutorialScript bool) (*models.Room, error) {
-	if isPointsMode && isPrivate && !isPvE {
-		return nil, errors.New("积分模式下不可创建私密房间")
-	}
+	// 燃素结算始终开启，不再由前端控制
+	isPointsMode = true
 	if isPvE {
 		if difficulty < 1 || difficulty > 100 {
 			return nil, errors.New("AI难度必须在1-100之间")
@@ -1196,8 +1195,7 @@ func CreateRoomWithKey(name string, creatorUID int, maxPlayers int, deckID int, 
 
 	// 加载牌组配置
 	var deckConfig models.DeckConfig
-	// 积分模式强制使用默认牌组
-	if isPointsMode || deckID <= 1 { // deckID <= 1 意味着使用全局默认牌组 (ID=1)
+	if deckID <= 1 { // deckID <= 1 意味着使用全局默认牌组 (ID=1)
 		cards, dname, initialCards := getGlobalDeckConfigFromDB()
 		deckConfig.Cards = cards
 		deckConfig.Name = dname

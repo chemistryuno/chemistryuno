@@ -83,7 +83,7 @@ const selectedDeckConfig = ref<any>(null)
 const roomName = ref('')
 const maxPlayers = ref(4)
 const deckID = ref(0)
-const isPointsMode = ref(false)
+const isPointsMode = ref(true)
 const isPrivate = ref(false)
 const lobbyViewMode = ref<'player' | 'admin'>('player')
 
@@ -373,13 +373,6 @@ const loadDecks = async () => {
     console.error(e)
   }
 }
-
-// PvE 模式下是否选择了自定义（非全局）牌组
-const pveUsingCustomDeck = computed(() => {
-  if (decks.value.length === 0) return false
-  const selected = decks.value.find((d: any) => d.id === deckID.value)
-  return selected ? !selected.is_global : false
-})
 
 let roomInterval: any
 let timeInterval: any
@@ -1342,27 +1335,7 @@ const copyToClipboard = (text: string) => {
                <label class="text-label-mobile font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">核心配置</label>
                <span class="text-caption-mobile text-blue-500/40 font-mono">PROTOCOL</span>
             </div>
-            <div class="flex items-center gap-3 p-3.5 sm:p-3 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-xl group/toggle cursor-pointer transition-all hover:bg-slate-100 dark:hover:bg-white/10 touch-feedback" @click="isPointsMode = !isPointsMode; if(isPointsMode) isPrivate = false">
-              <div :class="cn(
-                'w-10 h-5 sm:w-8 sm:h-4.5 rounded-full relative transition-colors duration-300',
-                isPointsMode ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-700'
-              )">
-                <div :class="cn(
-                  'absolute top-1 left-1 sm:top-0.75 sm:left-0.75 w-3 h-3 bg-white rounded-full transition-transform duration-300',
-                  isPointsMode ? 'translate-x-5 sm:translate-x-3.5' : 'translate-x-0'
-                )"></div>
-              </div>
-              <div class="flex flex-col">
-                <span :class="cn('text-xs sm:text-[9px] font-black uppercase tracking-wider', isPointsMode ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-400')">
-                  燃素竞技模式
-                </span>
-                <span class="text-caption-mobile text-slate-400 dark:text-slate-500 mt-0.5 leading-tight">
-                  胜负将影响全球排名
-                </span>
-              </div>
-            </div>
-
-            <div class="flex items-center gap-3 p-3.5 sm:p-3 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-xl group/toggle cursor-pointer transition-all hover:bg-slate-100 dark:hover:bg-white/10 touch-feedback" @click="isPrivate = !isPrivate; if(isPrivate) isPointsMode = false">
+            <div class="flex items-center gap-3 p-3.5 sm:p-3 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-xl group/toggle cursor-pointer transition-all hover:bg-slate-100 dark:hover:bg-white/10 touch-feedback" @click="isPrivate = !isPrivate">
               <div :class="cn(
                 'w-10 h-5 sm:w-8 sm:h-4.5 rounded-full relative transition-colors duration-300',
                 isPrivate ? 'bg-amber-600' : 'bg-slate-300 dark:bg-slate-700'
@@ -1649,7 +1622,7 @@ const copyToClipboard = (text: string) => {
                   v-for="deck in decks"
                   :key="deck.id"
                   type="button"
-                  @click="deckID = deck.id; if (!deck.is_global) isPointsMode = false"
+                  @click="deckID = deck.id"
                   :class="cn(
                     'w-full flex items-center gap-3 p-3.5 rounded-xl border transition-all text-left',
                     deckID === deck.id
@@ -1673,34 +1646,6 @@ const copyToClipboard = (text: string) => {
                   </div>
                   <div v-if="deckID === deck.id" class="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse mr-1"></div>
                 </button>
-              </div>
-            </div>
-
-            <!-- Points Mode Toggle -->
-            <div
-              class="flex items-center gap-3 p-4 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-xl transition-all"
-              :class="pveUsingCustomDeck ? 'opacity-50 cursor-not-allowed' : 'group/toggle cursor-pointer hover:bg-slate-100 dark:hover:bg-white/10'"
-              @click="!pveUsingCustomDeck && (isPointsMode = !isPointsMode)"
-            >
-              <div :class="cn(
-                'w-10 h-6 rounded-full relative transition-colors duration-300',
-                isPointsMode ? 'bg-purple-600' : 'bg-slate-300 dark:bg-slate-700'
-              )">
-                <div :class="cn(
-                  'absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform duration-300',
-                  isPointsMode ? 'translate-x-4' : 'translate-x-0'
-                )"></div>
-              </div>
-              <div class="flex flex-col">
-                <span :class="cn('text-[10px] font-black uppercase tracking-wider', isPointsMode ? 'text-purple-600 dark:text-purple-400' : 'text-slate-400 dark:text-slate-400')">
-                  燃素结算
-                </span>
-                <span v-if="pveUsingCustomDeck" class="text-[9px] text-amber-500/80 dark:text-amber-400/70 mt-0.5 leading-tight">
-                  自定义牌组不支持燃素模式
-                </span>
-                <span v-else class="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5 leading-tight">
-                  难度 >= 50% 时可获得燃素奖励，否则仅供练习
-                </span>
               </div>
             </div>
 

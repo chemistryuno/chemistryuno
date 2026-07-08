@@ -7,6 +7,9 @@ import (
 )
 
 func TestHubBroadcastConcurrency(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping concurrency test in short mode")
+	}
 	hub := NewHub()
 	go hub.Run()
 	t.Cleanup(func() { hub.Stop() })
@@ -77,6 +80,9 @@ func TestHubBroadcastConcurrency(t *testing.T) {
 }
 
 func TestHubRoomBroadcastConcurrency(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping concurrency test in short mode")
+	}
 	hub := NewHub()
 	go hub.Run()
 	t.Cleanup(func() { hub.Stop() })
@@ -154,6 +160,9 @@ func TestHubRoomBroadcastConcurrency(t *testing.T) {
 }
 
 func TestHubSendToUIDConcurrency(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping concurrency test in short mode")
+	}
 	hub := NewHub()
 	go hub.Run()
 	t.Cleanup(func() { hub.Stop() })

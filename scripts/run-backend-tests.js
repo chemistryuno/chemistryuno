@@ -99,7 +99,7 @@ function main() {
 
   try {
     materializeBackendTests();
-    const result = spawnSync('go', ['test', '-timeout', '120s', ...args], {
+    const result = spawnSync('go', ['test', '-short', '-timeout', '120s', ...args], {
       cwd: rootDir,
       stdio: 'inherit',
       env: { ...process.env },

@@ -2,6 +2,7 @@ package websocket
 
 import (
 	"chemistryuno/backend/cache"
+	"chemistryuno/backend/database"
 	"chemistryuno/backend/metrics"
 	"chemistryuno/backend/repository"
 	"context"
@@ -181,6 +182,10 @@ func (h *Hub) hasUIDLocked(uid int) bool {
 
 func (h *Hub) recordLastOffline(uid int, offlineAt time.Time) {
 	go func() {
+		// database.DB 在测试环境可能未初始化，跳过而非 panic
+		if database.DB == nil {
+			return
+		}
 		if err := repository.NewUserRepository().UpdateLastOfflineAt(uint(uid), offlineAt); err != nil {
 			log.Printf("failed to update last_offline_at for uid %d: %v", uid, err)
 		}

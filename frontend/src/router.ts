@@ -11,6 +11,8 @@ const Admin = () => import('./pages/Admin.vue')
 const AdminPlugins = () => import('./pages/AdminPlugins.vue')
 const AdminSurveyResponses = () => import('./pages/AdminSurveyResponses.vue')
 const AdminAnticheat = () => import('./pages/AdminAnticheat.vue')
+const ActivityAdmin = () => import('./pages/ActivityAdmin.vue')
+const BingoRoom = () => import('./pages/BingoRoom.vue')
 const Plugins = () => import('./pages/Plugins.vue')
 const Reactions = () => import('./pages/Reactions.vue')
 const Feedbacks = () => import('./pages/Feedbacks.vue')
@@ -93,6 +95,18 @@ const routes = [
   {
     path: '/feedbacks/my',
     redirect: '/feedbacks'
+  },
+  {
+    path: '/admin/activities',
+    name: 'ActivityAdmin',
+    component: ActivityAdmin,
+    meta: { requiresAuth: true, coWorkerOnly: true }
+  },
+  {
+    path: '/bingo/rooms/:id',
+    name: 'BingoRoom',
+    component: BingoRoom,
+    meta: { requiresAuth: true }
   },
   {
     path: '/admin',

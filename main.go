@@ -11,6 +11,7 @@ import (
 	"chemistryuno/backend/repository"
 	"chemistryuno/backend/router"
 	"chemistryuno/backend/static"
+	"chemistryuno/backend/team"
 	"chemistryuno/backend/utils"
 	"chemistryuno/backend/websocket"
 	"context"
@@ -147,6 +148,10 @@ func main() {
 
 	// 初始化所有Repository（需要在数据库初始化后）
 	repository.InitRepositories()
+
+	// 初始化组队系统
+	team.NewManager(database.DB)
+	// bingo package is used via handlers — no explicit init needed
 
 	// 启动时修复历史数据中缺失昵称的玩家，确保所有展示面都有可用昵称。
 	if _, err := utils.RepairMissingNicknames(repository.UserRepo); err != nil {

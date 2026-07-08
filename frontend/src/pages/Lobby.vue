@@ -12,6 +12,7 @@ import { cn } from '../utils/cn'
 import ChatBox from '../components/ChatBox.vue'
 import TutorialGuide from '../components/TutorialGuide.vue'
 import PingDisplay from '../components/PingDisplay.vue'
+import TeamPanel from '../components/TeamPanel.vue'
 import '../styles/lobby.css'
 
 const props = defineProps<{
@@ -1189,9 +1190,10 @@ const copyToClipboard = (text: string) => {
                 </div> <!-- room-grid end -->
             </div> <!-- lobby-content-pane end -->
             
-            <!-- Right Column: World Chat -->
-            <div class="lobby-sidebar-pane bg-white/40 dark:bg-black/20 rounded-2xl overflow-hidden border border-slate-200 dark:border-white/5">
-                <ChatBox title="全域通信频率" placeholder="发送消息..." maxHeight="100%" class="h-full" />
+            <!-- Right Column: World Chat & Team -->
+            <div class="lobby-sidebar-pane bg-white/40 dark:bg-black/20 rounded-2xl overflow-hidden border border-slate-200 dark:border-white/5 flex flex-col gap-2">
+                <TeamPanel />
+                <ChatBox title="全域通信频率" placeholder="发送消息..." maxHeight="100%" class="h-full flex-1" />
             </div>
         </div> <!-- lobby-main-grid end -->
       </main>

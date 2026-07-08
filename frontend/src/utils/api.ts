@@ -796,4 +796,48 @@ export const pluginAPI = {
     api.post('/admin/server/restart/cancel'),
 }
 
+// ---- 活动管理 API ----
+export const activityAPI = {
+  // 查询活动列表（管理员可见全部，普通用户只看进行中）
+  listActivities: () => api.get('/activities'),
+  createActivity: (data: object) => api.post('/activities', data),
+  updateActivity: (id: number, data: object) => api.patch(`/activities/${id}`, data),
+  toggleActivity: (id: number, isActive: boolean) => api.post(`/activities/${id}/toggle`, { is_active: isActive }),
+
+  // 版本管理
+  listVersions: () => api.get('/game-versions'),
+  createVersion: (data: object) => api.post('/game-versions', data),
+  updateVersion: (id: number, data: object) => api.put(`/game-versions/${id}`, data),
+
+  // 双倍积分
+  getDoublePointsStatus: () => api.get('/activities/double-points/status'),
+  triggerDoublePoints: (activityId: number, roomId: string) =>
+    api.post('/activities/double-points/trigger', { activity_id: activityId, room_id: roomId }),
+}
+
+// ---- 组队 API ----
+export const teamAPI = {
+  createTeam: (name: string) => api.post('/teams', { name }),
+  joinTeam: (inviteCode: string) => api.post('/teams/join', { invite_code: inviteCode }),
+  leaveTeam: () => api.post('/teams/leave'),
+  disbandTeam: () => api.post('/teams/disband'),
+  getMyTeam: () => api.get('/teams/my'),
+  getChatHistory: () => api.get('/teams/chat/history'),
+  getTeammateHand: (uid: number) => api.get(`/teams/members/${uid}/hand`),
+}
+
+// ---- BINGO API ----
+export const bingoAPI = {
+  // playerUIDs: list of participant UIDs — teams are randomly assigned at creation time
+  createRoom: (playerUIDs: number[], timeoutMinutes?: number) =>
+    api.post('/bingo/rooms', { player_uids: playerUIDs, timeout_minutes: timeoutMinutes }),
+  getRoom: (id: number) => api.get(`/bingo/rooms/${id}`),
+  startGame: (id: number) => api.post(`/bingo/rooms/${id}/start`),
+  voteRefresh: (id: number, agree: boolean) => api.post(`/bingo/rooms/${id}/vote-refresh`, { agree }),
+  swapCells: (id: number, r1: number, c1: number, r2: number, c2: number) =>
+    api.post(`/bingo/rooms/${id}/swap`, { r1, c1, r2, c2 }),
+  occupyCell: (id: number, row: number, col: number, substanceId: number) =>
+    api.post(`/bingo/rooms/${id}/occupy`, { row, col, substance_id: substanceId }),
+}
+
 export default api

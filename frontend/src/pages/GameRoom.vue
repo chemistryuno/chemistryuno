@@ -3,7 +3,7 @@ import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { pageClassNames } from '@lib'
 import PhlogistonIcon from '../components/icons/PhlogistonIcon.vue'
-import { gameAPI, adminAPI, friendAPI, authAPI, commonAPI, substanceAPI } from '../utils/api'
+import { gameAPI, adminAPI, friendAPI, authAPI, commonAPI, substanceAPI, activityAPI } from '../utils/api'
 import { useDialog, setToastRef } from '../utils/dialog'
 import websocket from '../utils/websocket'
 import feedback from '../utils/feedback'
@@ -723,6 +723,31 @@ const showSettlementPanel = computed(() => {
   const status = String(gameState.value?.status || '')
   return status === 'finished' || status === 'terminated'
 })
+
+// 双倍积分
+const doublePointsStatus = ref<any>(null)
+const doublePointsUsed = ref(false)
+const doublePointsLoading = ref(false)
+
+watch(showSettlementPanel, async (show) => {
+  if (show && !isTerminatedSettlement.value) {
+    try {
+      const res = await activityAPI.getDoublePointsStatus()
+      doublePointsStatus.value = res.data
+    } catch { /* ignore */ }
+  }
+})
+
+async function useDoublePoints() {
+  if (!doublePointsStatus.value?.activity_id) return
+  doublePointsLoading.value = true
+  try {
+    await activityAPI.triggerDoublePoints(doublePointsStatus.value.activity_id, String(id))
+    doublePointsUsed.value = true
+  } catch { /* ignore */ } finally {
+    doublePointsLoading.value = false
+  }
+}
 
 const isTerminatedSettlement = computed(() => {
   return String(gameState.value?.status || '') === 'terminated'
@@ -3650,6 +3675,24 @@ watch(() => gameState.value?.current_player, () => {
                 </div>
 
              </div>
+           </div>
+
+           <!-- 双倍积分卡片 -->
+           <div
+             v-if="showSettlementPanel && doublePointsStatus?.active && doublePointsStatus?.remaining > 0 && !doublePointsUsed && !isTerminatedSettlement"
+             class="w-full mb-3 p-3 rounded-2xl border border-yellow-400/40 bg-yellow-500/10 text-center"
+           >
+             <p class="text-xs font-bold text-yellow-600 dark:text-yellow-400 mb-1">🌟 双倍积分可用（今日剩余 {{ doublePointsStatus.remaining }} 次）</p>
+             <button
+               @click="useDoublePoints"
+               :disabled="doublePointsLoading"
+               class="px-4 py-2 bg-yellow-500 hover:bg-yellow-400 text-white rounded-xl text-xs font-black disabled:opacity-50 transition-colors"
+             >
+               {{ doublePointsLoading ? '处理中...' : '使用双倍积分' }}
+             </button>
+           </div>
+           <div v-if="doublePointsUsed" class="w-full mb-3 p-2 rounded-xl bg-green-100 text-green-700 text-xs font-medium text-center">
+             ✅ 双倍积分已使用！积分已翻倍。
            </div>
 
            <div class="w-full shrink-0 flex gap-3">

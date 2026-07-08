@@ -306,6 +306,29 @@ func (h *Hub) BroadcastToRoom(roomID string, message interface{}) {
 	cache.PublishAsync(pubChannel, payload)
 }
 
+// BroadcastToRoomRaw broadcasts pre-serialized bytes to a room, skipping serialization.
+func (h *Hub) BroadcastToRoomRaw(roomID string, data []byte) {
+	h.mutex.RLock()
+	clients, ok := h.rooms[roomID]
+	if !ok {
+		h.mutex.RUnlock()
+		return
+	}
+	clientList := make([]*Client, 0, len(clients))
+	for client := range clients {
+		clientList = append(clientList, client)
+	}
+	h.mutex.RUnlock()
+	for _, client := range clientList {
+		if !client.trySend(data) {
+			h.asyncUnregister(client)
+		}
+	}
+	pubChannel := fmt.Sprintf("room:%s", roomID)
+	payload := fmt.Sprintf("%s|%s", instanceID, string(data))
+	cache.PublishAsync(pubChannel, payload)
+}
+
 // SendToUID 发送消息给指定用户的所有连接
 func (h *Hub) SendToUID(uid int, message interface{}) {
 	// Serialize message BEFORE acquiring lock

@@ -402,6 +402,32 @@ func DrawCard(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "摸牌成功"})
 }
 
+// DiscardAndDraw 弃置 2 张手牌并从摸牌堆补 2 张
+func DiscardAndDraw(c *gin.Context) {
+	roomID := c.Param("id")
+	uid := c.GetInt("uid")
+
+	var req struct {
+		Cards []string `json:"cards" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := game.DiscardAndDraw(roomID, uid, req.Cards); err != nil {
+		if err.Error() == "房间不存在" {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		}
+		return
+	}
+
+	broadcastUpdate(roomID)
+	c.JSON(http.StatusOK, gin.H{"message": "弃牌成功"})
+}
+
 // 获取可用物质列表
 func GetAvailableSubstances(c *gin.Context) {
 	roomID := c.Param("id")

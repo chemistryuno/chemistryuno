@@ -19,6 +19,7 @@ var (
 	ChatRepo         *ChatRepository
 	PluginRepo       *PluginRepository
 	SurveyRepo       *SurveyRepository
+	ActivityRepo     *ActivityRepository
 )
 
 func InitRepositories() {
@@ -36,6 +37,7 @@ func InitRepositories() {
 	ChatRepo = NewChatRepository()
 	PluginRepo = NewPluginRepository()
 	SurveyRepo = NewSurveyRepository()
+	ActivityRepo = NewActivityRepository()
 }
 
 // randomOrder 根据数据库类型返回随机排序的 SQL 片段

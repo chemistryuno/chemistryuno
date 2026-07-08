@@ -154,6 +154,7 @@ func RegisterAPIRoutes(r *gin.Engine, startTime time.Time, wsHandler gin.Handler
 			auth.POST("/rooms/:id/play", handlers.PlayCard)
 			auth.POST("/rooms/:id/play-double", handlers.DoublePlay)
 			auth.POST("/rooms/:id/draw", handlers.DrawCard)
+			auth.POST("/rooms/:id/discard-draw", handlers.DiscardAndDraw)
 			auth.GET("/rooms/:id/substances", handlers.GetAvailableSubstances)
 			auth.GET("/rooms/:id/reaction-hints", handlers.GetReactionHints)
 			auth.POST("/game/check-reaction", handlers.VerifyReaction)
@@ -162,6 +163,42 @@ func RegisterAPIRoutes(r *gin.Engine, startTime time.Time, wsHandler gin.Handler
 			auth.GET("/plugins/:id/script", handlers.GetPluginScript)
 			auth.GET("/plugins/:id/settings", handlers.GetPluginSettings)
 			auth.GET("/ws", wsHandler)
+
+			// 活动管理路由
+			auth.GET("/activities", handlers.ListActivities)
+			auth.GET("/activities/double-points/status", handlers.GetDoublePointsStatus)
+			auth.POST("/activities/double-points/trigger", handlers.TriggerDoublePoints)
+
+			// 组队系统路由
+			auth.POST("/teams", handlers.CreateTeam)
+			auth.POST("/teams/join", handlers.JoinTeam)
+			auth.POST("/teams/leave", handlers.LeaveTeam)
+			auth.POST("/teams/disband", handlers.DisbandTeam)
+			auth.GET("/teams/my", handlers.GetMyTeam)
+			auth.GET("/teams/chat/history", handlers.GetTeamHistory)
+			auth.GET("/teams/chat/ws", handlers.TeamChat)
+			auth.GET("/teams/members/:uid/hand", handlers.GetTeammateHand)
+
+			// BINGO 游戏路由
+			auth.POST("/bingo/rooms", handlers.CreateBingoRoom)
+			auth.GET("/bingo/rooms/:id", handlers.GetBingoRoom)
+			auth.POST("/bingo/rooms/:id/start", handlers.StartBingoGame)
+			auth.POST("/bingo/rooms/:id/vote-refresh", handlers.VoteBingoRefresh)
+			auth.POST("/bingo/rooms/:id/swap", handlers.SwapBingoCells)
+			auth.POST("/bingo/rooms/:id/occupy", handlers.OccupyBingoCell)
+
+			// 版本与活动管理（仅管理员）
+			activityAdmin := auth.Group("/")
+			activityAdmin.Use(middleware.CoWorkerMiddleware())
+			{
+				activityAdmin.GET("/game-versions", handlers.ListGameVersions)
+				activityAdmin.POST("/game-versions", handlers.CreateGameVersion)
+				activityAdmin.PUT("/game-versions/:id", handlers.UpdateGameVersion)
+				activityAdmin.POST("/activities", handlers.CreateActivity)
+				activityAdmin.PUT("/activities/:id", handlers.UpdateActivity)
+				activityAdmin.PATCH("/activities/:id", handlers.UpdateActivity)
+				activityAdmin.POST("/activities/:id/toggle", handlers.ToggleActivity)
+			}
 
 			reactions := auth.Group("/reactions")
 			{

@@ -4261,6 +4261,84 @@ func DrawCard(roomID string, uid int, count int) error {
 	return nil
 }
 
+// DiscardAndDraw allows a player to discard exactly 2 cards and draw 2 new ones.
+// This replaces the old "auto draw 2 after playing" mechanic.
+func DiscardAndDraw(roomID string, uid int, discardCardTypes []string) error {
+	if len(discardCardTypes) != 2 {
+		return errors.New("须选择恰好 2 张手牌弃置")
+	}
+
+	roomMutex.RLock()
+	gameRoom, exists := rooms[roomID]
+	roomMutex.RUnlock()
+	if !exists {
+		return errors.New("房间不存在")
+	}
+
+	gameRoom.mutex.Lock()
+	defer gameRoom.mutex.Unlock()
+
+	if gameRoom.GameState == nil || gameRoom.GameState.Status != "playing" {
+		return errors.New("游戏未开始")
+	}
+
+	// Find the current player.
+	var playerIdx int = -1
+	for i, p := range gameRoom.GameState.Players {
+		if p.UID == uid {
+			playerIdx = i
+			break
+		}
+	}
+	if playerIdx == -1 {
+		return errors.New("你不在游戏中")
+	}
+
+	player := gameRoom.GameState.Players[playerIdx]
+
+	// Remove the two discarded cards from hand.
+	remaining := make([]models.Card, 0, len(player.HandCards))
+	discarded := make([]models.Card, 0, 2)
+	toDiscard := make([]string, len(discardCardTypes))
+	copy(toDiscard, discardCardTypes)
+
+	for _, card := range player.HandCards {
+		removed := false
+		for i, dt := range toDiscard {
+			if card.Type == dt {
+				discarded = append(discarded, card)
+				toDiscard = append(toDiscard[:i], toDiscard[i+1:]...)
+				removed = true
+				break
+			}
+		}
+		if !removed {
+			remaining = append(remaining, card)
+		}
+	}
+
+	if len(discarded) < 2 {
+		return errors.New("手牌中没有指定的卡牌")
+	}
+
+	player.HandCards = remaining
+	player.CardCount = len(remaining)
+
+	// Add discarded cards to the discard pool.
+	gameRoom.GameState.AllUsedCards = append(gameRoom.GameState.AllUsedCards, discarded...)
+
+	// Draw 2 new cards.
+	drawn := drawCardsForPlayer(gameRoom, playerIdx, 2)
+
+	gameRoom.appendReplayEventLocked("discard_and_draw", uid, map[string]interface{}{
+		"discarded": discarded,
+		"drawn":     cloneReplayCardList(drawn),
+	})
+
+	gameRoom.broadcastRoomUpdate()
+	return nil
+}
+
 // 获取可用物质
 func GetAvailableSubstances(roomID string, uid int) ([]string, error) {
 	roomMutex.RLock()

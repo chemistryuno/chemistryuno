@@ -56,6 +56,14 @@ func autoMigrate() error {
 		&CheatSanction{},
 		&CheatAppeal{},
 		&CheatAuditLog{},
+		&GameVersion{},
+		&Activity{},
+		&DailyActivityToken{},
+		&Team{},
+		&TeamMember{},
+		&TeamChatMessage{},
+		&BingoRoom{},
+		&BingoCell{},
 	)
 
 	if err != nil {
@@ -108,6 +116,11 @@ func autoMigrate() error {
 	// 迁移游戏历史性能优化索引和junction表
 	if err := MigrateGameHistoryIndexes(DB); err != nil {
 		log.Printf("⚠️  游戏历史索引迁移失败: %v", err)
+	}
+
+	// 迁移活动与BINGO相关表
+	if err := MigrateActivityBingoTables(DB); err != nil {
+		log.Printf("⚠️  活动/BINGO表迁移失败: %v", err)
 	}
 
 	log.Println("✅ 数据库迁移完成")

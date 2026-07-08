@@ -19,7 +19,7 @@
     "android:build:release": "node scripts/android-build-release.cjs",
     "preview": "vite preview",
     "type-check": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "cross-env TZ=UTC vitest run",
     "test:e2e": "playwright test"
   },
   "dependencies": {

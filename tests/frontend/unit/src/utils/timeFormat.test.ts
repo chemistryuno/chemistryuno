@@ -43,7 +43,7 @@ describe('time format utilities', () => {
     expect(formatLastOfflineForRanking(null)).toBe('从未上线')
     expect(formatLastOfflineForRanking('bad')).toBe('时间未知')
     expect(formatLastOfflineForRanking('2026-05-03T01:00:00Z')).toBe('今日内')
-    expect(formatLastOfflineForRanking('2026-04-30T23:59:59Z')).toBe('2天前')
+    expect(formatLastOfflineForRanking('2026-04-30T23:59:59Z')).toBe('3天前')
     expect(formatLastOfflineForRanking('2026-03-01T00:00:00Z')).toBe('30天前最后登录')
   })
 })

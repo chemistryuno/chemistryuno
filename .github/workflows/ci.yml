@@ -8,8 +8,36 @@ on:
   workflow_dispatch:
 
 jobs:
-  test:
-    name: Run Tests
+  backend:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Cache Go build cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+          key: ${{ runner.os }}-go-build-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-build-
+
+      - name: Download Go modules
+        run: go mod download
+
+      - name: Run backend tests
+        run: node scripts/run-backend-tests.js ./backend/...
+
+  frontend:
+    name: Frontend Checks
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -34,22 +62,21 @@ jobs:
           pnpm install --frozen-lockfile
           pnpm -C frontend install --frozen-lockfile
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: true
+      - name: Run frontend type-check
+        run: pnpm -C frontend type-check
 
-      - name: Run CI tests
-        run: pnpm test:ci
+      - name: Run frontend unit/component tests
+        run: pnpm -C frontend test
 
-      - name: Upload coverage and test artifacts
+      - name: Run frontend production build
+        run: pnpm -C frontend build
+
+      - name: Upload frontend test artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ci-test-artifacts
+          name: frontend-test-artifacts
           path: |
-            tmp/coverage/
             frontend/coverage/
             frontend/test-results/
           if-no-files-found: ignore

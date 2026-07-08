@@ -600,7 +600,7 @@ func (cr *CheatRepository) GetPlayerBaselines(playerUID uint) (map[string]databa
 func (cr *CheatRepository) GetPlayerBaselinesMulti(playerUIDs []uint) (map[uint]map[string]database.PlayerBehaviorBaseline, error) {
 	result := make(map[uint]map[string]database.PlayerBehaviorBaseline)
 
-	if len(playerUIDs) == 0 {
+	if len(playerUIDs) == 0 || cr.db == nil {
 		return result, nil
 	}
 
@@ -761,7 +761,7 @@ func (cr *CheatRepository) GetPlayerRiskProfile(playerUID uint) (*PlayerRiskProf
 func (cr *CheatRepository) GetPlayerRiskProfilesMulti(playerUIDs []uint) (map[uint]*PlayerRiskProfile, error) {
 	result := make(map[uint]*PlayerRiskProfile)
 
-	if len(playerUIDs) == 0 {
+	if len(playerUIDs) == 0 || cr.db == nil {
 		return result, nil
 	}
 

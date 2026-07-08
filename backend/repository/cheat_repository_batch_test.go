@@ -1,7 +1,6 @@
 package repository
 
 import (
-	"chemistryuno/backend/database"
 	"testing"
 	"time"
 )

@@ -777,6 +777,7 @@ const translateIndicatorName = (name: string) => {
     timestamp: '时间戳校验',
     report_contribution: '举报贡献',
   }
+  if (!name) return '-'
   return map[name] || map[name.toLowerCase()] || name
 }
 
@@ -794,6 +795,7 @@ const translateEventType = (type: string) => {
     room: '房间',
     report: '举报',
   }
+  if (!type) return '房间'
   return map[type] || map[type.toLowerCase()] || type
 }
 </script>

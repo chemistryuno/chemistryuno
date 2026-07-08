@@ -2,7 +2,6 @@ package anticheat
 
 import (
 	"testing"
-	"time"
 )
 
 func TestEnrichDetectionContextsBatch(t *testing.T) {

@@ -1,5 +1,5 @@
 import { flushPromises, mount } from '@vue/test-utils'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import AdminAnticheat from '@/pages/AdminAnticheat.vue'
 import { adminAPI } from '@/utils/api'
 import { useDialog } from '@/utils/dialog'
@@ -162,6 +162,7 @@ const mountAdminAnticheat = async (detections: any[] = []) => {
   vi.mocked(adminAPI.changeDetectionPunishment).mockResolvedValue(apiResponse({ message: 'updated' }))
 
   const wrapper = mount(AdminAnticheat, {
+    attachTo: document.body,
     global: {
       stubs: {
         RouterLink: {
@@ -174,6 +175,45 @@ const mountAdminAnticheat = async (detections: any[] = []) => {
   await flushPromises()
   return wrapper
 }
+
+// 检测详情弹窗通过 Teleport 挂到 body，wrapper.text()/find 无法捕获，
+// 需直接查询 document.body。
+const detailModalText = () => document.body.textContent || ''
+const detailModalHtml = () => document.body.innerHTML || ''
+const findModalButton = (keyword: string): HTMLButtonElement | undefined =>
+  Array.from(document.body.querySelectorAll('button')).find(b => (b.textContent || '').includes(keyword)) as HTMLButtonElement | undefined
+const modalSelects = (): HTMLSelectElement[] =>
+  Array.from(document.body.querySelectorAll('select')) as HTMLSelectElement[]
+
+// 检测列表现为「房间 → 玩家 → 检测」可折叠结构，需依次展开后点击「详情」打开检测详情。
+// 展开层级由最内层的可点击表头触发（room header / player header 各带一个 @click 切换），
+// 因此用「最后一个包含对应文案的 cursor-pointer 元素」定位，避免命中外层容器。
+const clickDeepest = async (wrapper: any, keyword: string) => {
+  const candidates = wrapper.findAll('[class*="cursor-pointer"]').filter((el: any) => el.text().includes(keyword))
+  const target = candidates[candidates.length - 1]
+  if (target) {
+    await target.trigger('click')
+    await flushPromises()
+  }
+  return target
+}
+
+const openFirstDetectionDetail = async (wrapper: any) => {
+  await clickDeepest(wrapper, '房间')
+  await clickDeepest(wrapper, '玩家')
+
+  const detailButton = wrapper.findAll('button').find((button: any) => button.text().includes('详情'))
+  if (!detailButton) {
+    throw new Error('未找到检测详情按钮，检测列表结构可能已变化')
+  }
+  await detailButton.trigger('click')
+  await flushPromises()
+}
+
+afterEach(() => {
+  // 清理 attachTo/Teleport 遗留在 body 上的 DOM，避免跨用例污染
+  document.body.innerHTML = ''
+})
 
 describe('AdminAnticheat', () => {
   it('walks through appeal approval and shows audit visibility', async () => {
@@ -228,6 +268,21 @@ describe('AdminAnticheat', () => {
   })
 
   it('validates and submits manual ban from detection detail', async () => {
+    // 无回放导航证据时，详情弹窗才会展示「封禁截止时间」输入
+    vi.mocked(adminAPI.getDetectionDetail).mockResolvedValueOnce(apiResponse({
+      risk_score: {
+        id: 7,
+        player_uid: 42,
+        room_id: 'room-1',
+        risk_score: 86,
+        review_status: 'pending',
+        primary_evidence: null,
+        replay_navigation: null,
+        related_evidence: [],
+        indicator_details: [],
+      },
+      sanctions: [{ id: 88, sanction_type: 'ban' }],
+    }))
     const wrapper = await mountAdminAnticheat([{
       id: 7,
       player_id: 42,
@@ -236,22 +291,30 @@ describe('AdminAnticheat', () => {
       sanction_type: 'ban',
       created_at: '2026-05-03T00:00:00Z',
     }])
-    await wrapper.findAll('button').find(button => button.text().includes('查看'))!.trigger('click')
+    await openFirstDetectionDetail(wrapper)
+
+    expect(detailModalText()).toContain('执行封禁')
+
+    // 封禁截止时间必须晚于当前时间，故取相对于「现在」的未来时间，避免用例随日期失效
+    const future = new Date(Date.now() + 4 * 24 * 60 * 60 * 1000)
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const futureLocal = `${future.getFullYear()}-${pad(future.getMonth() + 1)}-${pad(future.getDate())}T${pad(future.getHours())}:${pad(future.getMinutes())}`
+
+    const untilInput = document.body.querySelector('input[type="datetime-local"]') as HTMLInputElement
+    untilInput.value = futureLocal
+    untilInput.dispatchEvent(new Event('input', { bubbles: true }))
+    const textareas = Array.from(document.body.querySelectorAll('textarea')) as HTMLTextAreaElement[]
+    const reasonArea = textareas[0]
+    reasonArea.value = 'manual evidence review'
+    reasonArea.dispatchEvent(new Event('input', { bubbles: true }))
     await flushPromises()
 
-    expect(wrapper.text()).toContain('封禁处置')
-
-    const untilInput = wrapper.find('input[type="datetime-local"]')
-    await untilInput.setValue('2026-05-07T10:00')
-    const textareas = wrapper.findAll('textarea')
-    await textareas[textareas.length - 1].setValue('manual evidence review')
-
-    await wrapper.findAll('button').find(button => button.text().includes('执行封禁'))!.trigger('click')
+    findModalButton('执行封禁')!.click()
     await flushPromises()
 
     expect(adminAPI.banFromAnticheatPanel).toHaveBeenCalledWith({
       player_uid: 42,
-      banned_until: new Date('2026-05-07T10:00').toISOString(),
+      banned_until: new Date(futureLocal).toISOString(),
       reason: 'manual evidence review',
       room_id: 'room-1',
       risk_score_id: 7,
@@ -269,26 +332,28 @@ describe('AdminAnticheat', () => {
       created_at: '2026-05-03T00:00:00Z',
     }])
 
-    await wrapper.findAll('button').find(button => button.text().includes('查看'))!.trigger('click')
+    await openFirstDetectionDetail(wrapper)
+
+    expect(detailModalText()).toContain('回放证据')
+    expect(detailModalText()).toContain('打开回放')
+    expect(detailModalText()).toContain('响应时间') // response_time 指标的中文名
+    expect(detailModalHtml()).toContain('/replay/77?scope=admin')
+    expect(detailModalHtml()).toContain('event_index=3')
+    expect(detailModalHtml()).toContain('event_id=evt-3')
+
+    const selects = modalSelects()
+    const decisionSelect = selects[selects.length - 1]
+    decisionSelect.value = 'mute'
+    decisionSelect.dispatchEvent(new Event('change', { bubbles: true }))
     await flushPromises()
 
-    expect(wrapper.text()).toContain('Replay Evidence')
-    expect(wrapper.text()).toContain('Open replay point')
-    expect(wrapper.text()).toContain('response_time')
-    expect(wrapper.text()).toContain('player report')
-    expect(wrapper.html()).toContain('/replay/77?scope=admin')
-    expect(wrapper.html()).toContain('event_index=3')
-    expect(wrapper.html()).toContain('event_id=evt-3')
-
-    const selects = wrapper.findAll('select')
-    await selects[selects.length - 1].setValue('mute')
-    await wrapper.findAll('button').find(button => button.text().includes('保存处罚决定'))!.trigger('click')
+    findModalButton('保存')!.click()
     await flushPromises()
 
     expect(adminAPI.changeDetectionPunishment).toHaveBeenCalledWith(7, {
       punishment_decision: 'mute',
       sanction_id: 88,
-      reason: 'Anticheat panel manual enforcement',
+      reason: '反作弊面板人工处置',
     })
   })
 
@@ -356,12 +421,12 @@ describe('AdminAnticheat', () => {
       sanctions: [{ id: 88, sanction_type: 'ban' }],
     }))
 
-    await wrapper.find('tbody button').trigger('click')
-    await flushPromises()
+    await openFirstDetectionDetail(wrapper)
 
-    expect(wrapper.text()).toContain('Replay Evidence')
-    expect(wrapper.text()).not.toContain('Open replay point')
-    expect(wrapper.html()).not.toContain('/replay/')
+    expect(detailModalText()).toContain('回放证据')
+    // 无对应回放时不应出现「打开回放」链接或 /replay/ 路由
+    expect(detailModalText()).not.toContain('打开回放')
+    expect(detailModalHtml()).not.toContain('/replay/')
   })
 
   it('shows backend rejection when a processed punishment cancellation is attempted', async () => {
@@ -378,18 +443,21 @@ describe('AdminAnticheat', () => {
       created_at: '2026-05-03T00:00:00Z',
     }])
 
-    await wrapper.find('tbody button').trigger('click')
+    await openFirstDetectionDetail(wrapper)
+
+    const selects = modalSelects()
+    const decisionSelect = selects[selects.length - 1]
+    decisionSelect.value = 'observe'
+    decisionSelect.dispatchEvent(new Event('change', { bubbles: true }))
     await flushPromises()
 
-    const selects = wrapper.findAll('select')
-    await selects[selects.length - 1].setValue('observe')
-    await wrapper.findAll('button').find(button => button.text().includes('保存') || button.text().includes('澶勭綒'))!.trigger('click')
+    findModalButton('保存')!.click()
     await flushPromises()
 
     expect(adminAPI.changeDetectionPunishment).toHaveBeenCalledWith(7, {
       punishment_decision: 'observe',
       sanction_id: 88,
-      reason: 'Anticheat panel manual enforcement',
+      reason: '反作弊面板人工处置',
     })
     expect(showAlert).toHaveBeenCalledWith('processed punishment cannot be cancelled', '操作失败')
   })

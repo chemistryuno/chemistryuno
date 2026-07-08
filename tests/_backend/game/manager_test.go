@@ -542,6 +542,8 @@ func TestPointsCalculationExitedPlayerZeroAndReducedRanking(t *testing.T) {
 			PointsChanges: map[int]int{},
 			XPChanges:     map[int]int{1: 0, 2: 0, 3: 0, 4: 0},
 			IsPointsMode:  true,
+			// 标记所有玩家已使用提示，隔离无提示加成，专注校验排名与退出归零逻辑
+			HintUsed: map[int]bool{1: true, 2: true, 3: true},
 		},
 	}
 

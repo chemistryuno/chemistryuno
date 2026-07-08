@@ -245,7 +245,7 @@ const scrollToActivePlayer = () => {
 
 const fetchRandomHints = async () => {
   try {
-    const res = await commonAPI.getHints()
+    const res = await commonAPI.getHints(id)
     randomHints.value = res.data || []
   } catch (error) {
     console.error('Failed to fetch hints from labs:', error)
@@ -539,6 +539,16 @@ watch(() => gameState.value?.status, (newStatus, oldStatus) => {
         6000
       )
     }, 1000)
+  }
+  if (roomInfo.value?.is_points_mode && newStatus === 'playing' && oldStatus !== 'playing') {
+    setTimeout(() => {
+      showToast(
+        '关闭提示面板即可在结算时获得额外积分加成。',
+        '💡 无提示加成',
+        'info',
+        5000
+      )
+    }, 1500)
   }
 })
 
@@ -926,12 +936,6 @@ const addExp = (amount: number) => {
   localStorage.setItem('chem_exp', exp.value.toString())
 }
 
-// 如果是积分赛，强制关闭提示并锁定
-watch(() => roomInfo.value?.is_points_mode, (val) => {
-  if (val) {
-    showHints.value = false
-  }
-})
 // --- 移植结束 ---
 
 const startTimer = () => {
@@ -2897,7 +2901,7 @@ watch(() => gameState.value?.current_player, () => {
              <span class="text-[10px] sm:text-xs-mobile font-black text-slate-400">{{ allPlayers.length }}</span>
           </button>
 
-           <button v-if="!roomInfo?.is_points_mode && !isReplayBridgeMode" @click="feedback.click(); showHints = !showHints" class="btn-touch flex items-center justify-center bg-slate-100 dark:bg-white/5 rounded-lg border border-slate-200 dark:border-white/10 text-slate-500 hover:text-blue-500 touch-feedback">
+           <button v-if="!isReplayBridgeMode" @click="feedback.click(); showHints = !showHints" class="btn-touch flex items-center justify-center bg-slate-100 dark:bg-white/5 rounded-lg border border-slate-200 dark:border-white/10 text-slate-500 hover:text-blue-500 touch-feedback">
              <Sparkles class="icon-touch" :class="showHints && 'fill-current text-blue-500'" />
           </button>
 
@@ -3134,8 +3138,8 @@ watch(() => gameState.value?.current_player, () => {
              transform: 'translateY(-100px)'
            }">
           <!-- Left Sidebar: Hint & Status -->
-          <Teleport to="body" :disabled="!!roomInfo?.is_points_mode">
-             <div v-if="!roomInfo?.is_points_mode && showHints" class="fixed inset-0 bg-white/10 dark:bg-black/20 backdrop-blur-[2px] z-[95] lg:hidden clickable" @click="showHints = false"></div>
+          <Teleport to="body" :disabled="isReplayBridgeMode">
+             <div v-if="showHints" class="fixed inset-0 bg-white/10 dark:bg-black/20 backdrop-blur-[2px] z-[95] lg:hidden clickable" @click="showHints = false"></div>
              <div :class="cn(
                'fixed left-0 top-0 bottom-0 w-full lg:w-80 z-[100] bg-white/95 dark:bg-slate-900/60 backdrop-blur-3xl border-r lg:border border-slate-200 dark:border-white/10 lg:rounded-[40px] lg:top-6 lg:bottom-52 lg:left-6 shadow-3xl transition-all duration-500 flex flex-col overflow-hidden',
                showHints ? 'translate-x-0 opacity-100' : '-translate-x-full opacity-0 pointer-events-none'
@@ -3640,6 +3644,9 @@ watch(() => gameState.value?.current_player, () => {
                                item.points >= 0 ? 'text-emerald-500' : 'text-rose-500'
                             )">
                               {{ item.points >= 0 ? '+' : '' }}{{ item.points }}
+                            </div>
+                            <div v-if="gameState?.hint_bonus_applied?.[item.uid]" class="px-1.5 py-0.5 rounded-md font-black font-mono text-[8px] text-amber-500 bg-amber-500/10 border border-amber-500/20">
+                              无提示
                             </div>
                             <div v-if="item.xp > 0" class="px-2 py-0.5 rounded-lg font-black font-mono text-[10px] text-blue-500">
                               +{{ item.xp }}XP

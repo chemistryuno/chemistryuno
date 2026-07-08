@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"chemistryuno/backend/game"
 	"chemistryuno/backend/repository"
 	"chemistryuno/backend/websocket"
 	"net/http"
@@ -26,6 +27,11 @@ func GetRandomHints(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取实验情报失败"})
 		return
+	}
+	if roomID := c.Query("room_id"); roomID != "" {
+		if uid := c.GetInt("uid"); uid > 0 {
+			game.MarkHintUsed(roomID, uid)
+		}
 	}
 	c.JSON(http.StatusOK, hints)
 }

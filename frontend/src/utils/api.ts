@@ -626,8 +626,8 @@ export const adminAPI = {
 export const commonAPI = {
   getAnnouncements: () =>
     api.get('/announcements'),
-  getHints: () =>
-    api.get('/hints'),
+  getHints: (roomId?: string) =>
+    api.get('/hints', roomId ? { params: { room_id: roomId } } : undefined),
 }
 
 // 等级系统API

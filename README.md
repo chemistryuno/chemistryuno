@@ -316,6 +316,22 @@ pnpm start
 > Apple 当前实现使用静态 `APPLE_CLIENT_SECRET`。  
 > 若仅配置 `CLIENT_ID` 而未配置必要字段，前端会自动隐藏该 OAuth 入口。
 
+### 性能优化特性开关
+
+以下变量控制灰度发布的性能优化功能，支持随时开启/关闭：
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `ENABLE_REACTION_CACHE` | `true` | 化学反应判断 LRU 缓存（10k 条目，减少 70% 计算延迟） |
+| `RATE_LIMIT_CLEANUP_ENABLED` | `true` | 速率限制器自动内存清理，防止长期运行内存泄漏 |
+| `RATE_LIMIT_CLEANUP_INTERVAL_MINUTES` | `60` | 速率限制清理间隔（分钟） |
+| `USE_OPTIMIZED_HISTORY_QUERIES` | `false` | 使用 junction table 优化游戏历史查询（需先运行数据库迁移） |
+| `ENABLE_ANTICHEAT_BATCH` | `false` | 反作弊批量数据库查询，减少每局游戏结束时的 DB 往返次数 |
+| `SLOW_QUERY_THRESHOLD_MS` | `100` | 慢查询日志触发阈值（毫秒） |
+| `SLOW_QUERY_LOG_LEVEL` | `warn` | 慢查询日志级别（debug/info/warn/error） |
+
+**监控：** 启动后访问 `/metrics` 可获取 Prometheus 格式的性能指标（API 延迟、数据库查询时间、缓存命中率、WebSocket 吞吐量）。
+
 ---
 
 ## 🔌 API 与路由分组（摘要）
@@ -529,6 +545,8 @@ pnpm test
 | 文档 | 位置 | 用途 |
 |-----|-----|-----|
 | **后端 API 与架构** | [api.md](api.md) | 后端接口、认证流程、游戏架构与数据库说明 |
+| **设计缺陷分析规格** | [docs/DESIGN_FLAWS_AND_IMPROVEMENTS.md](docs/DESIGN_FLAWS_AND_IMPROVEMENTS.md) | 完整的设计缺陷分析与改进方案（1000+ 行，含代码示例） |
+| **设计缺陷执行摘要** | [docs/DESIGN_FLAWS_SUMMARY.md](docs/DESIGN_FLAWS_SUMMARY.md) | 设计缺陷快速参考（英文版，含优先级路线图） |
 | **反作弊系统指南** | [docs/anticheat/ANTICHEAT_GUIDE.md](docs/anticheat/ANTICHEAT_GUIDE.md) | 完整的反作弊系统参考（架构、检测、配置、运维） |
 | **反作弊管理员指南** | [docs/guides/anticheat-admin-guide.md](docs/guides/anticheat-admin-guide.md) | 申诉、补偿、配置、审计操作流程 |
 | **玩家透明度说明** | [docs/guides/anticheat-player-transparency.md](docs/guides/anticheat-player-transparency.md) | 玩家统计组件与公开数据口径 |

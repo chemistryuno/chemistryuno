@@ -652,6 +652,8 @@ func GetReactionHints(c *gin.Context) {
 		return
 	}
 
+	game.MarkHintUsed(roomID, uid)
+
 	c.JSON(http.StatusOK, hints)
 }
 

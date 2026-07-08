@@ -120,6 +120,8 @@ type GameState struct {
 	AllowedAnyPlayer    int            `json:"allowed_any_player"`    // 允许无视反应条件直接出牌的玩家索引，-1 表示无
 	PointsChanges       map[int]int    `json:"points_changes"`        // 回合结束时的积分变动 (UID -> points)
 	XPChanges           map[int]int    `json:"xp_changes"`            // 回合结束时的经验变动 (UID -> xp)
+	HintUsed            map[int]bool   `json:"hint_used,omitempty"`   // 本局是否调用过提示 API (UID -> bool)
+	HintBonusApplied    map[int]bool   `json:"hint_bonus_applied,omitempty"` // 是否获得无提示加成 (UID -> bool)
 	CurrentReaction     string         `json:"current_reaction"`      // 当前/最近发生的反应方程式
 
 	// 教学脚本系统

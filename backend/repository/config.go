@@ -62,6 +62,19 @@ func (r *ConfigRepository) GetBoolValue(key string, defaultValue bool) bool {
 	return value == "true"
 }
 
+// GetFloat64Value 获取浮点数配置值
+func (r *ConfigRepository) GetFloat64Value(key string, defaultValue float64) float64 {
+	value, err := r.GetValue(key)
+	if err != nil {
+		return defaultValue
+	}
+	f, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		return defaultValue
+	}
+	return f
+}
+
 // SetValue 设置配置值
 func (r *ConfigRepository) SetValue(key, value string) error {
 	config := database.SystemConfig{
@@ -122,12 +135,13 @@ func (r *ConfigRepository) InitDefaultConfigs() error {
 	}
 
 	defaults := map[string]string{
-		"player_kick_timeout":    "300",  // 玩家离线踢出时间（秒）
-		"player_action_timeout":  "45",   // 玩家操作时间（秒）
-		"auto_start_timeout":     "10",   // 自动开始倒计时（秒）
-		"half_ready_timeout":     "60",   // 半数准备倒计时（秒）
-		"reconnect_grace_period": "300",  // 掉线重连宽限期（秒）- 预留
-		"points_scaling_enabled": "true", // 积分动态缩放 - 预留
+		"player_kick_timeout":       "300",  // 玩家离线踢出时间（秒）
+		"player_action_timeout":     "45",   // 玩家操作时间（秒）
+		"auto_start_timeout":        "10",   // 自动开始倒计时（秒）
+		"half_ready_timeout":        "60",   // 半数准备倒计时（秒）
+		"reconnect_grace_period":    "300",  // 掉线重连宽限期（秒）- 预留
+		"points_scaling_enabled":    "true", // 积分动态缩放 - 预留
+		"no_hint_bonus_multiplier":  "1.2",  // 无提示加成系数（积分模式下全局关闭提示的奖励）
 	}
 
 	for key, value := range defaults {

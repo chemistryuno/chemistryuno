@@ -87,11 +87,11 @@ func RegisterAPIRoutes(r *gin.Engine, startTime time.Time, wsHandler gin.Handler
 		}
 
 		api.GET("/announcements", handlers.GetActiveAnnouncements)
-		api.GET("/hints", handlers.GetRandomHints)
 
 		auth := api.Group("/")
 		auth.Use(middleware.AuthMiddleware())
 		{
+			auth.GET("/hints", handlers.GetRandomHints)
 			auth.GET("/auth/github/bind", handlers.GitHubLogin)
 			auth.GET("/auth/ms/bind", handlers.MicrosoftLogin)
 			auth.GET("/auth/google/bind", handlers.GoogleLogin)

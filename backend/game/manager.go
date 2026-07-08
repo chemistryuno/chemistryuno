@@ -1549,6 +1549,9 @@ func handlePointsCalculation(gr *GameRoom) {
 	if gr.GameState.XPChanges == nil {
 		gr.GameState.XPChanges = make(map[int]int)
 	}
+	if gr.GameState.HintBonusApplied == nil {
+		gr.GameState.HintBonusApplied = make(map[int]bool)
+	}
 
 	allUIDs := gr.participantUIDsLocked()
 	for _, uid := range allUIDs {
@@ -1564,43 +1567,59 @@ func handlePointsCalculation(gr *GameRoom) {
 		return
 	}
 
+	// 读取无提示加成系数
+	bonusMultiplier := 1.2
+	if configRepo != nil {
+		bonusMultiplier = configRepo.GetFloat64Value("no_hint_bonus_multiplier", 1.2)
+	}
+
 	for i, uid := range fullRanking {
 		rank := i + 1
 
-		points := 0
-		if prevPoints, ok := gr.GameState.PointsChanges[uid]; ok && prevPoints > 0 {
-			points = prevPoints
-		} else {
-			if gr.Room.IsPvE {
-				baseBonus := (totalPlayers - rank + 1) * 10
-				if rank == 1 {
-					baseBonus += totalPlayers * 25
-				}
-				points = baseBonus
+		// 计算本局基础积分
+		basePoints := 0
+		if gr.Room.IsPvE {
+			baseBonus := (totalPlayers - rank + 1) * 10
+			if rank == 1 {
+				baseBonus += totalPlayers * 25
+			}
+			basePoints = baseBonus
 
-				if gr.Room.PvEDifficulty < 50 {
-					points = 0
-				} else {
-					points = int(float64(points) * float64(gr.Room.PvEDifficulty) / 100.0)
-				}
+			if gr.Room.PvEDifficulty < 50 {
+				basePoints = 0
 			} else {
-				points = 100 / rank
-				if rank == len(fullRanking) && len(fullRanking) > 1 {
-					points = 5
-				}
+				basePoints = int(float64(basePoints) * float64(gr.Room.PvEDifficulty) / 100.0)
 			}
-
-			if points < 1 && (!gr.Room.IsPvE || gr.Room.PvEDifficulty >= 50) {
-				points = 1
-			}
-
-			if points > 0 && repository.UserRepo != nil {
-				repository.UserRepo.IncrementPoints(uint(uid), points)
-				repository.UserRepo.IncrementMonthlyPoints(uint(uid), points)
+		} else {
+			basePoints = 100 / rank
+			if rank == len(fullRanking) && len(fullRanking) > 1 {
+				basePoints = 5
 			}
 		}
 
-		gr.GameState.PointsChanges[uid] = points
+		if basePoints < 1 && (!gr.Room.IsPvE || gr.Room.PvEDifficulty >= 50) {
+			basePoints = 1
+		}
+
+		// 无提示加成：积分模式下玩家未使用提示则乘以加成系数
+		finalPoints := basePoints
+		if gr.Room.IsPointsMode && !gr.GameState.HintUsed[uid] {
+			finalPoints = int(float64(basePoints) * bonusMultiplier)
+			gr.GameState.HintBonusApplied[uid] = true
+		}
+
+		// 写入 DB：早期结算已增加了 prevPoints；只补充差额
+		if finalPoints > 0 && repository.UserRepo != nil {
+			prevPoints := gr.GameState.PointsChanges[uid] // 早期结算值（可能为0）
+			delta := finalPoints - prevPoints
+			if delta > 0 {
+				repository.UserRepo.IncrementPoints(uint(uid), delta)
+			} else if delta < 0 {
+				repository.UserRepo.DeductPoints(uint(uid), -delta)
+			}
+		}
+
+		gr.GameState.PointsChanges[uid] = finalPoints
 
 		if _, ok := gr.GameState.XPChanges[uid]; !ok {
 			xp := CalculateXPReward(gr, uid, rank)
@@ -3425,6 +3444,7 @@ func GetRoomState(roomID string, uid int) (map[string]interface{}, error) {
 			"is_spectator":          isSpectator,
 			"points_changes":        gameRoom.GameState.PointsChanges,
 			"xp_changes":            gameRoom.GameState.XPChanges,
+			"hint_bonus_applied":    gameRoom.GameState.HintBonusApplied,
 			"original_player_count": gameRoom.GameState.OriginalPlayerCount,
 			"quitted_count":         gameRoom.GameState.QuittedCount,
 			"tutorial_script_mode":  gameRoom.GameState.TutorialScriptMode,
@@ -4391,6 +4411,25 @@ func GetReactionHints(roomID string, uid int) ([]map[string]string, error) {
 	}
 
 	return hints, nil
+}
+
+// MarkHintUsed 记录玩家在积分模式游戏中使用了提示 API
+func MarkHintUsed(roomID string, uid int) {
+	roomMutex.RLock()
+	gameRoom, exists := rooms[roomID]
+	roomMutex.RUnlock()
+	if !exists {
+		return
+	}
+	gameRoom.mutex.Lock()
+	defer gameRoom.mutex.Unlock()
+	if gameRoom.GameState == nil || !gameRoom.Room.IsPointsMode {
+		return
+	}
+	if gameRoom.GameState.HintUsed == nil {
+		gameRoom.GameState.HintUsed = make(map[int]bool)
+	}
+	gameRoom.GameState.HintUsed[uid] = true
 }
 
 type gameReplayMeta struct {

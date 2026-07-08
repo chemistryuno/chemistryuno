@@ -30,9 +30,9 @@ import (
 )
 
 var upgrader = ws.Upgrader{
-	// 仅允许白名单内的来源升级 WebSocket，防止跨站 WebSocket 劫持。
+	// 放行同源与白名单来源，拒绝其他跨站来源，防止跨站 WebSocket 劫持。
 	CheckOrigin: func(r *http.Request) bool {
-		return middleware.IsAllowedOrigin(r.Header.Get("Origin"))
+		return middleware.IsAllowedOriginForRequest(r)
 	},
 }
 

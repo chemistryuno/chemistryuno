@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"net/http"
 	"net/url"
 	"os"
 	"strings"
@@ -69,4 +70,37 @@ func IsAllowedOrigin(origin string) bool {
 		return true
 	}
 	return false
+}
+
+// IsAllowedOriginForRequest 在 IsAllowedOrigin 的基础上额外放行“同源”请求。
+//
+// 生产环境常见为单体部署（前端静态资源嵌入后端，同域提供），此时浏览器
+// 发来的 Origin 与请求自身的 Host 相同。这类同源请求不存在跨站攻击风险，
+// 必须放行，否则未配置 CORS_ALLOWED_ORIGINS 白名单时会误拒真实用户
+// （表现为 WebSocket 升级 403 / CheckOrigin 拒绝）。
+//
+// 判定顺序：空 Origin → 放行；同源（Origin host == 请求 Host）→ 放行；
+// 否则回落到白名单校验（防跨站 WebSocket 劫持 / 跨源携带凭证）。
+func IsAllowedOriginForRequest(r *http.Request) bool {
+	origin := strings.TrimSpace(r.Header.Get("Origin"))
+	if origin == "" {
+		return true
+	}
+	if isSameOrigin(origin, r.Host) {
+		return true
+	}
+	return IsAllowedOrigin(origin)
+}
+
+// isSameOrigin 判断 Origin 的 host（含端口）是否与请求 Host 一致。
+func isSameOrigin(origin, host string) bool {
+	if host == "" {
+		return false
+	}
+	u, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+	// url.Host 含端口（如 example.com:8080），与 r.Host 语义一致
+	return strings.EqualFold(u.Host, host)
 }

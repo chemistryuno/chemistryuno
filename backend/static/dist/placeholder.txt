@@ -1,0 +1,6 @@
+This file ensures the //go:embed dist pattern in embed.go always matches at
+least one file, so the backend compiles even before the frontend build has
+populated this directory (e.g. during CI backend tests).
+
+The real frontend build output is copied here by build.js and overwrites/adds
+files alongside this placeholder. Do not remove.

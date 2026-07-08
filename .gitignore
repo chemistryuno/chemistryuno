@@ -7,7 +7,10 @@ build/
 frontend/release/
 frontend/android-sdk/
 bin/
-backend/static/dist/
+# 忽略前端构建产物，但保留 placeholder.txt 以保证 //go:embed dist 始终有匹配文件
+!backend/static/dist/
+backend/static/dist/*
+!backend/static/dist/placeholder.txt
 *.exe
 *.exe~
 *.dll

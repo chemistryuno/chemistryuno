@@ -259,6 +259,12 @@ func TestHubRecordsLastOfflineOnlyAfterFinalUIDConnection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
+	// recordLastOffline 在后台 goroutine 写库，测试主协程同时轮询读取。
+	// 共享缓存的内存 SQLite 采用表级锁且不重试，跨连接读写会立即返回
+	// "table is locked"。限制为单连接，使读写串行化，消除该竞争。
+	if sqlDB, dberr := db.DB(); dberr == nil {
+		sqlDB.SetMaxOpenConns(1)
+	}
 	if err := db.AutoMigrate(&database.User{}); err != nil {
 		t.Fatalf("migrate users: %v", err)
 	}

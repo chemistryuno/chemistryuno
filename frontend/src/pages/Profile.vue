@@ -28,6 +28,7 @@ import DeviceManagementModal from '../components/profile/DeviceManagementModal.v
 import ChangeEmailModal from '../components/profile/ChangeEmailModal.vue'
 import SetEmailModal from '../components/profile/SetEmailModal.vue'
 import LevelProgress from '../components/LevelProgress.vue'
+import PlayerAnticheatStatsWidget from '../components/profile/PlayerAnticheatStatsWidget.vue'
 import { LayoutDashboard, ShieldCheck, FlaskConical, History, Sliders, Menu, X as CloseIcon, LogOut, User as UserIcon, FileText } from 'lucide-vue-next'
 import { API_BASE_URL } from '../utils/runtimeConfig'
 
@@ -470,6 +471,11 @@ const handleOAuthUnbind = async (provider: 'github' | 'ms' | 'google' | 'apple')
           <div v-if="currentCategory === 'overview'" class="space-y-6">
             <!-- Level Progress Section -->
             <LevelProgress />
+
+            <!-- Anticheat Stats Section -->
+            <section>
+              <PlayerAnticheatStatsWidget />
+            </section>
 
             <!-- Achievements Section -->
             <div class="bg-white dark:bg-[#111114] border border-slate-200 dark:border-white/10 rounded-2xl p-8 shadow-sm">

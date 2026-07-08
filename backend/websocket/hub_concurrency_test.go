@@ -9,6 +9,7 @@ import (
 func TestHubBroadcastConcurrency(t *testing.T) {
 	hub := NewHub()
 	go hub.Run()
+	t.Cleanup(func() { hub.Stop() })
 
 	// Create test clients
 	numClients := 50
@@ -78,6 +79,7 @@ func TestHubBroadcastConcurrency(t *testing.T) {
 func TestHubRoomBroadcastConcurrency(t *testing.T) {
 	hub := NewHub()
 	go hub.Run()
+	t.Cleanup(func() { hub.Stop() })
 
 	// Create clients and join rooms
 	numClients := 30
@@ -154,6 +156,7 @@ func TestHubRoomBroadcastConcurrency(t *testing.T) {
 func TestHubSendToUIDConcurrency(t *testing.T) {
 	hub := NewHub()
 	go hub.Run()
+	t.Cleanup(func() { hub.Stop() })
 
 	// Create clients with duplicate UIDs
 	numClients := 40

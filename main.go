@@ -727,6 +727,7 @@ func isFrontendRoute(path string) bool {
 		"/replay/",
 		"/surveys/",
 		"/user/",
+		"/bingo/",
 	} {
 		if strings.HasPrefix(path, prefix) {
 			return true

@@ -21,19 +21,20 @@
         <div class="flex-1">
           <!-- Vote refresh -->
           <div v-if="room?.status === 'waiting'" class="mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-800">
-            <p class="text-sm font-medium mb-2">双方可投票刷新棋盘（仅可刷新一次）</p>
+            <p v-if="hasAI" class="text-sm font-medium mb-2">🤖 人机对战：可刷新棋盘后开始（仅可刷新一次）</p>
+            <p v-else class="text-sm font-medium mb-2">双方可投票刷新棋盘（仅可刷新一次）</p>
             <div class="flex gap-2">
               <button v-if="room.vote_a === null || room.vote_b === null"
                 @click="voteRefresh(true)"
                 class="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium">
-                同意刷新
+                {{ hasAI ? '刷新棋盘' : '同意刷新' }}
               </button>
-              <button v-if="room.vote_a === null || room.vote_b === null"
+              <button v-if="!hasAI && (room.vote_a === null || room.vote_b === null)"
                 @click="voteRefresh(false)"
                 class="px-4 py-2 bg-gray-400 text-white rounded-lg text-sm font-medium">
                 拒绝刷新
               </button>
-              <button v-if="myTeamIdx === 0 && room.status === 'waiting'"
+              <button v-if="canStart"
                 @click="startGame"
                 class="ml-auto px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium">
                 开始游戏
@@ -44,7 +45,7 @@
           <!-- Turn indicator -->
           <div v-if="room?.status === 'playing'" class="mb-3 text-sm font-medium text-center py-2 rounded-lg"
             :class="isMyTurn ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'">
-            {{ isMyTurn ? '✅ 轮到你行动' : '⏳ 等待对方...' }}
+            {{ isMyTurn ? '✅ 轮到你行动' : (hasAI ? '🤖 AI 思考中...' : '⏳ 等待对方...') }}
           </div>
 
           <!-- Board -->
@@ -155,6 +156,12 @@ const myUID = computed(() => {
   try { return Number(JSON.parse(localStorage.getItem('user') || '{}').uid) } catch { return 0 }
 })
 
+const AI_UID_BASE = 1000000
+function isAIUid(uid: number) { return uid >= AI_UID_BASE }
+
+const aiMembers = computed<number[]>(() => room.value?.ai_members || [])
+const hasAI = computed(() => aiMembers.value.length > 0)
+
 // myTeamIdx: 0 = team A, 1 = team B, -1 = not a participant
 const myTeamIdx = computed<number>(() => {
   if (!room.value) return -1
@@ -166,6 +173,12 @@ const myTeamIdx = computed<number>(() => {
 })
 
 const isMyTurn = computed(() => room.value?.current_turn === myTeamIdx.value)
+
+// Who may press "开始游戏": in PvE any human participant; in PvP the team-A side.
+const canStart = computed(() => {
+  if (room.value?.status !== 'waiting' || myTeamIdx.value < 0) return false
+  return hasAI.value ? true : myTeamIdx.value === 0
+})
 
 const statusLabel = computed(() => {
   const s = room.value?.status || ''
@@ -199,13 +212,13 @@ const teamBCells = computed(() => {
   return c
 })
 
-// Pick the first teammate UID for the hand viewer
+// Pick the first human teammate UID for the hand viewer (AI teammates have no viewable hand).
 const teammateUID = computed(() => {
   if (!room.value || myTeamIdx.value < 0) return 0
   const members: number[] = myTeamIdx.value === 0
     ? (room.value.team_a_members || [])
     : (room.value.team_b_members || [])
-  return members.find((uid: number) => uid !== myUID.value) || 0
+  return members.find((uid: number) => uid !== myUID.value && !isAIUid(uid)) || 0
 })
 
 onMounted(async () => {

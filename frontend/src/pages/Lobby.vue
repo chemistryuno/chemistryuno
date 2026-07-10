@@ -3,16 +3,18 @@ import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { pageClassNames } from '@lib'
 import PhlogistonIcon from '../components/icons/PhlogistonIcon.vue'
-import { gameAPI, authAPI, commonAPI, friendAPI, adminAPI, clearAuthState } from '../utils/api'
+import { gameAPI, authAPI, commonAPI, friendAPI, adminAPI, activityAPI, bingoAPI, clearAuthState } from '../utils/api'
 import { useDialog } from '../utils/dialog'
 import UserAvatar from '../components/UserAvatar.vue'
 import websocket from '../utils/websocket'
-import { Beaker, Plus, Shield, ShieldAlert, LogOut, Settings, Play, X, Loader2, Database, MessageCircle, Megaphone, Menu, Puzzle, FileText, ChevronRight } from 'lucide-vue-next'
+import { Beaker, Plus, Shield, ShieldAlert, LogOut, Settings, Play, X, Loader2, Database, MessageCircle, Megaphone, Menu, Puzzle, FileText, ChevronRight, Grid3x3, Users, Bot } from 'lucide-vue-next'
 import { cn } from '../utils/cn'
 import ChatBox from '../components/ChatBox.vue'
 import TutorialGuide from '../components/TutorialGuide.vue'
 import PingDisplay from '../components/PingDisplay.vue'
-import TeamPanel from '../components/TeamPanel.vue'
+import LobbyModeCard from '../components/LobbyModeCard.vue'
+import ActivityBanner from '../components/ActivityBanner.vue'
+import RoomCard from '../components/RoomCard.vue'
 import '../styles/lobby.css'
 
 const props = defineProps<{
@@ -77,6 +79,9 @@ const unreadChatCount = ref(0)
 const persistentAnnouncements = ref<any[]>([])
 const showCreateModal = ref(false)
 const showAIArenaModal = ref(false)
+const createRoomMode = ref<'normal' | 'bingo'>('normal')
+const bingoAICount = ref(1)
+const bingoAIDifficulty = ref(50)
 const showDeckDetailModal = ref(false)
 const showAccessKeyModal = ref(false)
 const createdRoomInfo = ref<any>(null)
@@ -102,6 +107,73 @@ const aiBackfillDifficulty = ref(50)
 
 const loading = ref(false)
 const activeSurveys = ref<any[]>([])
+
+// ── Activity state ─────────────────────────────────────────────────────────
+const activeActivities = ref<any[]>([])
+const doublePointsRemaining = ref<number | undefined>(undefined)
+
+const gameModes = computed(() => [
+  {
+    id: 'normal',
+    icon: Users,
+    iconClass: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
+    title: '普通对战',
+    description: '多人化学UNO实验',
+    badge: activeActivities.value.find(a => a.type === 'double_points') ? `双倍积分` : undefined,
+  },
+  {
+    id: 'ai',
+    icon: Bot,
+    iconClass: 'bg-purple-500/10 text-purple-500 border-purple-500/20',
+    title: 'AI 竞技场',
+    description: '单人挑战·练习牌技',
+    badge: undefined,
+  },
+  {
+    id: 'bingo',
+    icon: Grid3x3,
+    iconClass: 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20',
+    title: 'BINGO 对战',
+    description: '组队棋盘·随机分队',
+    badge: activeActivities.value.find(a => a.type === 'bingo') ? '活动进行中' : undefined,
+  },
+])
+
+// Clicking a mode card opens the room-settings modal directly (legacy flow).
+function selectMode(modeId: string) {
+  if (modeId === 'ai') {
+    isPointsMode.value = true
+    isPrivate.value = true
+    showAIArenaModal.value = true
+  } else if (modeId === 'bingo') {
+    createRoomMode.value = 'bingo'
+    showCreateModal.value = true
+  } else {
+    createRoomMode.value = 'normal'
+    showCreateModal.value = true
+  }
+}
+
+const loadActiveActivities = async () => {
+  try {
+    const res = await activityAPI.listActivities()
+    const all = res.data || []
+    const now = Date.now()
+    activeActivities.value = all.filter((a: any) => {
+      if (!a.is_active) return false
+      const start = new Date(a.start_time).getTime()
+      const end = new Date(a.end_time).getTime()
+      return now >= start && now <= end
+    })
+  } catch { /* non-fatal */ }
+  try {
+    const res = await activityAPI.getDoublePointsStatus()
+    if (res.data?.active) {
+      doublePointsRemaining.value = res.data.remaining ?? undefined
+    }
+  } catch { /* non-fatal */ }
+}
+// ──────────────────────────────────────────────────────────────────────────
 const showSurveyModal = ref(false)
 const currentSurvey = ref<any>(null)
 const showLegalModal = ref(false)
@@ -438,6 +510,7 @@ onMounted(() => {
   loadVersion()
   loadSurveys() // 加载问卷调查
   loadCompensationReminder()
+  loadActiveActivities() // 加载活动数据
   websocket.connect()
   websocket.on('online_count', handleOnlineCountUpdate)
   websocket.on('system_announcement', handleSystemAnnouncement)
@@ -579,6 +652,24 @@ const handleCreateRoom = async () => {
     }
   } catch (error: any) {
     showAlert(error.response?.data?.error || '创建房间失败', '系统异常')
+  } finally {
+    loading.value = false
+  }
+}
+
+const handleCreateBingoRoom = async () => {
+  loading.value = true
+  try {
+    const myUID = user.value?.uid
+    if (!myUID) throw new Error('未登录')
+    const res = await bingoAPI.createRoom([myUID], 10, bingoAICount.value, bingoAIDifficulty.value)
+    const room = res.data
+    showCreateModal.value = false
+    bingoAICount.value = 1
+    bingoAIDifficulty.value = 50
+    router.push(`/bingo/rooms/${room.id}`)
+  } catch (error: any) {
+    showAlert(error.response?.data?.error || '创建 BINGO 房间失败', '系统异常')
   } finally {
     loading.value = false
   }
@@ -914,50 +1005,44 @@ const copyToClipboard = (text: string) => {
       </transition>
 
       <main class="flex-1 max-w-[1400px] mx-auto w-full px-4 sm:px-5 py-4 flex flex-col min-h-0">
-        <!-- Welcome & Global Actions -->
-        <div class="hub-header-section">
-          <div class="hub-title-group">
-            <div class="hub-status-badge">
-              <span class="w-1 h-1 bg-blue-500 rounded-full animate-ping"></span>
-              <span class="text-[8px] font-black text-blue-500 uppercase tracking-widest">试验场大厅</span>
-            </div>
-            <h2 class="hub-title">试验场枢纽</h2>
-            <p class="text-[10px] text-slate-500 font-medium max-w-md leading-none">当前有 <span class="text-blue-500 font-black">{{ onlineCount }}</span> 名研究员在线进行博弈。</p>
-          </div>
 
-          <div class="flex items-center gap-3">
-              <div class="hidden xl:flex items-center gap-3 px-3 py-2 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-xl">
-               <div class="text-center min-w-[60px]">
-                 <p class="text-[7px] text-slate-400 uppercase font-black tracking-widest mb-0.5">在线人数</p>
-                 <p class="text-sm font-black text-slate-900 dark:text-white font-mono leading-none">{{ onlineCount }}</p>
-               </div>
-               <div class="w-px h-4 bg-slate-200 dark:bg-white/5"></div>
-               <div class="text-center min-w-[60px]">
-                 <p class="text-[7px] text-slate-400 uppercase font-black tracking-widest mb-0.5">活跃房间</p>
-                 <p class="text-sm font-black text-blue-600 dark:text-blue-400 font-mono leading-none">{{ activeNodesCount }}</p>
-               </div>
-             </div>
+        <!-- ── Activity Banner ────────────────────────────────────────────── -->
+        <ActivityBanner
+          v-if="activeActivities.length > 0"
+          :activities="activeActivities"
+          :double-points-remaining="doublePointsRemaining"
+          class="mb-3"
+          @go="(act) => selectMode(act.type === 'bingo' ? 'bingo' : 'normal')"
+        />
 
-            <button
-              @click="showCreateModal = true"
-              data-tutorial="create-room"
-              class="btn-action-primary"
-            >
-              <Plus class="w-3.5 h-3.5 group-hover:rotate-90 transition-transform duration-500" />
-              <span class="uppercase tracking-widest text-[9px]">开启实验</span>
-            </button>
-
-            <button
-              @click="showAIArenaModal = true; isPointsMode = true; isPrivate = true"
-              data-tutorial="ai-arena"
-              class="btn-action-secondary ml-2"
-            >
-              <div class="relative">
-                <Beaker class="w-3.5 h-3.5" />
-                <div class="absolute -top-1 -right-1 w-2 h-2 bg-yellow-400 rounded-full animate-pulse border-2 border-purple-600"></div>
+        <!-- ── Game Mode Panel ────────────────────────────────────────────── -->
+        <div class="mb-4">
+          <div class="flex items-center justify-between mb-2">
+            <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">选择游戏模式</p>
+            <div class="flex items-center gap-3 px-3 py-1.5 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-xl">
+              <div class="flex items-center gap-1.5">
+                <div class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+                <span class="text-[7px] text-slate-400 uppercase font-black tracking-widest">在线</span>
+                <span class="text-xs font-black text-slate-900 dark:text-white font-mono leading-none">{{ onlineCount }}</span>
               </div>
-              <span class="uppercase tracking-widest text-[9px]">AI 竞技场</span>
-            </button>
+              <div class="w-px h-4 bg-slate-200 dark:bg-white/10"></div>
+              <div class="flex items-center gap-1.5">
+                <span class="text-[7px] text-slate-400 uppercase font-black tracking-widest">活跃房间</span>
+                <span class="text-xs font-black text-blue-600 dark:text-blue-400 font-mono leading-none">{{ activeNodesCount }}</span>
+              </div>
+            </div>
+          </div>
+          <div class="mode-card-grid">
+            <LobbyModeCard
+              v-for="mode in gameModes"
+              :key="mode.id"
+              :icon="mode.icon"
+              :icon-class="mode.iconClass"
+              :title="mode.title"
+              :description="mode.description"
+              :badge="mode.badge"
+              @select="selectMode(mode.id)"
+            />
           </div>
         </div>
 
@@ -1060,143 +1145,34 @@ const copyToClipboard = (text: string) => {
                 <p class="empty-text-secondary">等待玩家创建房间开始游戏...</p>
               </div>
 
-              <!-- Room Cards -->
-              <div 
-                v-for="room in rooms" 
+              <!-- Room Cards (new component) -->
+              <RoomCard
+                v-for="room in rooms"
                 :key="room.id"
-                class="room-card"
-              >
-                <!-- Card Header -->
-                <div class="room-card-header">
-                  <div class="status-indicator">
-                    <div :class="cn(
-                      'status-dot',
-                      room.status === 'waiting' ? (getRoomLiveCountdown(room) > 0 ? 'starting' : 'waiting') :
-                      room.status === 'playing' ? 'playing' : ''
-                    )"></div>
-                    <span class="status-label">
-                      {{ room.status === 'waiting' ? (getRoomLiveCountdown(room) > 0 ? getRoomLiveCountdown(room) + '秒' : '就绪') : room.status === 'playing' ? '进行中' : '已关闭' }}
-                    </span>
-                  </div>
-
-                  <div class="room-type-badges">
-                    <div v-if="isRoomFull(room) && room.status === 'waiting'" class="mode-badge" style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);color:#ef4444;">
-                      满员
-                    </div>
-                    <div v-if="room.is_points_mode" class="mode-badge mode-ranked">
-                      排位
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Card Body -->
-                <div class="room-card-body">
-                  <div class="room-main-info">
-                    <h3 class="room-display-name">{{ room.name }}</h3>
-                    <span class="room-sub-id">房间号: {{ room.id }}</span>
-                  </div>
-
-                  <div class="room-meta-container">
-                    <!-- Config / Deck（在小屏三列布局下隐藏以保持紧凑） -->
-                    <div v-if="room.deck_config" class="meta-item hidden sm:flex">
-                      <span class="meta-label">牌组</span>
-                      <button 
-                        @click.stop="handleViewDeckConfig(room.deck_config)"
-                        class="deck-trigger"
-                      >
-                        <Beaker class="w-3 h-3" />
-                        {{ room.deck_config.name }}
-                      </button>
-                    </div>
-
-                    <!-- Players Occupancy -->
-                    <div class="occupancy-section">
-                      <div class="occupancy-header">
-                        <span class="meta-label">玩家人数</span>
-                        <div class="occupancy-count">
-                          {{ room.players?.length || 0 }}<span class="occupancy-max">/{{ room.max_players }}</span>
-                        </div>
-                      </div>
-                      <div class="progress-track">
-                        <div
-                          class="progress-bar-fill"
-                          :style="{ width: `${((room.players?.length || 0) / room.max_players) * 100}%`, background: isRoomFull(room) ? 'linear-gradient(to right, #ef4444, #dc2626)' : undefined }"
-                        ></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Card Footer Action -->
-                <div class="room-card-footer">
-                  <template v-if="isAdminView">
-                    <button
-                      @click="handleTerminateRoom(room.id)"
-                      class="btn-room-action btn-terminate"
-                    >
-                      <X class="w-3.5 h-3.5" />
-                      结束
-                    </button>
-                    <button
-                      v-if="room.status !== 'playing' && !isRoomFull(room)"
-                      @click="handleJoinRoom(room.id, false)"
-                      class="btn-room-action btn-enter"
-                    >
-                      <Play class="w-3.5 h-3.5 fill-current" />
-                      加入
-                    </button>
-                    <button
-                      @click="handleJoinRoom(room.id, true)"
-                      class="btn-room-action btn-spectate"
-                    >
-                      <Shield class="w-3.5 h-3.5" />
-                      管理员旁观
-                    </button>
-                  </template>
-
-                  <!-- 非私密房间：显示加入和旁观两个选项 -->
-                  <template v-else-if="!room.is_private">
-                    <button
-                      v-if="room.status !== 'playing' && !isRoomFull(room)"
-                      @click="handleJoinRoom(room.id, false)"
-                      class="btn-room-action btn-enter"
-                    >
-                      <Play class="w-3.5 h-3.5 fill-current" />
-                      加入
-                    </button>
-                    <button
-                      @click="handleJoinRoom(room.id, true)"
-                      class="btn-room-action btn-spectate"
-                    >
-                      <Shield class="w-3.5 h-3.5" />
-                      旁观
-                    </button>
-                  </template>
-                  
-                  <!-- 私密房间：仅显示加入或旁观 -->
-                  <button
-                    v-else
-                    @click="handleJoinRoom(room.id, room.status === 'playing' || isRoomFull(room))"
-                    :class="cn(
-                      'btn-room-action',
-                      room.status === 'playing' || isRoomFull(room) ? 'btn-spectate' : 'btn-enter'
-                    )"
-                  >
-                    <component :is="room.status === 'playing' || isRoomFull(room) ? Shield : Play" class="w-3.5 h-3.5" :class="room.status !== 'playing' && !isRoomFull(room) ? 'fill-current' : ''" />
-                    {{ room.status === 'playing' || isRoomFull(room) ? '旁观' : '加入' }}
-                  </button>
-                </div>
-              </div>
-                </div> <!-- room-grid end -->
+                :room="room"
+                :admin-view="isAdminView"
+                :countdown="getRoomLiveCountdown(room)"
+                @join="handleJoinRoom"
+                @terminate="handleTerminateRoom"
+                @view-deck="handleViewDeckConfig"
+              />
+            </div>
             </div> <!-- lobby-content-pane end -->
             
-            <!-- Right Column: World Chat & Team -->
+            <!-- Right Column: World Chat -->
             <div class="lobby-sidebar-pane bg-white/40 dark:bg-black/20 rounded-2xl overflow-hidden border border-slate-200 dark:border-white/5 flex flex-col gap-2">
-                <TeamPanel />
                 <ChatBox title="全域通信频率" placeholder="发送消息..." maxHeight="100%" class="h-full flex-1" />
             </div>
         </div> <!-- lobby-main-grid end -->
       </main>
+
+      <!-- Lobby Status Bar -->
+      <div v-if="doublePointsRemaining !== undefined" class="lobby-status-bar">
+        <div class="lobby-status-bar__item">
+          <div class="lobby-status-bar__dot"></div>
+          双倍积分今日剩余 <span class="lobby-status-bar__val">{{ doublePointsRemaining }}</span>
+        </div>
+      </div>
 
       <!-- Global Footer Terminal -->
       <footer class="lobby-footer bg-black/40 backdrop-blur-md p-4 shrink-0">
@@ -1280,8 +1256,8 @@ const copyToClipboard = (text: string) => {
                 <Plus class="w-5 h-5" />
               </div>
               <div>
-                <h2 class="text-base sm:text-lg font-black text-slate-800 dark:text-white tracking-tight leading-none">开启新实验</h2>
-                <p class="text-label-mobile text-slate-400 dark:text-slate-500 font-mono uppercase tracking-widest mt-0.5 sm:mt-1">Setup_Experiment</p>
+                <h2 class="text-base sm:text-lg font-black text-slate-800 dark:text-white tracking-tight leading-none">{{ createRoomMode === 'bingo' ? 'BINGO 人机对战' : '开启新实验' }}</h2>
+                <p class="text-label-mobile text-slate-400 dark:text-slate-500 font-mono uppercase tracking-widest mt-0.5 sm:mt-1">{{ createRoomMode === 'bingo' ? 'Bingo_PvE' : 'Setup_Experiment' }}</p>
               </div>
             </div>
             <button
@@ -1292,8 +1268,62 @@ const copyToClipboard = (text: string) => {
             </button>
          </div>
 
-        <form @submit.prevent="handleCreateRoom" class="flex flex-col min-h-0">
+        <form @submit.prevent="createRoomMode === 'bingo' ? handleCreateBingoRoom() : handleCreateRoom()" class="flex flex-col min-h-0">
           <div class="modal-content-mobile space-y-4 sm:space-y-5 overflow-y-auto custom-scrollbar flex-1">
+
+            <!-- BINGO mode settings -->
+            <template v-if="createRoomMode === 'bingo'">
+              <div class="p-4 bg-indigo-50 dark:bg-indigo-500/5 border border-indigo-200 dark:border-indigo-500/20 rounded-xl">
+                <p class="text-xs font-bold text-indigo-600 dark:text-indigo-400 mb-1">🎯 BINGO 人机对战</p>
+                <p class="text-[10px] text-indigo-500/80 dark:text-indigo-400/60">你（及队友）vs AI 队伍，棋盘争夺战！队伍在开局时随机分配。</p>
+              </div>
+
+              <div class="space-y-2">
+                <div class="flex justify-between items-center px-1">
+                  <label class="text-label-mobile font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">AI 对手数量</label>
+                  <span class="text-caption-mobile text-indigo-500/40 font-mono">AI_COUNT: {{ bingoAICount }}</span>
+                </div>
+                <div class="grid grid-cols-3 gap-2.5">
+                  <button
+                    v-for="n in [1, 2, 3]"
+                    :key="n"
+                    type="button"
+                    @click="bingoAICount = n"
+                    :class="cn(
+                      'h-11 rounded-xl text-xs font-black border transition-all flex items-center justify-center touch-feedback',
+                      bingoAICount === n
+                        ? 'bg-indigo-500/10 border-indigo-500/50 text-indigo-600 dark:text-indigo-400 ring-1 ring-indigo-500/20'
+                        : 'bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/5 text-slate-400'
+                    )"
+                  >{{ n }} AI</button>
+                </div>
+              </div>
+
+              <div class="space-y-2">
+                <div class="flex justify-between items-center px-1">
+                  <label class="text-label-mobile font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">AI 难度</label>
+                  <span class="text-caption-mobile text-indigo-500/40 font-mono">DIFFICULTY: {{ bingoAIDifficulty }}</span>
+                </div>
+                <div class="p-4 bg-indigo-50 dark:bg-indigo-500/5 border border-indigo-200 dark:border-indigo-500/20 rounded-xl">
+                  <input
+                    v-model.number="bingoAIDifficulty"
+                    type="range"
+                    min="10"
+                    max="90"
+                    step="10"
+                    class="w-full h-2 bg-indigo-200 dark:bg-indigo-500/20 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                  />
+                  <div class="flex justify-between mt-2">
+                    <span class="text-caption-mobile text-indigo-600 dark:text-indigo-400 font-mono">简单(10)</span>
+                    <span class="text-caption-mobile text-indigo-600 dark:text-indigo-400 font-mono">中等(50)</span>
+                    <span class="text-caption-mobile text-indigo-600 dark:text-indigo-400 font-mono">困难(90)</span>
+                  </div>
+                </div>
+              </div>
+            </template>
+
+            <!-- Normal mode settings -->
+            <template v-else>
             <div class="space-y-2">
             <div class="flex justify-between items-center px-1">
                <label class="text-label-mobile font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">实验空间命名</label>
@@ -1505,6 +1535,7 @@ const copyToClipboard = (text: string) => {
             </div>
           </div>
 
+            </template>
           </div>
           <div class="p-5 sm:p-6 border-t border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.02] flex gap-3 shrink-0">
             <button

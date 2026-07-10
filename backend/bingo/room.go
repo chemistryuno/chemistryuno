@@ -12,6 +12,7 @@ import (
 
 const DefaultBoardSize = 5
 const DefaultTimeoutMinutes = 10
+const AIUIDBase = 1000000 // AI UIDs start at 1000000
 
 // team index constants
 const (
@@ -39,8 +40,10 @@ type BingoBoard struct {
 // BingoRoom holds the in-memory state of a running BINGO game.
 type BingoRoom struct {
 	ID             uint
-	TeamAMembers   []uint // UIDs on team A (randomly assigned at creation)
+	TeamAMembers   []uint // UIDs on team A (randomly assigned at creation; may include AI)
 	TeamBMembers   []uint // UIDs on team B
+	AIMembers      []uint // UIDs that are AI-controlled (subset of TeamA + TeamB)
+	AIDifficulty   int    // AI difficulty (10-90)
 	Board          *BingoBoard
 	Status         string // waiting, playing, finished
 	TimeoutMinutes int
@@ -160,24 +163,36 @@ func GetPlayerTeammates(uid uint) []uint {
 	return nil
 }
 
-// CreateRoom creates a new BINGO room with randomly assigned teams.
-func CreateRoom(playerUIDs []uint, timeoutMinutes int) (*BingoRoom, error) {
-	if len(playerUIDs) < 2 {
-		return nil, errors.New("至少需要 2 名玩家")
+// CreateRoom creates a new BINGO room with randomly assigned teams. Supports AI opponents.
+func CreateRoom(playerUIDs []uint, timeoutMinutes, aiCount, aiDifficulty int) (*BingoRoom, error) {
+	if len(playerUIDs)+aiCount < 2 {
+		return nil, errors.New("至少需要 2 名玩家（含AI）")
 	}
 	if timeoutMinutes <= 0 {
 		timeoutMinutes = DefaultTimeoutMinutes
 	}
+	if aiDifficulty < 10 {
+		aiDifficulty = 10
+	}
+	if aiDifficulty > 90 {
+		aiDifficulty = 90
+	}
 
-	// Shuffle players and split into two teams.
+	// Generate AI placeholder UIDs.
+	aiUIDs := make([]uint, aiCount)
+	for i := 0; i < aiCount; i++ {
+		aiUIDs[i] = uint(AIUIDBase + i + 1)
+	}
+
+	// Merge human + AI UIDs and shuffle.
+	allUIDs := append([]uint{}, playerUIDs...)
+	allUIDs = append(allUIDs, aiUIDs...)
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-	shuffled := make([]uint, len(playerUIDs))
-	copy(shuffled, playerUIDs)
-	rng.Shuffle(len(shuffled), func(i, j int) { shuffled[i], shuffled[j] = shuffled[j], shuffled[i] })
+	rng.Shuffle(len(allUIDs), func(i, j int) { allUIDs[i], allUIDs[j] = allUIDs[j], allUIDs[i] })
 
-	half := len(shuffled) / 2
-	teamA := shuffled[:half]
-	teamB := shuffled[half:]
+	half := len(allUIDs) / 2
+	teamA := allUIDs[:half]
+	teamB := allUIDs[half:]
 
 	// Generate the board.
 	cells, err := generateBoard(DefaultBoardSize)
@@ -190,12 +205,15 @@ func CreateRoom(playerUIDs []uint, timeoutMinutes int) (*BingoRoom, error) {
 	boardJSON, _ := json.Marshal(board)
 	teamAJSON, _ := json.Marshal(teamA)
 	teamBJSON, _ := json.Marshal(teamB)
+	aiMembersJSON, _ := json.Marshal(aiUIDs)
 
 	dbRoom := database.BingoRoom{
-		TeamAMembers:   database.JSON(teamAJSON),
-		TeamBMembers:   database.JSON(teamBJSON),
-		Board:          database.JSON(boardJSON),
-		Status:         "waiting",
+		TeamAMembers: database.JSON(teamAJSON),
+		TeamBMembers: database.JSON(teamBJSON),
+		AIMembers:    database.JSON(aiMembersJSON),
+		AIDifficulty: aiDifficulty,
+		Board:        database.JSON(boardJSON),
+		Status:       "waiting",
 		TimeoutMinutes: timeoutMinutes,
 	}
 	if err := database.DB.Create(&dbRoom).Error; err != nil {
@@ -206,6 +224,8 @@ func CreateRoom(playerUIDs []uint, timeoutMinutes int) (*BingoRoom, error) {
 		ID:             dbRoom.ID,
 		TeamAMembers:   teamA,
 		TeamBMembers:   teamB,
+		AIMembers:      aiUIDs,
+		AIDifficulty:   aiDifficulty,
 		Board:          board,
 		Status:         "waiting",
 		TimeoutMinutes: timeoutMinutes,
@@ -323,6 +343,15 @@ func (r *BingoRoom) VoteRefresh(teamIdx int, agree bool) (refreshed bool, err er
 		return false, errors.New("无效的队伍")
 	}
 
+	// AI teams auto-agree so a single human can decide the refresh in PvE.
+	autoYes := true
+	if r.VoteA == nil && r.IsTeamAI(TeamA) {
+		r.VoteA = &autoYes
+	}
+	if r.VoteB == nil && r.IsTeamAI(TeamB) {
+		r.VoteB = &autoYes
+	}
+
 	if r.VoteA == nil || r.VoteB == nil {
 		return false, nil
 	}
@@ -341,7 +370,7 @@ func (r *BingoRoom) VoteRefresh(teamIdx int, agree bool) (refreshed bool, err er
 	return false, nil
 }
 
-// StartGame transitions the room to playing state and starts the timeout timer.
+// StartGame transitions the room to playing state, deals hands, and starts the timeout timer.
 func (r *BingoRoom) StartGame(onTimeout func(roomID uint)) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -349,8 +378,71 @@ func (r *BingoRoom) StartGame(onTimeout func(roomID uint)) {
 	r.StartedAt = &now
 	r.Status = "playing"
 	database.DB.Model(&database.BingoRoom{}).Where("id = ?", r.ID).Update("status", "playing")
+
+	r.dealHandsUnlocked()
+
 	dur := time.Duration(r.TimeoutMinutes) * time.Minute
 	r.Timer = time.AfterFunc(dur, func() { onTimeout(r.ID) })
+}
+
+const HandSize = 10
+
+// dealHandsUnlocked deals HandSize cards to every player (human and AI). Must hold mu.
+// Cards are drawn from the board's own substances so that hands are actually playable —
+// a card can only occupy a cell whose substance matches it.
+func (r *BingoRoom) dealHandsUnlocked() {
+	allUIDs := append([]uint{}, r.TeamAMembers...)
+	allUIDs = append(allUIDs, r.TeamBMembers...)
+
+	// Collect all substances currently on the board.
+	boardCards := make([]HandCard, 0, r.Board.Size*r.Board.Size)
+	for _, row := range r.Board.Cells {
+		for _, cell := range row {
+			boardCards = append(boardCards, HandCard{
+				SubstanceID: cell.SubstanceID,
+				Formula:     cell.Formula,
+				Name:        cell.Name,
+			})
+		}
+	}
+	if len(boardCards) == 0 {
+		return
+	}
+
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	for _, uid := range allUIDs {
+		hand := make([]HandCard, 0, HandSize)
+		for i := 0; i < HandSize; i++ {
+			hand = append(hand, boardCards[rng.Intn(len(boardCards))])
+		}
+		r.Hands[uid] = hand
+	}
+}
+
+// IsAI returns true if the given UID is an AI player in this room.
+func (r *BingoRoom) IsAI(uid uint) bool {
+	for _, ai := range r.AIMembers {
+		if ai == uid {
+			return true
+		}
+	}
+	return false
+}
+
+// IsTeamAI returns true if all members of the given team (0=A, 1=B) are AI.
+func (r *BingoRoom) IsTeamAI(teamIdx int) bool {
+	var members []uint
+	if teamIdx == TeamA {
+		members = r.TeamAMembers
+	} else {
+		members = r.TeamBMembers
+	}
+	for _, m := range members {
+		if !r.IsAI(m) {
+			return false
+		}
+	}
+	return len(members) > 0
 }
 
 // SwapCells swaps the substances at two board positions (turn-based).
@@ -387,6 +479,9 @@ func (r *BingoRoom) OccupyCell(teamIdx int, row, col int) (win bool, err error) 
 	if r.Status != "playing" {
 		return false, errors.New("游戏未在进行中")
 	}
+	if r.CurrentTurn != teamIdx {
+		return false, errors.New("未到你的回合")
+	}
 	size := r.Board.Size
 	if row < 0 || row >= size || col < 0 || col >= size {
 		return false, errors.New("坐标超出范围")
@@ -399,11 +494,55 @@ func (r *BingoRoom) OccupyCell(teamIdx int, row, col int) (win bool, err error) 
 	ownerVal := uint(teamIdx + 1)
 	cell.OwnerTeamID = &ownerVal
 
+	// Find a teammate UID (any human on this team will do, or pick first member).
+	var actorUID uint
+	members := r.TeamAMembers
+	if teamIdx == TeamB {
+		members = r.TeamBMembers
+	}
+	if len(members) > 0 {
+		actorUID = members[0]
+	}
+	// Remove the card matching this cell's substance from the actor's hand.
+	if actorUID != 0 {
+		hand := r.Hands[actorUID]
+		for i, c := range hand {
+			if c.SubstanceID == cell.SubstanceID {
+				r.Hands[actorUID] = append(hand[:i], hand[i+1:]...)
+				break
+			}
+		}
+		// Replenish: draw a new card from the board.
+		r.drawOneCardUnlocked(actorUID)
+	}
+
 	win = r.checkWinUnlocked(teamIdx)
 	if win || r.isBoardFullUnlocked() {
 		r.finishUnlocked(teamIdx)
+	} else {
+		// Occupying consumes the turn, same as a swap.
+		r.switchTurnUnlocked()
 	}
 	return win, nil
+}
+
+// drawOneCardUnlocked draws one random card from the board's substances into uid's hand. Must hold mu.
+func (r *BingoRoom) drawOneCardUnlocked(uid uint) {
+	boardCards := make([]HandCard, 0, r.Board.Size*r.Board.Size)
+	for _, row := range r.Board.Cells {
+		for _, cell := range row {
+			boardCards = append(boardCards, HandCard{
+				SubstanceID: cell.SubstanceID,
+				Formula:     cell.Formula,
+				Name:        cell.Name,
+			})
+		}
+	}
+	if len(boardCards) == 0 {
+		return
+	}
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	r.Hands[uid] = append(r.Hands[uid], boardCards[rng.Intn(len(boardCards))])
 }
 
 // TimeoutSettle settles by cell count.

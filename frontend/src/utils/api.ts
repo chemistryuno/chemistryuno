@@ -829,8 +829,14 @@ export const teamAPI = {
 // ---- BINGO API ----
 export const bingoAPI = {
   // playerUIDs: list of participant UIDs — teams are randomly assigned at creation time
-  createRoom: (playerUIDs: number[], timeoutMinutes?: number) =>
-    api.post('/bingo/rooms', { player_uids: playerUIDs, timeout_minutes: timeoutMinutes }),
+  // aiCount & aiDifficulty: optional AI opponents (AICount=0 for human-only games)
+  createRoom: (playerUIDs: number[], timeoutMinutes?: number, aiCount?: number, aiDifficulty?: number) =>
+    api.post('/bingo/rooms', {
+      player_uids: playerUIDs,
+      timeout_minutes: timeoutMinutes,
+      ai_count: aiCount || 0,
+      ai_difficulty: aiDifficulty || 50,
+    }),
   getRoom: (id: number) => api.get(`/bingo/rooms/${id}`),
   startGame: (id: number) => api.post(`/bingo/rooms/${id}/start`),
   voteRefresh: (id: number, agree: boolean) => api.post(`/bingo/rooms/${id}/vote-refresh`, { agree }),

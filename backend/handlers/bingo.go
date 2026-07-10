@@ -8,6 +8,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func init() {
+	bingo.OnAITurnDone = func(room *bingo.BingoRoom) {
+		broadcastBingoUpdate(room)
+	}
+}
+
 // getBingoPlayerHand is a bridge used by GetTeammateHand in team.go.
 func getBingoPlayerHand(uid uint) []bingo.HandCard {
 	return bingo.GetPlayerHand(uid)
@@ -15,21 +21,24 @@ func getBingoPlayerHand(uid uint) []bingo.HandCard {
 
 // CreateBingoRoom creates a new BINGO room with randomly assigned teams.
 // The caller provides the list of participant UIDs; teams are split randomly at creation time.
+// Supports AI opponents: specify ai_count and ai_difficulty.
 func CreateBingoRoom(c *gin.Context) {
 	var req struct {
 		PlayerUIDs     []uint `json:"player_uids" binding:"required"`
 		TimeoutMinutes int    `json:"timeout_minutes"`
+		AICount        int    `json:"ai_count"`
+		AIDifficulty   int    `json:"ai_difficulty"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if len(req.PlayerUIDs) < 2 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "至少需要 2 名玩家"})
+	if len(req.PlayerUIDs)+req.AICount < 2 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "至少需要 2 名玩家（含AI）"})
 		return
 	}
 
-	room, err := bingo.CreateRoom(req.PlayerUIDs, req.TimeoutMinutes)
+	room, err := bingo.CreateRoom(req.PlayerUIDs, req.TimeoutMinutes, req.AICount, req.AIDifficulty)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -119,6 +128,7 @@ func StartBingoGame(c *gin.Context) {
 		}
 	})
 	broadcastBingoUpdate(room)
+	bingo.TriggerAITurnIfNeeded(room)
 	c.JSON(http.StatusOK, bingoRoomView(room))
 }
 
@@ -162,6 +172,7 @@ func SwapBingoCells(c *gin.Context) {
 	}
 
 	broadcastBingoUpdate(room)
+	bingo.TriggerAITurnIfNeeded(room)
 	c.JSON(http.StatusOK, bingoRoomView(room))
 }
 
@@ -207,10 +218,17 @@ func OccupyBingoCell(c *gin.Context) {
 
 	win, err := room.OccupyCell(teamIdx, req.Row, req.Col)
 	if err != nil {
+		if err.Error() == "未到你的回合" {
+			c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	broadcastBingoUpdate(room)
+	if !win {
+		bingo.TriggerAITurnIfNeeded(room)
+	}
 	c.JSON(http.StatusOK, gin.H{"correct": true, "win": win})
 }
 
@@ -223,6 +241,8 @@ func bingoRoomView(room *bingo.BingoRoom) interface{} {
 		"id":               room.ID,
 		"team_a_members":   room.TeamAMembers,
 		"team_b_members":   room.TeamBMembers,
+		"ai_members":       room.AIMembers,
+		"ai_difficulty":    room.AIDifficulty,
 		"board":            room.Board,
 		"status":           room.Status,
 		"current_turn":     room.CurrentTurn,

@@ -82,6 +82,8 @@ type BingoRoom struct {
 	ID             uint      `gorm:"primaryKey;autoIncrement" json:"id"`
 	TeamAMembers   JSON      `gorm:"type:text" json:"team_a_members"` // JSON array of UIDs
 	TeamBMembers   JSON      `gorm:"type:text" json:"team_b_members"` // JSON array of UIDs
+	AIMembers      JSON      `gorm:"type:text" json:"ai_members"`     // JSON array of AI UIDs (subset of TeamA + TeamB)
+	AIDifficulty   int       `gorm:"default:50" json:"ai_difficulty"` // AI difficulty (10-90)
 	Board          JSON      `gorm:"type:text" json:"board"`
 	Status         string    `gorm:"size:30;default:waiting;index" json:"status"` // waiting, playing, finished
 	TimeoutMinutes int       `gorm:"default:10" json:"timeout_minutes"`

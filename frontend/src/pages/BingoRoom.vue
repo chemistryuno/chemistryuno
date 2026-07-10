@@ -133,14 +133,14 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { bingoAPI } from '../utils/api'
+import websocket from '../utils/websocket'
 import TeamChat from '../components/TeamChat.vue'
 import TeamHandViewer from '../components/TeamHandViewer.vue'
 import BingoBoard from '../components/BingoBoard.vue'
 
 const route = useRoute()
-const router = useRouter()
 const roomId = computed(() => Number(route.params.id))
 
 const room = ref<any>(null)
@@ -221,12 +221,26 @@ const teammateUID = computed(() => {
   return members.find((uid: number) => uid !== myUID.value && !isAIUid(uid)) || 0
 })
 
+const bingoChannel = computed(() => `bingo_${roomId.value}`)
+
+function handleBingoUpdate() {
+  // Server-authoritative state changed; re-fetch room (and hand) via REST.
+  loadRoom()
+}
+
 onMounted(async () => {
   await loadRoom()
-  pollInterval = setInterval(loadRoom, 3000)
+  // Real-time updates via websocket; keep polling as a slow fallback in case
+  // the socket is down (reconnecting, blocked, etc.).
+  websocket.connect()
+  websocket.joinRoom(bingoChannel.value)
+  websocket.on('bingo_update', handleBingoUpdate)
+  pollInterval = setInterval(loadRoom, 15000)
 })
 
 onUnmounted(() => {
+  websocket.off('bingo_update', handleBingoUpdate)
+  websocket.leaveRoom()
   clearInterval(pollInterval)
   clearInterval(countdownInterval)
 })
@@ -242,6 +256,17 @@ async function loadRoom() {
         timeLeft.value = Math.max(0, timeLeft.value - 1)
       }, 1000)
     }
+    // Refresh own hand once the game is running and we're a participant.
+    if (res.data?.status === 'playing' && myTeamIdx.value >= 0) {
+      await loadMyHand()
+    }
+  } catch { /* ignore */ }
+}
+
+async function loadMyHand() {
+  try {
+    const res = await bingoAPI.getMyHand(roomId.value)
+    myHand.value = res.data?.hand || []
   } catch { /* ignore */ }
 }
 

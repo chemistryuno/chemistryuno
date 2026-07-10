@@ -186,6 +186,7 @@ func RegisterAPIRoutes(r *gin.Engine, startTime time.Time, wsHandler gin.Handler
 			auth.POST("/bingo/rooms/:id/vote-refresh", handlers.VoteBingoRefresh)
 			auth.POST("/bingo/rooms/:id/swap", handlers.SwapBingoCells)
 			auth.POST("/bingo/rooms/:id/occupy", handlers.OccupyBingoCell)
+			auth.GET("/bingo/rooms/:id/my-hand", handlers.GetMyBingoHand)
 
 			// 版本与活动管理（仅管理员）
 			activityAdmin := auth.Group("/")

@@ -844,6 +844,7 @@ export const bingoAPI = {
     api.post(`/bingo/rooms/${id}/swap`, { r1, c1, r2, c2 }),
   occupyCell: (id: number, row: number, col: number, substanceId: number) =>
     api.post(`/bingo/rooms/${id}/occupy`, { row, col, substance_id: substanceId }),
+  getMyHand: (id: number) => api.get(`/bingo/rooms/${id}/my-hand`),
 }
 
 export default api

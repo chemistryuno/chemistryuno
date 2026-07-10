@@ -131,6 +131,20 @@ func MigrateActivityBingoTables(db *gorm.DB) error {
 		log.Printf("Warning: AutoMigrate for activity/bingo tables: %v", err)
 	}
 
+	// Drop deprecated NOT NULL columns left over from an earlier BingoRoom schema.
+	// team_a_id/team_b_id predate the JSON team_*_members columns; AutoMigrate adds
+	// the new columns but never removes the old NOT NULL ones, so every insert fails
+	// the constraint until they are gone. DropColumn rebuilds the table on SQLite.
+	for _, col := range []string{"team_a_id", "team_b_id"} {
+		if db.Migrator().HasColumn(&BingoRoom{}, col) {
+			if err := db.Migrator().DropColumn(&BingoRoom{}, col); err != nil {
+				log.Printf("Warning: failed to drop deprecated bingo_rooms.%s: %v", col, err)
+			} else {
+				log.Printf("Dropped deprecated bingo_rooms.%s column", col)
+			}
+		}
+	}
+
 	log.Println("Activity/bingo migrations completed")
 	return nil
 }

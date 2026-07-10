@@ -95,6 +95,20 @@ func GetBingoRoomID(roomID uint) string {
 	return fmt.Sprintf("bingo_%d", roomID)
 }
 
+// GetHand returns a copy of a player's hand within this room, or nil if the
+// player has no hand (e.g. game not started or not a participant).
+func (r *BingoRoom) GetHand(uid uint) []HandCard {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	hand, ok := r.Hands[uid]
+	if !ok {
+		return nil
+	}
+	cp := make([]HandCard, len(hand))
+	copy(cp, hand)
+	return cp
+}
+
 // GetPlayerHand returns a copy of a player's hand, or nil if not found.
 func GetPlayerHand(uid uint) []HandCard {
 	roomsMu.RLock()

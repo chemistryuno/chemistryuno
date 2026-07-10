@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"chemistryuno/backend/bingo"
+	"chemistryuno/backend/websocket"
 	"net/http"
 	"strconv"
 
@@ -232,8 +233,38 @@ func OccupyBingoCell(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"correct": true, "win": win})
 }
 
+// broadcastBingoUpdate pushes the latest room state to all clients subscribed
+// to the room's websocket channel. Clients receive a "bingo_update" event and
+// re-fetch authoritative state (including their private hand) via REST.
 func broadcastBingoUpdate(room *bingo.BingoRoom) {
-	// No-op stub — websocket push can be wired here in the future.
+	if websocket.GlobalHub == nil || room == nil {
+		return
+	}
+	websocket.GlobalHub.BroadcastToRoom(bingo.GetBingoRoomID(room.ID), websocket.Message{
+		Type:   "bingo_update",
+		RoomID: bingo.GetBingoRoomID(room.ID),
+		Data:   bingoRoomView(room),
+	})
+}
+
+// GetMyBingoHand returns the caller's own hand in a BINGO room.
+func GetMyBingoHand(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	room := bingo.GetRoom(uint(id))
+	if room == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "房间不存在"})
+		return
+	}
+	uid := uint(c.GetInt("uid"))
+	if room.GetTeamForUID(uid) < 0 {
+		c.JSON(http.StatusForbidden, gin.H{"error": "不是该房间的参与者"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"hand": room.GetHand(uid)})
 }
 
 func bingoRoomView(room *bingo.BingoRoom) interface{} {
@@ -248,5 +279,8 @@ func bingoRoomView(room *bingo.BingoRoom) interface{} {
 		"current_turn":     room.CurrentTurn,
 		"timeout_minutes":  room.TimeoutMinutes,
 		"winner_team_idx":  room.WinnerTeamIdx,
+		"vote_a":           room.VoteA,
+		"vote_b":           room.VoteB,
+		"refreshed":        room.Refreshed,
 	}
 }

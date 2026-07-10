@@ -471,6 +471,43 @@ func main() {
 			auth.GET("/player/sanctions", handlers.GetPlayerSanctions)
 			auth.POST("/game/:roomId/appeal", handlers.SubmitAppeal)
 
+			// 活动模块（普通用户只读）
+			auth.GET("/activities", handlers.ListActivities)
+			auth.GET("/activities/double-points/status", handlers.GetDoublePointsStatus)
+			auth.POST("/activities/double-points/trigger", handlers.TriggerDoublePoints)
+
+			// 组队系统
+			auth.POST("/teams", handlers.CreateTeam)
+			auth.POST("/teams/join", handlers.JoinTeam)
+			auth.POST("/teams/leave", handlers.LeaveTeam)
+			auth.POST("/teams/disband", handlers.DisbandTeam)
+			auth.GET("/teams/my", handlers.GetMyTeam)
+			auth.GET("/teams/chat/history", handlers.GetTeamHistory)
+			auth.GET("/teams/chat/ws", handlers.TeamChat)
+			auth.GET("/teams/members/:uid/hand", handlers.GetTeammateHand)
+
+			// BINGO 游戏
+			auth.POST("/bingo/rooms", handlers.CreateBingoRoom)
+			auth.GET("/bingo/rooms/:id", handlers.GetBingoRoom)
+			auth.POST("/bingo/rooms/:id/start", handlers.StartBingoGame)
+			auth.POST("/bingo/rooms/:id/vote-refresh", handlers.VoteBingoRefresh)
+			auth.POST("/bingo/rooms/:id/swap", handlers.SwapBingoCells)
+			auth.POST("/bingo/rooms/:id/occupy", handlers.OccupyBingoCell)
+			auth.GET("/bingo/rooms/:id/my-hand", handlers.GetMyBingoHand)
+
+			// 版本与活动管理（需要协作者权限）
+			activityAdmin := auth.Group("/")
+			activityAdmin.Use(middleware.CoWorkerMiddleware())
+			{
+				activityAdmin.GET("/game-versions", handlers.ListGameVersions)
+				activityAdmin.POST("/game-versions", handlers.CreateGameVersion)
+				activityAdmin.PUT("/game-versions/:id", handlers.UpdateGameVersion)
+				activityAdmin.POST("/activities", handlers.CreateActivity)
+				activityAdmin.PUT("/activities/:id", handlers.UpdateActivity)
+				activityAdmin.PATCH("/activities/:id", handlers.UpdateActivity)
+				activityAdmin.POST("/activities/:id/toggle", handlers.ToggleActivity)
+			}
+
 		}
 
 		// 管理员路由
